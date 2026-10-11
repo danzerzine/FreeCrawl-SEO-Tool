@@ -184,6 +184,14 @@ import {
   type Ga4FetchMeta,
   type Ga4QueryInput,
   type Ga4QueryResult,
+  type MetricaIntegrationSettings,
+  defaultMetricaSettings,
+  type MetricaListCountersResult,
+  type MetricaFetchInput,
+  type MetricaFetchResult,
+  type MetricaFetchMeta,
+  type MetricaQueryInput,
+  type MetricaQueryResult,
   type AiRunInput,
   type AiRunResult,
   type AiQueryInput,
@@ -344,6 +352,7 @@ import {
 import { exportCategoryToSheets } from './sheets-export.js';
 import { exportCategoryToBigQuery } from './bigquery-export.js';
 import { listProperties as ga4ListProperties, runReport as ga4RunReport } from './ga4.js';
+import { listCounters as metricaListCounters, fetchPageMetrics as metricaFetchPageMetrics } from './metrica.js';
 import { runAiBatch, type AiBatchItem } from './ai-batch.js';
 import { resolveModel, defaultConcurrency } from './ai-providers.js';
 import { runSeoBatch } from './seo-batch.js';
@@ -6531,6 +6540,133 @@ function registerIpc(): void {
       try {
         const raw = getDb().getMeta(googleMetaKey('ga4FetchMeta', accountId));
         if (raw) meta = JSON.parse(raw) as Ga4FetchMeta;
+      } catch {
+        /* no / corrupt meta — render without the context line */
+      }
+      return { rows: result.rows, total: result.total, meta };
+    },
+  );
+
+  // Yandex Metrica. Same shape as GA4: list counters, fetch a date-range
+  // snapshot, query crawled pages joined with the stored data. Auth is a
+  // personal token from the credential store; rows are keyed by counter.
+  const metricaToken = (): string => {
+    const token = resolveCredentials('metrica')['token']?.trim() ?? '';
+    if (!token) {
+      throw new Error(
+        'Yandex Metrica is not connected — paste a token in Settings → Integrations → Yandex Metrica.',
+      );
+    }
+    return token;
+  };
+  const resolveMetricaSettings = (): MetricaIntegrationSettings =>
+    ({
+      ...defaultMetricaSettings(),
+      ...(readIntegrationSettings('metrica') ?? {}),
+    }) as MetricaIntegrationSettings;
+  /** Normaliser that maps Metrica's raw page URLs onto `urls.url` with the
+   *  project's own URL rewrite options, so the join matches the crawl. */
+  const crawlUrlNormalizer = (): ((url: string) => string | null) => {
+    const sess = currentSession();
+    let config = sess.lastCrawlConfig;
+    if (!config) config = restoreProjectConfig(sess.getDb());
+    const c = config ?? DEFAULT_CRAWL_CONFIG;
+    const rewrites = {
+      stripWww: c.stripWww,
+      forceHttps: c.forceHttps,
+      lowercasePath: c.lowercasePath,
+      trailingSlash: c.trailingSlash,
+      keepQueryParams: c.keepQueryParams,
+      sortQueryParams: c.sortQueryParams,
+      collapseDuplicateSlashes: c.collapseDuplicateSlashes,
+      keepHashRoutes: c.renderingMode === 'js' && c.jsRender?.spaRouting === true,
+      regexRewrites: compileUrlRegexRewrites(c.urlRegexRewrites),
+    };
+    return (url) => normalizeUrl(url, undefined, rewrites);
+  };
+  registerHandle(
+    IPC.metricaListCounters,
+    async (): Promise<MetricaListCountersResult> => {
+      try {
+        return { ok: true, error: null, counters: await metricaListCounters(metricaToken()) };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          counters: [],
+        };
+      }
+    },
+  );
+  registerHandle(
+    IPC.metricaFetch,
+    async (_e, input: MetricaFetchInput): Promise<MetricaFetchResult> => {
+      const counterId = String(input.counterId ?? '').trim();
+      if (!/^\d+$/.test(counterId)) {
+        return { ok: false, error: 'No Yandex Metrica counter selected.', rowCount: 0, meta: null };
+      }
+      // Metrica data is near-realtime — end the range at today, like GA4.
+      const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
+      const end = new Date();
+      const start = new Date(end.getTime() - (input.days - 1) * 86_400_000);
+      const startDate = isoDate(start);
+      const endDate = isoDate(end);
+      const runDb = getDb();
+      const counterName = input.counterName || counterId;
+      writeIntegrationSettings('metrica', { counterId, counterName, days: input.days });
+      try {
+        const result = await metricaFetchPageMetrics(
+          metricaToken(),
+          counterId,
+          startDate,
+          endDate,
+          crawlUrlNormalizer(),
+        );
+        const fetchedAt = new Date().toISOString();
+        runDb.replaceMetricaResults(result.rows, fetchedAt, counterId);
+        const meta: MetricaFetchMeta = {
+          counterId,
+          counterName,
+          startDate,
+          endDate,
+          fetchedAt,
+          rowCount: result.rows.length,
+          truncated: result.truncated,
+          totals: result.totals,
+        };
+        runDb.setMeta(`metricaFetchMeta:${counterId}`, JSON.stringify(meta));
+        fireDataChanged();
+        logger.log('info', 'metrica', `Metrica pull stored — ${result.rows.length} page row(s)`);
+        return { ok: true, error: null, rowCount: result.rows.length, meta };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          rowCount: 0,
+          meta: null,
+        };
+      }
+    },
+  );
+  registerHandle(
+    IPC.metricaQuery,
+    async (_e, input: MetricaQueryInput): Promise<MetricaQueryResult> => {
+      const counterId = input.counterId || resolveMetricaSettings().counterId;
+      const params = {
+        limit: input.limit,
+        offset: input.offset,
+        search: input.search,
+        filter: input.filter,
+        counterId,
+      };
+      const result = await callReaderOrFallback<{
+        rows: MetricaQueryResult['rows'];
+        total: number;
+      }>('queryMetrica', [params], () => getDb().queryMetrica(params));
+      let meta: MetricaFetchMeta | null = null;
+      try {
+        const raw = counterId ? getDb().getMeta(`metricaFetchMeta:${counterId}`) : null;
+        if (raw) meta = JSON.parse(raw) as MetricaFetchMeta;
       } catch {
         /* no / corrupt meta — render without the context line */
       }

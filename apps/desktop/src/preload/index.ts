@@ -146,6 +146,11 @@ import {
   type Ga4FetchResult,
   type Ga4QueryInput,
   type Ga4QueryResult,
+  type MetricaListCountersResult,
+  type MetricaFetchInput,
+  type MetricaFetchResult,
+  type MetricaQueryInput,
+  type MetricaQueryResult,
   type AiRunInput,
   type AiRunResult,
   type AiQueryInput,
@@ -501,6 +506,12 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.ga4Fetch, input),
   ga4Query: (input: Ga4QueryInput): Promise<Ga4QueryResult> =>
     ipcRenderer.invoke(IPC.ga4Query, input),
+  metricaListCounters: (): Promise<MetricaListCountersResult> =>
+    ipcRenderer.invoke(IPC.metricaListCounters),
+  metricaFetch: (input: MetricaFetchInput): Promise<MetricaFetchResult> =>
+    ipcRenderer.invoke(IPC.metricaFetch, input),
+  metricaQuery: (input: MetricaQueryInput): Promise<MetricaQueryResult> =>
+    ipcRenderer.invoke(IPC.metricaQuery, input),
   aiRun: (input: AiRunInput): Promise<AiRunResult> =>
     ipcRenderer.invoke(IPC.aiRun, input),
   aiCancel: (): Promise<void> => ipcRenderer.invoke(IPC.aiCancel),

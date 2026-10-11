@@ -32,6 +32,7 @@ import type {
   GscRow,
   GscPreset,
   Ga4Row,
+  MetricaRow,
   AiProvider,
   AiResult,
   AiRow,
@@ -1176,6 +1177,7 @@ export class ProjectDb {
          DELETE FROM spelling_results;
          DELETE FROM gsc_results;
          DELETE FROM ga4_results;
+         DELETE FROM metrica_results;
          DELETE FROM ai_results;
          DELETE FROM seo_results;
          DELETE FROM gsc_inspection_results;`,
@@ -1724,6 +1726,7 @@ export class ProjectDb {
     'spelling_results',
     'gsc_results',
     'ga4_results',
+    'metrica_results',
     'ai_results',
     'seo_results',
     'gsc_inspection_results',
@@ -5349,6 +5352,139 @@ export class ProjectDb {
           .run(...args);
       }
     });
+  }
+
+  /**
+   * Yandex Metrica — wholesale-replace the stored rows of one counter.
+   * Each pull is a snapshot for a date range, so the counter's old rows
+   * are dropped and the new set inserted in one transaction. `rows` must
+   * already be crawl-normalised (one row per `normalizeUrl` form).
+   */
+  replaceMetricaResults(
+    rows: {
+      url: string;
+      pageviews: number;
+      visits: number;
+      users: number;
+      searchVisits: number;
+    }[],
+    fetchedAt: string,
+    counterId: string,
+  ): void {
+    this.runInTransaction(() => {
+      this.db.prepare('DELETE FROM metrica_results WHERE account_id = ?').run(counterId);
+      const CHUNK = 400;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const slice = rows.slice(i, i + CHUNK);
+        const placeholders = slice.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(',');
+        const args: (string | number)[] = [];
+        for (const r of slice) {
+          args.push(
+            r.url,
+            counterId,
+            r.pageviews,
+            r.visits,
+            r.users,
+            r.searchVisits,
+            fetchedAt,
+          );
+        }
+        this.db
+          .prepare(
+            `INSERT OR REPLACE INTO metrica_results
+               (url, account_id, pageviews, visits, users, search_visits, fetched_at)
+             VALUES ${placeholders}`,
+          )
+          .run(...args);
+      }
+    });
+  }
+
+  /**
+   * Yandex Metrica — candidate query for the Metrica tab. Crawled internal
+   * HTML pages left-joined with one counter's stored metrics, ordered by
+   * pageviews desc. The default view keeps to 2xx pages like the GA4 tab;
+   * `non200-with-traffic` deliberately looks at everything else.
+   */
+  queryMetrica(params: {
+    limit: number;
+    offset: number;
+    search?: string;
+    filter?:
+      | 'all'
+      | 'with-data'
+      | 'without-data'
+      | 'indexable-no-visits'
+      | 'non200-with-traffic';
+    counterId?: string;
+  }): { rows: MetricaRow[]; total: number } {
+    const filter = params.filter ?? 'all';
+    const where: string[] = ["u.is_external = 0 AND u.content_kind = 'html'"];
+    if (filter === 'non200-with-traffic') {
+      where.push('u.status_code IS NOT NULL');
+      where.push('(u.status_code < 200 OR u.status_code >= 300)');
+      where.push('(m.pageviews > 0 OR m.visits > 0)');
+    } else {
+      where.push('u.status_code >= 200 AND u.status_code < 300');
+    }
+    // The counter placeholder sits in the JOIN, ahead of the WHERE args.
+    const args: (string | number)[] = [params.counterId ?? ''];
+    if (params.search) {
+      where.push('u.url LIKE ?');
+      args.push(`%${params.search}%`);
+    }
+    if (filter === 'with-data') where.push('m.url IS NOT NULL');
+    else if (filter === 'without-data') where.push('m.url IS NULL');
+    else if (filter === 'indexable-no-visits') {
+      where.push("u.indexability = 'indexable'");
+      where.push('COALESCE(m.visits, 0) = 0');
+    }
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    const joinSql =
+      'FROM urls u LEFT JOIN metrica_results m ON m.url = u.url AND m.account_id = ?';
+
+    const totalRow = this.db
+      .prepare(`SELECT COUNT(*) AS c ${joinSql} ${whereSql}`)
+      .get(...args) as { c: number };
+
+    const rowsDb = this.db
+      .prepare(
+        `SELECT u.url AS url, u.status_code AS status_code,
+                u.indexability AS indexability,
+                m.pageviews AS pageviews, m.visits AS visits,
+                m.users AS users, m.search_visits AS search_visits,
+                m.fetched_at AS fetched_at
+         ${joinSql}
+         ${whereSql}
+         ORDER BY m.pageviews DESC, u.url ASC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(...args, params.limit, params.offset) as unknown as Record<
+      string,
+      unknown
+    >[];
+
+    return {
+      total: totalRow.c,
+      rows: rowsDb.map((r) => {
+        const fetchedAt = r['fetched_at'];
+        return {
+          url: r['url'] as string,
+          statusCode: (r['status_code'] as number | null) ?? null,
+          indexability: (r['indexability'] as string | null) ?? null,
+          metrica:
+            typeof fetchedAt === 'string'
+              ? {
+                  pageviews: (r['pageviews'] as number | null) ?? 0,
+                  visits: (r['visits'] as number | null) ?? 0,
+                  users: (r['users'] as number | null) ?? 0,
+                  searchVisits: (r['search_visits'] as number | null) ?? 0,
+                  fetchedAt,
+                }
+              : null,
+        };
+      }),
+    };
   }
 
   /**

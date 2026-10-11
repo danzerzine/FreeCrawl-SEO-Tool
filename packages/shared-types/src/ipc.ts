@@ -50,6 +50,7 @@ import type {
   Ga4FetchMeta,
   UrlAnalyticsDetail,
 } from './google.js';
+import type { MetricaCounter, MetricaRow, MetricaFetchMeta } from './metrica.js';
 import type { AiProvider, AiRow } from './ai.js';
 import type {
   AssistantApprovalInput,
@@ -408,6 +409,13 @@ export const IPC = {
   ga4ListProperties: 'ga4:list-properties',
   ga4Fetch: 'ga4:fetch',
   ga4Query: 'ga4:query',
+  /** Yandex Metrica. `metricaListCounters` lists the counters the stored
+   *  token can read; `metricaFetch` pulls per-page pageviews (hit-level)
+   *  and visits / users / search visits (session-level, by landing page)
+   *  unsampled; `metricaQuery` lists crawled pages joined with that data. */
+  metricaListCounters: 'metrica:list-counters',
+  metricaFetch: 'metrica:fetch',
+  metricaQuery: 'metrica:query',
   /** Faz 7 — AI integrations (OpenAI / Anthropic / Ollama). `aiRun`
    *  applies a prompt template to each selected URL and stores the
    *  response; `aiQuery` lists crawled pages joined with the latest
@@ -1760,6 +1768,54 @@ export interface Ga4QueryResult {
   meta: Ga4FetchMeta | null;
 }
 
+export interface MetricaListCountersResult {
+  ok: boolean;
+  error: string | null;
+  counters: MetricaCounter[];
+}
+
+export interface MetricaFetchInput {
+  /** Counter ID to pull from. */
+  counterId: string;
+  /** Friendly label persisted into the fetch meta for the UI. */
+  counterName: string;
+  days: 7 | 28 | 90;
+}
+
+export interface MetricaFetchResult {
+  ok: boolean;
+  error: string | null;
+  rowCount: number;
+  meta: MetricaFetchMeta | null;
+}
+
+export interface MetricaQueryInput {
+  limit: number;
+  offset: number;
+  search?: string;
+  /**
+   * `with-data` / `without-data` — any Metrica row at all;
+   * `indexable-no-visits` — indexable 2xx HTML pages with zero
+   * landing-page visits; `non200-with-traffic` — non-2xx pages that
+   * still got pageviews or visits.
+   */
+  filter?:
+    | 'all'
+    | 'with-data'
+    | 'without-data'
+    | 'indexable-no-visits'
+    | 'non200-with-traffic';
+  /** Counter whose stored rows to join. Omitted / empty falls back to the
+   *  project's configured counter. */
+  counterId?: string;
+}
+
+export interface MetricaQueryResult {
+  rows: MetricaRow[];
+  total: number;
+  meta: MetricaFetchMeta | null;
+}
+
 export interface AiRunInput {
   /** Provider to send the prompt to. */
   provider: AiProvider;
@@ -2176,6 +2232,10 @@ export interface FreeCrawlApi {
   ga4Fetch(input: Ga4FetchInput): Promise<Ga4FetchResult>;
   /** List crawled pages joined with their stored GA4 metrics. */
   ga4Query(input: Ga4QueryInput): Promise<Ga4QueryResult>;
+  /** Yandex Metrica — counters, unsampled per-page pull, joined query. */
+  metricaListCounters(): Promise<MetricaListCountersResult>;
+  metricaFetch(input: MetricaFetchInput): Promise<MetricaFetchResult>;
+  metricaQuery(input: MetricaQueryInput): Promise<MetricaQueryResult>;
   /** Run an AI prompt against the given URLs through the chosen
    *  provider. Resolves when the run finishes; subscribe to
    *  `onAiProgress` for live updates. */
