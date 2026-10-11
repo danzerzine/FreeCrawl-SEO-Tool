@@ -32,9 +32,14 @@ import * as logger from './logger.js';
 const API_BASE = 'https://api-metrika.yandex.net';
 /** Reporting API maximum rows per request. */
 const PAGE_LIMIT = 100_000;
-/** Per-report ceiling so a runaway counter can't exhaust memory. */
-const MAX_ROWS = 2_000_000;
-/** Attempts per request on HTTP 429 / 5xx / network errors. */
+/** Smallest page the "query is too complicated" fallback shrinks to. */
+const MIN_PAGE_LIMIT = 6_250;
+/** Per-report ceiling on raw rows, so a counter with endless query-string
+ *  variants can't keep the pull running for ever. Rows are folded into
+ *  per-URL totals page by page, so memory follows distinct crawl URLs. */
+const MAX_ROWS = 1_000_000;
+/** Attempts per request on throttling (420 / 429), "too complicated",
+ *  5xx and network errors. */
 const MAX_ATTEMPTS = 4;
 
 type Totals = MetricaFetchMeta['totals'];
@@ -51,9 +56,35 @@ function apiError(json: unknown, status: number): string {
   return `Yandex Metrica API error (HTTP ${status})`;
 }
 
+/** Metrica answers throttling with 429 or 420 (the docs use both) and
+ *  sends no `Retry-After`, so both get exponential backoff. */
+function isRetryable(status: number): boolean {
+  return status === 420 || status === 429 || status >= 500;
+}
+
+/** API failure with the HTTP status kept for the caller's fallbacks. */
+class MetricaApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/** Metrica's 400 "query is too complicated" for heavy unsampled reports.
+ *  It depends on server load, so the same request is retried with longer
+ *  pauses first; a smaller page is only the last resort, because each
+ *  request costs about the same whatever its page size. */
+const TOO_COMPLICATED = /too complicated|слишком сложн/i;
+
+function isTooComplicated(err: unknown): boolean {
+  return err instanceof MetricaApiError && err.status === 400 && TOO_COMPLICATED.test(err.message);
+}
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** GET a Metrica endpoint as JSON, retrying rate limits and server errors. */
+/** GET a Metrica endpoint as JSON, retrying throttling and server errors. */
 async function getJson(
   token: string,
   path: string,
@@ -61,6 +92,8 @@ async function getJson(
 ): Promise<unknown> {
   const url = `${API_BASE}${path}?${new URLSearchParams(params).toString()}`;
   let lastError = '';
+  let lastStatus = 0;
+  let backoffMs = 2_000;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const res = await apiFetch(url, {
@@ -70,16 +103,23 @@ async function getJson(
       const json = (await res.json().catch(() => null)) as unknown;
       if (res.ok && json) return json;
       lastError = apiError(json, res.status);
-      if (res.status !== 429 && res.status < 500) break;
+      lastStatus = res.status;
+      const heavy = res.status === 400 && TOO_COMPLICATED.test(lastError);
+      if (heavy) backoffMs = 10_000;
+      else if (!isRetryable(res.status)) break;
     } catch (err) {
-      lastError = `Yandex Metrica request failed: ${(err as Error).message}`;
+      // Never echo `err.message`: undici quotes the offending header value
+      // (the token) in its validation errors.
+      const name = err instanceof Error ? err.name : 'Error';
+      lastError = `Yandex Metrica request failed (${name})`;
+      lastStatus = 0;
     }
     if (attempt < MAX_ATTEMPTS) {
       logger.log('warn', 'metrica', `${lastError} — retry ${attempt}/${MAX_ATTEMPTS - 1}`);
-      await sleep(2_000 * 2 ** (attempt - 1));
+      await sleep(backoffMs * 2 ** (attempt - 1));
     }
   }
-  throw new Error(lastError);
+  throw new MetricaApiError(lastError, lastStatus);
 }
 
 /** Every counter the token can read. */
@@ -123,25 +163,37 @@ interface ReportSpec {
 }
 
 interface ReportResult {
-  /** `[raw URL, ...metric values]` per row. */
-  rows: { url: string; values: number[] }[];
   /** Whole-range totals per metric, as the API reports them. */
   totals: number[];
+  /** Raw rows received. */
+  rowCount: number;
   truncated: boolean;
+  /** Resolved `YYYY-MM-DD` range the API reported on (counter time zone). */
+  date1: string;
+  date2: string;
 }
 
-/** Pull one report in full, paging until a short page. */
+/**
+ * Pull one report in full, paging until a short page. Each row is handed
+ * to `onRow` as it arrives, so raw rows never pile up in memory.
+ */
 async function runReport(
   token: string,
   counterId: string,
   date1: string,
   date2: string,
   spec: ReportSpec,
+  onRow: (url: string, values: number[]) => void,
 ): Promise<ReportResult> {
-  const rows: ReportResult['rows'] = [];
-  let totals: number[] = spec.metrics.map(() => 0);
-  let truncated = false;
-  for (let offset = 1; ; offset += PAGE_LIMIT) {
+  const result: ReportResult = {
+    totals: spec.metrics.map(() => 0),
+    rowCount: 0,
+    truncated: false,
+    date1,
+    date2,
+  };
+  let limit = PAGE_LIMIT;
+  for (let offset = 1; ; ) {
     const params: Record<string, string> = {
       ids: counterId,
       date1,
@@ -152,43 +204,67 @@ async function runReport(
       // overlap or skip rows that tie on the metric.
       sort: `-${spec.metrics[0]},${spec.dimension}`,
       accuracy: 'full',
-      limit: String(PAGE_LIMIT),
+      limit: String(limit),
       offset: String(offset),
     };
     if (spec.filters) params['filters'] = spec.filters;
-    const json = (await getJson(token, '/stat/v1/data', params)) as {
+    let json: {
       data?: { dimensions?: { name?: unknown }[]; metrics?: unknown[] }[];
       totals?: unknown[];
       sampled?: unknown;
+      query?: { date1?: unknown; date2?: unknown };
     };
+    try {
+      json = (await getJson(token, '/stat/v1/data', params)) as typeof json;
+    } catch (err) {
+      if (!isTooComplicated(err) || limit <= MIN_PAGE_LIMIT) throw err;
+      // Retries didn't help: same offset, half the page. Rows already
+      // received stay valid because the sort order is total.
+      limit = Math.max(MIN_PAGE_LIMIT, Math.floor(limit / 2));
+      logger.log(
+        'warn',
+        'metrica',
+        `report ${spec.dimension} too complicated at offset ${offset} — retrying with limit ${limit}`,
+      );
+      continue;
+    }
     if (json.sampled === true) {
       // accuracy=full should never sample; say so loudly if it ever does.
       logger.log('warn', 'metrica', `report ${spec.dimension} came back sampled`);
     }
-    if (offset === 1 && Array.isArray(json.totals)) {
-      totals = spec.metrics.map((_, i) => Number(json.totals?.[i] ?? 0) || 0);
+    if (offset === 1) {
+      if (Array.isArray(json.totals)) {
+        result.totals = spec.metrics.map((_, i) => Number(json.totals?.[i] ?? 0) || 0);
+      }
+      if (typeof json.query?.date1 === 'string') result.date1 = json.query.date1;
+      if (typeof json.query?.date2 === 'string') result.date2 = json.query.date2;
     }
     const data = Array.isArray(json.data) ? json.data : [];
     for (const r of data) {
       const url = r.dimensions?.[0]?.name;
       if (typeof url !== 'string' || !url) continue;
       const m = Array.isArray(r.metrics) ? r.metrics : [];
-      rows.push({ url, values: spec.metrics.map((_, i) => Number(m[i] ?? 0) || 0) });
+      onRow(
+        url,
+        spec.metrics.map((_, i) => Number(m[i] ?? 0) || 0),
+      );
     }
+    result.rowCount += data.length;
     // `total_rows` is capped near offset + limit on large reports, so a
     // short page is the only reliable end-of-data signal.
-    if (data.length < PAGE_LIMIT) break;
-    if (rows.length >= MAX_ROWS) {
-      truncated = true;
+    if (data.length < limit) break;
+    offset += limit;
+    if (result.rowCount >= MAX_ROWS) {
+      result.truncated = true;
       logger.log(
         'warn',
         'metrica',
-        `report ${spec.dimension} stopped at ${rows.length} rows (cap)`,
+        `report ${spec.dimension} stopped at ${result.rowCount} rows (cap)`,
       );
       break;
     }
   }
-  return { rows, totals, truncated };
+  return result;
 }
 
 /** One per-page Metrica row, keyed by the crawl-normalised URL. */
@@ -203,6 +279,9 @@ export interface MetricaPageRow {
 export interface MetricaPageMetrics {
   rows: MetricaPageRow[];
   totals: Totals;
+  /** Inclusive `YYYY-MM-DD` range the API reported on, counter time zone. */
+  startDate: string;
+  endDate: string;
   /** Raw report rows dropped because their URL failed to normalise. */
   dropped: number;
   /** True when a report hit the row ceiling. */
@@ -210,70 +289,85 @@ export interface MetricaPageMetrics {
 }
 
 /**
- * Pull per-page metrics for `[date1, date2]` (`YYYY-MM-DD`, counter time
- * zone) and fold them onto crawl URLs. Several raw Metrica URLs can
- * normalise to the same crawl URL (tracking parameters, `#fragments`,
- * host / slash rewrites); their counts are summed. For `users` that sum
- * can count a person once per URL variant — exact for the common case of
- * one variant per page, an upper bound otherwise.
+ * Pull per-page metrics for the trailing `days` days up to today and fold
+ * them onto crawl URLs. The range is sent as `NdaysAgo`…`today`, so
+ * Metrica resolves it in the counter's own time zone. Several raw Metrica
+ * URLs can normalise to the same crawl URL (tracking parameters,
+ * `#fragments`, host / slash rewrites); their counts are summed. For
+ * `users` that sum can count a person once per URL variant — exact for
+ * the common case of one variant per page, an upper bound otherwise.
  */
 export async function fetchPageMetrics(
   token: string,
   counterId: string,
-  date1: string,
-  date2: string,
+  days: number,
   normalize: (url: string) => string | null,
 ): Promise<MetricaPageMetrics> {
   const started = Date.now();
-  const pv = await runReport(token, counterId, date1, date2, {
-    dimension: 'ym:pv:URL',
-    metrics: ['ym:pv:pageviews'],
-  });
-  const sessions = await runReport(token, counterId, date1, date2, {
-    dimension: 'ym:s:startURL',
-    metrics: ['ym:s:visits', 'ym:s:users'],
-  });
-  const search = await runReport(token, counterId, date1, date2, {
-    dimension: 'ym:s:startURL',
-    metrics: ['ym:s:visits'],
-    filters: "ym:s:trafficSource=='organic'",
-  });
-
+  const date1 = `${days - 1}daysAgo`;
+  const date2 = 'today';
   const byUrl = new Map<string, MetricaPageRow>();
-  const normCache = new Map<string, string | null>();
   let dropped = 0;
-  const add = (raw: string, apply: (row: MetricaPageRow) => void): void => {
-    let url = normCache.get(raw);
-    if (url === undefined) {
-      url = normalize(raw);
-      normCache.set(raw, url);
-    }
+  const rowFor = (raw: string): MetricaPageRow | null => {
+    const url = normalize(raw);
     if (!url) {
       dropped++;
-      return;
+      return null;
     }
     let row = byUrl.get(url);
     if (!row) {
       row = { url, pageviews: 0, visits: 0, users: 0, searchVisits: 0 };
       byUrl.set(url, row);
     }
-    apply(row);
+    return row;
   };
-  for (const r of pv.rows) add(r.url, (row) => (row.pageviews += r.values[0] ?? 0));
-  for (const r of sessions.rows) {
-    add(r.url, (row) => {
-      row.visits += r.values[0] ?? 0;
-      row.users += r.values[1] ?? 0;
-    });
-  }
-  for (const r of search.rows) add(r.url, (row) => (row.searchVisits += r.values[0] ?? 0));
+
+  const pv = await runReport(
+    token,
+    counterId,
+    date1,
+    date2,
+    { dimension: 'ym:pv:URL', metrics: ['ym:pv:pageviews'] },
+    (url, v) => {
+      const row = rowFor(url);
+      if (row) row.pageviews += v[0] ?? 0;
+    },
+  );
+  const sessions = await runReport(
+    token,
+    counterId,
+    date1,
+    date2,
+    { dimension: 'ym:s:startURL', metrics: ['ym:s:visits', 'ym:s:users'] },
+    (url, v) => {
+      const row = rowFor(url);
+      if (!row) return;
+      row.visits += v[0] ?? 0;
+      row.users += v[1] ?? 0;
+    },
+  );
+  const search = await runReport(
+    token,
+    counterId,
+    date1,
+    date2,
+    {
+      dimension: 'ym:s:startURL',
+      metrics: ['ym:s:visits'],
+      filters: "ym:s:trafficSource=='organic'",
+    },
+    (url, v) => {
+      const row = rowFor(url);
+      if (row) row.searchVisits += v[0] ?? 0;
+    },
+  );
 
   const rows = [...byUrl.values()];
   logger.log(
     'info',
     'metrica',
-    `Metrica report: ${rows.length} page(s) for counter ${counterId} (${date1}…${date2}) from ` +
-      `${pv.rows.length}/${sessions.rows.length}/${search.rows.length} raw rows, ` +
+    `Metrica report: ${rows.length} page(s) for counter ${counterId} (${pv.date1}…${pv.date2}) from ` +
+      `${pv.rowCount}/${sessions.rowCount}/${search.rowCount} raw rows, ` +
       `${dropped} dropped, ${Math.round((Date.now() - started) / 1000)} s`,
   );
   return {
@@ -284,6 +378,8 @@ export async function fetchPageMetrics(
       users: sessions.totals[1] ?? 0,
       searchVisits: search.totals[0] ?? 0,
     },
+    startDate: pv.date1,
+    endDate: pv.date2,
     dropped,
     truncated: pv.truncated || sessions.truncated || search.truncated,
   };

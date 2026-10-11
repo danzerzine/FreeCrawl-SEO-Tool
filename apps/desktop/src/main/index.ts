@@ -6557,6 +6557,13 @@ function registerIpc(): void {
         'Yandex Metrica is not connected — paste a token in Settings → Integrations → Yandex Metrica.',
       );
     }
+    // Checked before any request: a pasted blob with spaces or line breaks
+    // would otherwise reach undici, whose header error quotes the value.
+    if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) {
+      throw new Error(
+        'The saved Yandex Metrica token has an unexpected format — paste it again in Settings → Integrations → Yandex Metrica.',
+      );
+    }
     return token;
   };
   const resolveMetricaSettings = (): MetricaIntegrationSettings =>
@@ -6605,23 +6612,23 @@ function registerIpc(): void {
       if (!/^\d+$/.test(counterId)) {
         return { ok: false, error: 'No Yandex Metrica counter selected.', rowCount: 0, meta: null };
       }
-      // Metrica data is near-realtime — end the range at today, like GA4.
-      const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
-      const end = new Date();
-      const start = new Date(end.getTime() - (input.days - 1) * 86_400_000);
-      const startDate = isoDate(start);
-      const endDate = isoDate(end);
+      const days = input.days;
+      if (days !== 7 && days !== 28 && days !== 90) {
+        return { ok: false, error: 'Unsupported Yandex Metrica date range.', rowCount: 0, meta: null };
+      }
       const runDb = getDb();
       const counterName = input.counterName || counterId;
-      writeIntegrationSettings('metrica', { counterId, counterName, days: input.days });
+      writeIntegrationSettings('metrica', { counterId, counterName, days });
       try {
+        // Metrica data is near-realtime — the range ends today, like GA4,
+        // resolved by Metrica in the counter's time zone.
         const result = await metricaFetchPageMetrics(
           metricaToken(),
           counterId,
-          startDate,
-          endDate,
+          days,
           crawlUrlNormalizer(),
         );
+        const { startDate, endDate } = result;
         const fetchedAt = new Date().toISOString();
         runDb.replaceMetricaResults(result.rows, fetchedAt, counterId);
         const meta: MetricaFetchMeta = {
