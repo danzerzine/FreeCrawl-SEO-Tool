@@ -270,7 +270,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
     ],
     helpUrl: 'https://yandex.com/dev/metrika/en/intro/authorization',
     setupHint:
-      'Register an app at oauth.yandex.com with the "Reading statistics and parameters of your counters" (metrika:read) permission, then open https://oauth.yandex.com/authorize?response_type=token&client_id=<your app ID> while signed in to an account that can view the counter, and paste the token shown. The token only reads data.',
+      'Register an app of type "For API access or debugging" at oauth.yandex.com with the metrika:read permission, then open https://oauth.yandex.com/authorize?response_type=token&client_id=<your app ID> while signed in to an account that can view the counter, and paste the token shown. The token only reads data.',
   },
 
   // ---- Google (OAuth bring-your-own-client) ----

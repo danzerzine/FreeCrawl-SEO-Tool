@@ -6591,70 +6591,67 @@ function registerIpc(): void {
     };
     return (url) => normalizeUrl(url, undefined, rewrites);
   };
-  registerHandle(
-    IPC.metricaListCounters,
-    async (): Promise<MetricaListCountersResult> => {
-      try {
-        return { ok: true, error: null, counters: await metricaListCounters(metricaToken()) };
-      } catch (err) {
-        return {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-          counters: [],
-        };
-      }
-    },
-  );
-  registerHandle(
-    IPC.metricaFetch,
-    async (_e, input: MetricaFetchInput): Promise<MetricaFetchResult> => {
-      const counterId = String(input.counterId ?? '').trim();
-      if (!/^\d+$/.test(counterId)) {
-        return { ok: false, error: 'No Yandex Metrica counter selected.', rowCount: 0, meta: null };
-      }
-      const days = input.days;
-      if (days !== 7 && days !== 28 && days !== 90) {
-        return { ok: false, error: 'Unsupported Yandex Metrica date range.', rowCount: 0, meta: null };
-      }
-      const runDb = getDb();
-      const counterName = input.counterName || counterId;
-      writeIntegrationSettings('metrica', { counterId, counterName, days });
-      try {
-        // Metrica data is near-realtime — the range ends today, like GA4,
-        // resolved by Metrica in the counter's time zone.
-        const result = await metricaFetchPageMetrics(
-          metricaToken(),
-          counterId,
-          days,
-          crawlUrlNormalizer(),
-        );
-        const { startDate, endDate } = result;
-        const fetchedAt = new Date().toISOString();
-        runDb.replaceMetricaResults(result.rows, fetchedAt, counterId);
-        const meta: MetricaFetchMeta = {
-          counterId,
-          counterName,
-          startDate,
-          endDate,
-          fetchedAt,
-          rowCount: result.rows.length,
-          truncated: result.truncated,
-          totals: result.totals,
-        };
-        runDb.setMeta(`metricaFetchMeta:${counterId}`, JSON.stringify(meta));
-        fireDataChanged();
-        logger.log('info', 'metrica', `Metrica pull stored — ${result.rows.length} page row(s)`);
-        return { ok: true, error: null, rowCount: result.rows.length, meta };
-      } catch (err) {
-        return {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-          rowCount: 0,
-          meta: null,
-        };
-      }
-    },
-  );
+  // Shared by the IPC handlers and the MCP bridge actions.
+  const runMetricaListCounters = async (): Promise<MetricaListCountersResult> => {
+    try {
+      return { ok: true, error: null, counters: await metricaListCounters(metricaToken()) };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        counters: [],
+      };
+    }
+  };
+  const runMetricaFetch = async (input: MetricaFetchInput): Promise<MetricaFetchResult> => {
+    const counterId = String(input.counterId ?? '').trim();
+    if (!/^\d+$/.test(counterId)) {
+      return { ok: false, error: 'No Yandex Metrica counter selected.', rowCount: 0, meta: null };
+    }
+    const days = input.days;
+    if (days !== 7 && days !== 28 && days !== 90) {
+      return { ok: false, error: 'Unsupported Yandex Metrica date range.', rowCount: 0, meta: null };
+    }
+    const runDb = getDb();
+    const counterName = input.counterName || counterId;
+    writeIntegrationSettings('metrica', { counterId, counterName, days });
+    try {
+      // Metrica data is near-realtime — the range ends today, like GA4,
+      // resolved by Metrica in the counter's time zone.
+      const result = await metricaFetchPageMetrics(
+        metricaToken(),
+        counterId,
+        days,
+        crawlUrlNormalizer(),
+      );
+      const { startDate, endDate } = result;
+      const fetchedAt = new Date().toISOString();
+      runDb.replaceMetricaResults(result.rows, fetchedAt, counterId);
+      const meta: MetricaFetchMeta = {
+        counterId,
+        counterName,
+        startDate,
+        endDate,
+        fetchedAt,
+        rowCount: result.rows.length,
+        truncated: result.truncated,
+        totals: result.totals,
+      };
+      runDb.setMeta(`metricaFetchMeta:${counterId}`, JSON.stringify(meta));
+      fireDataChanged();
+      logger.log('info', 'metrica', `Metrica pull stored — ${result.rows.length} page row(s)`);
+      return { ok: true, error: null, rowCount: result.rows.length, meta };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        rowCount: 0,
+        meta: null,
+      };
+    }
+  };
+  registerHandle(IPC.metricaListCounters, () => runMetricaListCounters());
+  registerHandle(IPC.metricaFetch, (_e, input: MetricaFetchInput) => runMetricaFetch(input));
   registerHandle(
     IPC.metricaQuery,
     async (_e, input: MetricaQueryInput): Promise<MetricaQueryResult> => {
@@ -8733,6 +8730,17 @@ function registerIpc(): void {
           meta: null,
         };
       }
+    },
+
+    'metrica-list-counters': () => runMetricaListCounters(),
+
+    'metrica-fetch': (input) => {
+      const i = (input ?? {}) as Partial<MetricaFetchInput>;
+      return runMetricaFetch({
+        counterId: String(i.counterId ?? ''),
+        counterName: typeof i.counterName === 'string' ? i.counterName : '',
+        days: (i.days ?? 28) as MetricaFetchInput['days'],
+      });
     },
 
     'ga4-list-properties': async (input) => {

@@ -678,6 +678,69 @@ export function buildTools(): Tool[] {
     },
 
     {
+      name: 'query_metrica',
+      description:
+        'Yandex Metrica rows per crawled HTML page: `pageviews` (hit-level, views of that URL) and `visits` / `users` / `searchVisits` (session-level, sessions that STARTED on that page; searchVisits = organic search). A page can have pageviews and zero visits; summing `users` across pages over-counts. Returns `{rows, total, meta}` where `meta` holds the pulled date range and whole-site totals. Populate with `metrica_fetch`.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          search: { type: 'string', description: 'Substring match on the URL.' },
+          filter: {
+            type: 'string',
+            enum: [
+              'all',
+              'with-data',
+              'without-data',
+              'indexable-no-visits',
+              'non200-with-traffic',
+            ],
+            description:
+              '`with-data` / `without-data` = 2xx pages with / without Metrica rows; `indexable-no-visits` = indexable 2xx pages that started no sessions; `non200-with-traffic` = non-2xx pages that still get pageviews or visits. Default "all" (2xx pages).',
+          },
+          counterId: {
+            type: 'string',
+            description: 'Metrica counter ID. Omitted = the counter last fetched for this project.',
+          },
+          limit: { type: 'integer', minimum: 1, maximum: 1000 },
+          offset: { type: 'integer', minimum: 0 },
+        },
+      },
+      handler: (args, db) => {
+        let counterId = typeof args.counterId === 'string' ? args.counterId.trim() : '';
+        if (!counterId) {
+          try {
+            const raw = db.getMeta('integrationSettings:metrica');
+            const saved = raw ? (JSON.parse(raw) as { counterId?: unknown }) : null;
+            if (typeof saved?.counterId === 'string') counterId = saved.counterId;
+          } catch {
+            /* corrupt settings — query with no counter, every row is without data */
+          }
+        }
+        const result = db.queryMetrica({
+          limit: clamp(args.limit, 1, 1000, 50),
+          offset: clamp(args.offset, 0, 10_000_000, 0),
+          search: typeof args.search === 'string' ? args.search : undefined,
+          filter: args.filter as
+            | 'all'
+            | 'with-data'
+            | 'without-data'
+            | 'indexable-no-visits'
+            | 'non200-with-traffic'
+            | undefined,
+          counterId,
+        });
+        let meta: unknown = null;
+        try {
+          const raw = counterId ? db.getMeta(`metricaFetchMeta:${counterId}`) : null;
+          if (raw) meta = JSON.parse(raw);
+        } catch {
+          /* no / corrupt meta */
+        }
+        return { ...result, counterId: counterId || null, meta };
+      },
+    },
+
+    {
       name: 'query_pagespeed',
       description:
         'PageSpeed Insights rows: lab perf/SEO/a11y scores, Core Web Vitals (LCP/CLS/INP/FCP/TTFB), opportunities. Populate via Settings → Integrations → PageSpeed Insights, then run a batch from the desktop.',
@@ -1855,6 +1918,50 @@ export function buildTools(): Tool[] {
           rowCount: number;
           meta: unknown;
         }>('POST', '/v1/action/ga4-fetch', args),
+    },
+
+    {
+      requiresDb: false,
+      name: 'metrica_list_counters',
+      description:
+        'List every Yandex Metrica counter the saved token can read. Returns `{ok, error, counters: [{counterId, name, site, ownerLogin}]}`. Pass the matching `counterId` to `metrica_fetch` next. Needs a token in Settings → Integrations → Yandex Metrica.',
+      inputSchema: { type: 'object', properties: {} },
+      handler: async () => bridgeRequest<unknown>('POST', '/v1/action/metrica-list-counters', {}),
+    },
+
+    {
+      requiresDb: false,
+      name: 'metrica_fetch',
+      description:
+        'Pull unsampled per-page Yandex Metrica data for one counter over a trailing window ending today (counter time zone): pageviews by page URL, visits / users / search-engine visits by landing page. Replaces the stored rows for that counter; query them via `query_metrica`. Blocks until the pull finishes — usually under a minute, a few minutes on sites with hundreds of thousands of URLs. Returns `{ok, error, rowCount, meta}`.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          counterId: {
+            type: 'string',
+            description:
+              'Numeric Metrica counter ID. Get available values from `metrica_list_counters`.',
+          },
+          counterName: {
+            type: 'string',
+            description:
+              'Friendly label saved into the fetch meta for the UI. Optional — falls back to `counterId`.',
+          },
+          days: {
+            type: 'integer',
+            enum: [7, 28, 90],
+            description: 'Trailing window length in days. Default 28.',
+          },
+        },
+        required: ['counterId'],
+      },
+      handler: async (args) =>
+        bridgeRequest<{
+          ok: boolean;
+          error: string | null;
+          rowCount: number;
+          meta: unknown;
+        }>('POST', '/v1/action/metrica-fetch', args),
     },
 
     // ---- Faz 0.5 Increment 5 — slow batch-fetch run triggers
