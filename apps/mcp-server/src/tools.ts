@@ -680,7 +680,7 @@ export function buildTools(): Tool[] {
     {
       name: 'query_metrica',
       description:
-        'Yandex Metrica rows per crawled HTML page: `pageviews` (hit-level, views of that URL) and `visits` / `users` / `searchVisits` (session-level, sessions that STARTED on that page; searchVisits = organic search). A page can have pageviews and zero visits; summing `users` across pages over-counts. Returns `{rows, total, meta}` where `meta` holds the pulled date range and whole-site totals. Populate with `metrica_fetch`.',
+        'Yandex Metrica rows per crawled HTML page: `pageviews` (hit-level, views of that URL) and `visits` / `users` / `searchVisits` (session-level, sessions that STARTED on that page; searchVisits = organic search). A page can have pageviews and zero visits. `users` is an upper bound: URL variants folded into one page are summed, and summing across pages over-counts. Returns `{rows, total, counterId, meta, notice}`; `meta` holds the pulled date range, whole-site totals and `truncated` / `sampled` flags. `without-data` and `indexable-no-visits` need a complete, unsampled pull — otherwise they return no rows and `notice` says why. Populate with `metrica_fetch`.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1933,7 +1933,7 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'metrica_fetch',
       description:
-        'Pull unsampled per-page Yandex Metrica data for one counter over a trailing window ending today (counter time zone): pageviews by page URL, visits / users / search-engine visits by landing page. Replaces the stored rows for that counter; query them via `query_metrica`. Blocks until the pull finishes — usually under a minute, a few minutes on sites with hundreds of thousands of URLs. Returns `{ok, error, rowCount, meta}`.',
+        'Pull unsampled per-page Yandex Metrica data for one counter over the last N full days, ending yesterday (counter time zone): pageviews by page URL, visits / users / search-engine visits by landing page. Replaces the stored rows for that counter; query them via `query_metrica`. Blocks until the pull finishes — usually under a minute, a few minutes on sites with hundreds of thousands of URLs. Returns `{ok, error, rowCount, meta}`.',
       inputSchema: {
         type: 'object',
         properties: {

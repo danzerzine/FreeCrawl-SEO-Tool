@@ -6591,6 +6591,9 @@ function registerIpc(): void {
     };
     return (url) => normalizeUrl(url, undefined, rewrites);
   };
+  /** Projects with a Metrica pull in flight: overlapping pulls would race
+   *  on the replace, and the older one could win. */
+  const metricaFetchesInFlight = new WeakSet<object>();
   // Shared by the IPC handlers and the MCP bridge actions.
   const runMetricaListCounters = async (): Promise<MetricaListCountersResult> => {
     try {
@@ -6613,11 +6616,18 @@ function registerIpc(): void {
       return { ok: false, error: 'Unsupported Yandex Metrica date range.', rowCount: 0, meta: null };
     }
     const runDb = getDb();
+    if (metricaFetchesInFlight.has(runDb)) {
+      return {
+        ok: false,
+        error: 'A Yandex Metrica fetch is already running for this project.',
+        rowCount: 0,
+        meta: null,
+      };
+    }
+    metricaFetchesInFlight.add(runDb);
     const counterName = input.counterName || counterId;
-    writeIntegrationSettings('metrica', { counterId, counterName, days });
     try {
-      // Metrica data is near-realtime — the range ends today, like GA4,
-      // resolved by Metrica in the counter's time zone.
+      // The window ends yesterday in the counter's time zone (see metrica.ts).
       const result = await metricaFetchPageMetrics(
         metricaToken(),
         counterId,
@@ -6626,7 +6636,6 @@ function registerIpc(): void {
       );
       const { startDate, endDate } = result;
       const fetchedAt = new Date().toISOString();
-      runDb.replaceMetricaResults(result.rows, fetchedAt, counterId);
       const meta: MetricaFetchMeta = {
         counterId,
         counterName,
@@ -6635,9 +6644,12 @@ function registerIpc(): void {
         fetchedAt,
         rowCount: result.rows.length,
         truncated: result.truncated,
+        sampled: result.sampled,
         totals: result.totals,
       };
-      runDb.setMeta(`metricaFetchMeta:${counterId}`, JSON.stringify(meta));
+      runDb.replaceMetricaResults(result.rows, fetchedAt, counterId, JSON.stringify(meta));
+      // Only a successful pull becomes the project's default counter.
+      writeIntegrationSettings('metrica', { counterId, counterName, days });
       fireDataChanged();
       logger.log('info', 'metrica', `Metrica pull stored — ${result.rows.length} page row(s)`);
       return { ok: true, error: null, rowCount: result.rows.length, meta };
@@ -6648,6 +6660,8 @@ function registerIpc(): void {
         rowCount: 0,
         meta: null,
       };
+    } finally {
+      metricaFetchesInFlight.delete(runDb);
     }
   };
   registerHandle(IPC.metricaListCounters, () => runMetricaListCounters());
@@ -6666,6 +6680,7 @@ function registerIpc(): void {
       const result = await callReaderOrFallback<{
         rows: MetricaQueryResult['rows'];
         total: number;
+        notice: string | null;
       }>('queryMetrica', [params], () => getDb().queryMetrica(params));
       let meta: MetricaFetchMeta | null = null;
       try {
@@ -6674,7 +6689,7 @@ function registerIpc(): void {
       } catch {
         /* no / corrupt meta — render without the context line */
       }
-      return { rows: result.rows, total: result.total, meta };
+      return { rows: result.rows, total: result.total, meta, notice: result.notice ?? null };
     },
   );
 

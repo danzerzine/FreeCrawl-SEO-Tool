@@ -34,7 +34,9 @@ export interface MetricaMetrics {
   pageviews: number;
   /** Session-level: sessions that started on this page (`ym:s:visits`). */
   visits: number;
-  /** Session-level: users whose sessions started on this page (`ym:s:users`). */
+  /** Session-level: users whose sessions started on this page (`ym:s:users`).
+   *  When several raw URL variants (tracking parameters, fragments) fold
+   *  into one crawl URL their users are summed, so this is an upper bound. */
   users: number;
   /** Session-level: sessions from search engines that started on this page
    *  (`ym:s:visits` with `ym:s:trafficSource=='organic'`). */
@@ -70,7 +72,8 @@ export function defaultMetricaSettings(): MetricaIntegrationSettings {
 export interface MetricaFetchMeta {
   counterId: string;
   counterName: string;
-  /** Inclusive date range, `YYYY-MM-DD`, in the counter's time zone. */
+  /** Inclusive date range, `YYYY-MM-DD`, in the counter's time zone. The
+   *  window ends yesterday: today's data is still arriving. */
   startDate: string;
   endDate: string;
   fetchedAt: string;
@@ -79,6 +82,8 @@ export interface MetricaFetchMeta {
   /** True when a report hit the client's row ceiling, so the long tail of
    *  low-traffic URLs is missing. */
   truncated: boolean;
+  /** True when Metrica returned sampled data despite `accuracy=full`. */
+  sampled: boolean;
   /** Whole-site totals reported by the API for the range, for a sanity
    *  check against the per-URL sums and the Metrica UI. */
   totals: {

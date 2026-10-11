@@ -653,12 +653,12 @@ export const GUIDES_EN: Record<string, Guide> = {
       {
         title: 'Paste the token in FreeCrawl',
         detail:
-          'Settings → Integrations → Yandex Metrica → OAuth token → Save. The token is stored encrypted by your operating system and never leaves this computer except in requests to the Metrica API.',
+          'Settings → Integrations → Yandex Metrica → OAuth token → Save. The token stays on this computer and is sent only to the Metrica API. It is encrypted with the operating system keychain when one is available; on Linux without a keyring it is stored unencrypted in a file only your user can read.',
       },
       {
         title: 'List counters, pick one and fetch',
         detail:
-          'Pick the counter for the crawled site, choose a window (7, 28 or 90 days) and fetch. A large site takes a few minutes: Metrica answers each page of up to 100,000 URLs in 15–30 s.',
+          'Pick the counter for the crawled site, choose a window (the last 7, 28 or 90 full days, ending yesterday) and fetch. A large site takes a few minutes: Metrica answers each page of up to 100,000 URLs in 15–30 s.',
       },
     ],
     troubleshooting: [

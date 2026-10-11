@@ -17,6 +17,12 @@
  * source), which is also the Metrica UI default, so the numbers match
  * what a user sees in the Metrica web interface.
  *
+ * Dates: the window ends yesterday, because today's numbers keep moving
+ * while pages are fetched and would shift rows across page boundaries.
+ * The first request sends a relative range so Metrica resolves it in the
+ * counter's time zone; every later page and report reuses the resolved
+ * absolute dates, so all three reports cover the same days.
+ *
  * Paging: `offset` is 1-based and `limit` tops out at 100 000. For big
  * reports `total_rows` is capped near `offset + limit` (and flagged
  * `total_rows_rounded`), so it can't be used as a stop condition — the
@@ -36,7 +42,8 @@ const PAGE_LIMIT = 100_000;
 const MIN_PAGE_LIMIT = 6_250;
 /** Per-report ceiling on raw rows, so a counter with endless query-string
  *  variants can't keep the pull running for ever. Rows are folded into
- *  per-URL totals page by page, so memory follows distinct crawl URLs. */
+ *  per-URL totals page by page, so memory follows distinct normalised
+ *  Metrica URLs (crawled or not), not raw rows. */
 const MAX_ROWS = 1_000_000;
 /** Attempts per request on throttling (420 / 429), "too complicated",
  *  5xx and network errors. */
@@ -81,6 +88,8 @@ const TOO_COMPLICATED = /too complicated|слишком сложн/i;
 function isTooComplicated(err: unknown): boolean {
   return err instanceof MetricaApiError && err.status === 400 && TOO_COMPLICATED.test(err.message);
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -168,6 +177,8 @@ interface ReportResult {
   /** Raw rows received. */
   rowCount: number;
   truncated: boolean;
+  /** True when any page came back sampled despite `accuracy=full`. */
+  sampled: boolean;
   /** Resolved `YYYY-MM-DD` range the API reported on (counter time zone). */
   date1: string;
   date2: string;
@@ -189,6 +200,7 @@ async function runReport(
     totals: spec.metrics.map(() => 0),
     rowCount: 0,
     truncated: false,
+    sampled: false,
     date1,
     date2,
   };
@@ -196,8 +208,9 @@ async function runReport(
   for (let offset = 1; ; ) {
     const params: Record<string, string> = {
       ids: counterId,
-      date1,
-      date2,
+      // Relative on the very first page, the resolved dates after that.
+      date1: result.date1,
+      date2: result.date2,
       dimensions: spec.dimension,
       metrics: spec.metrics.join(','),
       // Metric desc, then URL, so the order is total and pages can't
@@ -228,18 +241,35 @@ async function runReport(
       );
       continue;
     }
+    // A response without a row list or resolved dates is a changed or
+    // broken API, not an empty report: fail so the stored data survives.
+    const resolved1 = json.query?.date1;
+    const resolved2 = json.query?.date2;
+    if (
+      !Array.isArray(json.data) ||
+      typeof resolved1 !== 'string' ||
+      !ISO_DATE.test(resolved1) ||
+      typeof resolved2 !== 'string' ||
+      !ISO_DATE.test(resolved2)
+    ) {
+      throw new MetricaApiError('Yandex Metrica returned an unexpected response.', 200);
+    }
+    if (offset === 1 && !ISO_DATE.test(result.date1)) {
+      result.date1 = resolved1;
+      result.date2 = resolved2;
+    } else if (resolved1 !== result.date1 || resolved2 !== result.date2) {
+      throw new MetricaApiError('Yandex Metrica changed the report date range mid-pull.', 200);
+    }
     if (json.sampled === true) {
-      // accuracy=full should never sample; say so loudly if it ever does.
+      // accuracy=full should never sample; record it so "no visits"
+      // filters refuse to treat missing rows as zero.
+      result.sampled = true;
       logger.log('warn', 'metrica', `report ${spec.dimension} came back sampled`);
     }
-    if (offset === 1) {
-      if (Array.isArray(json.totals)) {
-        result.totals = spec.metrics.map((_, i) => Number(json.totals?.[i] ?? 0) || 0);
-      }
-      if (typeof json.query?.date1 === 'string') result.date1 = json.query.date1;
-      if (typeof json.query?.date2 === 'string') result.date2 = json.query.date2;
+    if (offset === 1 && Array.isArray(json.totals)) {
+      result.totals = spec.metrics.map((_, i) => Number(json.totals?.[i] ?? 0) || 0);
     }
-    const data = Array.isArray(json.data) ? json.data : [];
+    const data = json.data;
     for (const r of data) {
       const url = r.dimensions?.[0]?.name;
       if (typeof url !== 'string' || !url) continue;
@@ -286,12 +316,14 @@ export interface MetricaPageMetrics {
   dropped: number;
   /** True when a report hit the row ceiling. */
   truncated: boolean;
+  /** True when a report came back sampled. */
+  sampled: boolean;
 }
 
 /**
- * Pull per-page metrics for the trailing `days` days up to today and fold
- * them onto crawl URLs. The range is sent as `NdaysAgo`…`today`, so
- * Metrica resolves it in the counter's own time zone. Several raw Metrica
+ * Pull per-page metrics for the `days` full days ending yesterday and fold
+ * them onto crawl URLs. The range is first sent as `NdaysAgo`…`yesterday`,
+ * so Metrica resolves it in the counter's own time zone. Several raw Metrica
  * URLs can normalise to the same crawl URL (tracking parameters,
  * `#fragments`, host / slash rewrites); their counts are summed. For
  * `users` that sum can count a person once per URL variant — exact for
@@ -304,8 +336,8 @@ export async function fetchPageMetrics(
   normalize: (url: string) => string | null,
 ): Promise<MetricaPageMetrics> {
   const started = Date.now();
-  const date1 = `${days - 1}daysAgo`;
-  const date2 = 'today';
+  const relative1 = `${days}daysAgo`;
+  const relative2 = 'yesterday';
   const byUrl = new Map<string, MetricaPageRow>();
   let dropped = 0;
   const rowFor = (raw: string): MetricaPageRow | null => {
@@ -325,14 +357,16 @@ export async function fetchPageMetrics(
   const pv = await runReport(
     token,
     counterId,
-    date1,
-    date2,
+    relative1,
+    relative2,
     { dimension: 'ym:pv:URL', metrics: ['ym:pv:pageviews'] },
     (url, v) => {
       const row = rowFor(url);
       if (row) row.pageviews += v[0] ?? 0;
     },
   );
+  // Later reports reuse the dates the first one resolved to.
+  const { date1, date2 } = pv;
   const sessions = await runReport(
     token,
     counterId,
@@ -382,5 +416,6 @@ export async function fetchPageMetrics(
     endDate: pv.date2,
     dropped,
     truncated: pv.truncated || sessions.truncated || search.truncated,
+    sampled: pv.sampled || sessions.sampled || search.sampled,
   };
 }

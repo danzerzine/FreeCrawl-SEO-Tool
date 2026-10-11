@@ -1814,6 +1814,8 @@ export interface MetricaQueryResult {
   rows: MetricaRow[];
   total: number;
   meta: MetricaFetchMeta | null;
+  /** Why an absence filter returned nothing (no complete pull yet). */
+  notice: string | null;
 }
 
 export interface AiRunInput {

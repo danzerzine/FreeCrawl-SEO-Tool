@@ -5370,9 +5370,13 @@ export class ProjectDb {
     }[],
     fetchedAt: string,
     counterId: string,
+    /** Fetch meta JSON, written in the same transaction so rows and their
+     *  description can't disagree. */
+    metaJson?: string,
   ): void {
     this.runInTransaction(() => {
       this.db.prepare('DELETE FROM metrica_results WHERE account_id = ?').run(counterId);
+      if (metaJson !== undefined) this.setMeta(`metricaFetchMeta:${counterId}`, metaJson);
       const CHUNK = 400;
       for (let i = 0; i < rows.length; i += CHUNK) {
         const slice = rows.slice(i, i + CHUNK);
@@ -5405,6 +5409,10 @@ export class ProjectDb {
    * HTML pages left-joined with one counter's stored metrics, ordered by
    * pageviews desc. The default view keeps to 2xx pages like the GA4 tab;
    * `non200-with-traffic` deliberately looks at everything else.
+   *
+   * `without-data` and `indexable-no-visits` read a missing row as zero
+   * traffic, which only holds after a complete, unsampled pull. Without
+   * one they return nothing plus a `notice` saying why.
    */
   queryMetrica(params: {
     limit: number;
@@ -5417,8 +5425,30 @@ export class ProjectDb {
       | 'indexable-no-visits'
       | 'non200-with-traffic';
     counterId?: string;
-  }): { rows: MetricaRow[]; total: number } {
+  }): { rows: MetricaRow[]; total: number; notice: string | null } {
     const filter = params.filter ?? 'all';
+    const limit = Math.min(Math.max(Math.trunc(Number(params.limit)) || 0, 1), 1000);
+    const offset = Math.max(Math.trunc(Number(params.offset)) || 0, 0);
+    if (filter === 'without-data' || filter === 'indexable-no-visits') {
+      type PullFlags = { truncated?: unknown; sampled?: unknown };
+      let meta: PullFlags | null = null;
+      try {
+        const raw = params.counterId
+          ? this.getMeta(`metricaFetchMeta:${params.counterId}`)
+          : null;
+        meta = raw ? (JSON.parse(raw) as PullFlags) : null;
+      } catch {
+        meta = null;
+      }
+      const notice = !meta
+        ? 'No Yandex Metrica data has been fetched for this counter yet.'
+        : meta.truncated === true
+          ? 'The last Yandex Metrica pull hit the row limit, so pages missing from it may still have traffic.'
+          : meta.sampled === true
+            ? 'The last Yandex Metrica pull came back sampled, so pages missing from it may still have traffic.'
+            : null;
+      if (notice) return { rows: [], total: 0, notice };
+    }
     const where: string[] = ["u.is_external = 0 AND u.content_kind = 'html'"];
     if (filter === 'non200-with-traffic') {
       where.push('u.status_code IS NOT NULL');
@@ -5459,7 +5489,7 @@ export class ProjectDb {
          ORDER BY m.pageviews DESC, u.url ASC
          LIMIT ? OFFSET ?`,
       )
-      .all(...args, params.limit, params.offset) as unknown as Record<
+      .all(...args, limit, offset) as unknown as Record<
       string,
       unknown
     >[];
@@ -5484,6 +5514,7 @@ export class ProjectDb {
               : null,
         };
       }),
+      notice: null,
     };
   }
 
