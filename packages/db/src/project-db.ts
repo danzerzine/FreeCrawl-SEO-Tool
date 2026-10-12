@@ -4998,13 +4998,15 @@ export class ProjectDb {
     return { total: totalRow.c, rows: rowsDb.map(mapRow) };
   }
 
-  /** Combined per-URL Analytics view for the detail panel. Three small
-   *  lookups (GSC Search Analytics + GA4 + GSC URL Inspection) keyed by
-   *  the URL string. Returns null when none of the three is present. */
+  /** Combined per-URL Analytics view for the detail panel. Four small
+   *  lookups (GSC Search Analytics + GA4 + Yandex Metrica + GSC URL
+   *  Inspection) keyed by the URL string. Returns null when none is
+   *  present. */
   getUrlAnalytics(
     url: string,
     gscAccountId = '',
     ga4AccountId = '',
+    metricaCounterId = '',
   ): UrlAnalyticsDetail | null {
     const g = this.db
       .prepare(
@@ -5036,6 +5038,20 @@ export class ProjectDb {
           fetched_at: string;
         }
       | undefined;
+    const m = this.db
+      .prepare(
+        `SELECT pageviews, visits, users, search_visits, fetched_at
+         FROM metrica_results WHERE url = ? AND account_id = ?`,
+      )
+      .get(url, metricaCounterId) as
+      | {
+          pageviews: number;
+          visits: number;
+          users: number;
+          search_visits: number;
+          fetched_at: string;
+        }
+      | undefined;
     const i = this.db
       .prepare(
         `SELECT verdict, coverage_state, robots_txt_state, indexing_state,
@@ -5061,7 +5077,7 @@ export class ProjectDb {
           fetched_at: string;
         }
       | undefined;
-    if (!g && !a && !i) return null;
+    if (!g && !a && !m && !i) return null;
     return {
       url,
       gsc: g
@@ -5081,6 +5097,15 @@ export class ProjectDb {
             engagementRate: a.engagement_rate ?? 0,
             avgSessionDuration: a.avg_session_duration ?? 0,
             fetchedAt: a.fetched_at,
+          }
+        : null,
+      metrica: m
+        ? {
+            pageviews: m.pageviews ?? 0,
+            visits: m.visits ?? 0,
+            users: m.users ?? 0,
+            searchVisits: m.search_visits ?? 0,
+            fetchedAt: m.fetched_at,
           }
         : null,
       inspection: i
@@ -9373,7 +9398,8 @@ export class ProjectDb {
 
   /**
    * Cross-source orphan URLs — pages that appear in any external truth
-   * source (XML sitemap, Search Console, or Analytics 4) but are *not*
+   * source (XML sitemap, Search Console, Analytics 4 or Yandex Metrica)
+   * but are *not*
    * in the crawled `urls` table, or are stubs with no fetched status.
    * Each row carries which sources mentioned the URL so the user can
    * triage why it was missed (sitemap-only = drop or fix internal
@@ -9383,12 +9409,15 @@ export class ProjectDb {
     limit = 1000,
     gscAccountId = '',
     ga4AccountId = '',
+    metricaCounterId = '',
   ): {
     url: string;
     sources: string[];
     gscClicks: number | null;
     gscImpressions: number | null;
     ga4Sessions: number | null;
+    metricaPageviews: number | null;
+    metricaVisits: number | null;
     lastmod: string | null;
   }[] {
     const cap = Math.max(1, Math.min(10_000, limit));
@@ -9396,9 +9425,12 @@ export class ProjectDb {
     // keeps these joins 1:1: `(url, account_id)` is the primary key of both
     // snapshot tables, so without the account predicate a URL reported by
     // two linked accounts would fan out into duplicated rows. The sitemap
-    // join is 1:1 on its own (url is UNIQUE there). Ordered by traffic (GSC
-    // clicks + GA4 sessions) descending so the highest-value orphans — real
-    // pages users reach that the crawl can't — float to the top.
+    // join is 1:1 on its own (url is UNIQUE there). Metrica is pinned to one
+    // counter the same way. Ordered by traffic (GSC clicks + sessions)
+    // descending so the highest-value orphans — real pages users reach that
+    // the crawl can't — float to the top. GA4 sessions and Metrica visits
+    // measure the same thing on sites with both, so the larger one counts;
+    // Metrica pageviews break ties for pages that are viewed but never land.
     const rows = this.db
       .prepare(
         `WITH src AS (
@@ -9407,29 +9439,45 @@ export class ProjectDb {
            SELECT url, 'gsc' AS source FROM gsc_results WHERE account_id = ?
            UNION ALL
            SELECT url, 'ga4' AS source FROM ga4_results WHERE account_id = ?
+           UNION ALL
+           SELECT url, 'metrica' AS source FROM metrica_results WHERE account_id = ?
          )
          SELECT s.url AS url,
                 GROUP_CONCAT(DISTINCT s.source) AS sources,
                 g.clicks AS gscClicks,
                 g.impressions AS gscImpressions,
                 a.sessions AS ga4Sessions,
+                m.pageviews AS metricaPageviews,
+                m.visits AS metricaVisits,
                 sm.lastmod AS lastmod
            FROM src s
            LEFT JOIN urls u ON u.url = s.url
            LEFT JOIN gsc_results g ON g.url = s.url AND g.account_id = ?
            LEFT JOIN ga4_results a ON a.url = s.url AND a.account_id = ?
+           LEFT JOIN metrica_results m ON m.url = s.url AND m.account_id = ?
            LEFT JOIN sitemap_urls sm ON sm.url = s.url
           WHERE u.url IS NULL OR u.status_code IS NULL
           GROUP BY s.url
-          ORDER BY (COALESCE(g.clicks, 0) + COALESCE(a.sessions, 0)) DESC, s.url
+          ORDER BY (COALESCE(g.clicks, 0) + MAX(COALESCE(a.sessions, 0), COALESCE(m.visits, 0))) DESC,
+                   COALESCE(m.pageviews, 0) DESC, s.url
           LIMIT ?`,
       )
-      .all(gscAccountId, ga4AccountId, gscAccountId, ga4AccountId, cap) as {
+      .all(
+        gscAccountId,
+        ga4AccountId,
+        metricaCounterId,
+        gscAccountId,
+        ga4AccountId,
+        metricaCounterId,
+        cap,
+      ) as {
       url: string;
       sources: string;
       gscClicks: number | null;
       gscImpressions: number | null;
       ga4Sessions: number | null;
+      metricaPageviews: number | null;
+      metricaVisits: number | null;
       lastmod: string | null;
     }[];
     return rows.map((r) => ({
@@ -9438,6 +9486,8 @@ export class ProjectDb {
       gscClicks: r.gscClicks ?? null,
       gscImpressions: r.gscImpressions ?? null,
       ga4Sessions: r.ga4Sessions ?? null,
+      metricaPageviews: r.metricaPageviews ?? null,
+      metricaVisits: r.metricaVisits ?? null,
       lastmod: r.lastmod ?? null,
     }));
   }

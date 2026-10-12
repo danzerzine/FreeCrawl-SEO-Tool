@@ -105,6 +105,18 @@ function resolveUrlId(
 }
 
 /** Sanity-cap a numeric param without falling back to undefined. */
+/** The Metrica counter last fetched for this project (the desktop saves it
+ *  after a successful pull), or '' when there is none. */
+function savedMetricaCounter(db: ProjectDb): string {
+  try {
+    const raw = db.getMeta('integrationSettings:metrica');
+    const saved = raw ? (JSON.parse(raw) as { counterId?: unknown }) : null;
+    return typeof saved?.counterId === 'string' ? saved.counterId : '';
+  } catch {
+    return ''; // corrupt settings — no counter
+  }
+}
+
 function clamp(n: unknown, min: number, max: number, fallback: number): number {
   const v = typeof n === 'number' && Number.isFinite(n) ? n : fallback;
   return Math.max(min, Math.min(max, Math.floor(v)));
@@ -586,7 +598,7 @@ export function buildTools(): Tool[] {
     {
       name: 'get_url_analytics',
       description:
-        'GSC + GA4 + PageSpeed + AI roll-up for one URL: clicks/impressions/CTR/position (GSC), sessions/users/bounceRate (GA4), lab scores + Core Web Vitals (PageSpeed), provider-specific AI verdict. Returns null fields for integrations that have not been fetched yet.',
+        'GSC + GA4 + Yandex Metrica + URL Inspection roll-up for one URL: clicks/impressions/CTR/position (GSC), sessions/users/pageviews/engagement (GA4), pageviews (hit-level) and visits/users/searchVisits (session-level, sessions that started on this page) from the Metrica counter last fetched for this project, and the GSC URL Inspection verdict. Returns null fields for integrations that have not been fetched yet.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -598,7 +610,7 @@ export function buildTools(): Tool[] {
         const id = resolveUrlId(args, db);
         const row = db.getUrlRowById(id);
         if (!row) throw new Error(`URL id ${id} not found.`);
-        return db.getUrlAnalytics(row.url);
+        return db.getUrlAnalytics(row.url, '', '', savedMetricaCounter(db));
       },
     },
 
@@ -706,16 +718,9 @@ export function buildTools(): Tool[] {
         },
       },
       handler: (args, db) => {
-        let counterId = typeof args.counterId === 'string' ? args.counterId.trim() : '';
-        if (!counterId) {
-          try {
-            const raw = db.getMeta('integrationSettings:metrica');
-            const saved = raw ? (JSON.parse(raw) as { counterId?: unknown }) : null;
-            if (typeof saved?.counterId === 'string') counterId = saved.counterId;
-          } catch {
-            /* corrupt settings — query with no counter, every row is without data */
-          }
-        }
+        const counterId =
+          (typeof args.counterId === 'string' ? args.counterId.trim() : '') ||
+          savedMetricaCounter(db);
         const result = db.queryMetrica({
           limit: clamp(args.limit, 1, 1000, 50),
           offset: clamp(args.offset, 0, 10_000_000, 0),
@@ -1159,13 +1164,18 @@ export function buildTools(): Tool[] {
     {
       name: 'report_orphan_cross_source',
       description:
-        'Orphan pages across all truth sources: URLs present in the XML sitemap, Google Search Console, or Google Analytics 4 but never reached by the crawl (or crawled only as an unfetched stub). Each row lists which sources mentioned it plus its GSC clicks / impressions and GA4 sessions; sorted by traffic (GSC clicks + GA4 sessions) descending so high-value orphans surface first. Sitemap-only with no traffic is often a dead entry; GSC/GA4 orphans are real pages users reach that no internal link path does.',
+        'Orphan pages across all truth sources: URLs present in the XML sitemap, Google Search Console, Google Analytics 4 or Yandex Metrica (the counter last fetched for this project) but never reached by the crawl (or crawled only as an unfetched stub). Each row lists which sources mentioned it plus its GSC clicks / impressions, GA4 sessions and Metrica pageviews (hit-level) / visits (landing page); sorted by traffic (GSC clicks + the larger of GA4 sessions and Metrica visits, then Metrica pageviews) descending so high-value orphans surface first. Sitemap-only with no traffic is often a dead entry; GSC/GA4/Metrica orphans are real pages users reach that no internal link path does.',
       inputSchema: {
         type: 'object',
         properties: { limit: { type: 'integer', minimum: 1, maximum: 10_000 } },
       },
       handler: (args, db) => ({
-        rows: db.orphanPagesCrossSource(clamp(args.limit, 1, 10_000, 1000)),
+        rows: db.orphanPagesCrossSource(
+          clamp(args.limit, 1, 10_000, 1000),
+          '',
+          '',
+          savedMetricaCounter(db),
+        ),
       }),
     },
     {

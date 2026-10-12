@@ -93,7 +93,7 @@ const REPORT_LABELS: Record<ReportKind, string> = {
   'url-length-histogram': 'URL Length Histogram',
   'word-count-per-dir': 'Word Count per Directory',
   'sitemap-orphans': 'Sitemap Orphans (Top 1000)',
-  'orphan-cross-source': 'Orphan Pages — Sitemap + GSC + GA4 (Top 1000)',
+  'orphan-cross-source': 'Orphan Pages — Sitemap + GSC + GA4 + Metrica (Top 1000)',
   'server-headers': 'Server Stack (Server Header)',
   'top-words': 'Top Words (Title + Meta + H1, Top 100)',
   'pages-over-link-limit': 'Pages Over Max Links per Page',
@@ -395,7 +395,7 @@ export function ReportsDialog({ open, onClose }: Props) {
               r.map((x: OrphanCrossSourceRow) => ({
                 key: x.url,
                 count: 1,
-                // `sources` (sitemap / gsc / ga4) plus any traffic go in the
+                // `sources` (sitemap / gsc / ga4 / metrica) plus any traffic go in the
                 // secondary value column so the user can triage why each URL
                 // was missed and how much it matters — sitemap-only with no
                 // traffic is often a dead entry to drop; GSC clicks / GA4
@@ -405,6 +405,12 @@ export function ReportsDialog({ open, onClose }: Props) {
                   x.gscClicks != null ? `${x.gscClicks.toLocaleString()} GSC clicks` : null,
                   x.gscImpressions != null ? `${x.gscImpressions.toLocaleString()} impr` : null,
                   x.ga4Sessions != null ? `${x.ga4Sessions.toLocaleString()} GA4 sessions` : null,
+                  x.metricaVisits != null
+                    ? `${x.metricaVisits.toLocaleString()} Metrica visits (landing)`
+                    : null,
+                  x.metricaPageviews != null
+                    ? `${x.metricaPageviews.toLocaleString()} Metrica pageviews (hits)`
+                    : null,
                 ]
                   .filter(Boolean)
                   .join(' · '),

@@ -5496,11 +5496,13 @@ function registerIpc(): void {
     IPC.reportsOrphanCrossSource,
     (_e, limit?: number): Promise<OrphanCrossSourceRow[]> => {
       // Scoped to the project's selected accounts — the cross-source
-      // joins are only 1:1 when pinned to one GSC + one GA4 account.
-      const args: [number, string, string] = [
+      // joins are only 1:1 when pinned to one GSC + one GA4 account and
+      // one Metrica counter.
+      const args: [number, string, string, string] = [
         limit ?? 1000,
         resolveGoogleAccount('gsc'),
         resolveGoogleAccount('ga4'),
+        resolveMetricaSettings().counterId,
       ];
       return callReaderOrFallback<OrphanCrossSourceRow[]>(
         'orphanPagesCrossSource',
@@ -7353,11 +7355,12 @@ function registerIpc(): void {
     async (_e, url: string): Promise<UrlAnalyticsDetail | null> => {
       if (!url) return null;
       // Scoped to the project's selected accounts so the panel agrees
-      // with what the Search Console / GA4 tabs are showing.
-      const args: [string, string, string] = [
+      // with what the Search Console / GA4 / Metrica tabs are showing.
+      const args: [string, string, string, string] = [
         url,
         resolveGoogleAccount('gsc'),
         resolveGoogleAccount('ga4'),
+        resolveMetricaSettings().counterId,
       ];
       return callReaderOrFallback<UrlAnalyticsDetail | null>(
         'getUrlAnalytics',
@@ -8166,13 +8169,14 @@ function registerIpc(): void {
    * upgraded project keeps the data it already pulled.
    */
   /** Account + URL-matching context the dataset exports (Search Console,
-   *  GA4) read with — the same resolution the tabs' query handlers use,
+   *  GA4, Metrica) read with — the same resolution the tabs' query handlers use,
    *  so an exported sheet matches what the tab shows. */
   function datasetExportContext(): DatasetExportContext {
     const gsc = resolveGscSettings();
     return {
       gscAccountId: resolveGoogleAccount('gsc'),
       ga4AccountId: resolveGoogleAccount('ga4'),
+      metricaCounterId: resolveMetricaSettings().counterId,
       gscMatchSlash: gsc.matchSlash,
       gscMatchCase: gsc.matchCase,
     };

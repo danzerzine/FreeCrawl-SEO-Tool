@@ -1349,7 +1349,8 @@ export interface SitemapOrphanRow {
 /** One row of the cross-source orphan-pages report. */
 export interface OrphanCrossSourceRow {
   url: string;
-  /** Which truth sources mentioned this URL — `sitemap`, `gsc`, `ga4`. */
+  /** Which truth sources mentioned this URL — `sitemap`, `gsc`, `ga4`,
+   *  `metrica`. */
   sources: string[];
   /** Search Console clicks for this URL, when it came from GSC. */
   gscClicks: number | null;
@@ -1357,6 +1358,11 @@ export interface OrphanCrossSourceRow {
   gscImpressions: number | null;
   /** Analytics 4 sessions for this URL, when it came from GA4. */
   ga4Sessions: number | null;
+  /** Yandex Metrica pageviews (hit-level), when it came from Metrica. */
+  metricaPageviews: number | null;
+  /** Yandex Metrica visits that landed on this URL, when it came from
+   *  Metrica. */
+  metricaVisits: number | null;
   /** `<lastmod>` from the sitemap, when it came from the sitemap. */
   lastmod: string | null;
 }
