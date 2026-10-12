@@ -104,7 +104,6 @@ function resolveUrlId(
   throw new Error('Tool requires either `id` (number) or `url` (string).');
 }
 
-/** Sanity-cap a numeric param without falling back to undefined. */
 /** The Metrica counter last fetched for this project (the desktop saves it
  *  after a successful pull), or '' when there is none. */
 function savedMetricaCounter(db: ProjectDb): string {
@@ -117,6 +116,7 @@ function savedMetricaCounter(db: ProjectDb): string {
   }
 }
 
+/** Sanity-cap a numeric param without falling back to undefined. */
 function clamp(n: unknown, min: number, max: number, fallback: number): number {
   const v = typeof n === 'number' && Number.isFinite(n) ? n : fallback;
   return Math.max(min, Math.min(max, Math.floor(v)));
@@ -1967,10 +1967,9 @@ export function buildTools(): Tool[] {
       },
       handler: async (args) =>
         bridgeRequest<{
-          ok: boolean;
-          error: string | null;
-          rowCount: number;
-          meta: unknown;
+          started: boolean;
+          reason?: string | null;
+          state: unknown;
         }>('POST', '/v1/action/metrica-fetch', args),
     },
 
@@ -2193,7 +2192,7 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'cancel_fetch',
       description:
-        'Request cooperative cancellation of a running batch fetcher. In-flight items finish and are saved; queued items are skipped. Pass `kind` ("pagespeed" / "crux" / "spelling" / "ai" / "seo" / "metrica") to cancel one, or omit to cancel all. A Metrica pull is aborted at once, even mid-retry, and nothing is stored. Returns which kinds were running when the cancel landed. No-op for kinds that are idle.',
+        'Request cooperative cancellation of a running batch fetcher. In-flight items finish and are saved; queued items are skipped. Pass `kind` ("pagespeed" / "crux" / "spelling" / "ai" / "seo" / "metrica") to cancel one, or omit to cancel all. A Metrica pull is aborted at once, even mid-retry, and nothing is stored, unless the rows were already being written. Returns which kinds were running when the cancel landed. No-op for kinds that are idle.',
       inputSchema: {
         type: 'object',
         properties: {

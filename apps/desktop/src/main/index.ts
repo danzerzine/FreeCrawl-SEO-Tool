@@ -8849,12 +8849,13 @@ function registerIpc(): void {
     'metrica-fetch': async (input) => {
       const i = (input ?? {}) as Partial<MetricaFetchInput>;
       const run = currentSession().fetchRuns.metrica;
+      const alreadyRunning = run.active;
       const pending = runMetricaFetch({
         counterId: String(i.counterId ?? ''),
         counterName: typeof i.counterName === 'string' ? i.counterName : '',
         days: (i.days ?? 28) as MetricaFetchInput['days'],
       });
-      if (!run.active) {
+      if (alreadyRunning || !run.active) {
         // Rejected before it started (bad input, no token, already running).
         const result = await pending;
         return { started: false, reason: result.error, state: run.snapshot };

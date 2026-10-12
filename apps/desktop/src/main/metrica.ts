@@ -142,6 +142,9 @@ async function getJson(
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
       const json = (await res.json().catch(() => null)) as unknown;
+      // A cancel while the body downloads makes json null; report it as a
+      // cancel, not as an API error.
+      throwIfCancelled(signal);
       if (res.ok && json) return json;
       lastError = apiError(json, res.status);
       lastStatus = res.status;
