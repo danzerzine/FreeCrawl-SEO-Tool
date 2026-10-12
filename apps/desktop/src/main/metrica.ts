@@ -91,23 +91,55 @@ function isTooComplicated(err: unknown): boolean {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** Thrown when the caller aborts a pull. */
+export class MetricaCancelledError extends Error {
+  constructor() {
+    super('Yandex Metrica fetch cancelled.');
+    this.name = 'MetricaCancelledError';
+  }
+}
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new MetricaCancelledError();
+}
+
+/** Backoff pause that ends early, with a cancel error, on abort. */
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new MetricaCancelledError());
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new MetricaCancelledError());
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 /** GET a Metrica endpoint as JSON, retrying throttling and server errors. */
 async function getJson(
   token: string,
   path: string,
   params: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const url = `${API_BASE}${path}?${new URLSearchParams(params).toString()}`;
   let lastError = '';
   let lastStatus = 0;
   let backoffMs = 2_000;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    throwIfCancelled(signal);
+    const timeout = AbortSignal.timeout(120_000);
     try {
       const res = await apiFetch(url, {
         headers: { Authorization: `OAuth ${token}` },
-        signal: AbortSignal.timeout(120_000),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
       const json = (await res.json().catch(() => null)) as unknown;
       if (res.ok && json) return json;
@@ -117,6 +149,7 @@ async function getJson(
       if (heavy) backoffMs = 10_000;
       else if (!isRetryable(res.status)) break;
     } catch (err) {
+      throwIfCancelled(signal);
       // Never echo `err.message`: undici quotes the offending header value
       // (the token) in its validation errors.
       const name = err instanceof Error ? err.name : 'Error';
@@ -125,7 +158,7 @@ async function getJson(
     }
     if (attempt < MAX_ATTEMPTS) {
       logger.log('warn', 'metrica', `${lastError} — retry ${attempt}/${MAX_ATTEMPTS - 1}`);
-      await sleep(backoffMs * 2 ** (attempt - 1));
+      await sleep(backoffMs * 2 ** (attempt - 1), signal);
     }
   }
   throw new MetricaApiError(lastError, lastStatus);
@@ -195,6 +228,8 @@ async function runReport(
   date2: string,
   spec: ReportSpec,
   onRow: (url: string, values: number[]) => void,
+  signal: AbortSignal | undefined,
+  onPage: (rowsSoFar: number) => void,
 ): Promise<ReportResult> {
   const result: ReportResult = {
     totals: spec.metrics.map(() => 0),
@@ -204,6 +239,7 @@ async function runReport(
     date1,
     date2,
   };
+  onPage(0);
   let limit = PAGE_LIMIT;
   for (let offset = 1; ; ) {
     const params: Record<string, string> = {
@@ -228,7 +264,7 @@ async function runReport(
       query?: { date1?: unknown; date2?: unknown };
     };
     try {
-      json = (await getJson(token, '/stat/v1/data', params)) as typeof json;
+      json = (await getJson(token, '/stat/v1/data', params, signal)) as typeof json;
     } catch (err) {
       if (!isTooComplicated(err) || limit <= MIN_PAGE_LIMIT) throw err;
       // Retries didn't help: same offset, half the page. Rows already
@@ -280,6 +316,7 @@ async function runReport(
       );
     }
     result.rowCount += data.length;
+    onPage(result.rowCount);
     // `total_rows` is capped near offset + limit on large reports, so a
     // short page is the only reliable end-of-data signal.
     if (data.length < limit) break;
@@ -304,6 +341,21 @@ export interface MetricaPageRow {
   visits: number;
   users: number;
   searchVisits: number;
+}
+
+/** Where a running pull is: which of the three reports, and how many raw
+ *  rows that report has returned so far. */
+export interface MetricaFetchProgress {
+  report: 'pageviews' | 'visits' | 'searchVisits';
+  reportIndex: number;
+  reportCount: number;
+  rows: number;
+}
+
+export interface MetricaFetchOptions {
+  /** Aborts the pull, including any backoff pause in progress. */
+  signal?: AbortSignal;
+  onProgress?: (progress: MetricaFetchProgress) => void;
 }
 
 export interface MetricaPageMetrics {
@@ -334,7 +386,13 @@ export async function fetchPageMetrics(
   counterId: string,
   days: number,
   normalize: (url: string) => string | null,
+  opts: MetricaFetchOptions = {},
 ): Promise<MetricaPageMetrics> {
+  const { signal, onProgress } = opts;
+  const progress =
+    (report: MetricaFetchProgress['report'], reportIndex: number) =>
+    (rows: number): void =>
+      onProgress?.({ report, reportIndex, reportCount: 3, rows });
   const started = Date.now();
   const relative1 = `${days}daysAgo`;
   const relative2 = 'yesterday';
@@ -364,6 +422,8 @@ export async function fetchPageMetrics(
       const row = rowFor(url);
       if (row) row.pageviews += v[0] ?? 0;
     },
+    signal,
+    progress('pageviews', 1),
   );
   // Later reports reuse the dates the first one resolved to.
   const { date1, date2 } = pv;
@@ -379,6 +439,8 @@ export async function fetchPageMetrics(
       row.visits += v[0] ?? 0;
       row.users += v[1] ?? 0;
     },
+    signal,
+    progress('visits', 2),
   );
   const search = await runReport(
     token,
@@ -394,6 +456,8 @@ export async function fetchPageMetrics(
       const row = rowFor(url);
       if (row) row.searchVisits += v[0] ?? 0;
     },
+    signal,
+    progress('searchVisits', 3),
   );
 
   const rows = [...byUrl.values()];

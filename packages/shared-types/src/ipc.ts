@@ -50,7 +50,12 @@ import type {
   Ga4FetchMeta,
   UrlAnalyticsDetail,
 } from './google.js';
-import type { MetricaCounter, MetricaRow, MetricaFetchMeta } from './metrica.js';
+import type {
+  MetricaCounter,
+  MetricaRow,
+  MetricaFetchMeta,
+  MetricaNotice,
+} from './metrica.js';
 import type { AiProvider, AiRow } from './ai.js';
 import type {
   AssistantApprovalInput,
@@ -416,6 +421,10 @@ export const IPC = {
   metricaListCounters: 'metrica:list-counters',
   metricaFetch: 'metrica:fetch',
   metricaQuery: 'metrica:query',
+  /** Aborts an in-flight `metricaFetch`, backoff pauses included. */
+  metricaCancel: 'metrica:cancel',
+  /** main → renderer: live progress of an in-flight Metrica pull. */
+  metricaProgress: 'metrica:progress',
   /** Faz 7 — AI integrations (OpenAI / Anthropic / Ollama). `aiRun`
    *  applies a prompt template to each selected URL and stores the
    *  response; `aiQuery` lists crawled pages joined with the latest
@@ -1785,8 +1794,21 @@ export interface MetricaFetchInput {
 export interface MetricaFetchResult {
   ok: boolean;
   error: string | null;
+  /** True when the pull was cancelled; nothing was stored. */
+  cancelled: boolean;
   rowCount: number;
   meta: MetricaFetchMeta | null;
+}
+
+/** Live state of a Metrica pull: three reports run in turn, each paged;
+ *  `rows` counts the raw rows the current report has returned so far. */
+export interface MetricaProgress {
+  running: boolean;
+  /** Current report, null once the pull has stopped. */
+  report: 'pageviews' | 'visits' | 'searchVisits' | null;
+  reportIndex: number;
+  reportCount: number;
+  rows: number;
 }
 
 export interface MetricaQueryInput {
@@ -1815,7 +1837,7 @@ export interface MetricaQueryResult {
   total: number;
   meta: MetricaFetchMeta | null;
   /** Why an absence filter returned nothing (no complete pull yet). */
-  notice: string | null;
+  notice: MetricaNotice | null;
 }
 
 export interface AiRunInput {
@@ -2238,6 +2260,10 @@ export interface FreeCrawlApi {
   metricaListCounters(): Promise<MetricaListCountersResult>;
   metricaFetch(input: MetricaFetchInput): Promise<MetricaFetchResult>;
   metricaQuery(input: MetricaQueryInput): Promise<MetricaQueryResult>;
+  /** Cancel an in-flight Metrica pull; it resolves with `cancelled`. */
+  metricaCancel(): Promise<void>;
+  /** Live progress of an in-flight Metrica pull. */
+  onMetricaProgress(cb: (p: MetricaProgress) => void): () => void;
   /** Run an AI prompt against the given URLs through the chosen
    *  provider. Resolves when the run finishes; subscribe to
    *  `onAiProgress` for live updates. */

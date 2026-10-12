@@ -680,7 +680,7 @@ export function buildTools(): Tool[] {
     {
       name: 'query_metrica',
       description:
-        'Yandex Metrica rows per crawled HTML page: `pageviews` (hit-level, views of that URL) and `visits` / `users` / `searchVisits` (session-level, sessions that STARTED on that page; searchVisits = organic search). A page can have pageviews and zero visits. `users` is an upper bound: URL variants folded into one page are summed, and summing across pages over-counts. Returns `{rows, total, counterId, meta, notice}`; `meta` holds the pulled date range, whole-site totals and `truncated` / `sampled` flags. `without-data` and `indexable-no-visits` need a complete, unsampled pull — otherwise they return no rows and `notice` says why. Populate with `metrica_fetch`.',
+        'Yandex Metrica rows per crawled HTML page: `pageviews` (hit-level, views of that URL) and `visits` / `users` / `searchVisits` (session-level, sessions that STARTED on that page; searchVisits = organic search). A page can have pageviews and zero visits. `users` is an upper bound: URL variants folded into one page are summed, and summing across pages over-counts. Returns `{rows, total, counterId, meta, notice}`; `meta` holds the pulled date range, whole-site totals and `truncated` / `sampled` flags. `without-data` and `indexable-no-visits` need a complete, unsampled pull — otherwise they return no rows and a `notice` code: "no-pull" (nothing fetched for this counter), "truncated" (the last pull hit the row cap) or "sampled". Populate with `metrica_fetch`.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1933,7 +1933,7 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'metrica_fetch',
       description:
-        'Pull unsampled per-page Yandex Metrica data for one counter over the last N full days, ending yesterday (counter time zone): pageviews by page URL, visits / users / search-engine visits by landing page. Replaces the stored rows for that counter; query them via `query_metrica`. Blocks until the pull finishes — usually under a minute, a few minutes on sites with hundreds of thousands of URLs. Returns `{ok, error, rowCount, meta}`.',
+        'Pull unsampled per-page Yandex Metrica data for one counter over the last N full days, ending yesterday (counter time zone): pageviews by page URL, visits / users / search-engine visits by landing page. Replaces the stored rows for that counter; query them via `query_metrica`. Returns immediately — it does NOT block (a pull takes under a minute on most sites, several minutes with throttling retries). Poll `get_fetch_progress` (kind "metrica") until `running` is false, then check its `error` / `cancelled`; `cancel_fetch` stops it and keeps the stored rows. Returns `{started, state}`; `started:false` + `reason` when the input or token is rejected or a pull is already running.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2165,13 +2165,13 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'get_fetch_progress',
       description:
-        'Poll the live state of the PageSpeed / AI / SEO batch fetchers started by pagespeed_run / ai_run / seo_run (or by the desktop UI — the snapshot is shared). Returns per-kind `{running, done, total, completed, failed, currentUrl, cancelled, startedAt, finishedAt, provider, error}`. Omit `kind` for all three; pass one to narrow. Poll every 1–2 s; once `running` flips to false the batch is done. This is the fetch-side analogue of get_crawl_progress.',
+        'Poll the live state of the PageSpeed / CrUX / spelling / AI / SEO batch fetchers and the Yandex Metrica pull, started by pagespeed_run / crux_run / spelling_run / ai_run / seo_run / metrica_fetch (or by the desktop UI — the snapshot is shared). For "metrica", done/total count its three reports and `detail` names the current one with its rows so far. Returns per-kind `{running, done, total, completed, failed, currentUrl, cancelled, startedAt, finishedAt, provider, error, detail}`. Omit `kind` for all; pass one to narrow. Poll every 1–2 s; once `running` flips to false the batch is done. This is the fetch-side analogue of get_crawl_progress.',
       inputSchema: {
         type: 'object',
         properties: {
           kind: {
             type: 'string',
-            enum: ['pagespeed', 'crux', 'spelling', 'ai', 'seo'],
+            enum: ['pagespeed', 'crux', 'spelling', 'ai', 'seo', 'metrica'],
           },
         },
       },
@@ -2183,13 +2183,13 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'cancel_fetch',
       description:
-        'Request cooperative cancellation of a running batch fetcher. In-flight items finish and are saved; queued items are skipped. Pass `kind` ("pagespeed" / "ai" / "seo") to cancel one, or omit to cancel all three. Returns which kinds were running when the cancel landed. No-op for kinds that are idle.',
+        'Request cooperative cancellation of a running batch fetcher. In-flight items finish and are saved; queued items are skipped. Pass `kind` ("pagespeed" / "crux" / "spelling" / "ai" / "seo" / "metrica") to cancel one, or omit to cancel all. A Metrica pull is aborted at once, even mid-retry, and nothing is stored. Returns which kinds were running when the cancel landed. No-op for kinds that are idle.',
       inputSchema: {
         type: 'object',
         properties: {
           kind: {
             type: 'string',
-            enum: ['pagespeed', 'crux', 'spelling', 'ai', 'seo'],
+            enum: ['pagespeed', 'crux', 'spelling', 'ai', 'seo', 'metrica'],
           },
         },
       },

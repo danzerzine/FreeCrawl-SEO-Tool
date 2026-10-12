@@ -151,6 +151,7 @@ import {
   type MetricaFetchResult,
   type MetricaQueryInput,
   type MetricaQueryResult,
+  type MetricaProgress,
   type AiRunInput,
   type AiRunResult,
   type AiQueryInput,
@@ -512,6 +513,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.metricaFetch, input),
   metricaQuery: (input: MetricaQueryInput): Promise<MetricaQueryResult> =>
     ipcRenderer.invoke(IPC.metricaQuery, input),
+  metricaCancel: (): Promise<void> => ipcRenderer.invoke(IPC.metricaCancel),
+  onMetricaProgress: (cb) => subscribe<MetricaProgress>(IPC.metricaProgress, cb),
   aiRun: (input: AiRunInput): Promise<AiRunResult> =>
     ipcRenderer.invoke(IPC.aiRun, input),
   aiCancel: (): Promise<void> => ipcRenderer.invoke(IPC.aiCancel),

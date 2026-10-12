@@ -69,6 +69,12 @@ export function defaultMetricaSettings(): MetricaIntegrationSettings {
 }
 
 /** Metadata describing the most recent Metrica pull for one counter. */
+/** Why an absence filter (`without-data`, `indexable-no-visits`) returned
+ *  nothing: no pull yet, or the last pull hit the row cap or was sampled,
+ *  so a missing row can't be read as zero traffic. The UI turns the code
+ *  into text. */
+export type MetricaNotice = 'no-pull' | 'truncated' | 'sampled';
+
 export interface MetricaFetchMeta {
   counterId: string;
   counterName: string;

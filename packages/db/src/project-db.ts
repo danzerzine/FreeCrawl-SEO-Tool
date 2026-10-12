@@ -33,6 +33,7 @@ import type {
   GscPreset,
   Ga4Row,
   MetricaRow,
+  MetricaNotice,
   AiProvider,
   AiResult,
   AiRow,
@@ -5412,7 +5413,7 @@ export class ProjectDb {
    *
    * `without-data` and `indexable-no-visits` read a missing row as zero
    * traffic, which only holds after a complete, unsampled pull. Without
-   * one they return nothing plus a `notice` saying why.
+   * one they return nothing plus a `notice` code saying why.
    */
   queryMetrica(params: {
     limit: number;
@@ -5425,7 +5426,7 @@ export class ProjectDb {
       | 'indexable-no-visits'
       | 'non200-with-traffic';
     counterId?: string;
-  }): { rows: MetricaRow[]; total: number; notice: string | null } {
+  }): { rows: MetricaRow[]; total: number; notice: MetricaNotice | null } {
     const filter = params.filter ?? 'all';
     const limit = Math.min(Math.max(Math.trunc(Number(params.limit)) || 0, 1), 1000);
     const offset = Math.max(Math.trunc(Number(params.offset)) || 0, 0);
@@ -5440,12 +5441,12 @@ export class ProjectDb {
       } catch {
         meta = null;
       }
-      const notice = !meta
-        ? 'No Yandex Metrica data has been fetched for this counter yet.'
+      const notice: MetricaNotice | null = !meta
+        ? 'no-pull'
         : meta.truncated === true
-          ? 'The last Yandex Metrica pull hit the row limit, so pages missing from it may still have traffic.'
+          ? 'truncated'
           : meta.sampled === true
-            ? 'The last Yandex Metrica pull came back sampled, so pages missing from it may still have traffic.'
+            ? 'sampled'
             : null;
       if (notice) return { rows: [], total: 0, notice };
     }
