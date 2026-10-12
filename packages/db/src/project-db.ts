@@ -9431,16 +9431,29 @@ export class ProjectDb {
     // the crawl can't — float to the top. GA4 sessions and Metrica visits
     // measure the same thing on sites with both, so the larger one counts;
     // Metrica pageviews break ties for pages that are viewed but never land.
+    //
+    // A Metrica counter also reports pages on other hosts that carry it
+    // (syndication like dzen.ru, translate proxies, staging). Those are not
+    // pages the crawl could have found, so Metrica only contributes URLs on
+    // hosts the crawl has internal pages on.
+    const hostOf = (col: string): string => {
+      const rest = `substr(${col}, instr(${col}, '://') + 3)`;
+      return `CASE WHEN instr(${rest}, '/') > 0 THEN substr(${rest}, 1, instr(${rest}, '/') - 1) ELSE ${rest} END`;
+    };
     const rows = this.db
       .prepare(
-        `WITH src AS (
+        `WITH crawl_hosts AS (
+           SELECT DISTINCT ${hostOf('url')} AS host FROM urls WHERE is_external = 0
+         ),
+         src AS (
            SELECT url, 'sitemap' AS source FROM sitemap_urls
            UNION ALL
            SELECT url, 'gsc' AS source FROM gsc_results WHERE account_id = ?
            UNION ALL
            SELECT url, 'ga4' AS source FROM ga4_results WHERE account_id = ?
            UNION ALL
-           SELECT url, 'metrica' AS source FROM metrica_results WHERE account_id = ?
+           SELECT url, 'metrica' AS source FROM metrica_results
+            WHERE account_id = ? AND ${hostOf('url')} IN (SELECT host FROM crawl_hosts)
          )
          SELECT s.url AS url,
                 GROUP_CONCAT(DISTINCT s.source) AS sources,
