@@ -161,7 +161,11 @@ export function MetricaTab() {
     };
   }, [loadCounters, retryNonce]);
 
+  // Queries run on a reader pool and can finish out of order; only the
+  // latest one may fill the table.
+  const reloadSeq = useRef(0);
   const reload = useCallback(async () => {
+    const seq = ++reloadSeq.current;
     const res = await window.freecrawl.metricaQuery({
       limit: PAGE_SIZE,
       offset: 0,
@@ -169,6 +173,7 @@ export function MetricaTab() {
       filter,
       counterId: counterId || undefined,
     });
+    if (seq !== reloadSeq.current) return;
     setRows(res.rows);
     setTotal(res.total);
     setMeta(res.meta);
@@ -199,8 +204,10 @@ export function MetricaTab() {
     if (stage !== 'ready' || seenDataVersion.current === dataVersion) return;
     seenDataVersion.current = dataVersion;
     let cancelled = false;
+    const sentFor = counterRef.current.counterId;
     void window.freecrawl.integrationSettingsGet('metrica').then((stored) => {
-      if (cancelled) return;
+      // A pick made while the read was in flight is newer than what it read.
+      if (cancelled || counterRef.current.counterId !== sentFor) return;
       const storedId = typeof stored?.['counterId'] === 'string' ? stored['counterId'] : '';
       const { counterId: shown, counters: list } = counterRef.current;
       if (storedId) {
