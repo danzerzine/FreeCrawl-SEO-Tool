@@ -12,6 +12,7 @@ import {
   writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   DEFAULT_CRAWL_CONFIG,
   type CrawlConfig,
@@ -531,43 +532,115 @@ function exitOnInterrupt(): void {
  * Take `<project>.lock` for a write to a desktop-saved project, so two CLI
  * commands can't each repack the archive and drop the other's data. A lock
  * whose process is gone (killed, crashed) is taken over. Returns the
- * release function; throws a user-facing message when the lock is held.
+ * release function, which deletes the lock only while it is still ours;
+ * throws a user-facing message when the lock is held.
  */
 function lockProject(path: string): () => void {
   const lockPath = `${path}.lock`;
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const fd = openSync(lockPath, 'wx');
-      try {
-        writeSync(fd, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
-      } finally {
-        closeSync(fd);
-      }
-      return () => rmSync(lockPath, { force: true });
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST' || attempt > 0) throw err;
+  const inUse = (holder: number | string): Error =>
+    new Error(
+      `The project is in use by another FreeCrawl CLI command (pid ${holder}). ` +
+        `Wait for it to finish, or delete ${lockPath} if no such command is running.`,
+    );
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const mine = createExclusive(lockPath);
+    if (mine !== null) return () => removeIfUnchanged(lockPath, mine);
+    const seen = readIfExists(lockPath);
+    if (seen === null) continue; // released meanwhile
+    const holder = lockHolder(lockPath, seen);
+    if (holder !== null) throw inUse(holder);
+    removeStale(lockPath, seen, inUse);
+  }
+  throw inUse('unknown');
+}
+
+/**
+ * Delete the stale `file`, which held `content`, so that only one process
+ * ever does it. A plain check-then-delete would let a slow process delete
+ * the fresh lock a faster one had just created. Instead the delete happens
+ * only under an exclusive guard named after `content`: every lock and guard
+ * is written with unique content, which never reappears once deleted, so
+ * the guard holder knows the file it re-reads is the same stale one (a
+ * half-written file has no id, so for it the age is checked again). A
+ * guard left by a crashed process is cleared the same way, one level up.
+ */
+function removeStale(
+  file: string,
+  content: string,
+  inUse: (holder: number | string) => Error,
+  depth = 0,
+): void {
+  const guardPath = `${file.replace(/\.takeover-[0-9a-f]+$/, '')}.takeover-${createHash('sha256')
+    .update(content)
+    .digest('hex')
+    .slice(0, 16)}`;
+  let guard = createExclusive(guardPath);
+  if (guard === null) {
+    const guardSeen = readIfExists(guardPath);
+    if (guardSeen !== null) {
+      const holder = lockHolder(guardPath, guardSeen);
+      if (holder !== null) throw inUse(holder);
+      if (depth >= 3) throw inUse('unknown');
+      removeStale(guardPath, guardSeen, inUse, depth + 1);
     }
-    const holder = lockHolder(lockPath);
-    if (holder !== null) {
-      throw new Error(
-        `The project is in use by another FreeCrawl CLI command (pid ${holder}). ` +
-          `Wait for it to finish, or delete ${lockPath} if no such command is running.`,
-      );
-    }
-    rmSync(lockPath, { force: true });
+    guard = createExclusive(guardPath);
+    if (guard === null) throw inUse('unknown');
+  }
+  try {
+    const now = readIfExists(file);
+    if (now === content && lockHolder(file, now) === null) rmSync(file, { force: true });
+  } finally {
+    removeIfUnchanged(guardPath, guard);
   }
 }
 
-/** The pid of a live lock holder, or null when the lock is stale. */
-function lockHolder(lockPath: string): number | string | null {
+/** Create `file` exclusively with this process's pid, start time and a
+ *  unique id; returns what was written, or null when it already exists. */
+function createExclusive(file: string): string | null {
+  let fd: number;
+  try {
+    fd = openSync(file, 'wx');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return null;
+    throw err;
+  }
+  const content = JSON.stringify({
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    id: randomUUID(),
+  });
+  try {
+    writeSync(fd, content);
+  } finally {
+    closeSync(fd);
+  }
+  return content;
+}
+
+function readIfExists(file: string): string | null {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/** Delete `file` only if it still holds `content`. */
+function removeIfUnchanged(file: string, content: string): void {
+  if (readIfExists(file) === content) rmSync(file, { force: true });
+}
+
+/** The pid of a live holder of the lock `file`, which holds `content`, or
+ *  null when the lock is stale. */
+function lockHolder(file: string, content: string): number | string | null {
   let pid: unknown;
   try {
-    pid = (JSON.parse(readFileSync(lockPath, 'utf8')) as { pid?: unknown }).pid;
+    pid = (JSON.parse(content) as { pid?: unknown }).pid;
   } catch {
     // Unreadable or half-written: its owner may be writing it right now,
     // so only an old one counts as stale.
     try {
-      return Date.now() - statSync(lockPath).mtimeMs < 10_000 ? 'unknown' : null;
+      return Date.now() - statSync(file).mtimeMs < 10_000 ? 'unknown' : null;
     } catch {
       return null;
     }
@@ -1019,8 +1092,10 @@ function metricaUrlNormalizer(
  * Pull one counter's per-page data into an existing project, writing what
  * the desktop pull writes (rows + fetch meta, and the counter in
  * `integrationSettings:metrica`), so the desktop app shows the same data.
- * Ctrl-C cancels; nothing is written then. Exit 0 on success, 1 on an API
- * or write failure, 2 on bad arguments, 130 when cancelled.
+ * Ctrl-C during the pull cancels and writes nothing; once the write has
+ * started it exits at once, leaving the project either untouched or fully
+ * updated. Exit 0 on success, 1 on an API or write failure, 2 on bad
+ * arguments or a locked project, 130 when cancelled or interrupted.
  */
 async function runMetricaFetch(opts: {
   counter: string | undefined;
