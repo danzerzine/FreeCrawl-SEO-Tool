@@ -856,6 +856,11 @@ async function runMetricaFetch(opts: {
     if (progressOpen) process.stderr.write('\n');
     progressOpen = false;
   };
+  const log = (level: 'info' | 'warn' | 'error', message: string): void => {
+    if (level === 'info') return;
+    endProgress();
+    process.stderr.write(`[${level}] ${message}\n`);
+  };
   try {
     let normalize: (url: string) => string | null;
     try {
@@ -868,9 +873,11 @@ async function runMetricaFetch(opts: {
     // any real access problem.
     let counterName = counterId;
     try {
-      const found = (await listMetricaCounters(token)).find((c) => c.counterId === counterId);
+      const counters = await listMetricaCounters(token, { signal: abort.signal, log });
+      const found = counters.find((c) => c.counterId === counterId);
       if (found) counterName = found.name;
-    } catch {
+    } catch (err) {
+      if (err instanceof MetricaCancelledError) throw err;
       /* keep the id as the name */
     }
     const result = await fetchMetricaPageMetrics(token, counterId, days, normalize, {
@@ -885,11 +892,7 @@ async function runMetricaFetch(opts: {
           process.stderr.write(`${line}\n`);
         }
       },
-      log: (level, message) => {
-        if (level === 'info') return;
-        endProgress();
-        process.stderr.write(`[${level}] ${message}\n`);
-      },
+      log,
     });
     endProgress();
     const fetchedAt = new Date().toISOString();

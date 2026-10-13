@@ -205,16 +205,19 @@ async function getJson(
 /** Every counter the token can read. */
 export async function listCounters(
   token: string,
-  deps: MetricaDeps = {},
+  deps: MetricaDeps & { signal?: AbortSignal } = {},
 ): Promise<MetricaCounter[]> {
   const resolved = resolveDeps(deps);
   const PER_PAGE = 1000;
   const out: MetricaCounter[] = [];
   for (let offset = 1; ; offset += PER_PAGE) {
-    const json = (await getJson(resolved, token, '/management/v1/counters', {
-      per_page: String(PER_PAGE),
-      offset: String(offset),
-    })) as {
+    const json = (await getJson(
+      resolved,
+      token,
+      '/management/v1/counters',
+      { per_page: String(PER_PAGE), offset: String(offset) },
+      deps.signal,
+    )) as {
       counters?: {
         id?: unknown;
         name?: unknown;
