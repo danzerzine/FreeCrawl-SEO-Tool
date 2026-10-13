@@ -76,6 +76,7 @@ analyze-logs options:
   --format <fmt>      auto | apache-combined | apache-common | nginx | iis-w3c | custom (default: auto)
   --regex <pattern>   Named-group regex for --format custom (groups: ip ts method path status bytes ua referer)
   --verify-bots       Reverse-DNS verify a sample of bot IPs (slower; catches spoofed user-agents)
+  -h, --help          Show this help
 
 metrica-counters / metrica-fetch options:
   The token comes from the YANDEX_METRICA_TOKEN environment variable
@@ -84,8 +85,10 @@ metrica-counters / metrica-fetch options:
   --days <n>          7 | 28 | 90 full days ending yesterday (default: 28)
   --project <file>    Existing project to store the data in (default: ./crawl.seoproject)
   --config <file>     Crawl config whose URL rewrite options map Metrica URLs onto crawled
-                        URLs (default: the config the project was crawled with)
-  -h, --help          Show this help
+                        URLs (default: the crawl config the desktop app saved in the project,
+                        else the defaults; a CLI crawl does not save one, so pass the same
+                        --config file it used)
+  --json              Print the result, or the error, as JSON on stdout
 `);
 }
 
@@ -754,8 +757,9 @@ async function runMetricaCounters(json: boolean): Promise<number> {
  * URL normaliser for Metrica rows, mirroring the desktop's
  * `crawlUrlNormalizer`: the rewrite options of the crawl config, so the
  * stored rows join onto `urls.url`. The config is the `--config` file if
- * given, else the project's `lastCrawlConfig` (the `{config, secretsEnc}`
- * envelope or a bare config; secrets are irrelevant here), else defaults.
+ * given, else the project's `lastCrawlConfig` (only the desktop app saves
+ * one: the `{config, secretsEnc}` envelope or a bare config; secrets are
+ * irrelevant here), else defaults.
  */
 function metricaUrlNormalizer(
   db: ProjectDb,
@@ -807,28 +811,29 @@ async function runMetricaFetch(opts: {
   configPath: string | undefined;
   json: boolean;
 }): Promise<number> {
+  // Bad arguments fail like API errors: JSON on stdout with --json.
+  const fail = (message: string): number => metricaFail(opts.json, new Error(message), 2);
   const counterId = (opts.counter ?? '').trim();
   if (!/^\d+$/.test(counterId)) {
-    console.error(
-      'Usage: freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file] [--json]',
-    );
-    console.error(
+    if (!opts.json) {
+      console.error(
+        'Usage: freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file] [--json]',
+      );
+    }
+    return fail(
       opts.counter === undefined
         ? '--counter is required.'
         : `Invalid --counter: ${opts.counter} (expected a numeric counter id).`,
     );
-    return 2;
   }
   const days = opts.days === undefined ? 28 : Number(opts.days);
   if (days !== 7 && days !== 28 && days !== 90) {
-    console.error(`Invalid --days: ${opts.days} (expected 7, 28 or 90).`);
-    return 2;
+    return fail(`Invalid --days: ${opts.days} (expected 7, 28 or 90).`);
   }
   // ProjectDb creates a missing file; a pull into an empty project would
   // join onto nothing, so a typo in --project must fail instead.
   if (!existsSync(opts.projectPath)) {
-    console.error(`Project not found: ${opts.projectPath} (crawl it first, or pass --project).`);
-    return 2;
+    return fail(`Project not found: ${opts.projectPath} (crawl it first, or pass --project).`);
   }
   let token: string;
   try {
@@ -841,8 +846,7 @@ async function runMetricaFetch(opts: {
   try {
     db = new ProjectDb(opts.projectPath);
   } catch (err) {
-    console.error(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
-    return 2;
+    return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
   }
   const abort = new AbortController();
   const onSigint = (): void => {
@@ -866,8 +870,7 @@ async function runMetricaFetch(opts: {
     try {
       normalize = metricaUrlNormalizer(db, opts.configPath);
     } catch (err) {
-      console.error(`Cannot read --config file ${opts.configPath}: ${(err as Error).message}`);
-      return 2;
+      return fail(`Cannot read --config file ${opts.configPath}: ${(err as Error).message}`);
     }
     // Best effort, for the name the desktop shows; the pull itself reports
     // any real access problem.
