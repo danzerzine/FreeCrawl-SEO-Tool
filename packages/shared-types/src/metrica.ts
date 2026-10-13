@@ -46,6 +46,8 @@ export interface MetricaMetrics {
 
 /** One Metrica tab row — a crawled page joined with its Metrica data. */
 export interface MetricaRow {
+  /** `urls.id` — what the Detail panel opens when the row is clicked. */
+  id: number;
   url: string;
   statusCode: number | null;
   indexability: string | null;
@@ -67,6 +69,23 @@ export interface MetricaIntegrationSettings {
 export function defaultMetricaSettings(): MetricaIntegrationSettings {
   return { counterId: '', counterName: '', days: 28 };
 }
+
+/** Why a Metrica call failed, for the UI to word in the user's language.
+ *  The result's `error` keeps the English text for logs and MCP clients;
+ *  `api` means Metrica's own message (or an HTTP status) is all there is. */
+export type MetricaErrorCode =
+  | 'not-connected'
+  | 'token-format'
+  | 'token-rejected'
+  | 'access-denied'
+  | 'no-counter'
+  | 'bad-range'
+  | 'already-running'
+  | 'project-switched'
+  | 'unexpected-response'
+  | 'range-changed'
+  | 'network'
+  | 'api';
 
 /** Why an absence filter (`without-data`, `indexable-no-visits`) returned
  *  nothing: no pull yet, or the last pull hit the row cap or was sampled,

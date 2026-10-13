@@ -31,7 +31,7 @@
  * Auth is a personal OAuth token (`metrika:read`) from the credential
  * store; the caller resolves it so this module stays free of Electron.
  */
-import type { MetricaCounter, MetricaFetchMeta } from '@freecrawl/shared-types';
+import type { MetricaCounter, MetricaErrorCode, MetricaFetchMeta } from '@freecrawl/shared-types';
 import { apiFetch } from './api-fetch.js';
 import * as logger from './logger.js';
 
@@ -69,13 +69,32 @@ function isRetryable(status: number): boolean {
   return status === 420 || status === 429 || status >= 500;
 }
 
+/** A Metrica failure the UI words in the user's language by `code`; the
+ *  English message stays for logs and MCP clients. */
+export class MetricaError extends Error {
+  constructor(
+    message: string,
+    readonly code: MetricaErrorCode,
+  ) {
+    super(message);
+  }
+}
+
+function codeForStatus(status: number): MetricaErrorCode {
+  if (status === 401) return 'token-rejected';
+  if (status === 403) return 'access-denied';
+  if (status === 0) return 'network';
+  return 'api';
+}
+
 /** API failure with the HTTP status kept for the caller's fallbacks. */
-class MetricaApiError extends Error {
+class MetricaApiError extends MetricaError {
   constructor(
     message: string,
     readonly status: number,
+    code: MetricaErrorCode = codeForStatus(status),
   ) {
-    super(message);
+    super(message, code);
   }
 }
 
@@ -291,13 +310,21 @@ async function runReport(
       typeof resolved2 !== 'string' ||
       !ISO_DATE.test(resolved2)
     ) {
-      throw new MetricaApiError('Yandex Metrica returned an unexpected response.', 200);
+      throw new MetricaApiError(
+        'Yandex Metrica returned an unexpected response.',
+        200,
+        'unexpected-response',
+      );
     }
     if (offset === 1 && !ISO_DATE.test(result.date1)) {
       result.date1 = resolved1;
       result.date2 = resolved2;
     } else if (resolved1 !== result.date1 || resolved2 !== result.date2) {
-      throw new MetricaApiError('Yandex Metrica changed the report date range mid-pull.', 200);
+      throw new MetricaApiError(
+        'Yandex Metrica changed the report date range mid-pull.',
+        200,
+        'range-changed',
+      );
     }
     if (json.sampled === true) {
       // accuracy=full should never sample; record it so "no visits"

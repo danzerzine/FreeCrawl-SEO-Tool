@@ -5505,7 +5505,7 @@ export class ProjectDb {
 
     const rowsDb = this.db
       .prepare(
-        `SELECT u.url AS url, u.status_code AS status_code,
+        `SELECT u.id AS id, u.url AS url, u.status_code AS status_code,
                 u.indexability AS indexability,
                 m.pageviews AS pageviews, m.visits AS visits,
                 m.users AS users, m.search_visits AS search_visits,
@@ -5525,6 +5525,7 @@ export class ProjectDb {
       rows: rowsDb.map((r) => {
         const fetchedAt = r['fetched_at'];
         return {
+          id: r['id'] as number,
           url: r['url'] as string,
           statusCode: (r['status_code'] as number | null) ?? null,
           indexability: (r['indexability'] as string | null) ?? null,

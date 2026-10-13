@@ -8,6 +8,7 @@ import {
   type MetricaCounter,
   type MetricaFetchMeta,
   type MetricaNotice,
+  type MetricaErrorCode,
   type MetricaProgress,
   type MetricaQueryInput,
   type MetricaRow,
@@ -73,6 +74,11 @@ function persistCounter(c: MetricaCounter): void {
 export function MetricaTab() {
   const { t } = useTranslation();
   const dataVersion = useAppStore((s) => s.dataVersion);
+  // Clicking a row opens its page in the Detail panel below, as in the URL
+  // tables — without this the panel kept whatever another tab had picked.
+  const selectedUrlId = useAppStore((s) => s.selectedUrlId);
+  const setSelectedUrlId = useAppStore((s) => s.setSelectedUrlId);
+  const setSelectedUrlIds = useAppStore((s) => s.setSelectedUrlIds);
   const crawlProgress = useAppStore((s) => s.progress);
 
   const [stage, setStage] = useState<Stage>('loading');
@@ -88,6 +94,14 @@ export function MetricaTab() {
   const [filter, setFilter] = useState<FilterMode>('all');
   const [progress, setProgress] = useState<MetricaProgress | null>(lastProgress);
   const [error, setError] = useState<string | null>(null);
+  // Set for Metrica failures: the banner words the code in the UI language
+  // and falls back to the main process's English text (Metrica's own
+  // message, or a failure without a code).
+  const [errorCode, setErrorCode] = useState<MetricaErrorCode | null>(null);
+  const showError = useCallback((text: string | null, code: MetricaErrorCode | null = null) => {
+    setError(text);
+    setErrorCode(code);
+  }, []);
   const [info, setInfo] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -98,11 +112,11 @@ export function MetricaTab() {
     try {
       const res = await window.freecrawl.metricaListCounters();
       if (!res.ok) {
-        setError(res.error);
+        showError(res.error, res.errorCode);
         setCounters([]);
         return;
       }
-      setError(null);
+      showError(null);
       setCounters(res.counters);
       // Persisting from a state updater would run it twice in StrictMode;
       // the stored ID is read from settings instead.
@@ -118,7 +132,7 @@ export function MetricaTab() {
     } finally {
       setCountersLoading(false);
     }
-  }, []);
+  }, [showError]);
 
   /** Switch the project to another counter: persist the choice so the
    *  export, the orphan report and per-URL analytics read the same counter
@@ -152,14 +166,14 @@ export function MetricaTab() {
         void loadCounters();
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
+        showError(e instanceof Error ? e.message : String(e));
         setStage('error');
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [loadCounters, retryNonce]);
+  }, [loadCounters, retryNonce, showError]);
 
   // Queries run on a reader pool and can finish out of order; only the
   // latest one may fill the table.
@@ -236,7 +250,7 @@ export function MetricaTab() {
   const runFetch = useCallback(async () => {
     if (!counterId || fetching) return;
     const selected = counters.find((c) => c.counterId === counterId);
-    setError(null);
+    showError(null);
     setInfo(null);
     setProgress({ running: true, report: 'pageviews', reportIndex: 1, reportCount: 3, rows: 0 });
     try {
@@ -252,7 +266,7 @@ export function MetricaTab() {
           }),
         );
       } else if (!res.ok) {
-        setError(res.error);
+        showError(res.error, res.errorCode);
       } else {
         setMeta(res.meta);
       }
@@ -260,7 +274,7 @@ export function MetricaTab() {
       setProgress(lastProgress);
       await reload();
     }
-  }, [counterId, counters, days, fetching, reload, t]);
+  }, [counterId, counters, days, fetching, reload, showError, t]);
 
   const cancelFetch = useCallback(() => {
     void window.freecrawl.metricaCancel();
@@ -272,6 +286,60 @@ export function MetricaTab() {
       : report === 'searchVisits'
         ? t('metricaTab.reportSearchVisits', { defaultValue: 'search visits' })
         : t('metricaTab.reportPageviews', { defaultValue: 'pageviews' });
+
+  const errorText = (code: MetricaErrorCode | null): string | null => {
+    switch (code) {
+      case 'not-connected':
+        return t('metricaTab.errNotConnected', {
+          defaultValue:
+            'Yandex Metrica is not connected — paste a token in Settings → Integrations → Yandex Metrica.',
+        });
+      case 'token-format':
+        return t('metricaTab.errTokenFormat', {
+          defaultValue:
+            'The saved Yandex Metrica token has an unexpected format — paste it again in Settings → Integrations → Yandex Metrica.',
+        });
+      case 'token-rejected':
+        return t('metricaTab.errTokenRejected', {
+          defaultValue:
+            'Yandex Metrica rejected the token (HTTP 401) — paste a fresh token with the metrika:read permission in Settings → Integrations → Yandex Metrica.',
+        });
+      case 'access-denied':
+        return t('metricaTab.errAccessDenied', {
+          defaultValue:
+            'Yandex Metrica denied access (HTTP 403) — the account behind the token cannot read this counter.',
+        });
+      case 'no-counter':
+        return t('metricaTab.errNoCounter', { defaultValue: 'No Yandex Metrica counter selected.' });
+      case 'bad-range':
+        return t('metricaTab.errBadRange', { defaultValue: 'Unsupported date range.' });
+      case 'already-running':
+        return t('metricaTab.errAlreadyRunning', {
+          defaultValue: 'A Yandex Metrica fetch is already running in this window.',
+        });
+      case 'project-switched':
+        return t('metricaTab.errProjectSwitched', {
+          defaultValue:
+            'Another project was opened during the fetch, so its result was discarded. Fetch again in this project.',
+        });
+      case 'unexpected-response':
+        return t('metricaTab.errUnexpectedResponse', {
+          defaultValue:
+            'Yandex Metrica returned an unexpected response. The previously stored data is unchanged.',
+        });
+      case 'range-changed':
+        return t('metricaTab.errRangeChanged', {
+          defaultValue:
+            'Yandex Metrica changed the report date range during the fetch. The previously stored data is unchanged — fetch again.',
+        });
+      case 'network':
+        return t('metricaTab.errNetwork', {
+          defaultValue: 'Could not reach Yandex Metrica. Check the connection and try again.',
+        });
+      default:
+        return null;
+    }
+  };
 
   const noticeText = (code: MetricaNotice): string =>
     code === 'truncated'
@@ -310,7 +378,7 @@ export function MetricaTab() {
           type="button"
           className="mt-1 rounded border border-surface-700 px-3 py-1 text-[12px] text-surface-200 hover:bg-surface-800"
           onClick={() => {
-            setError(null);
+            showError(null);
             setStage('loading');
             setRetryNonce((n) => n + 1);
           }}
@@ -500,7 +568,7 @@ export function MetricaTab() {
 
       {error && (
         <div className="border-b border-red-700/40 bg-red-900/20 px-3 py-1 text-[10px] text-red-300">
-          {error}
+          {errorText(errorCode) ?? error}
         </div>
       )}
       {info && (
@@ -589,7 +657,15 @@ export function MetricaTab() {
                     transform: `translateY(${vRow.start}px)`,
                   }}
                 >
-                  <MetricaDataRow row={row} t={t} />
+                  <MetricaDataRow
+                    row={row}
+                    t={t}
+                    active={selectedUrlId === row.id}
+                    onSelect={() => {
+                      setSelectedUrlId(row.id);
+                      setSelectedUrlIds([row.id]);
+                    }}
+                  />
                 </div>
               );
             })}
@@ -634,7 +710,18 @@ export function MetricaTab() {
   );
 }
 
-function MetricaDataRow({ row, t }: { row: MetricaRow; t: T }) {
+function MetricaDataRow({
+  row,
+  t,
+  active,
+  onSelect,
+}: {
+  row: MetricaRow;
+  t: T;
+  /** The page the Detail panel is showing. */
+  active: boolean;
+  onSelect: () => void;
+}) {
   const m = row.metrica;
   const status = row.statusCode;
   const statusCls =
@@ -647,7 +734,12 @@ function MetricaDataRow({ row, t }: { row: MetricaRow; t: T }) {
           : 'text-red-400';
 
   return (
-    <div className="flex h-full items-center text-[11px] odd:bg-surface-900/20 hover:bg-surface-800/40">
+    <div
+      onClick={onSelect}
+      className={`flex h-full cursor-pointer items-center text-[11px] ${
+        active ? 'bg-accent-500/20' : 'odd:bg-surface-900/20 hover:bg-surface-800/40'
+      }`}
+    >
       <div className="flex-1 truncate px-2 text-surface-200" title={row.url}>
         {row.url}
       </div>

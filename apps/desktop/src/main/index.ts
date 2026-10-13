@@ -194,6 +194,7 @@ import {
   type MetricaQueryResult,
   type MetricaProgress,
   type MetricaNotice,
+  type MetricaErrorCode,
   type AiRunInput,
   type AiRunResult,
   type AiQueryInput,
@@ -358,6 +359,7 @@ import {
   listCounters as metricaListCounters,
   fetchPageMetrics as metricaFetchPageMetrics,
   MetricaCancelledError,
+  MetricaError,
 } from './metrica.js';
 import { runAiBatch, type AiBatchItem } from './ai-batch.js';
 import { resolveModel, defaultConcurrency } from './ai-providers.js';
@@ -6569,15 +6571,17 @@ function registerIpc(): void {
   const metricaToken = (): string => {
     const token = resolveCredentials('metrica')['token']?.trim() ?? '';
     if (!token) {
-      throw new Error(
+      throw new MetricaError(
         'Yandex Metrica is not connected — paste a token in Settings → Integrations → Yandex Metrica.',
+        'not-connected',
       );
     }
     // Checked before any request: a pasted blob with spaces or line breaks
     // would otherwise reach undici, whose header error quotes the value.
     if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) {
-      throw new Error(
+      throw new MetricaError(
         'The saved Yandex Metrica token has an unexpected format — paste it again in Settings → Integrations → Yandex Metrica.',
+        'token-format',
       );
     }
     return token;
@@ -6610,11 +6614,17 @@ function registerIpc(): void {
   // Shared by the IPC handlers and the MCP bridge actions.
   const runMetricaListCounters = async (): Promise<MetricaListCountersResult> => {
     try {
-      return { ok: true, error: null, counters: await metricaListCounters(metricaToken()) };
+      return {
+        ok: true,
+        error: null,
+        errorCode: null,
+        counters: await metricaListCounters(metricaToken()),
+      };
     } catch (err) {
       return {
         ok: false,
         error: err instanceof Error ? err.message : String(err),
+        errorCode: err instanceof MetricaError ? err.code : null,
         counters: [],
       };
     }
@@ -6627,25 +6637,30 @@ function registerIpc(): void {
    * would race on the replace, and the older one could win.
    */
   const runMetricaFetch = (input: MetricaFetchInput): Promise<MetricaFetchResult> => {
-    const fail = (error: string, cancelled = false): MetricaFetchResult => ({
+    const fail = (
+      error: string,
+      errorCode: MetricaErrorCode | null,
+      cancelled = false,
+    ): MetricaFetchResult => ({
       ok: false,
       error,
+      errorCode,
       cancelled,
       rowCount: 0,
       meta: null,
     });
     const counterId = String(input.counterId ?? '').trim();
     if (!/^\d+$/.test(counterId)) {
-      return Promise.resolve(fail('No Yandex Metrica counter selected.'));
+      return Promise.resolve(fail('No Yandex Metrica counter selected.', 'no-counter'));
     }
     const days = input.days;
     if (days !== 7 && days !== 28 && days !== 90) {
-      return Promise.resolve(fail('Unsupported Yandex Metrica date range.'));
+      return Promise.resolve(fail('Unsupported Yandex Metrica date range.', 'bad-range'));
     }
     const runSession = currentSession();
     const run = runSession.fetchRuns.metrica;
     if (run.active) {
-      return Promise.resolve(fail('A Yandex Metrica fetch is already running in this window.'));
+      return Promise.resolve(fail('A Yandex Metrica fetch is already running in this window.', 'already-running'));
     }
     let token: string;
     let normalize: (url: string) => string | null;
@@ -6653,15 +6668,23 @@ function registerIpc(): void {
       token = metricaToken();
       normalize = crawlUrlNormalizer();
     } catch (err) {
-      return Promise.resolve(fail(err instanceof Error ? err.message : String(err)));
+      return Promise.resolve(
+        fail(
+          err instanceof Error ? err.message : String(err),
+          err instanceof MetricaError ? err.code : null,
+        ),
+      );
     }
     // Pin the pull to the project open now. Opening another project in
     // this window replaces `runSession.db`, so identity says whether the
     // result still belongs to the open project.
     const runDb = runSession.getDb();
     const sameProject = (): boolean => runSession.db === runDb;
-    const switchedError =
-      'Another project was opened during the Yandex Metrica fetch, so its result was discarded. Fetch again in this project.';
+    const switchedError = (): MetricaError =>
+      new MetricaError(
+        'Another project was opened during the Yandex Metrica fetch, so its result was discarded. Fetch again in this project.',
+        'project-switched',
+      );
     const counterName = input.counterName || counterId;
     const abort = new AbortController();
     run.active = true;
@@ -6687,7 +6710,7 @@ function registerIpc(): void {
             sendProgress({ running: true, ...p });
           },
         });
-        if (!sameProject()) throw new Error(switchedError);
+        if (!sameProject()) throw switchedError();
         const { startDate, endDate } = result;
         const fetchedAt = new Date().toISOString();
         const meta: MetricaFetchMeta = {
@@ -6706,10 +6729,10 @@ function registerIpc(): void {
         // rows. The project check above and the worker post run in the same
         // tick, so the write can't land in a project opened in between.
         await callWriterOrFallback('replaceMetricaResults', [...writeArgs], () => {
-          if (!sameProject()) throw new Error(switchedError);
+          if (!sameProject()) throw switchedError();
           runDb.replaceMetricaResults(...writeArgs);
         });
-        if (!sameProject()) throw new Error(switchedError);
+        if (!sameProject()) throw switchedError();
         // Records the pulled counter and range; picking a counter in the tab
         // also stores it, so every Metrica view reads the counter shown.
         writeIntegrationSettings('metrica', { counterId, counterName, days });
@@ -6723,7 +6746,14 @@ function registerIpc(): void {
           detail: null,
           finishedAt: new Date().toISOString(),
         };
-        return { ok: true, error: null, cancelled: false, rowCount: result.rows.length, meta };
+        return {
+          ok: true,
+          error: null,
+          errorCode: null,
+          cancelled: false,
+          rowCount: result.rows.length,
+          meta,
+        };
       } catch (err) {
         const cancelled = err instanceof MetricaCancelledError;
         const error = err instanceof Error ? err.message : String(err);
@@ -6736,7 +6766,7 @@ function registerIpc(): void {
           detail: null,
           finishedAt: new Date().toISOString(),
         };
-        return fail(error, cancelled);
+        return fail(error, err instanceof MetricaError ? err.code : null, cancelled);
       } finally {
         run.active = false;
         run.cancelRequested = false;

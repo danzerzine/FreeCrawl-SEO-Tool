@@ -55,6 +55,7 @@ import type {
   MetricaRow,
   MetricaFetchMeta,
   MetricaNotice,
+  MetricaErrorCode,
 } from './metrica.js';
 import type { AiProvider, AiRow } from './ai.js';
 import type {
@@ -1786,6 +1787,8 @@ export interface Ga4QueryResult {
 export interface MetricaListCountersResult {
   ok: boolean;
   error: string | null;
+  /** What went wrong, for the UI to word in the user's language. */
+  errorCode: MetricaErrorCode | null;
   counters: MetricaCounter[];
 }
 
@@ -1800,6 +1803,8 @@ export interface MetricaFetchInput {
 export interface MetricaFetchResult {
   ok: boolean;
   error: string | null;
+  /** What went wrong, for the UI to word in the user's language. */
+  errorCode: MetricaErrorCode | null;
   /** True when the pull was cancelled; nothing was stored. */
   cancelled: boolean;
   rowCount: number;
