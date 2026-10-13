@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { basename, join, resolve } from 'node:path';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   DEFAULT_CRAWL_CONFIG,
@@ -93,8 +102,10 @@ metrica-counters / metrica-fetch options:
 
 Projects:
   compare, analyze-logs and metrica-fetch open projects saved by the desktop app as well as
-  CLI crawl databases. If the desktop app has the same project open, its next Save overwrites
-  what the CLI wrote (the app works on its own copy of the file).
+  CLI crawl databases. While analyze-logs or metrica-fetch writes to a desktop-saved project,
+  it holds <project>.lock, and a second such command on the same file is refused. The desktop
+  app does not check that lock: if it has the same project open, its next Save overwrites what
+  the CLI wrote (the app works on its own copy of the file).
 `);
 }
 
@@ -517,23 +528,81 @@ function exitOnInterrupt(): void {
 }
 
 /**
+ * Take `<project>.lock` for a write to a desktop-saved project, so two CLI
+ * commands can't each repack the archive and drop the other's data. A lock
+ * whose process is gone (killed, crashed) is taken over. Returns the
+ * release function; throws a user-facing message when the lock is held.
+ */
+function lockProject(path: string): () => void {
+  const lockPath = `${path}.lock`;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const fd = openSync(lockPath, 'wx');
+      try {
+        writeSync(fd, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+      } finally {
+        closeSync(fd);
+      }
+      return () => rmSync(lockPath, { force: true });
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST' || attempt > 0) throw err;
+    }
+    const holder = lockHolder(lockPath);
+    if (holder !== null) {
+      throw new Error(
+        `The project is in use by another FreeCrawl CLI command (pid ${holder}). ` +
+          `Wait for it to finish, or delete ${lockPath} if no such command is running.`,
+      );
+    }
+    rmSync(lockPath, { force: true });
+  }
+}
+
+/** The pid of a live lock holder, or null when the lock is stale. */
+function lockHolder(lockPath: string): number | string | null {
+  let pid: unknown;
+  try {
+    pid = (JSON.parse(readFileSync(lockPath, 'utf8')) as { pid?: unknown }).pid;
+  } catch {
+    // Unreadable or half-written: its owner may be writing it right now,
+    // so only an old one counts as stale.
+    try {
+      return Date.now() - statSync(lockPath).mtimeMs < 10_000 ? 'unknown' : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return null;
+  try {
+    process.kill(pid, 0);
+    return pid;
+  } catch (err) {
+    // EPERM: the process exists but belongs to someone else.
+    return (err as NodeJS.ErrnoException).code === 'EPERM' ? pid : null;
+  }
+}
+
+/**
  * Open an existing project file. The desktop app saves projects as a
  * compressed container (`packProject`), which is unpacked into a fresh temp
  * directory and opened there; `save()` packs it back. A bare SQLite project
  * (a CLI crawl, or a desktop save from before the container) opens in place,
  * as it always has. With `createIfMissing`, a missing path becomes a new
- * bare project. Throws with a user-facing message on a missing or
- * unrecognised file.
+ * bare project. With `forWrite`, a desktop-saved project is locked (see
+ * `lockProject`) until `dispose()`; bare SQLite relies on SQLite's own
+ * locking. Throws with a user-facing message on a missing, unrecognised or
+ * locked file.
  *
  * The desktop app works on its own working copy, so if it has the same
  * project open, its next Save overwrites whatever the CLI wrote.
  */
 async function openProject(
   path: string,
-  opts: { createIfMissing?: boolean } = {},
+  opts: { createIfMissing?: boolean; forWrite?: boolean } = {},
 ): Promise<OpenedProject> {
   let dir: string | null = null;
   let workingPath: string | null = null;
+  let unlock: (() => void) | null = null;
   if (!existsSync(path)) {
     if (!opts.createIfMissing) throw new Error(`Project not found: ${path}`);
   } else {
@@ -544,9 +613,15 @@ async function openProject(
       );
     }
     if (format === 'archive') {
+      if (opts.forWrite) unlock = lockProject(path);
       // Created synchronously and registered below before anything awaits,
-      // so an exit at any later point still removes it.
-      dir = mkdtempSync(join(tmpdir(), 'freecrawl-cli-'));
+      // so an exit at any later point still removes it (and the lock).
+      try {
+        dir = mkdtempSync(join(tmpdir(), 'freecrawl-cli-'));
+      } catch (err) {
+        unlock?.();
+        throw err;
+      }
       workingPath = join(dir, basename(path));
     }
   }
@@ -582,6 +657,13 @@ async function openProject(
         rmSync(dir, { recursive: true, force: true });
       } catch {
         /* left in the temp directory */
+      }
+    }
+    if (unlock) {
+      try {
+        unlock();
+      } catch {
+        /* a stale lock is taken over by the next command */
       }
     }
   };
@@ -726,9 +808,14 @@ async function runAnalyzeLogs(
   let project: OpenedProject;
   try {
     // A missing project is created, so logs can be analysed without a crawl.
-    project = await openProject(opts.projectPath, { createIfMissing: true });
+    project = await openProject(opts.projectPath, { createIfMissing: true, forWrite: true });
   } catch (err) {
-    console.error(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
+    const error = `Cannot open project ${opts.projectPath}: ${(err as Error).message}`;
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ ok: false, error, imported: [], errors: [] }, null, 2) + '\n');
+    } else {
+      console.error(error);
+    }
     return 2;
   }
   const { db } = project;
@@ -991,7 +1078,7 @@ async function runMetricaFetch(opts: {
   process.on('SIGINT', onSigint);
   let project: OpenedProject;
   try {
-    project = await openProject(opts.projectPath);
+    project = await openProject(opts.projectPath, { forWrite: true });
   } catch (err) {
     process.off('SIGINT', onSigint);
     return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
