@@ -46,16 +46,28 @@ function subscribeProgress(cb: (p: MetricaProgress | null) => void): () => void 
   };
 }
 
-function relativeTime(iso: string): string {
+type T = ReturnType<typeof useTranslation>['t'];
+
+function relativeTime(iso: string, t: T): string {
   if (!iso) return '—';
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '—';
   const min = Math.floor((Date.now() - then) / 60_000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
+  if (min < 1) return t('metricaTab.agoNow', { defaultValue: 'just now' });
+  if (min < 60) return t('metricaTab.agoMinutes', { defaultValue: '{{count}}m ago', count: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+  if (hr < 24) return t('metricaTab.agoHours', { defaultValue: '{{count}}h ago', count: hr });
+  return t('metricaTab.agoDays', {
+    defaultValue: '{{count}}d ago',
+    count: Math.floor(hr / 24),
+  });
+}
+
+function persistCounter(c: MetricaCounter): void {
+  void window.freecrawl.integrationSettingsSet('metrica', {
+    counterId: c.counterId,
+    counterName: c.name || c.counterId,
+  });
 }
 
 export function MetricaTab() {
@@ -92,15 +104,33 @@ export function MetricaTab() {
       }
       setError(null);
       setCounters(res.counters);
-      setCounterId((prev) =>
-        prev && res.counters.some((c) => c.counterId === prev)
-          ? prev
-          : (res.counters[0]?.counterId ?? ''),
-      );
+      // Persisting from a state updater would run it twice in StrictMode;
+      // the stored ID is read from settings instead.
+      const stored = await window.freecrawl.integrationSettingsGet('metrica');
+      const prev = typeof stored?.['counterId'] === 'string' ? stored['counterId'] : '';
+      if (prev && res.counters.some((c) => c.counterId === prev)) {
+        setCounterId(prev);
+      } else {
+        const fallback = res.counters[0];
+        if (fallback) persistCounter(fallback);
+        setCounterId(fallback?.counterId ?? '');
+      }
     } finally {
       setCountersLoading(false);
     }
   }, []);
+
+  /** Switch the project to another counter: persist the choice so the
+   *  export, the orphan report and per-URL analytics read the same counter
+   *  the table shows, then reload the table (the effect below). */
+  const changeCounter = useCallback(
+    (next: string) => {
+      setCounterId(next);
+      const selected = counters.find((c) => c.counterId === next);
+      if (selected) persistCounter(selected);
+    },
+    [counters],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -333,7 +363,7 @@ export function MetricaTab() {
           <select
             className={`${selectCls} max-w-[260px]`}
             value={counterId}
-            onChange={(e) => setCounterId(e.target.value)}
+            onChange={(e) => changeCounter(e.target.value)}
             disabled={fetching || counters.length === 0}
             title={counterId}
           >
@@ -391,12 +421,16 @@ export function MetricaTab() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-surface-800 bg-surface-900/20 px-3 py-1 text-[10px] text-surface-500">
           <span>
             {t('metricaTab.metaLine', {
-              defaultValue: '{{counter}} · {{start}} → {{end}} · {{rows}} pages · fetched {{ago}}',
+              defaultValue_one:
+                '{{counter}} · {{start}} → {{end}} · {{formatted}} page · fetched {{ago}}',
+              defaultValue_other:
+                '{{counter}} · {{start}} → {{end}} · {{formatted}} pages · fetched {{ago}}',
+              count: meta.rowCount,
               counter: meta.counterName,
               start: meta.startDate,
               end: meta.endDate,
-              rows: meta.rowCount.toLocaleString(),
-              ago: relativeTime(meta.fetchedAt),
+              formatted: meta.rowCount.toLocaleString(),
+              ago: relativeTime(meta.fetchedAt, t),
             })}
           </span>
           <span
@@ -519,7 +553,7 @@ export function MetricaTab() {
                     transform: `translateY(${vRow.start}px)`,
                   }}
                 >
-                  <MetricaDataRow row={row} />
+                  <MetricaDataRow row={row} t={t} />
                 </div>
               );
             })}
@@ -534,20 +568,26 @@ export function MetricaTab() {
       >
         <span>
           {t('metricaTab.summary', {
-            defaultValue: '{{shown}} of {{total}} pages',
+            defaultValue_one: '{{shown}} of {{formatted}} page',
+            defaultValue_other: '{{shown}} of {{formatted}} pages',
+            count: total,
             shown: rows.length.toLocaleString(),
-            total: total.toLocaleString(),
+            formatted: total.toLocaleString(),
           })}
         </span>
         {progress && (
           <span className="flex items-center gap-1.5 text-surface-500">
             <Loader2 size={11} className="animate-spin text-blue-400" />
             {t('metricaTab.progress', {
-              defaultValue: 'Fetching {{report}} report ({{index}}/{{count}}) · {{rows}} rows',
+              defaultValue_one:
+                'Fetching {{report}} report ({{index}}/{{total}}) · {{formatted}} row',
+              defaultValue_other:
+                'Fetching {{report}} report ({{index}}/{{total}}) · {{formatted}} rows',
+              count: progress.rows,
               report: reportLabel(progress.report),
               index: progress.reportIndex,
-              count: progress.reportCount,
-              rows: progress.rows.toLocaleString(),
+              total: progress.reportCount,
+              formatted: progress.rows.toLocaleString(),
             })}
           </span>
         )}
@@ -556,7 +596,7 @@ export function MetricaTab() {
   );
 }
 
-function MetricaDataRow({ row }: { row: MetricaRow }) {
+function MetricaDataRow({ row, t }: { row: MetricaRow; t: T }) {
   const m = row.metrica;
   const status = row.statusCode;
   const statusCls =
@@ -589,7 +629,7 @@ function MetricaDataRow({ row }: { row: MetricaRow }) {
         {m ? m.searchVisits.toLocaleString() : '—'}
       </div>
       <div className="w-[88px] shrink-0 truncate px-2 text-right text-surface-500">
-        {m ? relativeTime(m.fetchedAt) : '—'}
+        {m ? relativeTime(m.fetchedAt, t) : '—'}
       </div>
     </div>
   );

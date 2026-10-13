@@ -6710,7 +6710,8 @@ function registerIpc(): void {
           runDb.replaceMetricaResults(...writeArgs);
         });
         if (!sameProject()) throw new Error(switchedError);
-        // Only a successful pull becomes the project's default counter.
+        // Records the pulled counter and range; picking a counter in the tab
+        // also stores it, so every Metrica view reads the counter shown.
         writeIntegrationSettings('metrica', { counterId, counterName, days });
         fireDataChanged(runSession);
         logger.log('info', 'metrica', `Metrica pull stored — ${result.rows.length} page row(s)`);

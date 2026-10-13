@@ -402,14 +402,45 @@ export function ReportsDialog({ open, onClose }: Props) {
                 // sessions mean real user-visited pages no crawl path reaches.
                 valueLabel: [
                   x.sources.join(' + '),
-                  x.gscClicks != null ? `${x.gscClicks.toLocaleString()} GSC clicks` : null,
-                  x.gscImpressions != null ? `${x.gscImpressions.toLocaleString()} impr` : null,
-                  x.ga4Sessions != null ? `${x.ga4Sessions.toLocaleString()} GA4 sessions` : null,
+                  x.gscClicks != null
+                    ? t('reports.orphanGscClicks', {
+                        defaultValue_one: '{{formatted}} GSC click',
+                        defaultValue_other: '{{formatted}} GSC clicks',
+                        count: x.gscClicks,
+                        formatted: x.gscClicks.toLocaleString(),
+                      })
+                    : null,
+                  x.gscImpressions != null
+                    ? t('reports.orphanGscImpressions', {
+                        defaultValue_one: '{{formatted}} impr',
+                        defaultValue_other: '{{formatted}} impr',
+                        count: x.gscImpressions,
+                        formatted: x.gscImpressions.toLocaleString(),
+                      })
+                    : null,
+                  x.ga4Sessions != null
+                    ? t('reports.orphanGa4Sessions', {
+                        defaultValue_one: '{{formatted}} GA4 session',
+                        defaultValue_other: '{{formatted}} GA4 sessions',
+                        count: x.ga4Sessions,
+                        formatted: x.ga4Sessions.toLocaleString(),
+                      })
+                    : null,
                   x.metricaVisits != null
-                    ? `${x.metricaVisits.toLocaleString()} Metrica visits (landing)`
+                    ? t('reports.orphanMetricaVisits', {
+                        defaultValue_one: '{{formatted}} Metrica visit (landing)',
+                        defaultValue_other: '{{formatted}} Metrica visits (landing)',
+                        count: x.metricaVisits,
+                        formatted: x.metricaVisits.toLocaleString(),
+                      })
                     : null,
                   x.metricaPageviews != null
-                    ? `${x.metricaPageviews.toLocaleString()} Metrica pageviews (hits)`
+                    ? t('reports.orphanMetricaPageviews', {
+                        defaultValue_one: '{{formatted}} Metrica pageview (hits)',
+                        defaultValue_other: '{{formatted}} Metrica pageviews (hits)',
+                        count: x.metricaPageviews,
+                        formatted: x.metricaPageviews.toLocaleString(),
+                      })
                     : null,
                 ]
                   .filter(Boolean)
@@ -487,7 +518,7 @@ export function ReportsDialog({ open, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, kind, depth, maxLinksPerPage, includeBody]);
+  }, [open, kind, depth, maxLinksPerPage, includeBody, t]);
 
   useEffect(() => {
     if (!open) return;
