@@ -508,7 +508,9 @@ process.on('exit', () => {
 /** Ctrl-C for a command with no cancel of its own: exit through
  *  `process.exit`, so the exit hook still removes working copies. */
 function exitOnInterrupt(): void {
-  process.once('SIGINT', () => {
+  // `on`, not `once`: a second Ctrl-C while the exit hook runs must not
+  // fall back to the default kill and cut the cleanup short.
+  process.on('SIGINT', () => {
     process.stderr.write('\nInterrupted.\n');
     process.exit(130);
   });
@@ -563,15 +565,24 @@ async function openProject(
     } catch {
       /* already gone — the files are removed regardless */
     }
-    if (!dir) return;
-    try {
-      // The SQLite sidecars (-wal / -shm) live in the same directory.
-      rmSync(dir, { recursive: true, force: true });
+    // Separate steps, so one busy file (Windows refuses files an
+    // interrupted pack still holds open) doesn't stop the others.
+    if (packing) {
       // Interrupted mid-pack: drop the half-written file; the original
       // project is only replaced by the final rename.
-      if (packing) rmSync(`${path}.part`, { force: true });
-    } catch {
-      /* Windows refuses files still open by an interrupted pack */
+      try {
+        rmSync(`${path}.part`, { force: true });
+      } catch {
+        /* left beside the project; the next save overwrites it */
+      }
+    }
+    if (dir) {
+      try {
+        // The SQLite sidecars (-wal / -shm) live in the same directory.
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* left in the temp directory */
+      }
     }
   };
   pendingCleanups.add(dispose);
@@ -963,10 +974,17 @@ async function runMetricaFetch(opts: {
   }
 
   // Installed before the project opens, so Ctrl-C while a desktop-saved
-  // project unpacks also cancels. A second Ctrl-C exits at once.
+  // project unpacks also cancels. Once the write has started, or on a
+  // second Ctrl-C, it exits at once instead: the exit hook drops a
+  // half-written pack, and the original is only replaced by its final
+  // rename, so the project is either untouched or completely updated.
   const abort = new AbortController();
+  let writing = false;
   const onSigint = (): void => {
-    if (abort.signal.aborted) process.exit(130);
+    if (writing || abort.signal.aborted) {
+      process.stderr.write('\nInterrupted.\n');
+      process.exit(130);
+    }
     process.stderr.write('\nCancelling the Yandex Metrica fetch…\n');
     abort.abort();
   };
@@ -1035,6 +1053,10 @@ async function runMetricaFetch(opts: {
       sampled: result.sampled,
       totals: result.totals,
     };
+    // A cancel acknowledged during the pull writes nothing. The check and
+    // the flag sit in the same tick as the (synchronous) DB write.
+    if (abort.signal.aborted) throw new MetricaCancelledError();
+    writing = true;
     db.replaceMetricaResults(result.rows, fetchedAt, counterId, JSON.stringify(meta));
     // Merge into the per-project settings blob, as the desktop does, so the
     // Metrica tab opens on this counter and range.
@@ -1086,8 +1108,10 @@ async function runMetricaFetch(opts: {
     endProgress();
     return metricaFail(opts.json, err, err instanceof MetricaCancelledError ? 130 : 1);
   } finally {
-    process.off('SIGINT', onSigint);
+    // Cleanup first: without a listener, Ctrl-C kills the process at once
+    // and would leave the working copy behind.
     project.dispose();
+    process.off('SIGINT', onSigint);
   }
 }
 
