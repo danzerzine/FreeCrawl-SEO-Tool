@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import { basename, resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import {
   DEFAULT_CRAWL_CONFIG,
   type CrawlConfig,
@@ -25,7 +26,7 @@ import {
   MetricaCancelledError,
   type LogAnalysisResult,
 } from '@freecrawl/core';
-import { ProjectDb } from '@freecrawl/db';
+import { ProjectDb, detectProjectFormat, packProject, unpackProject } from '@freecrawl/db';
 
 function help(): void {
   console.log(`freecrawl — headless SEO crawler
@@ -89,6 +90,11 @@ metrica-counters / metrica-fetch options:
                         else the defaults; a CLI crawl does not save one, so pass the same
                         --config file it used)
   --json              Print the result, or the error, as JSON on stdout
+
+Projects:
+  compare, analyze-logs and metrica-fetch open projects saved by the desktop app as well as
+  CLI crawl databases. If the desktop app has the same project open, its next Save overwrites
+  what the CLI wrote (the app works on its own copy of the file).
 `);
 }
 
@@ -154,7 +160,8 @@ async function main(): Promise<void> {
       );
       process.exit(2);
     }
-    const exitCode = runCompare(
+    exitOnInterrupt();
+    const exitCode = await runCompare(
       resolve(positionals[1]),
       resolve(positionals[2]),
     );
@@ -165,6 +172,7 @@ async function main(): Promise<void> {
       console.error('Usage: freecrawl analyze-logs <access.log> [more.log …] [--project file] [--format f] [--regex p] [--verify-bots]');
       process.exit(2);
     }
+    exitOnInterrupt();
     const exitCode = await runAnalyzeLogs(
       positionals.slice(1).map((p) => resolve(p)),
       {
@@ -479,6 +487,115 @@ async function runAuditRobots(rawUrl: string, userAgent: string): Promise<number
   return result.allowed ? 0 : 1;
 }
 
+/** An existing project a command reads or updates. */
+interface OpenedProject {
+  db: ProjectDb;
+  /** Close the database and, for a desktop-saved project, pack the working
+   *  copy back onto the original file. Call only after a successful write. */
+  save(): Promise<void>;
+  /** Close the database if still open and delete any working copy. Runs
+   *  on every exit path; never repacks. */
+  dispose(): void;
+}
+
+/** Cleanups still due; the exit hook runs them after Ctrl-C or a crash, so
+ *  no working copy is left in the temp directory. */
+const pendingCleanups = new Set<() => void>();
+process.on('exit', () => {
+  for (const cleanup of pendingCleanups) cleanup();
+});
+
+/** Ctrl-C for a command with no cancel of its own: exit through
+ *  `process.exit`, so the exit hook still removes working copies. */
+function exitOnInterrupt(): void {
+  process.once('SIGINT', () => {
+    process.stderr.write('\nInterrupted.\n');
+    process.exit(130);
+  });
+}
+
+/**
+ * Open an existing project file. The desktop app saves projects as a
+ * compressed container (`packProject`), which is unpacked into a fresh temp
+ * directory and opened there; `save()` packs it back. A bare SQLite project
+ * (a CLI crawl, or a desktop save from before the container) opens in place,
+ * as it always has. With `createIfMissing`, a missing path becomes a new
+ * bare project. Throws with a user-facing message on a missing or
+ * unrecognised file.
+ *
+ * The desktop app works on its own working copy, so if it has the same
+ * project open, its next Save overwrites whatever the CLI wrote.
+ */
+async function openProject(
+  path: string,
+  opts: { createIfMissing?: boolean } = {},
+): Promise<OpenedProject> {
+  let dir: string | null = null;
+  let workingPath: string | null = null;
+  if (!existsSync(path)) {
+    if (!opts.createIfMissing) throw new Error(`Project not found: ${path}`);
+  } else {
+    const format = detectProjectFormat(path);
+    if (format === 'unknown') {
+      throw new Error(
+        'This file is not a FreeCrawl project (unrecognised format). It may be corrupt or a different file type.',
+      );
+    }
+    if (format === 'archive') {
+      // Created synchronously and registered below before anything awaits,
+      // so an exit at any later point still removes it.
+      dir = mkdtempSync(join(tmpdir(), 'freecrawl-cli-'));
+      workingPath = join(dir, basename(path));
+    }
+  }
+
+  let db: ProjectDb | undefined;
+  let packing = false;
+  const close = (): void => {
+    const open = db;
+    db = undefined;
+    open?.close();
+  };
+  const dispose = (): void => {
+    pendingCleanups.delete(dispose);
+    try {
+      close();
+    } catch {
+      /* already gone — the files are removed regardless */
+    }
+    if (!dir) return;
+    try {
+      // The SQLite sidecars (-wal / -shm) live in the same directory.
+      rmSync(dir, { recursive: true, force: true });
+      // Interrupted mid-pack: drop the half-written file; the original
+      // project is only replaced by the final rename.
+      if (packing) rmSync(`${path}.part`, { force: true });
+    } catch {
+      /* Windows refuses files still open by an interrupted pack */
+    }
+  };
+  pendingCleanups.add(dispose);
+
+  try {
+    if (workingPath) await unpackProject(path, workingPath);
+    db = new ProjectDb(workingPath ?? path);
+  } catch (err) {
+    dispose();
+    throw err;
+  }
+  return {
+    db,
+    async save() {
+      close();
+      if (!workingPath) return;
+      packing = true;
+      await packProject(workingPath, path);
+      packing = false;
+    },
+    dispose,
+  };
+}
+
 /**
  * Cross-project diff. Opens two `.seoproject` files (read-only — never
  * mutates), runs the same `compareCrawls` engine the desktop Compare
@@ -488,24 +605,24 @@ async function runAuditRobots(rawUrl: string, userAgent: string): Promise<number
  * least one diff category had non-zero results (useful for CI gates that
  * want to fail on regressions); 2 on fatal load error.
  */
-function runCompare(beforePath: string, afterPath: string): number {
-  let before: ProjectDb;
-  let after: ProjectDb;
+async function runCompare(beforePath: string, afterPath: string): Promise<number> {
+  let before: OpenedProject;
+  let after: OpenedProject;
   try {
-    before = new ProjectDb(beforePath);
+    before = await openProject(beforePath);
   } catch (err) {
     console.error(`Cannot open before project: ${(err as Error).message}`);
     return 2;
   }
   try {
-    after = new ProjectDb(afterPath);
+    after = await openProject(afterPath);
   } catch (err) {
-    before.close();
+    before.dispose();
     console.error(`Cannot open after project: ${(err as Error).message}`);
     return 2;
   }
   try {
-    const summary = compareCrawls(before, after);
+    const summary = compareCrawls(before.db, after.db);
     console.log(`Compare: ${beforePath} → ${afterPath}`);
     console.log(`  Total before: ${summary.totalA}`);
     console.log(`  Total after:  ${summary.totalB}`);
@@ -519,8 +636,8 @@ function runCompare(beforePath: string, afterPath: string): number {
     );
     return totalDiff > 0 ? 1 : 0;
   } finally {
-    before.close();
-    after.close();
+    before.dispose();
+    after.dispose();
   }
 }
 
@@ -595,13 +712,15 @@ async function runAnalyzeLogs(
     json: boolean;
   },
 ): Promise<number> {
-  let db: ProjectDb;
+  let project: OpenedProject;
   try {
-    db = new ProjectDb(opts.projectPath);
+    // A missing project is created, so logs can be analysed without a crawl.
+    project = await openProject(opts.projectPath, { createIfMissing: true });
   } catch (err) {
     console.error(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
     return 2;
   }
+  const { db } = project;
   try {
     const imported: ReturnType<ProjectDb['ingestLogAnalysis']>[] = [];
     const failures: Array<{ file: string; error: string }> = [];
@@ -639,6 +758,7 @@ async function runAnalyzeLogs(
     const topUrls = db
       .queryLogUrlStats({ limit: 10, offset: 0, sortBy: 'botHits', filter: 'bots' })
       .rows;
+    await project.save();
 
     if (opts.json) {
       process.stdout.write(
@@ -674,7 +794,7 @@ async function runAnalyzeLogs(
     console.error(`analyze-logs failed: ${(err as Error).message}`);
     return 2;
   } finally {
-    db.close();
+    project.dispose();
   }
 }
 
@@ -842,18 +962,23 @@ async function runMetricaFetch(opts: {
     return metricaFail(opts.json, err, 2);
   }
 
-  let db: ProjectDb;
-  try {
-    db = new ProjectDb(opts.projectPath);
-  } catch (err) {
-    return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
-  }
+  // Installed before the project opens, so Ctrl-C while a desktop-saved
+  // project unpacks also cancels. A second Ctrl-C exits at once.
   const abort = new AbortController();
   const onSigint = (): void => {
+    if (abort.signal.aborted) process.exit(130);
     process.stderr.write('\nCancelling the Yandex Metrica fetch…\n');
     abort.abort();
   };
-  process.once('SIGINT', onSigint);
+  process.on('SIGINT', onSigint);
+  let project: OpenedProject;
+  try {
+    project = await openProject(opts.projectPath);
+  } catch (err) {
+    process.off('SIGINT', onSigint);
+    return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
+  }
+  const { db } = project;
   const tty = process.stderr.isTTY === true;
   let progressOpen = false;
   const endProgress = (): void => {
@@ -924,6 +1049,7 @@ async function runMetricaFetch(opts: {
       'integrationSettings:metrica',
       JSON.stringify({ ...settings, counterId, counterName, days }),
     );
+    await project.save();
 
     if (opts.json) {
       process.stdout.write(
@@ -961,7 +1087,7 @@ async function runMetricaFetch(opts: {
     return metricaFail(opts.json, err, err instanceof MetricaCancelledError ? 130 : 1);
   } finally {
     process.off('SIGINT', onSigint);
-    db.close();
+    project.dispose();
   }
 }
 
