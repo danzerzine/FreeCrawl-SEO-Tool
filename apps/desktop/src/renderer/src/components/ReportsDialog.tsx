@@ -406,6 +406,7 @@ export function ReportsDialog({ open, onClose }: Props) {
                     ? t('reports.orphanGscClicks', {
                         defaultValue_one: '{{formatted}} GSC click',
                         defaultValue_other: '{{formatted}} GSC clicks',
+                        defaultValue: '{{formatted}} GSC clicks',
                         count: x.gscClicks,
                         formatted: x.gscClicks.toLocaleString(),
                       })
@@ -414,6 +415,7 @@ export function ReportsDialog({ open, onClose }: Props) {
                     ? t('reports.orphanGscImpressions', {
                         defaultValue_one: '{{formatted}} impr',
                         defaultValue_other: '{{formatted}} impr',
+                        defaultValue: '{{formatted}} impr',
                         count: x.gscImpressions,
                         formatted: x.gscImpressions.toLocaleString(),
                       })
@@ -422,6 +424,7 @@ export function ReportsDialog({ open, onClose }: Props) {
                     ? t('reports.orphanGa4Sessions', {
                         defaultValue_one: '{{formatted}} GA4 session',
                         defaultValue_other: '{{formatted}} GA4 sessions',
+                        defaultValue: '{{formatted}} GA4 sessions',
                         count: x.ga4Sessions,
                         formatted: x.ga4Sessions.toLocaleString(),
                       })
@@ -430,6 +433,7 @@ export function ReportsDialog({ open, onClose }: Props) {
                     ? t('reports.orphanMetricaVisits', {
                         defaultValue_one: '{{formatted}} Metrica visit (landing)',
                         defaultValue_other: '{{formatted}} Metrica visits (landing)',
+                        defaultValue: '{{formatted}} Metrica visits (landing)',
                         count: x.metricaVisits,
                         formatted: x.metricaVisits.toLocaleString(),
                       })
@@ -438,6 +442,7 @@ export function ReportsDialog({ open, onClose }: Props) {
                     ? t('reports.orphanMetricaPageviews', {
                         defaultValue_one: '{{formatted}} Metrica pageview (hits)',
                         defaultValue_other: '{{formatted}} Metrica pageviews (hits)',
+                        defaultValue: '{{formatted}} Metrica pageviews (hits)',
                         count: x.metricaPageviews,
                         formatted: x.metricaPageviews.toLocaleString(),
                       })

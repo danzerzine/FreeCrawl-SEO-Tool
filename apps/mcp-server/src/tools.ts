@@ -104,8 +104,9 @@ function resolveUrlId(
   throw new Error('Tool requires either `id` (number) or `url` (string).');
 }
 
-/** The Metrica counter last fetched for this project (the desktop saves it
- *  after a successful pull), or '' when there is none. */
+/** The Metrica counter last picked or fetched for this project (the desktop
+ *  saves it on a pick in the Metrica tab and after a successful pull), or ''
+ *  when there is none. */
 function savedMetricaCounter(db: ProjectDb): string {
   try {
     const raw = db.getMeta('integrationSettings:metrica');
@@ -598,7 +599,7 @@ export function buildTools(): Tool[] {
     {
       name: 'get_url_analytics',
       description:
-        'GSC + GA4 + Yandex Metrica + URL Inspection roll-up for one URL: clicks/impressions/CTR/position (GSC), sessions/users/pageviews/engagement (GA4), pageviews (hit-level) and visits/users/searchVisits (session-level, sessions that started on this page) from the Metrica counter last fetched for this project, and the GSC URL Inspection verdict. Returns null fields for integrations that have not been fetched yet.',
+        'GSC + GA4 + Yandex Metrica + URL Inspection roll-up for one URL: clicks/impressions/CTR/position (GSC), sessions/users/pageviews/engagement (GA4), pageviews (hit-level) and visits/users/searchVisits (session-level, sessions that started on this page) from the Metrica counter last picked or fetched for this project, and the GSC URL Inspection verdict. Returns null fields for integrations that have not been fetched yet.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -711,7 +712,7 @@ export function buildTools(): Tool[] {
           },
           counterId: {
             type: 'string',
-            description: 'Metrica counter ID. Omitted = the counter last fetched for this project.',
+            description: 'Metrica counter ID. Omitted = the counter last picked or fetched for this project.',
           },
           limit: { type: 'integer', minimum: 1, maximum: 1000 },
           offset: { type: 'integer', minimum: 0 },
@@ -1164,7 +1165,7 @@ export function buildTools(): Tool[] {
     {
       name: 'report_orphan_cross_source',
       description:
-        'Orphan pages across all truth sources: URLs present in the XML sitemap, Google Search Console, Google Analytics 4 or Yandex Metrica (the counter last fetched for this project) but never reached by the crawl (or crawled only as an unfetched stub). Each row lists which sources mentioned it plus its GSC clicks / impressions, GA4 sessions and Metrica pageviews (hit-level) / visits (landing page); sorted by traffic (GSC clicks + the larger of GA4 sessions and Metrica visits, then Metrica pageviews) descending so high-value orphans surface first. Sitemap-only with no traffic is often a dead entry; GSC/GA4/Metrica orphans are real pages users reach that no internal link path does.',
+        'Orphan pages across all truth sources: URLs present in the XML sitemap, Google Search Console, Google Analytics 4 or Yandex Metrica (the counter last picked or fetched for this project) but never reached by the crawl (or crawled only as an unfetched stub). Each row lists which sources mentioned it plus its GSC clicks / impressions, GA4 sessions and Metrica pageviews (hit-level) / visits (landing page); sorted by traffic (GSC clicks + the larger of GA4 sessions and Metrica visits, then Metrica pageviews) descending so high-value orphans surface first. Sitemap-only with no traffic is often a dead entry; GSC/GA4/Metrica orphans are real pages users reach that no internal link path does.',
       inputSchema: {
         type: 'object',
         properties: { limit: { type: 'integer', minimum: 1, maximum: 10_000 } },

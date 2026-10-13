@@ -189,6 +189,33 @@ export function MetricaTab() {
     };
   }, [stage, reload, dataVersion, crawlProgress?.running]);
 
+  // A pull started elsewhere (an MCP client) stores its counter, and opening
+  // another project brings that project's counter; both fire data-changed.
+  // Follow the stored counter so the table shows what the export reads.
+  const counterRef = useRef({ counterId, counters });
+  counterRef.current = { counterId, counters };
+  const seenDataVersion = useRef(dataVersion);
+  useEffect(() => {
+    if (stage !== 'ready' || seenDataVersion.current === dataVersion) return;
+    seenDataVersion.current = dataVersion;
+    let cancelled = false;
+    void window.freecrawl.integrationSettingsGet('metrica').then((stored) => {
+      if (cancelled) return;
+      const storedId = typeof stored?.['counterId'] === 'string' ? stored['counterId'] : '';
+      const { counterId: shown, counters: list } = counterRef.current;
+      if (storedId) {
+        if (storedId !== shown) setCounterId(storedId);
+        return;
+      }
+      // A project with no stored counter: store the one on screen.
+      const selected = list.find((c) => c.counterId === shown);
+      if (selected) persistCounter(selected);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, dataVersion]);
+
   useEffect(() => subscribeProgress(setProgress), []);
 
   const virtualizer = useVirtualizer({
@@ -425,6 +452,8 @@ export function MetricaTab() {
                 '{{counter}} · {{start}} → {{end}} · {{formatted}} page · fetched {{ago}}',
               defaultValue_other:
                 '{{counter}} · {{start}} → {{end}} · {{formatted}} pages · fetched {{ago}}',
+              defaultValue:
+                '{{counter}} · {{start}} → {{end}} · {{formatted}} pages · fetched {{ago}}',
               count: meta.rowCount,
               counter: meta.counterName,
               start: meta.startDate,
@@ -570,6 +599,7 @@ export function MetricaTab() {
           {t('metricaTab.summary', {
             defaultValue_one: '{{shown}} of {{formatted}} page',
             defaultValue_other: '{{shown}} of {{formatted}} pages',
+            defaultValue: '{{shown}} of {{formatted}} pages',
             count: total,
             shown: rows.length.toLocaleString(),
             formatted: total.toLocaleString(),
@@ -583,6 +613,7 @@ export function MetricaTab() {
                 'Fetching {{report}} report ({{index}}/{{total}}) · {{formatted}} row',
               defaultValue_other:
                 'Fetching {{report}} report ({{index}}/{{total}}) · {{formatted}} rows',
+              defaultValue: 'Fetching {{report}} report ({{index}}/{{total}}) · {{formatted}} rows',
               count: progress.rows,
               report: reportLabel(progress.report),
               index: progress.reportIndex,
