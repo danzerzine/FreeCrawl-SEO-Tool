@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdtempSync,
   openSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -655,6 +656,41 @@ function lockHolder(file: string, content: string): number | string | null {
   }
 }
 
+const WORKING_COPY_PREFIX = 'freecrawl-cli-';
+/** Owner file in each working copy directory, written like a lock. */
+const WORKING_COPY_OWNER = 'owner.lock';
+
+/**
+ * Remove the working copies that commands killed outright (a hard kill,
+ * a crash, a shutdown) left in the temp directory: no exit hook runs then,
+ * and each copy is the size of the unpacked project. A copy is orphaned
+ * when the process in its owner file is gone, or, with no owner file, when
+ * it is over an hour old. Best effort: anything still in use stays.
+ */
+function removeOrphanedWorkingCopies(): void {
+  let entries;
+  try {
+    entries = readdirSync(tmpdir(), { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(WORKING_COPY_PREFIX)) continue;
+    const dir = join(tmpdir(), entry.name);
+    try {
+      const ownerPath = join(dir, WORKING_COPY_OWNER);
+      const owner = readIfExists(ownerPath);
+      const orphaned =
+        owner === null
+          ? Date.now() - statSync(dir).mtimeMs > 3_600_000
+          : lockHolder(ownerPath, owner) === null;
+      if (orphaned) rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* in use or not ours to remove; tried again on the next run */
+    }
+  }
+}
+
 /**
  * Open an existing project file. The desktop app saves projects as a
  * compressed container (`packProject`), which is unpacked into a fresh temp
@@ -686,11 +722,20 @@ async function openProject(
       );
     }
     if (format === 'archive') {
+      removeOrphanedWorkingCopies();
       if (opts.forWrite) unlock = lockProject(path);
       // Created synchronously and registered below before anything awaits,
       // so an exit at any later point still removes it (and the lock).
       try {
-        dir = mkdtempSync(join(tmpdir(), 'freecrawl-cli-'));
+        dir = mkdtempSync(join(tmpdir(), WORKING_COPY_PREFIX));
+        try {
+          if (createExclusive(join(dir, WORKING_COPY_OWNER)) === null) {
+            throw new Error(`Could not create the working copy in ${dir}`);
+          }
+        } catch (err) {
+          rmSync(dir, { recursive: true, force: true });
+          throw err;
+        }
       } catch (err) {
         unlock?.();
         throw err;
