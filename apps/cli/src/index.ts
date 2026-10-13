@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { basename, resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
-import { DEFAULT_CRAWL_CONFIG, type LogIngestInput } from '@freecrawl/shared-types';
+import { existsSync, readFileSync } from 'node:fs';
+import {
+  DEFAULT_CRAWL_CONFIG,
+  type CrawlConfig,
+  type LogIngestInput,
+  type MetricaFetchMeta,
+} from '@freecrawl/shared-types';
 import {
   Crawler,
   compareCrawls,
@@ -12,6 +17,12 @@ import {
   fetchSitemaps,
   validateSitemap,
   analyzeLogFile,
+  normalizeUrl,
+  compileUrlRegexRewrites,
+  listMetricaCounters,
+  fetchMetricaPageMetrics,
+  MetricaError,
+  MetricaCancelledError,
   type LogAnalysisResult,
 } from '@freecrawl/core';
 import { ProjectDb } from '@freecrawl/db';
@@ -29,6 +40,10 @@ Usage:
   freecrawl analyze-logs <access.log> [more.log …] [--project file]
                                                   Parse one or more server access logs (Apache / Nginx / IIS / custom), detect bots,
                                                   and merge the aggregates into a project for crawl × log analysis
+  freecrawl metrica-counters [--json]             List the Yandex Metrica counters the token can read
+  freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file]
+                                                  Pull per-page Yandex Metrica data (pageviews, visits, users,
+                                                  search visits) into a project, as the desktop app does
 
 Options:
   --depth <n>         Max crawl depth (default: ${DEFAULT_CRAWL_CONFIG.maxDepth})
@@ -61,6 +76,15 @@ analyze-logs options:
   --format <fmt>      auto | apache-combined | apache-common | nginx | iis-w3c | custom (default: auto)
   --regex <pattern>   Named-group regex for --format custom (groups: ip ts method path status bytes ua referer)
   --verify-bots       Reverse-DNS verify a sample of bot IPs (slower; catches spoofed user-agents)
+
+metrica-counters / metrica-fetch options:
+  The token comes from the YANDEX_METRICA_TOKEN environment variable
+  (a personal OAuth token with the metrika:read scope).
+  --counter <id>      Counter to pull (see metrica-counters)
+  --days <n>          7 | 28 | 90 full days ending yesterday (default: 28)
+  --project <file>    Existing project to store the data in (default: ./crawl.seoproject)
+  --config <file>     Crawl config whose URL rewrite options map Metrica URLs onto crawled
+                        URLs (default: the config the project was crawled with)
   -h, --help          Show this help
 `);
 }
@@ -89,6 +113,8 @@ async function main(): Promise<void> {
       format: { type: 'string' },
       regex: { type: 'string' },
       'verify-bots': { type: 'boolean' },
+      counter: { type: 'string' },
+      days: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -148,6 +174,19 @@ async function main(): Promise<void> {
     );
     process.exit(exitCode);
   }
+  if (positionals[0] === 'metrica-counters') {
+    process.exit(await runMetricaCounters(Boolean(values.json)));
+  }
+  if (positionals[0] === 'metrica-fetch') {
+    const exitCode = await runMetricaFetch({
+      counter: values.counter,
+      days: values.days,
+      projectPath: resolve(values.project ?? values.db ?? 'crawl.seoproject'),
+      configPath: values.config,
+      json: Boolean(values.json),
+    });
+    process.exit(exitCode);
+  }
 
   // List mode is selected by `--list`; otherwise we need a positional URL.
   const listFile = values.list;
@@ -186,13 +225,7 @@ async function main(): Promise<void> {
   let fileConfig: Record<string, unknown> = {};
   if (values.config) {
     try {
-      const raw = readFileSync(resolve(values.config), 'utf8');
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      if (parsed && typeof parsed === 'object' && 'config' in parsed) {
-        fileConfig = (parsed['config'] as Record<string, unknown>) ?? {};
-      } else {
-        fileConfig = parsed;
-      }
+      fileConfig = readConfigFile(values.config);
     } catch (err) {
       console.error(
         `Cannot read --config file ${values.config}: ${(err as Error).message}`,
@@ -312,6 +345,20 @@ async function main(): Promise<void> {
 
   db.close();
   process.exit(hasErrors ? 1 : 0);
+}
+
+/**
+ * Read a `--config` file: the Settings → Export Settings envelope
+ * (`{format, version, exportedAt, config}`) or a bare `CrawlConfig`
+ * fragment. Throws on a missing or malformed file.
+ */
+function readConfigFile(file: string): Record<string, unknown> {
+  const raw = readFileSync(resolve(file), 'utf8');
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  if (parsed && typeof parsed === 'object' && 'config' in parsed) {
+    return (parsed['config'] as Record<string, unknown>) ?? {};
+  }
+  return parsed;
 }
 
 function parseNumeric(value: string | undefined, fallback: number): number {
@@ -624,6 +671,290 @@ async function runAnalyzeLogs(
     console.error(`analyze-logs failed: ${(err as Error).message}`);
     return 2;
   } finally {
+    db.close();
+  }
+}
+
+/**
+ * Yandex Metrica token from `YANDEX_METRICA_TOKEN` — the CLI has no
+ * credential store. Never echoed: the messages name the variable only.
+ */
+function metricaToken(): string {
+  const token = process.env['YANDEX_METRICA_TOKEN']?.trim() ?? '';
+  if (!token) {
+    throw new MetricaError(
+      'YANDEX_METRICA_TOKEN is not set — export a Yandex Metrica OAuth token with the metrika:read scope.',
+      'not-connected',
+    );
+  }
+  // Same check as the desktop app: a value with spaces or line breaks would
+  // otherwise reach undici, whose header error quotes the value.
+  if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) {
+    throw new MetricaError(
+      'YANDEX_METRICA_TOKEN has an unexpected format — it must be a single OAuth token without spaces or line breaks.',
+      'token-format',
+    );
+  }
+  return token;
+}
+
+/** Print a Metrica failure (JSON on stdout with --json, else stderr) and
+ *  return the exit code. */
+function metricaFail(json: boolean, err: unknown, exitCode: number): number {
+  const error = err instanceof Error ? err.message : String(err);
+  const errorCode = err instanceof MetricaError ? err.code : null;
+  const cancelled = err instanceof MetricaCancelledError;
+  if (json) {
+    process.stdout.write(
+      JSON.stringify({ ok: false, error, errorCode, cancelled }, null, 2) + '\n',
+    );
+  } else {
+    console.error(error);
+    if (errorCode === 'token-rejected') {
+      console.error('Check the token in YANDEX_METRICA_TOKEN (scope metrika:read).');
+    }
+  }
+  return exitCode;
+}
+
+/**
+ * List the counters the token can read. Exit 0 on success, 1 on an API
+ * failure, 2 when the token is missing or malformed.
+ */
+async function runMetricaCounters(json: boolean): Promise<number> {
+  let token: string;
+  try {
+    token = metricaToken();
+  } catch (err) {
+    return metricaFail(json, err, 2);
+  }
+  try {
+    const counters = await listMetricaCounters(token);
+    if (json) {
+      process.stdout.write(JSON.stringify({ ok: true, counters }, null, 2) + '\n');
+      return 0;
+    }
+    if (counters.length === 0) {
+      console.log('No Yandex Metrica counters are readable with this token.');
+      return 0;
+    }
+    const idWidth = Math.max(...counters.map((c) => c.counterId.length));
+    for (const c of counters) {
+      console.log(
+        `${c.counterId.padEnd(idWidth)}  ${c.name}${c.site && c.site !== c.name ? `  (${c.site})` : ''}`,
+      );
+    }
+    return 0;
+  } catch (err) {
+    return metricaFail(json, err, 1);
+  }
+}
+
+/**
+ * URL normaliser for Metrica rows, mirroring the desktop's
+ * `crawlUrlNormalizer`: the rewrite options of the crawl config, so the
+ * stored rows join onto `urls.url`. The config is the `--config` file if
+ * given, else the project's `lastCrawlConfig` (the `{config, secretsEnc}`
+ * envelope or a bare config; secrets are irrelevant here), else defaults.
+ */
+function metricaUrlNormalizer(
+  db: ProjectDb,
+  configPath: string | undefined,
+): (url: string) => string | null {
+  let fragment: Record<string, unknown> = {};
+  if (configPath) {
+    fragment = readConfigFile(configPath);
+  } else {
+    const raw = db.getMeta('lastCrawlConfig');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && typeof parsed === 'object') {
+          const env = parsed['config'];
+          fragment = env && typeof env === 'object' ? (env as Record<string, unknown>) : parsed;
+        }
+      } catch {
+        /* corrupt meta — fall back to the default rewrites */
+      }
+    }
+  }
+  const c = { ...DEFAULT_CRAWL_CONFIG, ...fragment } as CrawlConfig;
+  const rewrites = {
+    stripWww: c.stripWww,
+    forceHttps: c.forceHttps,
+    lowercasePath: c.lowercasePath,
+    trailingSlash: c.trailingSlash,
+    keepQueryParams: c.keepQueryParams,
+    sortQueryParams: c.sortQueryParams,
+    collapseDuplicateSlashes: c.collapseDuplicateSlashes,
+    keepHashRoutes: c.renderingMode === 'js' && c.jsRender?.spaRouting === true,
+    regexRewrites: compileUrlRegexRewrites(c.urlRegexRewrites),
+  };
+  return (url) => normalizeUrl(url, undefined, rewrites);
+}
+
+/**
+ * Pull one counter's per-page data into an existing project, writing what
+ * the desktop pull writes (rows + fetch meta, and the counter in
+ * `integrationSettings:metrica`), so the desktop app shows the same data.
+ * Ctrl-C cancels; nothing is written then. Exit 0 on success, 1 on an API
+ * or write failure, 2 on bad arguments, 130 when cancelled.
+ */
+async function runMetricaFetch(opts: {
+  counter: string | undefined;
+  days: string | undefined;
+  projectPath: string;
+  configPath: string | undefined;
+  json: boolean;
+}): Promise<number> {
+  const counterId = (opts.counter ?? '').trim();
+  if (!/^\d+$/.test(counterId)) {
+    console.error(
+      'Usage: freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file] [--json]',
+    );
+    console.error(
+      opts.counter === undefined
+        ? '--counter is required.'
+        : `Invalid --counter: ${opts.counter} (expected a numeric counter id).`,
+    );
+    return 2;
+  }
+  const days = opts.days === undefined ? 28 : Number(opts.days);
+  if (days !== 7 && days !== 28 && days !== 90) {
+    console.error(`Invalid --days: ${opts.days} (expected 7, 28 or 90).`);
+    return 2;
+  }
+  // ProjectDb creates a missing file; a pull into an empty project would
+  // join onto nothing, so a typo in --project must fail instead.
+  if (!existsSync(opts.projectPath)) {
+    console.error(`Project not found: ${opts.projectPath} (crawl it first, or pass --project).`);
+    return 2;
+  }
+  let token: string;
+  try {
+    token = metricaToken();
+  } catch (err) {
+    return metricaFail(opts.json, err, 2);
+  }
+
+  let db: ProjectDb;
+  try {
+    db = new ProjectDb(opts.projectPath);
+  } catch (err) {
+    console.error(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
+    return 2;
+  }
+  const abort = new AbortController();
+  const onSigint = (): void => {
+    process.stderr.write('\nCancelling the Yandex Metrica fetch…\n');
+    abort.abort();
+  };
+  process.once('SIGINT', onSigint);
+  const tty = process.stderr.isTTY === true;
+  let progressOpen = false;
+  const endProgress = (): void => {
+    if (progressOpen) process.stderr.write('\n');
+    progressOpen = false;
+  };
+  try {
+    let normalize: (url: string) => string | null;
+    try {
+      normalize = metricaUrlNormalizer(db, opts.configPath);
+    } catch (err) {
+      console.error(`Cannot read --config file ${opts.configPath}: ${(err as Error).message}`);
+      return 2;
+    }
+    // Best effort, for the name the desktop shows; the pull itself reports
+    // any real access problem.
+    let counterName = counterId;
+    try {
+      const found = (await listMetricaCounters(token)).find((c) => c.counterId === counterId);
+      if (found) counterName = found.name;
+    } catch {
+      /* keep the id as the name */
+    }
+    const result = await fetchMetricaPageMetrics(token, counterId, days, normalize, {
+      signal: abort.signal,
+      onProgress: (p) => {
+        if (opts.json) return;
+        const line = `${p.report} report ${p.reportIndex}/${p.reportCount}: ${p.rows} rows`;
+        if (tty) {
+          process.stderr.write(`\r${line}   `);
+          progressOpen = true;
+        } else {
+          process.stderr.write(`${line}\n`);
+        }
+      },
+      log: (level, message) => {
+        if (level === 'info') return;
+        endProgress();
+        process.stderr.write(`[${level}] ${message}\n`);
+      },
+    });
+    endProgress();
+    const fetchedAt = new Date().toISOString();
+    const meta: MetricaFetchMeta = {
+      counterId,
+      counterName,
+      startDate: result.startDate,
+      endDate: result.endDate,
+      fetchedAt,
+      rowCount: result.rows.length,
+      truncated: result.truncated,
+      sampled: result.sampled,
+      totals: result.totals,
+    };
+    db.replaceMetricaResults(result.rows, fetchedAt, counterId, JSON.stringify(meta));
+    // Merge into the per-project settings blob, as the desktop does, so the
+    // Metrica tab opens on this counter and range.
+    let settings: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(db.getMeta('integrationSettings:metrica') ?? '{}') as unknown;
+      if (parsed && typeof parsed === 'object') settings = parsed as Record<string, unknown>;
+    } catch {
+      /* corrupt blob — overwrite it */
+    }
+    db.setMeta(
+      'integrationSettings:metrica',
+      JSON.stringify({ ...settings, counterId, counterName, days }),
+    );
+
+    if (opts.json) {
+      process.stdout.write(
+        JSON.stringify(
+          { ok: true, projectPath: opts.projectPath, days, dropped: result.dropped, ...meta },
+          null,
+          2,
+        ) + '\n',
+      );
+    } else {
+      const t = result.totals;
+      console.log(
+        `Metrica: counter ${counterId}${counterName !== counterId ? ` (${counterName})` : ''}`,
+      );
+      console.log(`  Range:   ${result.startDate} → ${result.endDate} (${days} days)`);
+      console.log(`  Pages:   ${result.rows.length} stored in ${opts.projectPath}`);
+      console.log(
+        `  Totals:  ${t.pageviews} pageviews · ${t.visits} visits · ${t.users} users · ${t.searchVisits} search visits`,
+      );
+      if (result.dropped > 0) {
+        console.log(`  Dropped: ${result.dropped} raw rows whose URL did not normalise`);
+      }
+      if (result.truncated) {
+        console.log('  Warning: a report hit the row cap, so low-traffic URLs are missing.');
+      }
+      if (result.sampled) {
+        console.log(
+          '  Warning: Yandex Metrica returned sampled data; per-page numbers are estimates.',
+        );
+      }
+    }
+    return 0;
+  } catch (err) {
+    endProgress();
+    return metricaFail(opts.json, err, err instanceof MetricaCancelledError ? 130 : 1);
+  } finally {
+    process.off('SIGINT', onSigint);
     db.close();
   }
 }
