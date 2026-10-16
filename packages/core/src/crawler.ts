@@ -240,6 +240,34 @@ export function xRobotsTagDirectives(
   return { noindex, nofollow };
 }
 
+/**
+ * Name the bot protection (or rate limit) that answered instead of the
+ * site, or null. Only explicit signals count, so no real error page is
+ * ever re-labelled: Cloudflare marks its challenges `cf-mitigated:
+ * challenge`, Vercel `x-vercel-mitigated`, AWS WAF `x-amzn-waf-action`,
+ * Sucuri `x-sucuri-block`, DataDome stamps `x-datadome` on what it blocks;
+ * and a 429 is "too many requests" on any server. None of them says the
+ * page is broken — counting them as 4xx filled Broken Links and Non-200
+ * in Sitemap with pages that work (a live crawl of a Cloudflare site
+ * reported 266 pages with broken links, all challenge pages).
+ */
+export function detectBotProtection(
+  status: number,
+  headers: { get(name: string): string | null },
+): string | null {
+  if (status < 400) return null;
+  const cf = headers.get('cf-mitigated');
+  if (cf) return `Cloudflare ${cf.trim().toLowerCase()} (HTTP ${status})`;
+  const vercel = headers.get('x-vercel-mitigated');
+  if (vercel) return `Vercel ${vercel.trim().toLowerCase()} (HTTP ${status})`;
+  const aws = headers.get('x-amzn-waf-action');
+  if (aws) return `AWS WAF ${aws.trim().toLowerCase()} (HTTP ${status})`;
+  if (headers.get('x-sucuri-block')) return `Sucuri block (HTTP ${status})`;
+  if (status === 403 && headers.get('x-datadome')) return `DataDome block (HTTP ${status})`;
+  if (status === 429) return `Rate limited (HTTP ${status})`;
+  return null;
+}
+
 /** Back-compat convenience wrapper. */
 export function xRobotsTagNoindex(header: string, uaToken: string): boolean {
   return xRobotsTagDirectives(header, uaToken).noindex;
@@ -673,6 +701,8 @@ export class Crawler extends EventEmitter {
     } | null;
     /** Client-side routes the SPA reached during render (Bölüm 29). */
     spaRoutes?: string[];
+    /** The document was replaced during the render (meta refresh / JS redirect) — the URL it ended on. */
+    navigatedTo?: string | null;
   }>;
 
   constructor(
@@ -976,6 +1006,12 @@ export class Crawler extends EventEmitter {
   >();
   private calendarTraps = new Set<string>();
   private calendarTrapDropped = 0;
+  /**
+   * URLs whose latest answer came from bot protection / a rate limit (see
+   * `detectBotProtection`). Kept per URL so the end-of-crawl retry neither
+   * counts a URL as failed twice nor leaves it failed once it got through.
+   */
+  private botBlockedUrls = new Set<string>();
 
   private isCalendarTrapped(url: string): boolean {
     if (this.calendarTraps.size === 0) return false;
@@ -2874,6 +2910,7 @@ export class Crawler extends EventEmitter {
     }
 
     // If the start URL isn't in the DB yet, kick off a brand-new crawl from it.
+    let seededStartUrl: string | null = null;
     if (!this.db.hasUrl(this.config.startUrl)) {
       // Stub upsert before enqueue so the seed surfaces in the URL
       // table within ~100 ms of clicking Start instead of waiting for
@@ -2896,6 +2933,7 @@ export class Crawler extends EventEmitter {
         /* non-fatal: fetchAndProcess will still write the real row */
       }
       this.enqueue({ url: this.config.startUrl, depth: 0 });
+      seededStartUrl = this.config.startUrl;
     }
 
     // Re-queue any internal link targets that were discovered before the
@@ -2912,6 +2950,11 @@ export class Crawler extends EventEmitter {
       [{ excludeNofollow }],
     );
     for (const pending of pendingLinks) {
+      // The start-URL stub written above has no status code yet, so the
+      // query's re-crawl half returns it as unfinished work. Re-queueing
+      // it fetched the start page twice on every new crawl and counted it
+      // twice in "Crawled" (3 crawled for a 2-page site).
+      if (pending.url === seededStartUrl) continue;
       // Drop from `seen` so enqueue accepts it — these URLs are genuinely
       // unfinished work.
       this.seen.delete(pending.url);
@@ -3024,11 +3067,16 @@ export class Crawler extends EventEmitter {
     // 1) Cheap HEAD with the configured UA.
     let { res, err } = await attempt('HEAD', cfgUa);
 
-    // 2) Retry with GET (browser UA) when HEAD is unreliable or threw a
-    //    recoverable error. The browser UA slips past UA-based bot walls; the
-    //    GET reveals the status a real visitor would get.
-    const headBlocked =
-      !!res && (res.status >= 500 || HEAD_UNRELIABLE_STATUSES.has(res.status));
+    // 2) Confirm any HEAD error with a GET before calling the link broken.
+    //    Servers that only route GET answer HEAD with 404 (bsky.app profile
+    //    links: HEAD 404, GET 200 — found live as 191 "broken" pages), and
+    //    bot walls treat the two differently. The configured UA goes first:
+    //    a site that serves an honest crawler can still challenge the dated
+    //    browser UA below (seen live on a Cloudflare news site). The browser
+    //    UA is the second try, for walls that block bot UAs outright. The
+    //    best answer wins — a working page, else a bot-protection answer
+    //    (unknown, not broken), else the error itself.
+    const headBlocked = !!res && res.status >= 400;
     const headRecoverableThrow = !res && !isHardTransportError(err);
     if (headBlocked || headRecoverableThrow) {
       try {
@@ -3036,7 +3084,33 @@ export class Crawler extends EventEmitter {
       } catch {
         /* ignore */
       }
-      const got = await attempt('GET', BROWSER_FALLBACK_UA);
+      const rank = (r: Awaited<ReturnType<typeof undiciFetch>>): number =>
+        r.status < 400 ? 0 : detectBotProtection(r.status, r.headers) ? 1 : 2;
+      let got = await attempt('GET', cfgUa);
+      if (
+        got.res &&
+        got.res.status >= 400 &&
+        (got.res.status >= 500 || HEAD_UNRELIABLE_STATUSES.has(got.res.status)) &&
+        cfgUa !== BROWSER_FALLBACK_UA
+      ) {
+        const alt = await attempt('GET', BROWSER_FALLBACK_UA);
+        if (alt.res && rank(alt.res) < rank(got.res)) {
+          try {
+            await got.res.body?.cancel();
+          } catch {
+            /* ignore */
+          }
+          got = alt;
+        } else {
+          try {
+            await alt.res?.body?.cancel();
+          } catch {
+            /* ignore */
+          }
+        }
+      } else if (!got.res && !isHardTransportError(got.err)) {
+        got = await attempt('GET', BROWSER_FALLBACK_UA);
+      }
       if (got.res) {
         res = got.res;
         err = undefined;
@@ -3074,11 +3148,13 @@ export class Crawler extends EventEmitter {
         const loc = res.headers.get('location');
         if (loc) redirectTarget = normalizeUrl(loc, url) ?? loc;
       }
+      const botBlock = detectBotProtection(res.status, res.headers);
       await this.dbCall<void>('updateExternalProbe', [
         url,
         {
           statusCode: res.status,
-          statusText: res.statusText || null,
+          statusText: botBlock ?? (res.statusText || null),
+          botBlocked: botBlock,
           contentType: res.headers.get('content-type'),
           contentLength: parseIntSafe(res.headers.get('content-length')),
           responseTimeMs,
@@ -3883,6 +3959,9 @@ export class Crawler extends EventEmitter {
     // are bounded by ~concurrency / maxRps, so Stop stays responsive.
     await this.acquireRateSlot();
     if (this.stopped) return;
+    // A retry of a URL bot protection blocked earlier: it is failed again
+    // only if it is blocked again.
+    if (this.botBlockedUrls.delete(item.url)) this.failed--;
 
     const t0 = Date.now();
     const controller = new AbortController();
@@ -3993,6 +4072,39 @@ export class Crawler extends EventEmitter {
         } else if (statusCode < 400) {
           this.noteCleanResponse();
         }
+      }
+      // Bot protection answered instead of the page. Recorded as "not
+      // crawled" (NULL status, unknown indexability) rather than as the
+      // page's 4xx — see `detectBotProtection`. The URL stays pending, so
+      // the end-of-crawl drain asks for it once more (such blocks often
+      // lift after a pause), and a later Start retries it again.
+      const botBlock = detectBotProtection(statusCode, res.headers);
+      if (botBlock) {
+        try {
+          await res.body?.cancel();
+        } catch {
+          /* ignore */
+        }
+        if (this.config.adaptiveSpeed && statusCode !== 429 && statusCode !== 503) {
+          this.noteRateLimited(null);
+        }
+        this.failed++;
+        this.botBlockedUrls.add(item.url);
+        await this.dbCall<number>('upsertUrl', [
+          {
+            url: item.url,
+            urlMalformed: isUrlMalformed(item.url) ? 1 : 0,
+            urlTrap: this.trapKind(item.url),
+            contentKind: 'html',
+            statusCode: null,
+            statusText: botBlock,
+            indexability: 'unknown:bot-blocked',
+            indexabilityReason: `Blocked by bot protection — ${botBlock}`,
+            responseTimeMs,
+            depth: item.depth,
+          },
+        ]);
+        return;
       }
       const contentLengthHeader = res.headers.get('content-length');
       const xRobotsTag = res.headers.get('x-robots-tag');
@@ -4406,7 +4518,18 @@ export class Crawler extends EventEmitter {
             controller.signal,
           );
           renderMs = renderRes.timingMs;
-          if (renderRes.ok && renderRes.html) {
+          if (renderRes.navigatedTo) {
+            // The page replaced itself while rendering (meta refresh, JS
+            // redirect): the DOM, screenshots and audits are the
+            // destination's. Recording them under this URL gave it the
+            // destination's title / H1 / content — a "duplicate" of the
+            // target and a meta refresh nobody saw. Keep the served HTML,
+            // which still carries the refresh / redirect the checks read.
+            this.emit(
+              'debug',
+              `JS render of ${item.url} ended on ${renderRes.navigatedTo} — using the served HTML`,
+            );
+          } else if (renderRes.ok && renderRes.html) {
             parseBody = renderRes.html;
             renderedHtml = renderRes.html;
           } else if (renderRes.error) {
@@ -4415,11 +4538,13 @@ export class Crawler extends EventEmitter {
               `JS render failed for ${item.url}: ${renderRes.error} (falling back to static HTML)`,
             );
           }
-          if (renderRes.screenshots) renderScreenshots = renderRes.screenshots;
-          if (renderRes.spaRoutes?.length) renderSpaRoutes = renderRes.spaRoutes;
-          if (renderRes.lcp) renderLcp = renderRes.lcp;
-          if (renderRes.mobileUsability) renderMobile = renderRes.mobileUsability;
-          if (renderRes.a11y) renderA11y = renderRes.a11y;
+          if (!renderRes.navigatedTo) {
+            if (renderRes.screenshots) renderScreenshots = renderRes.screenshots;
+            if (renderRes.spaRoutes?.length) renderSpaRoutes = renderRes.spaRoutes;
+            if (renderRes.lcp) renderLcp = renderRes.lcp;
+            if (renderRes.mobileUsability) renderMobile = renderRes.mobileUsability;
+            if (renderRes.a11y) renderA11y = renderRes.a11y;
+          }
         } catch (err) {
           this.emit(
             'warn',

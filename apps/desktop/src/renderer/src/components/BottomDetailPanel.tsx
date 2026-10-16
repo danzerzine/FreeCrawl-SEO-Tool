@@ -1830,8 +1830,8 @@ function HttpHeadersView({
   // 5xx-under-load) into a plain-English explanation enriched with
   // signals read off the response headers (Retry-After, cf-ray, …).
   const diag = useMemo(
-    () => diagnoseStatus(row.statusCode, row.statusText, headers, row.indexability),
-    [row.statusCode, row.statusText, headers, row.indexability],
+    () => diagnoseStatus(row.statusCode, row.statusText, headers, row.indexability, t),
+    [row.statusCode, row.statusText, headers, row.indexability, t],
   );
   const rows = side === 'response' ? headers : requestHeaders;
   // Only surface the diagnosis banner when there's something worth

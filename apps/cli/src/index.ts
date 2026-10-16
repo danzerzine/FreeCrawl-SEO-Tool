@@ -333,6 +333,7 @@ async function main(): Promise<void> {
   const overview = db.getOverviewCounts();
   const issues = overview.issues;
   const soft404Probe = overview.site?.soft404Probe ?? null;
+  const botBlocked = overview.site?.botBlocked ?? null;
   // A crawl that fetched nothing (unreachable seed, everything filtered) is a
   // failure for CI purposes — a successful spider always fetches ≥1 page.
   const hasErrors =
@@ -353,7 +354,7 @@ async function main(): Promise<void> {
           dbPath,
           summary,
           issues,
-          site: { soft404Probe },
+          site: { soft404Probe, botBlocked },
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
         },
@@ -367,6 +368,13 @@ async function main(): Promise<void> {
     );
     if (exportedTo) {
       console.log(`Wrote ${rowsWritten} rows -> ${exportedTo}`);
+    }
+    if (botBlocked) {
+      console.log(
+        `Warning: bot protection blocked ${botBlocked.count} URL(s)` +
+          (botBlocked.sample ? ` (${botBlocked.sample})` : '') +
+          ' — not crawled; lower --rps or allowlist the crawler and re-run',
+      );
     }
     if (soft404Probe) {
       console.log(

@@ -124,6 +124,9 @@ export const CHANGED_MARKER_TITLE = 'Changed since the previous crawl';
 /** Tooltip for the Robots status badge. */
 export const ROBOTS_STATUS_TITLE = 'Not requested — disallowed by robots.txt';
 
+/** Tooltip for the Blocked status badge (followed by what answered). */
+export const BOT_BLOCKED_STATUS_TITLE = 'Not crawled — bot protection answered instead of the page';
+
 /** How one cell is painted. */
 export type CellPaint =
   /** An absent value — the muted "—". */
@@ -172,6 +175,17 @@ export function cellPaint(row: CrawlUrlRow, spec: ColumnSpec, lang: string): Cel
         title: translateLabel(ROBOTS_STATUS_TITLE, lang),
       };
     }
+    // Bot protection (Cloudflare challenge, WAF) or a rate limit answered
+    // instead of the page — not the page's status, and not a failure of
+    // the connection either. The hover names what answered.
+    if ((code === null || code === undefined) && row.indexability === 'unknown:bot-blocked') {
+      return {
+        kind: 'badge',
+        text: translateLabel('Blocked', lang),
+        ...STATUS_BADGES.robots,
+        title: `${translateLabel(BOT_BLOCKED_STATUS_TITLE, lang)}: ${row.statusText ?? ''}`,
+      };
+    }
     // No HTTP status (DNS/TLS/connect/timeout failure): a bare "—" hides
     // the reason the crawler already captured. Show a compact token (DNS /
     // TLS / Timeout / …) with the full error text on hover.
@@ -190,8 +204,9 @@ export function cellPaint(row: CrawlUrlRow, spec: ColumnSpec, lang: string): Cel
     const v = row.indexability;
     return {
       kind: 'text',
-      text: translateLabel(v === 'indexable' ? 'Indexable' : 'Non-Indexable', lang),
-      color: v === 'indexable' ? GRID_COLORS.good : GRID_COLORS.warn,
+      text: translateLabel(indexabilityHeadline(v), lang),
+      color:
+        v === 'indexable' ? GRID_COLORS.good : v === 'unknown:bot-blocked' ? GRID_COLORS.rowNum : GRID_COLORS.warn,
       mono: false,
       title: v,
       marker: false,
@@ -269,12 +284,13 @@ export function cellText(row: CrawlUrlRow, spec: ColumnSpec, lang: string): stri
     if (row.indexability === 'non-indexable:robots-blocked') {
       return translateLabel('Robots', lang);
     }
+    if (row.indexability === 'unknown:bot-blocked') return translateLabel('Blocked', lang);
     const label = shortFailureLabel(row.statusText);
     return label === '—' ? '' : label;
   }
 
   if (spec.kind === 'indexability') {
-    return translateLabel(row.indexability === 'indexable' ? 'Indexable' : 'Non-Indexable', lang);
+    return translateLabel(indexabilityHeadline(row.indexability), lang);
   }
 
   if (spec.kind === 'indexability-status') {
@@ -364,6 +380,14 @@ export function formatExtractionCell(raw: string): string {
   return entries.map(([name, v]) => `${name}: ${fmt(v)}`).join('  ·  ');
 }
 
+/** The Indexability column's one-word verdict. */
+function indexabilityHeadline(v: CrawlUrlRow['indexability']): string {
+  if (v === 'indexable') return 'Indexable';
+  // Not crawled, so not known — search engines are usually let through.
+  if (v === 'unknown:bot-blocked') return 'Unknown';
+  return 'Non-Indexable';
+}
+
 export function indexabilityStatusLabel(v: CrawlUrlRow['indexability']): string {
   switch (v) {
     case 'indexable':
@@ -380,6 +404,8 @@ export function indexabilityStatusLabel(v: CrawlUrlRow['indexability']): string 
       return 'Client Error';
     case 'non-indexable:server-error':
       return 'Server Error';
+    case 'unknown:bot-blocked':
+      return 'Blocked by bot protection';
     default:
       return v;
   }

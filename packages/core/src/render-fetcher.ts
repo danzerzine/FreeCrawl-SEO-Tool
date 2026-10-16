@@ -71,6 +71,14 @@ export interface RenderResult {
    * `discoverSpaRoutes` was set.
    */
   spaRoutes?: string[];
+  /**
+   * Set when the document itself was replaced during the render — a meta
+   * refresh or `location.href = …` fired while we waited — to the URL the
+   * browser ended on. `html` then belongs to that URL, not to `url`.
+   * Client-side routing (`pushState`, hash routes) keeps the document and
+   * never sets this.
+   */
+  navigatedTo?: string | null;
 }
 
 /** V2 Faz 16 — in-page accessibility audit result. */
@@ -449,6 +457,19 @@ export async function renderUrl(
     const html = await page.content();
     const headers = response ? await response.allHeaders() : {};
     const finalUrl = response?.url() ?? page.url();
+    // The current document's own navigation entry names the URL it was
+    // loaded from. History-API routing leaves it alone; a meta refresh or
+    // a `location` assignment that ran during the wait replaces it.
+    let navigatedTo: string | null = null;
+    try {
+      const docUrl = (await page.evaluate(
+        "(() => { const e = performance.getEntriesByType('navigation')[0]; return e ? e.name : null; })()",
+      )) as string | null;
+      const strip = (u: string): string => u.split('#')[0] ?? u;
+      if (docUrl && strip(docUrl) !== strip(finalUrl)) navigatedTo = docUrl;
+    } catch {
+      /* page went away mid-check — treat as not navigated */
+    }
 
     // LCP candidate detection — runs before screenshot so the in-page
     // layout pass it triggers is included in the captured viewport.
@@ -529,6 +550,7 @@ export async function renderUrl(
       lcp: opts.detectLcp ? lcp : undefined,
       a11y: opts.detectA11y ? a11y : undefined,
       spaRoutes,
+      navigatedTo,
     };
   } catch (err) {
     result = {

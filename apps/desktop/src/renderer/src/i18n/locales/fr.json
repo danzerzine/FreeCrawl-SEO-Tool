@@ -4,7 +4,9 @@
     "urls": "URL",
     "percentOfTotal": "% du total",
     "siteSoft404": "Les pages inexistantes renvoient {{status}} (soft 404)",
-    "siteSoft404Hint": "Une requête vers une page qui n'existe pas a reçu {{status}} au lieu de 404 : les liens cassés de ce site ressemblent donc à des pages valides pour les moteurs de recherche."
+    "siteSoft404Hint": "Une requête vers une page qui n'existe pas a reçu {{status}} au lieu de 404 : les liens cassés de ce site ressemblent donc à des pages valides pour les moteurs de recherche.",
+    "siteBotBlocked": "La protection anti-bots a bloqué une partie de l'exploration",
+    "siteBotBlockedHint": "La protection anti-bots du site a répondu par une vérification au lieu de ces pages. Elles n'ont pas été explorées et sont exclues des contrôles de liens cassés et de sitemap. Réduisez la vitesse d'exploration ou autorisez le user agent du robot, puis explorez-les à nouveau."
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",
@@ -406,7 +408,58 @@
     "orphanMetricaVisits_other": "{{formatted}} visites Metrica (entrée)",
     "orphanMetricaPageviews_one": "{{formatted}} page vue Metrica (hits)",
     "orphanMetricaPageviews_many": "{{formatted}} de pages vues Metrica (hits)",
-    "orphanMetricaPageviews_other": "{{formatted}} pages vues Metrica (hits)"
+    "orphanMetricaPageviews_other": "{{formatted}} pages vues Metrica (hits)",
+    "noResponse": "Aucune réponse",
+    "bucketOrphan": "0 (orpheline)",
+    "badge": {
+      "ok": "OK",
+      "non": "NON",
+      "warn": "ALERTE",
+      "bad": "MAUVAIS",
+      "err": "ERREUR",
+      "slow": "LENT",
+      "net": "RÉSEAU"
+    },
+    "domainHealth": "{{ok}}/{{total}} OK · {{rate}} % d’erreurs",
+    "avgMs": "moy. {{ms}} ms",
+    "distinctIds_one": "{{count}} ID distinct",
+    "distinctIds_many": "{{count}} ID distincts",
+    "distinctIds_other": "{{count}} ID distincts",
+    "pageCount_one": "{{formatted}} page",
+    "pageCount_many": "{{formatted}} pages",
+    "pageCount_other": "{{formatted}} pages",
+    "imageCount_one": "{{formatted}} image",
+    "imageCount_many": "{{formatted}} images",
+    "imageCount_other": "{{formatted}} images",
+    "hits_one": "{{formatted}} occurrence",
+    "hits_many": "{{formatted}} occurrences",
+    "hits_other": "{{formatted}} occurrences",
+    "avgWords": "moy. {{formatted}}",
+    "lastmod": "lastmod {{date}}",
+    "fromSitemap": "depuis {{sitemap}}",
+    "position": {
+      "navigation": "Navigation",
+      "header": "En-tête",
+      "content": "Contenu",
+      "sidebar": "Barre latérale",
+      "footer": "Pied de page",
+      "aside": "Aside"
+    },
+    "indexability": {
+      "indexable": "Indexable",
+      "noindex": "Non indexable — noindex",
+      "canonical": "Non indexable — canonicalisée",
+      "robotsBlocked": "Non indexable — bloquée par robots.txt",
+      "redirect": "Non indexable — redirection",
+      "clientError": "Non indexable — 4xx",
+      "serverError": "Non indexable — 5xx",
+      "botBlocked": "Inconnue — bloquée par la protection anti-bots"
+    },
+    "kind": {
+      "image": "Image",
+      "font": "Police",
+      "other": "Autre"
+    }
   },
   "sitemap": {
     "title": "Validateur de sitemap",
@@ -1070,7 +1123,267 @@
   "diag": {
     "fromHeaders": "D'après les en-têtes de réponse",
     "likelyCauses": "Causes probables",
-    "whatToDo": "Que faire"
+    "whatToDo": "Que faire",
+    "cloudflareStyle": "code edge de type Cloudflare",
+    "code": {
+      "520": {
+        "name": "Le serveur web a renvoyé une erreur inconnue",
+        "explanation": "Cloudflare s'est connecté au serveur d'origine mais a reçu une réponse vide, malformée ou inattendue (par exemple, la connexion a été coupée en pleine réponse, l'origine a renvoyé des en-têtes trop volumineux ou le processus de l'origine a planté). C'est un code fourre-tout pour « quelque chose s'est mal passé à l'origine ».",
+        "cause1": "Le serveur d'origine a planté, redémarré ou manqué de workers/mémoire en traitant la requête",
+        "cause2": "L'origine a fermé la connexion TCP avant d'envoyer une réponse complète (souvent un délai d'attente applicatif ou un arrêt pour manque de mémoire)",
+        "cause3": "Le débit de requêtes de l'exploration a submergé le pool de processus de l'origine : des 520 en rafales sous charge signifient presque toujours cela",
+        "cause4": "L'origine a renvoyé des en-têtes de réponse plus volumineux que ce que Cloudflare autorise (rare ; généralement une application mal configurée)",
+        "todo1": "Si les 520 apparaissent en rafales sur de nombreuses URL, baissez Concurrence maximale / URL/s maximum et ajoutez un Délai par worker (Paramètres → Vitesse) : l'exploration surcharge l'origine",
+        "todo2": "Explorez à nouveau les URL concernées une fois l'exploration terminée (les 520 passagers disparaissent souvent au nouvel essai ; augmentez le Nombre de tentatives dans Paramètres → Vitesse)",
+        "todo3": "Si seules certaines URL renvoient systématiquement 520, ces pages ont un bug côté serveur : signalez-les au propriétaire du site"
+      },
+      "521": {
+        "name": "Le serveur web est hors service",
+        "explanation": "Cloudflare n'a pas pu ouvrir de connexion TCP vers le serveur d'origine : l'origine a activement refusé la connexion ou n'écoute pas sur le port attendu.",
+        "cause1": "Le serveur web d'origine (nginx/Apache/Node, etc.) est arrêté ou a planté",
+        "cause2": "Le pare-feu de l'origine bloque les plages d'IP de Cloudflare (une erreur de configuration : l'origine devrait autoriser Cloudflare)",
+        "cause3": "Le serveur d'origine est surchargé au point de ne plus accepter de nouvelles connexions",
+        "todo1": "C'est un problème de disponibilité de l'origine, pas quelque chose que le robot d'exploration peut contourner : le site est de fait hors service pour ces URL",
+        "todo2": "Explorez à nouveau plus tard ; si cela persiste, le site est cassé"
+      },
+      "522": {
+        "name": "Délai de connexion dépassé",
+        "explanation": "Cloudflare a commencé une poignée de main TCP avec l'origine, mais elle ne s'est pas terminée dans le délai imparti : l'origine a accepté le SYN sans jamais répondre, ou un équipement réseau intermédiaire a abandonné les paquets.",
+        "cause1": "L'origine est fortement surchargée (file TCP pleine)",
+        "cause2": "Le pare-feu de l'origine abandonne silencieusement (sans les rejeter) les paquets de Cloudflare",
+        "cause3": "Problème de réseau/routage entre Cloudflare et l'origine",
+        "cause4": "Sous la charge de l'exploration : les requêtes parallèles de l'exploration ont épuisé la table de connexions de l'origine",
+        "todo1": "Baissez la concurrence (Paramètres → Vitesse → Concurrence maximale) et explorez à nouveau : l'épuisement de la table de connexions est la cause habituelle quand cela survient en cours d'exploration",
+        "todo2": "Réessayez les URL concernées après l'exploration"
+      },
+      "523": {
+        "name": "L'origine est injoignable",
+        "explanation": "Cloudflare n'a pas du tout pu joindre le serveur d'origine : généralement un problème DNS dans l'enregistrement d'origine chez Cloudflare, ou le réseau de l'origine est hors service.",
+        "cause1": "L'enregistrement DNS du site chez Cloudflare pointe vers une IP erronée / inactive",
+        "cause2": "L'hébergeur de l'origine subit une panne réseau",
+        "cause3": "Défaillance BGP / de routage entre Cloudflare et l'origine",
+        "todo1": "Le robot d'exploration n'y peut rien : c'est une erreur de configuration DNS/réseau de l'origine"
+      },
+      "524": {
+        "name": "Un délai d'attente a expiré",
+        "explanation": "Cloudflare a bien établi une connexion TCP avec l'origine, mais l'origine n'a pas envoyé de réponse HTTP complète dans le délai de Cloudflare (100 s par défaut). L'origine fonctionne, mais elle est trop lente pour cette requête.",
+        "cause1": "Une requête de base de données lente, un appel à une API externe ou un calcul lourd sur la page",
+        "cause2": "L'origine est surchargée : les requêtes s'accumulent derrière un pool de workers saturé",
+        "cause3": "Sous la charge de l'exploration : l'exploration a rempli la file de requêtes de l'origine et cette URL a attendu trop longtemps",
+        "todo1": "Baissez Concurrence maximale / URL/s maximum et ajoutez un Délai par worker (Paramètres → Vitesse) pour ne pas saturer l'origine",
+        "todo2": "Augmentez le Délai d'attente de réponse (Paramètres → Explorateur) si vous voulez laisser plus de temps aux pages réellement lentes",
+        "todo3": "Réessayez les URL concernées après l'exploration"
+      },
+      "525": {
+        "name": "Échec de la poignée de main SSL",
+        "explanation": "La poignée de main TLS entre Cloudflare et le serveur d'origine a échoué. Il s'agit du tronçon Cloudflare↔origine, pas du tronçon navigateur↔Cloudflare visible dans la barre d'adresse : le site peut donc sembler normal pour un visiteur et renvoyer quand même 525.",
+        "cause1": "Le certificat TLS de l'origine est expiré, auto-signé ou émis pour un autre nom d'hôte (avec Cloudflare en mode 'Full (strict)')",
+        "cause2": "L'origine ne prend en charge que d'anciennes versions de TLS / suites de chiffrement que Cloudflare refuse",
+        "cause3": "Le serveur d'origine est surchargé et abandonne des poignées de main TLS",
+        "todo1": "Erreur de configuration TLS de l'origine : le robot d'exploration ne peut pas la modifier. Vérifiez le certificat de l'hôte (les lignes TLS Cert dans Détails de l’URL, pour HTTPS)"
+      },
+      "526": {
+        "name": "Certificat SSL non valide",
+        "explanation": "Cloudflare (en mode SSL 'Full (strict)') n'a pas pu valider le certificat TLS du serveur d'origine.",
+        "cause1": "Le certificat de l'origine est expiré, auto-signé ou émis pour un autre nom d'hôte",
+        "cause2": "La chaîne de certificats de l'origine est incomplète (certificats intermédiaires manquants)",
+        "todo1": "Problème de certificat de l'origine : le robot d'exploration n'y peut rien"
+      },
+      "527": {
+        "name": "Erreur Railgun (Cloudflare, obsolète)",
+        "explanation": "Une erreur de connexion dans Cloudflare Railgun (un produit d'accélération de l'origine désormais retiré). Pratiquement obsolète ; si vous le voyez, le site utilise une configuration Cloudflare très ancienne.",
+        "cause1": "Échec de connexion de l'ancien Cloudflare Railgun",
+        "todo1": "Rien à faire du côté du robot d'exploration"
+      },
+      "530": {
+        "name": "Erreur Cloudflare (généralement un blocage pare-feu / WAF — erreur 1020)",
+        "explanation": "Un 530 est la façon dont Cloudflare dit « une erreur s'est produite, voir le code 1xxx dans le corps ». Lors d'une exploration, il s'agit presque toujours de 1020 « Access Denied » : une règle Cloudflare Firewall / WAF / Bot-Fight a bloqué la requête. Plus rarement, il accompagne 1016 (erreur DNS de l'origine) ou d'autres codes 1xxx.",
+        "cause1": "Cloudflare WAF / Firewall Rules / Bot Fight Mode a signalé le robot d'exploration : par IP, par User-Agent, par débit de requêtes ou par absence d'empreintes de navigateur",
+        "cause2": "Le site utilise un « managed challenge » que le robot d'exploration ne peut pas résoudre",
+        "cause3": "(Rarement) une erreur DNS de l'origine (1016) plutôt qu'un blocage",
+        "todo1": "Définissez un User-Agent de navigateur (Paramètres → Requêtes) : l'UA par défaut du robot est le déclencheur n° 1",
+        "todo2": "Baissez Concurrence maximale / URL/s maximum et ajoutez un Délai par worker (Paramètres → Vitesse) : des requêtes rapides depuis une seule IP déclenchent les règles basées sur le débit",
+        "todo3": "Respectez robots.txt et tout Crawl-delay déclaré (Paramètres → Explorateur)",
+        "todo4": "Si le site vous appartient, mettez le robot d'exploration sur liste blanche dans Cloudflare ; sinon, le site bloque volontairement l'accès automatisé"
+      },
+      "401": {
+        "name": "Non autorisé",
+        "explanation": "La ressource exige une authentification et aucun identifiant (ou un identifiant non valide) n'a été envoyé.",
+        "cause1": "La page est protégée par une authentification HTTP Basic/Bearer",
+        "cause2": "Un cookie de session est requis et aucun n'a été envoyé",
+        "todo1": "Configurez les identifiants dans Paramètres → Authentification si vous en disposez",
+        "todo2": "Utilisez Paramètres → Cookies → « Tout accepter » si le site réserve son contenu à une session"
+      },
+      "403": {
+        "name": "Interdit",
+        "explanation": "Le serveur a compris la requête mais refuse de la servir. Lors d'une exploration, il s'agit le plus souvent d'un blocage de robots ou d'une règle WAF plutôt que d'un vrai problème de permissions.",
+        "cause1": "Règle WAF / de protection anti-bots déclenchée par le User-Agent, l'IP ou le débit de requêtes du robot d'exploration",
+        "cause2": "Répertoire ou fichier réellement inaccessible aux utilisateurs anonymes",
+        "cause3": "Protection contre le hotlinking / le referer",
+        "todo1": "Essayez un User-Agent de navigateur (Paramètres → Requêtes)",
+        "todo2": "Réduisez la vitesse d'exploration (Paramètres → Vitesse)",
+        "todo3": "Si cela touche tout le site, le site bloque activement l'accès automatisé"
+      },
+      "404": {
+        "name": "Introuvable",
+        "explanation": "Le serveur n'a aucune ressource à cette URL.",
+        "cause1": "Lien interne/externe cassé",
+        "cause2": "La page a été supprimée sans redirection",
+        "cause3": "Faute de frappe dans le href d'un lien",
+        "todo1": "Corrigez ou supprimez les liens des pages concernées : l'onglet Liens entrants montre qui pointe ici"
+      },
+      "408": {
+        "name": "Délai d'attente de la requête dépassé",
+        "explanation": "Le serveur a dépassé son délai d'attente en attendant la fin de la requête.",
+        "cause1": "Réseau lent entre le robot d'exploration et le serveur",
+        "cause2": "Délai d'attente de connexion du serveur réglé très bas",
+        "todo1": "Généralement passager : augmentez le Nombre de tentatives (Paramètres → Vitesse)"
+      },
+      "410": {
+        "name": "Supprimé",
+        "explanation": "La ressource a été supprimée volontairement et définitivement — un signal plus fort qu'un 404.",
+        "cause1": "Page retirée volontairement ; le serveur demande aux robots de l'abandonner",
+        "todo1": "Supprimez les liens vers cette URL : Google la désindexera plus vite qu'un 404"
+      },
+      "429": {
+        "name": "Trop de requêtes (limitation de débit)",
+        "explanation": "Le serveur limite le débit du robot d'exploration : trop de requêtes en trop peu de temps depuis cette IP/ce User-Agent.",
+        "cause1": "Le débit d'exploration dépasse la limite par client du serveur",
+        "cause2": "Hébergement mutualisé avec une limitation agressive",
+        "todo1": "Baissez Concurrence maximale / URL/s maximum et ajoutez un Délai par worker (Paramètres → Vitesse)",
+        "todo2": "Respectez l'en-tête Retry-After : voyez « D'après les en-têtes de réponse » ci-dessous si le serveur en a envoyé un",
+        "todo3": "Activez « Respecter le Crawl-delay de robots.txt » (Paramètres → Explorateur)"
+      },
+      "451": {
+        "name": "Indisponible pour des raisons légales",
+        "explanation": "La ressource est bloquée pour des raisons légales (décision de justice, géoblocage RGPD, DMCA, etc.).",
+        "cause1": "Contenu géo-restreint",
+        "cause2": "Retrait imposé par la loi",
+        "todo1": "Rien à faire : le blocage est volontaire"
+      },
+      "500": {
+        "name": "Erreur interne du serveur",
+        "explanation": "Une erreur non gérée s'est produite dans l'application côté serveur pendant la génération de la page.",
+        "cause1": "Bug dans le modèle de page / le code du backend",
+        "cause2": "Base de données indisponible",
+        "cause3": "Erreur de configuration sur le serveur",
+        "todo1": "Réessayez après l'exploration (les 500 passagers disparaissent ; les persistants sont un vrai bug)",
+        "todo2": "Si les 500 apparaissent sous charge, l'exploration surcharge peut-être une base de données : ralentissez l'exploration (Paramètres → Vitesse)"
+      },
+      "502": {
+        "name": "Passerelle incorrecte",
+        "explanation": "Un proxy inverse / répartiteur de charge placé devant l'application a reçu une réponse non valide du serveur d'application en amont.",
+        "cause1": "Le serveur d'application en amont a planté ou renvoyé des données incohérentes",
+        "cause2": "Le serveur en amont est surchargé — fréquent sous la charge de l'exploration",
+        "cause3": "Délai d'attente proxy↔amont",
+        "todo1": "Réduisez la vitesse d'exploration (Paramètres → Vitesse) si les 502 apparaissent en rafales",
+        "todo2": "Réessayez les URL concernées après l'exploration"
+      },
+      "503": {
+        "name": "Service indisponible",
+        "explanation": "Le serveur ne peut temporairement pas traiter la requête — généralement une surcharge ou une maintenance. S'accompagne souvent d'un en-tête Retry-After.",
+        "cause1": "Serveur surchargé — l'exploration elle-même peut en être la cause",
+        "cause2": "Fenêtre de maintenance planifiée",
+        "cause3": "Retard de mise à l'échelle automatique (de nouvelles instances démarrent)",
+        "todo1": "Baissez Concurrence maximale / URL/s maximum et ajoutez un Délai par worker (Paramètres → Vitesse)",
+        "todo2": "Respectez Retry-After (voir « D'après les en-têtes de réponse » ci-dessous)",
+        "todo3": "Réessayez les URL concernées après l'exploration"
+      },
+      "504": {
+        "name": "Délai d'attente de la passerelle dépassé",
+        "explanation": "Un proxy inverse / répartiteur de charge n'a pas reçu à temps la réponse du serveur d'application en amont.",
+        "cause1": "Requête de base de données lente / appel à une API externe sur la page",
+        "cause2": "Serveur en amont surchargé — les requêtes s'accumulent",
+        "cause3": "Sous la charge de l'exploration : l'exploration a saturé le pool de workers en amont",
+        "todo1": "Réduisez la vitesse d'exploration (Paramètres → Vitesse)",
+        "todo2": "Augmentez le Délai d'attente de réponse (Paramètres → Explorateur) pour les pages réellement lentes",
+        "todo3": "Réessayez les URL concernées après l'exploration"
+      },
+      "508": {
+        "name": "Boucle détectée",
+        "explanation": "Le serveur a détecté une boucle infinie en traitant la requête (souvent WebDAV ou une boucle de redirection côté serveur).",
+        "cause1": "Boucle de redirection côté serveur",
+        "cause2": "Boucle d'include récursif / de lien symbolique",
+        "todo1": "Bug du serveur : le robot d'exploration n'y peut rien"
+      },
+      "509": {
+        "name": "Limite de bande passante dépassée",
+        "explanation": "Un code non standard (cPanel/Apache) signifiant que le compte d'hébergement a atteint son plafond mensuel de bande passante.",
+        "cause1": "Quota de bande passante de l'hébergement mutualisé épuisé",
+        "todo1": "Le robot d'exploration n'y peut rien : l'hébergeur bride tout le compte"
+      }
+    },
+    "signal": {
+      "cloudflare": "Derrière Cloudflare — cf-ray {{ray}}. Le code d'état décrit la liaison Cloudflare↔origine, pas ce que voit un navigateur.",
+      "fronted": "Servi via {{front}}.",
+      "origin": "Serveur d'origine : {{server}}.",
+      "retryAfterSeconds": "Le serveur a envoyé Retry-After : {{seconds}} s — il demande explicitement aux clients d'attendre ce délai. Une exploration respectueuse ne devrait pas redemander cette URL plus tôt.",
+      "retryAfter": "Le serveur a envoyé Retry-After : {{value}}.",
+      "cfCache": "État du cache Cloudflare : {{status}}.",
+      "xRobots": "X-Robots-Tag : {{value}} — influe sur l'indexabilité quel que soit le code d'état."
+    },
+    "robots": {
+      "title": "Non demandée — interdite par robots.txt",
+      "explanation": "Le robot d'exploration n'a jamais envoyé de requête pour cette URL : une règle robots.txt pour le user-agent configuré l'interdit. Il n'y a pas de code d'état car aucune réponse n'a jamais été demandée — ce n'est pas un échec de connexion.",
+      "cause1": "Une règle Disallow du robots.txt du site correspond à ce chemin pour le user-agent de l'exploration",
+      "cause2": "L'URL est liée depuis des pages explorées : elle est donc enregistrée et comptée, mais jamais récupérée",
+      "todo1": "Rien à faire si l'exclusion est voulue — Google ne l'explorera pas non plus",
+      "todo2": "Vérifiez si la page devrait être indexable : une URL interdite ne transmet pas de popularité via ses liens et son contenu n'est jamais vu",
+      "todo3": "Utilisez Aide → Testeur de robots.txt pour voir quelle règle correspond, ou désactivez « Respecter robots.txt » dans Paramètres → Explorateur pour l'auditer quand même"
+    },
+    "network": {
+      "title": "Aucune réponse HTTP — erreur réseau / de connexion",
+      "explanationDetail": "La requête n'a jamais reçu de réponse HTTP. Le robot d'exploration a enregistré : « {{detail}} ».",
+      "explanation": "La requête n'a jamais reçu de réponse HTTP : la résolution DNS, la connexion TCP, la poignée de main TLS ou la lecture de la réponse a échoué avant l'arrivée d'une ligne d'état.",
+      "cause1": "Le DNS n'a pas pu résoudre le nom d'hôte (faute de frappe, domaine inactif ou nom résolu uniquement au sein d'un réseau privé)",
+      "cause2": "Connexion TCP refusée ou expirée (hôte hors service, pare-feu, mauvais port)",
+      "cause3": "Échec de la poignée de main TLS (certificat expiré/non valide, protocole incompatible)",
+      "cause4": "Connexion réinitialisée ou délai de lecture dépassé en pleine réponse",
+      "cause5": "Requête interrompue par le robot d'exploration car elle a dépassé le Délai d'attente de réponse (Paramètres → Explorateur) ou le Temps de réponse max. (Paramètres → Avancé)",
+      "todo1": "Vérifiez que le nom d'hôte se résout et que le site est accessible depuis un navigateur normal sur cette machine",
+      "todo2": "S'il est accessible mais lent, augmentez le Délai d'attente de réponse (Paramètres → Explorateur)",
+      "todo3": "S'il n'échoue que sous charge, baissez Concurrence maximale / URL/s maximum (Paramètres → Vitesse) — l'épuisement de la table de connexions de l'origine ressemble à une erreur réseau côté client",
+      "todo4": "Réessayez les URL concernées après l'exploration (les réinitialisations passagères disparaissent au nouvel essai)"
+    },
+    "informational": {
+      "title": "{{code}} — Informatif",
+      "fallback": "Informatif",
+      "explanation": "Une réponse 1xx ({{text}}). Ce sont des réponses intermédiaires ; le robot d'exploration les considère comme passagères et attend le code d'état final."
+    },
+    "success": {
+      "fallback": "Succès",
+      "explanation": "La requête a abouti. Aucun diagnostic nécessaire — cette section ne détaille que les codes d'erreur et de redirection."
+    },
+    "redirect": {
+      "fallback": "Redirection",
+      "explanation301": "Redirection permanente. Les moteurs de recherche transfèrent les signaux de classement vers la cible et mettent à jour leur index avec la nouvelle URL.",
+      "explanation302": "Redirection temporaire. Les moteurs de recherche gardent l'URL d'origine dans l'index. Un 302 utilisé durablement est une erreur SEO courante — ce devrait généralement être un 301.",
+      "explanation308": "Redirection permanente (comme un 301, mais la méthode de la requête est conservée).",
+      "explanation304": "Non modifié — la copie en cache est toujours à jour. Le robot d'exploration envoie normalement ses requêtes sans en-têtes conditionnels, c'est donc inhabituel.",
+      "explanationOther": "Une redirection {{code}} ({{text}}).",
+      "location": "L'en-tête Location pointe vers : {{location}}",
+      "noLocation": "Aucun en-tête Location n'a été capturé — inhabituel pour une redirection.",
+      "todoPermanent": "Si cette redirection est permanente, passez-la en 301/308 pour que les signaux de classement se consolident",
+      "todoChain": "Consultez l'onglet Codes de réponse pour voir la chaîne de redirections complète et sa cible finale"
+    },
+    "clientError": {
+      "fallback": "Erreur client",
+      "explanation": "Un code 4xx signifie que le serveur a rejeté la requête comme une faute du client (requête incorrecte, non autorisée, introuvable, etc.). Lors d'une exploration, un 4xx persistant sur des pages liées signale généralement des liens cassés ; un 4xx sporadique peut venir d'une protection anti-bots.",
+      "cause1": "Lien cassé ou malformé",
+      "cause2": "Protection anti-bots / règle WAF",
+      "cause3": "Méthode ou contenu refusé par le serveur",
+      "todo1": "Consultez l'onglet Liens entrants pour voir ce qui pointe vers cette URL",
+      "todo2": "Si cela ressemble à un blocage, essayez un User-Agent de navigateur et un débit plus faible (Paramètres → Requêtes / Vitesse)"
+    },
+    "serverError": {
+      "fallback": "Erreur serveur",
+      "explanation": "Un code 5xx signifie que le serveur n'a pas pu traiter une requête qu'il avait acceptée comme valide. Sous la charge de l'exploration, c'est souvent l'exploration qui submerge l'origine plutôt qu'un vrai bug de page.",
+      "cause1": "Erreur ou plantage côté serveur",
+      "cause2": "Origine surchargée — peut-être par l'exploration elle-même",
+      "cause3": "Défaillance en amont/du proxy",
+      "todo1": "Baissez Concurrence maximale / URL/s maximum et ajoutez un Délai par worker (Paramètres → Vitesse) si les 5xx apparaissent en rafales",
+      "todo2": "Augmentez le Nombre de tentatives (Paramètres → Vitesse) et explorez à nouveau les URL concernées"
+    }
   },
   "outline": {
     "emptyPrefix": "Cette page n'a aucun titre détecté (aucun élément",

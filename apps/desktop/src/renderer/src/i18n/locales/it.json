@@ -4,7 +4,9 @@
     "urls": "URL",
     "percentOfTotal": "% del totale",
     "siteSoft404": "Le pagine inesistenti restituiscono {{status}} (soft 404)",
-    "siteSoft404Hint": "Una richiesta a una pagina che non esiste ha ricevuto {{status}} invece di 404, quindi i link interrotti di questo sito sembrano pagine funzionanti ai motori di ricerca."
+    "siteSoft404Hint": "Una richiesta a una pagina che non esiste ha ricevuto {{status}} invece di 404, quindi i link interrotti di questo sito sembrano pagine funzionanti ai motori di ricerca.",
+    "siteBotBlocked": "La protezione anti-bot ha bloccato parte della scansione",
+    "siteBotBlockedHint": "La protezione anti-bot del sito ha risposto con una verifica al posto di queste pagine. Non sono state scansionate e sono escluse dai controlli su link interrotti e sitemap. Riduci la velocità di scansione o autorizza lo user agent del crawler, poi scansionale di nuovo."
   },
   "integrations": {
     "intro": "Collega servizi esterni con le tue credenziali. Le chiavi API e i segreti sono cifrati a riposo tramite l'archivio sicuro del tuo sistema operativo e non lasciano mai questa macchina.",
@@ -406,7 +408,58 @@
     "orphanMetricaVisits_other": "{{formatted}} visite Metrica (ingresso)",
     "orphanMetricaPageviews_one": "{{formatted}} visualizzazione di pagina Metrica (hit)",
     "orphanMetricaPageviews_many": "{{formatted}} di visualizzazioni di pagina Metrica (hit)",
-    "orphanMetricaPageviews_other": "{{formatted}} visualizzazioni di pagina Metrica (hit)"
+    "orphanMetricaPageviews_other": "{{formatted}} visualizzazioni di pagina Metrica (hit)",
+    "noResponse": "Nessuna risposta",
+    "bucketOrphan": "0 (orfana)",
+    "badge": {
+      "ok": "OK",
+      "non": "NO",
+      "warn": "AVVISO",
+      "bad": "MALE",
+      "err": "ERRORE",
+      "slow": "LENTO",
+      "net": "RETE"
+    },
+    "domainHealth": "{{ok}}/{{total}} OK · {{rate}}% di errori",
+    "avgMs": "media {{ms}} ms",
+    "distinctIds_one": "{{count}} ID distinto",
+    "distinctIds_many": "{{count}} ID distinti",
+    "distinctIds_other": "{{count}} ID distinti",
+    "pageCount_one": "{{formatted}} pagina",
+    "pageCount_many": "{{formatted}} pagine",
+    "pageCount_other": "{{formatted}} pagine",
+    "imageCount_one": "{{formatted}} immagine",
+    "imageCount_many": "{{formatted}} immagini",
+    "imageCount_other": "{{formatted}} immagini",
+    "hits_one": "{{formatted}} occorrenza",
+    "hits_many": "{{formatted}} occorrenze",
+    "hits_other": "{{formatted}} occorrenze",
+    "avgWords": "media {{formatted}}",
+    "lastmod": "lastmod {{date}}",
+    "fromSitemap": "da {{sitemap}}",
+    "position": {
+      "navigation": "Navigazione",
+      "header": "Intestazione",
+      "content": "Contenuto",
+      "sidebar": "Barra laterale",
+      "footer": "Footer",
+      "aside": "Aside"
+    },
+    "indexability": {
+      "indexable": "Indicizzabile",
+      "noindex": "Non indicizzabile — noindex",
+      "canonical": "Non indicizzabile — canonicalizzata",
+      "robotsBlocked": "Non indicizzabile — bloccata da robots.txt",
+      "redirect": "Non indicizzabile — reindirizzamento",
+      "clientError": "Non indicizzabile — 4xx",
+      "serverError": "Non indicizzabile — 5xx",
+      "botBlocked": "Sconosciuta — bloccata dalla protezione anti-bot"
+    },
+    "kind": {
+      "image": "Immagine",
+      "font": "Font",
+      "other": "Altro"
+    }
   },
   "sitemap": {
     "title": "Validatore di sitemap",
@@ -1070,7 +1123,267 @@
   "diag": {
     "fromHeaders": "Dagli header di risposta",
     "likelyCauses": "Cause probabili",
-    "whatToDo": "Cosa fare"
+    "whatToDo": "Cosa fare",
+    "cloudflareStyle": "codice edge in stile Cloudflare",
+    "code": {
+      "520": {
+        "name": "Il server web ha restituito un errore sconosciuto",
+        "explanation": "Cloudflare si è collegato al server di origine ma ha ricevuto una risposta vuota, malformata o inattesa (ad esempio la connessione si è interrotta a metà risposta, l'origine ha restituito header troppo grandi o il processo dell'origine si è bloccato). È un codice generico per 'qualcosa è andato storto sull'origine'.",
+        "cause1": "Il server di origine si è bloccato, si è riavviato o ha esaurito worker/memoria mentre serviva la richiesta",
+        "cause2": "L'origine ha chiuso la connessione TCP prima di inviare una risposta completa (spesso un timeout dell'applicazione o una chiusura per memoria esaurita)",
+        "cause3": "Il ritmo delle richieste della scansione ha sommerso il pool di processi dell'origine: i 520 che compaiono a raffica sotto carico significano quasi sempre questo",
+        "cause4": "L'origine ha restituito header di risposta più grandi di quanto Cloudflare consente (raro; di solito un'applicazione configurata male)",
+        "todo1": "Se i 520 compaiono a raffica su molti URL, abbassa Concorrenza massima / URL/s massimi e aggiungi un Ritardo per worker (Impostazioni → Velocità): la scansione sta sovraccaricando l'origine",
+        "todo2": "Scansiona di nuovo gli URL interessati a scansione finita (i 520 transitori spesso spariscono al nuovo tentativo: aumenta i Tentativi in Impostazioni → Velocità)",
+        "todo3": "Se solo alcuni URL restituiscono sempre 520, quelle pagine hanno un bug lato server: segnalale al proprietario del sito"
+      },
+      "521": {
+        "name": "Il server web non è raggiungibile",
+        "explanation": "Cloudflare non è riuscito ad aprire una connessione TCP con il server di origine: l'origine ha rifiutato attivamente la connessione o non è in ascolto sulla porta prevista.",
+        "cause1": "Il server web di origine (nginx/Apache/Node ecc.) è fermo o si è bloccato",
+        "cause2": "Il firewall dell'origine blocca gli intervalli IP di Cloudflare (un errore di configurazione: l'origine dovrebbe consentire Cloudflare)",
+        "cause3": "Il server di origine è così sovraccarico da non accettare nuove connessioni",
+        "todo1": "È un problema di disponibilità dell'origine, non qualcosa che il crawler possa aggirare: per questi URL il sito è di fatto irraggiungibile",
+        "todo2": "Scansiona di nuovo più tardi; se persiste, il sito è guasto"
+      },
+      "522": {
+        "name": "Connessione scaduta",
+        "explanation": "Cloudflare ha avviato un handshake TCP con l'origine, ma non si è concluso entro il timeout: l'origine ha accettato il SYN senza mai rispondere, oppure un dispositivo di rete intermedio ha scartato i pacchetti.",
+        "cause1": "L'origine è gravemente sovraccarica (coda TCP piena)",
+        "cause2": "Il firewall dell'origine scarta in silenzio (senza rifiutarli) i pacchetti di Cloudflare",
+        "cause3": "Problema di rete/routing tra Cloudflare e l'origine",
+        "cause4": "Sotto il carico della scansione: le richieste parallele della scansione hanno esaurito la tabella delle connessioni dell'origine",
+        "todo1": "Abbassa la concorrenza (Impostazioni → Velocità → Concorrenza massima) e scansiona di nuovo: l'esaurimento della tabella delle connessioni è la causa tipica quando compare a metà scansione",
+        "todo2": "Riprova gli URL interessati dopo la scansione"
+      },
+      "523": {
+        "name": "L'origine non è raggiungibile",
+        "explanation": "Cloudflare non è riuscito in alcun modo a raggiungere il server di origine: di solito un problema DNS nel record di origine su Cloudflare, oppure la rete dell'origine è fuori servizio.",
+        "cause1": "Il record DNS del sito su Cloudflare punta a un IP sbagliato / non attivo",
+        "cause2": "Il provider di hosting dell'origine ha un guasto di rete",
+        "cause3": "Guasto BGP / di routing tra Cloudflare e l'origine",
+        "todo1": "Il crawler non può farci nulla: è un errore di configurazione DNS/di rete dell'origine"
+      },
+      "524": {
+        "name": "Si è verificato un timeout",
+        "explanation": "Cloudflare ha stabilito correttamente una connessione TCP con l'origine, ma l'origine non ha inviato una risposta HTTP completa entro il timeout di Cloudflare (100 s per impostazione predefinita). L'origine funziona, ma è troppo lenta su questa richiesta.",
+        "cause1": "Una query lenta al database, una chiamata a un'API esterna o un'elaborazione pesante nella pagina",
+        "cause2": "L'origine è sovraccarica: le richieste sono in coda dietro un pool di worker saturo",
+        "cause3": "Sotto il carico della scansione: la scansione ha riempito la coda delle richieste dell'origine e questo URL ha atteso troppo",
+        "todo1": "Abbassa Concorrenza massima / URL/s massimi e aggiungi un Ritardo per worker (Impostazioni → Velocità) per non saturare l'origine",
+        "todo2": "Aumenta il Timeout di risposta (Impostazioni → Scanner) se vuoi concedere più tempo alle pagine davvero lente",
+        "todo3": "Riprova gli URL interessati dopo la scansione"
+      },
+      "525": {
+        "name": "Handshake SSL non riuscito",
+        "explanation": "L'handshake TLS tra Cloudflare e il server di origine non è riuscito. Si tratta del tratto Cloudflare↔origine, non del tratto browser↔Cloudflare che vedi nella barra degli indirizzi: per questo il sito può sembrare normale a un visitatore e restituire comunque 525.",
+        "cause1": "Il certificato TLS dell'origine è scaduto, autofirmato o emesso per un altro nome host (con Cloudflare in modalità 'Full (strict)')",
+        "cause2": "L'origine supporta solo vecchie versioni di TLS / suite di cifratura che Cloudflare rifiuta",
+        "cause3": "Il server di origine è sovraccarico e scarta gli handshake TLS",
+        "todo1": "Errore di configurazione TLS dell'origine: non è qualcosa che il crawler possa cambiare. Controlla il certificato dell'host (le righe TLS Cert in Dettagli dell’URL, per HTTPS)"
+      },
+      "526": {
+        "name": "Certificato SSL non valido",
+        "explanation": "Cloudflare (in modalità SSL 'Full (strict)') non è riuscito a convalidare il certificato TLS del server di origine.",
+        "cause1": "Il certificato dell'origine è scaduto, autofirmato o emesso per un altro nome host",
+        "cause2": "La catena di certificati dell'origine è incompleta (mancano gli intermedi)",
+        "todo1": "Problema del certificato dell'origine: il crawler non può farci nulla"
+      },
+      "527": {
+        "name": "Errore Railgun (Cloudflare, dismesso)",
+        "explanation": "Un errore di connessione in Cloudflare Railgun (un prodotto di accelerazione dell'origine ormai dismesso). Di fatto obsoleto; se lo vedi, il sito usa una configurazione Cloudflare molto vecchia.",
+        "cause1": "Errore di connessione del vecchio Cloudflare Railgun",
+        "todo1": "Niente da fare lato crawler"
+      },
+      "530": {
+        "name": "Errore Cloudflare (di solito un blocco firewall / WAF — errore 1020)",
+        "explanation": "Un 530 è il modo di Cloudflare per dire \"si è verificato un errore, vedi il codice 1xxx nel corpo\". In una scansione è quasi sempre 1020 \"Access Denied\": una regola Cloudflare Firewall / WAF / Bot-Fight ha bloccato la richiesta. Più raramente si accompagna a 1016 (errore DNS dell'origine) o ad altri codici 1xxx.",
+        "cause1": "Cloudflare WAF / Firewall Rules / Bot Fight Mode ha segnalato il crawler: per IP, per User-Agent, per ritmo delle richieste o per assenza di impronte del browser",
+        "cause2": "Il sito usa una \"managed challenge\" che il crawler non può risolvere",
+        "cause3": "(Raramente) un errore DNS dell'origine (1016) anziché un blocco",
+        "todo1": "Imposta un User-Agent da browser (Impostazioni → Richieste): l'UA predefinito del crawler è la causa numero 1",
+        "todo2": "Abbassa Concorrenza massima / URL/s massimi e aggiungi un Ritardo per worker (Impostazioni → Velocità): richieste rapide da un solo IP attivano le regole basate sul ritmo",
+        "todo3": "Rispetta il robots.txt e qualsiasi Crawl-delay dichiarato (Impostazioni → Scanner)",
+        "todo4": "Se il sito è tuo, metti il crawler nella lista consentiti di Cloudflare; altrimenti il sito blocca di proposito l'accesso automatico"
+      },
+      "401": {
+        "name": "Non autorizzato",
+        "explanation": "La risorsa richiede l'autenticazione e non sono state inviate credenziali (o erano non valide).",
+        "cause1": "La pagina è protetta da un'autenticazione HTTP Basic/Bearer",
+        "cause2": "Serve un cookie di sessione e non ne è stato inviato nessuno",
+        "todo1": "Configura le credenziali in Impostazioni → Autenticazione se le hai",
+        "todo2": "Usa Impostazioni → Cookie → \"Accetta tutti\" se il sito riserva i contenuti a una sessione"
+      },
+      "403": {
+        "name": "Accesso negato",
+        "explanation": "Il server ha capito la richiesta ma si rifiuta di servirla. In una scansione si tratta più spesso di un blocco dei bot o di una regola WAF che di un vero problema di permessi.",
+        "cause1": "Regola WAF / di protezione anti-bot attivata dallo User-Agent, dall'IP o dal ritmo delle richieste del crawler",
+        "cause2": "Cartella o file davvero non accessibile agli utenti anonimi",
+        "cause3": "Protezione da hotlink / referer",
+        "todo1": "Prova uno User-Agent da browser (Impostazioni → Richieste)",
+        "todo2": "Riduci il ritmo della scansione (Impostazioni → Velocità)",
+        "todo3": "Se riguarda tutto il sito, il sito sta bloccando attivamente l'accesso automatico"
+      },
+      "404": {
+        "name": "Non trovato",
+        "explanation": "Il server non ha alcuna risorsa a questo URL.",
+        "cause1": "Link interno/esterno interrotto",
+        "cause2": "La pagina è stata rimossa senza reindirizzamento",
+        "cause3": "Errore di battitura nell'href di un link",
+        "todo1": "Correggi o rimuovi i link nelle pagine che puntano qui: la scheda Link in entrata mostra chi rimanda a questo URL"
+      },
+      "408": {
+        "name": "Timeout della richiesta",
+        "explanation": "Il server è andato in timeout aspettando il completamento della richiesta.",
+        "cause1": "Rete lenta tra il crawler e il server",
+        "cause2": "Timeout di connessione del server impostato molto basso",
+        "todo1": "Di solito è transitorio: aumenta i Tentativi (Impostazioni → Velocità)"
+      },
+      "410": {
+        "name": "Rimosso",
+        "explanation": "La risorsa è stata rimossa in modo intenzionale e definitivo: un segnale più forte di un 404.",
+        "cause1": "Pagina dismessa di proposito; il server dice ai crawler di eliminarla",
+        "todo1": "Rimuovi i link a questo URL: Google lo deindicizzerà più in fretta di un 404"
+      },
+      "429": {
+        "name": "Troppe richieste (limite di velocità)",
+        "explanation": "Il server sta limitando il ritmo del crawler: troppe richieste in troppo poco tempo da questo IP/User-Agent.",
+        "cause1": "Il ritmo della scansione supera il limite per client del server",
+        "cause2": "Hosting condiviso con limitazioni aggressive",
+        "todo1": "Abbassa Concorrenza massima / URL/s massimi e aggiungi un Ritardo per worker (Impostazioni → Velocità)",
+        "todo2": "Rispetta l'header Retry-After: vedi \"Dagli header di risposta\" qui sotto se il server lo ha inviato",
+        "todo3": "Attiva \"Rispetta il Crawl-delay del robots.txt\" (Impostazioni → Scanner)"
+      },
+      "451": {
+        "name": "Non disponibile per motivi legali",
+        "explanation": "La risorsa è bloccata per motivi legali (provvedimento giudiziario, geoblocco per il GDPR, DMCA ecc.).",
+        "cause1": "Contenuto con limitazioni geografiche",
+        "cause2": "Rimozione imposta per legge",
+        "todo1": "Niente: il blocco è voluto"
+      },
+      "500": {
+        "name": "Errore interno del server",
+        "explanation": "Si è verificato un errore non gestito nell'applicazione lato server durante la creazione della pagina.",
+        "cause1": "Bug nel template della pagina / nel codice di backend",
+        "cause2": "Database non disponibile",
+        "cause3": "Configurazione errata sul server",
+        "todo1": "Riprova dopo la scansione (i 500 transitori spariscono; quelli persistenti sono un bug reale)",
+        "todo2": "Se i 500 compaiono sotto carico, la scansione potrebbe sovraccaricare un database: rallenta la scansione (Impostazioni → Velocità)"
+      },
+      "502": {
+        "name": "Gateway non valido",
+        "explanation": "Un reverse proxy / bilanciatore di carico davanti all'applicazione ha ricevuto una risposta non valida dal server applicativo upstream.",
+        "cause1": "Il server applicativo upstream si è bloccato o ha restituito dati senza senso",
+        "cause2": "L'upstream è sovraccarico: frequente sotto il carico della scansione",
+        "cause3": "Timeout proxy↔upstream",
+        "todo1": "Riduci il ritmo della scansione (Impostazioni → Velocità) se i 502 compaiono a raffica",
+        "todo2": "Riprova gli URL interessati dopo la scansione"
+      },
+      "503": {
+        "name": "Servizio non disponibile",
+        "explanation": "Il server non può gestire temporaneamente la richiesta, di solito per sovraccarico o manutenzione. Spesso arriva con un header Retry-After.",
+        "cause1": "Server sovraccarico: può causarlo la scansione stessa",
+        "cause2": "Finestra di manutenzione programmata",
+        "cause3": "Ritardo dello scaling automatico (nuove istanze in avvio)",
+        "todo1": "Abbassa Concorrenza massima / URL/s massimi e aggiungi un Ritardo per worker (Impostazioni → Velocità)",
+        "todo2": "Rispetta Retry-After (vedi \"Dagli header di risposta\" qui sotto)",
+        "todo3": "Riprova gli URL interessati dopo la scansione"
+      },
+      "504": {
+        "name": "Timeout del gateway",
+        "explanation": "Un reverse proxy / bilanciatore di carico non ha ricevuto in tempo la risposta dal server applicativo upstream.",
+        "cause1": "Query lenta al database / chiamata a un'API esterna nella pagina",
+        "cause2": "Upstream sovraccarico: richieste in coda",
+        "cause3": "Sotto il carico della scansione: la scansione ha saturato il pool di worker upstream",
+        "todo1": "Riduci il ritmo della scansione (Impostazioni → Velocità)",
+        "todo2": "Aumenta il Timeout di risposta (Impostazioni → Scanner) per le pagine davvero lente",
+        "todo3": "Riprova gli URL interessati dopo la scansione"
+      },
+      "508": {
+        "name": "Loop rilevato",
+        "explanation": "Il server ha rilevato un loop infinito durante l'elaborazione della richiesta (spesso WebDAV o un loop di reindirizzamento lato server).",
+        "cause1": "Loop di reindirizzamento lato server",
+        "cause2": "Loop di include ricorsivi / link simbolici",
+        "todo1": "Bug del server: il crawler non può farci nulla"
+      },
+      "509": {
+        "name": "Limite di banda superato",
+        "explanation": "Un codice non standard (cPanel/Apache) che indica che l'account di hosting ha raggiunto il limite mensile di banda.",
+        "cause1": "Quota di banda dell'hosting condiviso esaurita",
+        "todo1": "Il crawler non può farci nulla: il provider sta limitando l'intero account"
+      }
+    },
+    "signal": {
+      "cloudflare": "Dietro Cloudflare — cf-ray {{ray}}. Il codice di stato descrive il collegamento Cloudflare↔origine, non ciò che vede un browser.",
+      "fronted": "Servito tramite {{front}}.",
+      "origin": "Server di origine: {{server}}.",
+      "retryAfterSeconds": "Il server ha inviato Retry-After: {{seconds}} s: chiede esplicitamente ai client di aspettare questo tempo. Una scansione rispettosa non dovrebbe richiedere di nuovo questo URL prima.",
+      "retryAfter": "Il server ha inviato Retry-After: {{value}}.",
+      "cfCache": "Stato della cache Cloudflare: {{status}}.",
+      "xRobots": "X-Robots-Tag: {{value}} — influisce sull'indicizzabilità indipendentemente dallo stato."
+    },
+    "robots": {
+      "title": "Non richiesto — bloccato da robots.txt",
+      "explanation": "Il crawler non ha mai inviato una richiesta per questo URL: una regola del robots.txt per lo user-agent configurato lo blocca. Non c'è un codice di stato perché nessuna risposta è mai stata richiesta: non è un errore di connessione.",
+      "cause1": "Una regola Disallow nel robots.txt del sito corrisponde a questo percorso per lo user-agent della scansione",
+      "cause2": "L'URL riceve link da pagine scansionate, quindi viene registrato e contato, ma non viene mai scaricato",
+      "todo1": "Niente, se l'esclusione è voluta: nemmeno Google lo scansionerà",
+      "todo2": "Verifica se la pagina dovrebbe essere indicizzabile: un URL bloccato non trasmette autorità tramite i link e il suo contenuto non viene mai visto",
+      "todo3": "Usa Aiuto → Tester robots.txt per vedere quale regola corrisponde, oppure disattiva \"Rispetta il robots.txt\" in Impostazioni → Scanner per analizzarlo comunque"
+    },
+    "network": {
+      "title": "Nessuna risposta HTTP — errore di rete / connessione",
+      "explanationDetail": "La richiesta non ha mai ricevuto una risposta HTTP. Il crawler ha registrato: \"{{detail}}\".",
+      "explanation": "La richiesta non ha mai ricevuto una risposta HTTP: la risoluzione DNS, la connessione TCP, l'handshake TLS o la lettura della risposta non sono riusciti prima che arrivasse una riga di stato.",
+      "cause1": "Il DNS non è riuscito a risolvere il nome host (errore di battitura, dominio non attivo o un nome risolvibile solo all'interno di una rete privata)",
+      "cause2": "Connessione TCP rifiutata o scaduta (host non attivo, firewall, porta errata)",
+      "cause3": "Handshake TLS non riuscito (certificato scaduto/non valido, protocollo incompatibile)",
+      "cause4": "Connessione reimpostata o lettura scaduta a metà risposta",
+      "cause5": "Richiesta interrotta dal crawler perché ha superato il Timeout di risposta (Impostazioni → Scanner) o il Tempo di risposta max (Impostazioni → Avanzate)",
+      "todo1": "Verifica che il nome host venga risolto e che il sito si apra da un normale browser su questo computer",
+      "todo2": "Se è raggiungibile ma lento, aumenta il Timeout di risposta (Impostazioni → Scanner)",
+      "todo3": "Se fallisce solo sotto carico, abbassa Concorrenza massima / URL/s massimi (Impostazioni → Velocità): l'esaurimento della tabella delle connessioni dell'origine sembra un errore di rete al client",
+      "todo4": "Riprova gli URL interessati dopo la scansione (le interruzioni transitorie spariscono al nuovo tentativo)"
+    },
+    "informational": {
+      "title": "{{code}} — Informativo",
+      "fallback": "Informativo",
+      "explanation": "Una risposta 1xx ({{text}}). Sono risposte intermedie; il crawler le considera transitorie e attende lo stato finale."
+    },
+    "success": {
+      "fallback": "Riuscito",
+      "explanation": "La richiesta è riuscita. Nessuna diagnosi necessaria: questa sezione approfondisce solo i codici di errore e di reindirizzamento."
+    },
+    "redirect": {
+      "fallback": "Reindirizzamento",
+      "explanation301": "Reindirizzamento permanente. I motori di ricerca trasferiscono i segnali di ranking alla destinazione e aggiornano l'indice con il nuovo URL.",
+      "explanation302": "Reindirizzamento temporaneo. I motori di ricerca mantengono indicizzato l'URL originale. Usare un 302 a lungo termine è un errore SEO comune: di solito dovrebbe essere un 301.",
+      "explanation308": "Reindirizzamento permanente (come un 301, ma il metodo della richiesta viene mantenuto).",
+      "explanation304": "Non modificato: la copia in cache è ancora valida. Il crawler di norma invia richieste senza header condizionali, quindi è insolito.",
+      "explanationOther": "Un reindirizzamento {{code}} ({{text}}).",
+      "location": "L'header Location punta a: {{location}}",
+      "noLocation": "Nessun header Location rilevato: insolito per un reindirizzamento.",
+      "todoPermanent": "Se questo reindirizzamento è permanente, trasformalo in 301/308 così i segnali di ranking si consolidano",
+      "todoChain": "Controlla la scheda Codici di risposta per vedere la catena completa di reindirizzamenti e la destinazione finale"
+    },
+    "clientError": {
+      "fallback": "Errore del client",
+      "explanation": "Un codice 4xx significa che il server ha respinto la richiesta come errore del client (richiesta non valida, non consentita, non trovata ecc.). In una scansione, un 4xx persistente su pagine collegate di solito indica link interrotti; un 4xx sporadico può essere una protezione anti-bot.",
+      "cause1": "Link interrotto o malformato",
+      "cause2": "Protezione anti-bot / regola WAF",
+      "cause3": "Metodo o contenuto rifiutato dal server",
+      "todo1": "Controlla la scheda Link in entrata per vedere cosa punta a questo URL",
+      "todo2": "Se sembra un blocco, prova uno User-Agent da browser e un ritmo più lento (Impostazioni → Richieste / Velocità)"
+    },
+    "serverError": {
+      "fallback": "Errore del server",
+      "explanation": "Un codice 5xx significa che il server non è riuscito a evadere una richiesta che aveva accettato come valida. Sotto il carico della scansione spesso è la scansione a sommergere l'origine, più che un vero bug della pagina.",
+      "cause1": "Errore o blocco lato server",
+      "cause2": "Origine sovraccarica, forse a causa della scansione stessa",
+      "cause3": "Errore upstream/del proxy",
+      "todo1": "Abbassa Concorrenza massima / URL/s massimi e aggiungi un Ritardo per worker (Impostazioni → Velocità) se i 5xx compaiono a raffica",
+      "todo2": "Aumenta i Tentativi (Impostazioni → Velocità) e scansiona di nuovo gli URL interessati"
+    }
   },
   "outline": {
     "emptyPrefix": "Questa pagina non ha titoli rilevati (nessun elemento",

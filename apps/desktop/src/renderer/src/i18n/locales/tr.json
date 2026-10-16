@@ -4,7 +4,9 @@
     "urls": "URL'ler",
     "percentOfTotal": "Toplamın %",
     "siteSoft404": "Olmayan sayfalar {{status}} döndürüyor (soft 404)",
-    "siteSoft404Hint": "Var olmayan bir sayfa için yapılan istek 404 yerine {{status}} ile yanıtlandı; bu yüzden sitedeki kırık bağlantılar arama motorlarına çalışan sayfalar gibi görünüyor."
+    "siteSoft404Hint": "Var olmayan bir sayfa için yapılan istek 404 yerine {{status}} ile yanıtlandı; bu yüzden sitedeki kırık bağlantılar arama motorlarına çalışan sayfalar gibi görünüyor.",
+    "siteBotBlocked": "Bot koruması taramanın bir kısmını engelledi",
+    "siteBotBlockedHint": "Sitenin bot koruması bu sayfalar yerine bir doğrulama sayfasıyla yanıt verdi. Bu sayfalar taranmadı; kırık bağlantı ve sitemap kontrollerinin dışında tutuldu. Tarama hızını düşürün ya da tarayıcının user agent’ını izin listesine ekleyin, sonra yeniden tarayın."
   },
   "integrations": {
     "intro": "Harici servisleri kendi kimlik bilgilerinle bağla. API anahtarları ve secret'lar işletim sisteminin güvenli depolaması ile şifreli saklanır ve bu makineden asla çıkmaz.",
@@ -394,7 +396,54 @@
     "orphanMetricaVisits_one": "{{formatted}} Metrica ziyareti (giriş)",
     "orphanMetricaVisits_other": "{{formatted}} Metrica ziyareti (giriş)",
     "orphanMetricaPageviews_one": "{{formatted}} Metrica görüntülemesi (hit)",
-    "orphanMetricaPageviews_other": "{{formatted}} Metrica görüntülemesi (hit)"
+    "orphanMetricaPageviews_other": "{{formatted}} Metrica görüntülemesi (hit)",
+    "noResponse": "Yanıt yok",
+    "bucketOrphan": "0 (yetim)",
+    "badge": {
+      "ok": "TAMAM",
+      "non": "DIŞI",
+      "warn": "UYARI",
+      "bad": "KÖTÜ",
+      "err": "HATA",
+      "slow": "YAVAŞ",
+      "net": "AĞ"
+    },
+    "domainHealth": "{{ok}}/{{total}} başarılı · %{{rate}} hata",
+    "avgMs": "ort. {{ms}} ms",
+    "distinctIds_one": "{{count}} farklı ID",
+    "distinctIds_other": "{{count}} farklı ID",
+    "pageCount_one": "{{formatted}} sayfa",
+    "pageCount_other": "{{formatted}} sayfa",
+    "imageCount_one": "{{formatted}} görsel",
+    "imageCount_other": "{{formatted}} görsel",
+    "hits_one": "{{formatted}} kez",
+    "hits_other": "{{formatted}} kez",
+    "avgWords": "ort. {{formatted}}",
+    "lastmod": "lastmod {{date}}",
+    "fromSitemap": "kaynak: {{sitemap}}",
+    "position": {
+      "navigation": "Navigasyon",
+      "header": "Üst bölüm",
+      "content": "İçerik",
+      "sidebar": "Kenar çubuğu",
+      "footer": "Alt bilgi",
+      "aside": "Aside"
+    },
+    "indexability": {
+      "indexable": "İndekslenebilir",
+      "noindex": "İndekslenemez — noindex",
+      "canonical": "İndekslenemez — canonical edilmiş",
+      "robotsBlocked": "İndekslenemez — robots.txt tarafından engellendi",
+      "redirect": "İndekslenemez — yönlendirme",
+      "clientError": "İndekslenemez — 4xx",
+      "serverError": "İndekslenemez — 5xx",
+      "botBlocked": "Bilinmiyor — bot korumasına takıldı"
+    },
+    "kind": {
+      "image": "Görsel",
+      "font": "Font",
+      "other": "Diğer"
+    }
   },
   "sitemap": {
     "title": "Sitemap Doğrulayıcı",
@@ -1049,7 +1098,267 @@
   "diag": {
     "fromHeaders": "Yanıt başlıklarından",
     "likelyCauses": "Olası sebepler",
-    "whatToDo": "Ne yapılmalı"
+    "whatToDo": "Ne yapılmalı",
+    "cloudflareStyle": "Cloudflare tarzı edge kodu",
+    "code": {
+      "520": {
+        "name": "Web Sunucusu Bilinmeyen Bir Hata Döndürdü",
+        "explanation": "Cloudflare origin sunucusuna bağlandı ama boş, bozuk ya da beklenmedik bir yanıt aldı (örneğin bağlantı yanıtın ortasında kesildi, origin çok büyük başlıklar döndürdü ya da origin süreci çöktü). 'Origin tarafında bir şeyler ters gitti' anlamına gelen genel bir koddur.",
+        "cause1": "Origin sunucusu isteği işlerken çöktü, yeniden başladı ya da worker/bellek kapasitesi tükendi",
+        "cause2": "Origin, yanıtı tamamlamadan TCP bağlantısını kapattı (çoğunlukla uygulama düzeyinde bir zaman aşımı ya da bellek yetersizliği nedeniyle sonlandırma)",
+        "cause3": "Taramanın istek hızı origin'in süreç havuzunu aştı — yük altında toplu halde görülen 520'ler neredeyse her zaman bunu gösterir",
+        "cause4": "Origin, Cloudflare'in izin verdiğinden büyük yanıt başlıkları döndürdü (nadir; genellikle yanlış yapılandırılmış bir uygulama)",
+        "todo1": "520'ler birçok URL'de toplu halde görülüyorsa Maks Paralellik / Maks URL/sn değerini düşürün ve Worker Başına Gecikme ekleyin (Ayarlar → Hız) — tarama origin'i aşırı yüklüyor",
+        "todo2": "Tarama bittikten sonra etkilenen URL'leri yeniden tarayın (geçici 520'ler tekrar denemede çoğunlukla düzelir — Ayarlar → Hız'da Yeniden Deneme Sayısı'nı artırın)",
+        "todo3": "Yalnızca belirli URL'ler sürekli 520 veriyorsa bu sayfalarda sunucu tarafında bir hata vardır — site sahibine bildirin"
+      },
+      "521": {
+        "name": "Web Sunucusu Kapalı",
+        "explanation": "Cloudflare origin sunucusuyla TCP bağlantısı açamadı — origin bağlantıyı aktif olarak reddetti ya da beklenen portu dinlemiyor.",
+        "cause1": "Origin web sunucusu (nginx/Apache/Node vb.) durdurulmuş ya da çökmüş",
+        "cause2": "Origin'in güvenlik duvarı Cloudflare'in IP aralıklarını engelliyor (yanlış yapılandırma — origin Cloudflare'e izin vermeli)",
+        "cause3": "Origin sunucusu yeni bağlantı kabul edemeyecek kadar aşırı yüklü",
+        "todo1": "Bu bir origin erişilebilirliği sorunu; tarayıcının aşabileceği bir şey değil — site bu URL'ler için fiilen kapalı",
+        "todo2": "Daha sonra yeniden tarayın; devam ederse site bozuktur"
+      },
+      "522": {
+        "name": "Bağlantı Zaman Aşımına Uğradı",
+        "explanation": "Cloudflare origin ile TCP el sıkışmasını başlattı ama süre içinde tamamlanmadı — origin SYN'i kabul etti fakat hiç yanıt vermedi ya da aradaki bir ağ cihazı paketleri düşürdü.",
+        "cause1": "Origin ciddi şekilde aşırı yüklü (TCP kuyruğu dolu)",
+        "cause2": "Origin'in güvenlik duvarı Cloudflare'in paketlerini sessizce düşürüyor (reddetmiyor)",
+        "cause3": "Cloudflare ile origin arasında ağ/yönlendirme sorunu",
+        "cause4": "Tarama yükü altında: taramanın paralel istekleri origin'in bağlantı tablosunu doldurdu",
+        "todo1": "Paralelliği düşürün (Ayarlar → Hız → Maks Paralellik) ve yeniden tarayın — tarama ortasında görülüyorsa olağan sebep bağlantı tablosunun dolmasıdır",
+        "todo2": "Etkilenen URL'leri tarama bittikten sonra yeniden deneyin"
+      },
+      "523": {
+        "name": "Origin Erişilemez",
+        "explanation": "Cloudflare origin sunucusuna hiçbir şekilde ulaşamadı — genellikle Cloudflare'deki origin kaydında bir DNS sorunu vardır ya da origin'in ağı çökmüştür.",
+        "cause1": "Sitenin Cloudflare'deki DNS kaydı yanlış / kullanılmayan bir IP'yi gösteriyor",
+        "cause2": "Origin'in barındırma sağlayıcısında ağ kesintisi var",
+        "cause3": "Cloudflare ile origin arasında BGP / yönlendirme hatası",
+        "todo1": "Tarayıcının yapabileceği bir şey yok — bu bir origin DNS/ağ yapılandırma hatası"
+      },
+      "524": {
+        "name": "Zaman Aşımı Oluştu",
+        "explanation": "Cloudflare origin ile TCP bağlantısını başarıyla kurdu ama origin, Cloudflare'in süresi içinde (varsayılan 100 sn) eksiksiz bir HTTP yanıtı göndermedi. Origin çalışıyor ama bu istekte çok yavaş.",
+        "cause1": "Sayfada yavaş bir veritabanı sorgusu, harici API çağrısı ya da ağır bir hesaplama var",
+        "cause2": "Origin aşırı yüklü — istekler dolmuş bir worker havuzunun arkasında sıra bekliyor",
+        "cause3": "Tarama yükü altında: tarama origin'in istek kuyruğunu doldurdu ve bu URL arkada çok uzun bekledi",
+        "todo1": "Origin'i doyurmamak için Maks Paralellik / Maks URL/sn değerini düşürün ve Worker Başına Gecikme ekleyin (Ayarlar → Hız)",
+        "todo2": "Gerçekten yavaş sayfalara daha fazla süre tanımak istiyorsanız Yanıt Zaman Aşımı değerini artırın (Ayarlar → Crawler)",
+        "todo3": "Etkilenen URL'leri tarama bittikten sonra yeniden deneyin"
+      },
+      "525": {
+        "name": "SSL El Sıkışması Başarısız",
+        "explanation": "Cloudflare ile origin sunucusu arasındaki TLS el sıkışması başarısız oldu. Bu, adres çubuğunda gördüğünüz tarayıcı↔Cloudflare bağlantısı değil, Cloudflare↔origin bağlantısıdır — bu yüzden site normal bir ziyaretçiye sorunsuz görünürken yine de 525 verebilir.",
+        "cause1": "Origin'in TLS sertifikasının süresi dolmuş, kendinden imzalı ya da yanlış ana bilgisayar adı için verilmiş (Cloudflare 'Full (strict)' modundayken)",
+        "cause2": "Origin yalnızca Cloudflare'in reddettiği eski TLS sürümlerini / şifre takımlarını destekliyor",
+        "cause3": "Origin sunucusu aşırı yüklü ve TLS el sıkışmalarını düşürüyor",
+        "todo1": "Origin TLS yapılandırma hatası — tarayıcının değiştirebileceği bir şey değil. Ana bilgisayarın sertifikasını kontrol edin (HTTPS için URL Detayları'ndaki TLS Cert satırları)"
+      },
+      "526": {
+        "name": "Geçersiz SSL Sertifikası",
+        "explanation": "Cloudflare ('Full (strict)' SSL modunda) origin sunucusunun TLS sertifikasını doğrulayamadı.",
+        "cause1": "Origin sertifikasının süresi dolmuş, kendinden imzalı ya da başka bir ana bilgisayar adı için verilmiş",
+        "cause2": "Origin üzerindeki sertifika zinciri eksik (ara sertifikalar yok)",
+        "todo1": "Origin sertifika sorunu — tarayıcının yapabileceği bir şey yok"
+      },
+      "527": {
+        "name": "Railgun Hatası (Cloudflare, kullanımdan kalkmış)",
+        "explanation": "Cloudflare Railgun'da (artık kullanımdan kaldırılmış bir origin hızlandırma ürünü) bağlantı hatası. Fiilen eskimiş bir koddur; görüyorsanız site çok eski bir Cloudflare kurulumu kullanıyor.",
+        "cause1": "Eski Cloudflare Railgun bağlantı hatası",
+        "todo1": "Tarayıcı tarafında yapılabilecek bir şey yok"
+      },
+      "530": {
+        "name": "Cloudflare Hatası (genellikle güvenlik duvarı / WAF engeli — hata 1020)",
+        "explanation": "530, Cloudflare'in \"bir hata oluştu, gövdedeki 1xxx hata koduna bakın\" deme biçimidir. Tarama bağlamında neredeyse her zaman 1020 \"Access Denied\"dır — bir Cloudflare Firewall / WAF / Bot-Fight kuralı isteği engellemiştir. Daha seyrek olarak 1016 (origin DNS hatası) ya da başka 1xxx kodlarıyla birlikte görülür.",
+        "cause1": "Cloudflare WAF / Firewall Rules / Bot Fight Mode tarayıcıyı işaretledi — IP, User-Agent, istek hızı ya da eksik tarayıcı parmak izi nedeniyle",
+        "cause2": "Sitede tarayıcının çözemeyeceği bir \"managed challenge\" var",
+        "cause3": "(Nadiren) engel değil, bir origin DNS hatası (1016)",
+        "todo1": "Tarayıcı benzeri bir User-Agent ayarlayın (Ayarlar → İstekler) — varsayılan tarayıcı UA'sı en sık tetikleyicidir",
+        "todo2": "Maks Paralellik / Maks URL/sn değerini düşürün ve Worker Başına Gecikme ekleyin (Ayarlar → Hız) — tek IP'den gelen hızlı istekler hız tabanlı kuralları tetikler",
+        "todo3": "robots.txt'ye ve belirtilmiş Crawl-delay değerine uyun (Ayarlar → Crawler)",
+        "todo4": "Site sizinse tarayıcıyı Cloudflare'de izin listesine ekleyin; değilse bu site otomatik erişimi bilerek engelliyor"
+      },
+      "401": {
+        "name": "Yetkisiz",
+        "explanation": "Kaynak kimlik doğrulama gerektiriyor ve hiç (ya da geçersiz) kimlik bilgisi gönderilmedi.",
+        "cause1": "Sayfa HTTP Basic/Bearer kimlik doğrulamasının arkasında",
+        "cause2": "Bir oturum çerezi gerekiyor ama gönderilmedi",
+        "todo1": "Kimlik bilgileriniz varsa Ayarlar → Kimlik Doğrulama bölümünde yapılandırın",
+        "todo2": "Site içeriği bir oturumun arkasında tutuyorsa Ayarlar → Çerezler → \"Hepsini kabul et\" seçeneğini kullanın"
+      },
+      "403": {
+        "name": "Yasak",
+        "explanation": "Sunucu isteği anladı ama karşılamayı reddediyor. Taramada bu çoğunlukla gerçek bir izin sorunu değil, bir bot engeli ya da WAF kuralıdır.",
+        "cause1": "Tarayıcının User-Agent'ı, IP'si ya da istek hızı bir WAF / bot koruma kuralını tetikledi",
+        "cause2": "Dizin ya da dosya anonim kullanıcılara gerçekten kapalı",
+        "cause3": "Hotlink / referer koruması",
+        "todo1": "Tarayıcı benzeri bir User-Agent deneyin (Ayarlar → İstekler)",
+        "todo2": "Tarama hızını düşürün (Ayarlar → Hız)",
+        "todo3": "Site genelindeyse site otomatik erişimi aktif olarak engelliyor"
+      },
+      "404": {
+        "name": "Bulunamadı",
+        "explanation": "Sunucuda bu URL'de bir kaynak yok.",
+        "cause1": "Kırık iç/dış bağlantı",
+        "cause2": "Sayfa yönlendirme yapılmadan kaldırıldı",
+        "cause3": "Bir bağlantının href değerinde yazım hatası",
+        "todo1": "Bağlantı veren sayfaları düzeltin ya da bağlantıyı kaldırın — buraya kimin bağlantı verdiğini Gelen Linkler sekmesinde görebilirsiniz"
+      },
+      "408": {
+        "name": "İstek Zaman Aşımı",
+        "explanation": "Sunucu isteğin tamamlanmasını beklerken zaman aşımına uğradı.",
+        "cause1": "Tarayıcı ile sunucu arasında yavaş ağ",
+        "cause2": "Sunucu tarafındaki bağlantı zaman aşımı çok düşük ayarlanmış",
+        "todo1": "Genellikle geçicidir — Yeniden Deneme Sayısı'nı artırın (Ayarlar → Hız)"
+      },
+      "410": {
+        "name": "Kaldırıldı",
+        "explanation": "Kaynak bilerek ve kalıcı olarak kaldırıldı — 404'ten daha güçlü bir sinyaldir.",
+        "cause1": "Sayfa bilerek kaldırıldı; sunucu tarayıcılara onu dizinden çıkarmalarını söylüyor",
+        "todo1": "Bu URL'ye verilen bağlantıları kaldırın — Google onu 404'ten daha hızlı dizinden çıkarır"
+      },
+      "429": {
+        "name": "Çok Fazla İstek (hız sınırı)",
+        "explanation": "Sunucu tarayıcıya hız sınırı uyguluyor — bu IP/User-Agent'tan çok kısa sürede çok fazla istek geldi.",
+        "cause1": "Tarama hızı sunucunun istemci başına sınırını aşıyor",
+        "cause2": "Agresif hız sınırlaması yapan paylaşımlı barındırma",
+        "todo1": "Maks Paralellik / Maks URL/sn değerini düşürün ve Worker Başına Gecikme ekleyin (Ayarlar → Hız)",
+        "todo2": "Retry-After başlığına uyun — sunucu gönderdiyse aşağıdaki \"Yanıt başlıklarından\" bölümüne bakın",
+        "todo3": "\"robots.txt Crawl-delay'e Uy\" seçeneğini açın (Ayarlar → Crawler)"
+      },
+      "451": {
+        "name": "Yasal Nedenlerle Erişilemez",
+        "explanation": "Kaynak yasal nedenlerle engellenmiş (mahkeme kararı, GDPR coğrafi engeli, DMCA vb.).",
+        "cause1": "Coğrafi olarak kısıtlanmış içerik",
+        "cause2": "Yasal zorunluluk nedeniyle kaldırma",
+        "todo1": "Yapılacak bir şey yok — engel kasıtlı"
+      },
+      "500": {
+        "name": "Sunucu İç Hatası",
+        "explanation": "Sayfa oluşturulurken sunucu tarafındaki uygulamada yakalanmamış bir hata oluştu.",
+        "cause1": "Sayfa şablonunda / arka uç kodunda hata",
+        "cause2": "Veritabanı erişilemez",
+        "cause3": "Sunucuda yanlış yapılandırma",
+        "todo1": "Tarama bittikten sonra yeniden deneyin (geçici 500'ler düzelir; kalıcı olanlar gerçek bir hatadır)",
+        "todo2": "500'ler yük altında görülüyorsa tarama bir veritabanını aşırı yüklüyor olabilir — taramayı yavaşlatın (Ayarlar → Hız)"
+      },
+      "502": {
+        "name": "Hatalı Ağ Geçidi",
+        "explanation": "Uygulamanın önündeki ters proxy / yük dengeleyici, arkadaki uygulama sunucusundan geçersiz bir yanıt aldı.",
+        "cause1": "Arkadaki uygulama sunucusu çöktü ya da anlamsız veri döndürdü",
+        "cause2": "Arkadaki sunucu aşırı yüklü — tarama yükü altında yaygındır",
+        "cause3": "Proxy↔arka sunucu zaman aşımı",
+        "todo1": "502'ler toplu halde görülüyorsa tarama hızını düşürün (Ayarlar → Hız)",
+        "todo2": "Etkilenen URL'leri tarama bittikten sonra yeniden deneyin"
+      },
+      "503": {
+        "name": "Hizmet Kullanılamıyor",
+        "explanation": "Sunucu isteği geçici olarak karşılayamıyor — genellikle aşırı yük ya da bakım nedeniyle. Çoğunlukla bir Retry-After başlığıyla gelir.",
+        "cause1": "Sunucu aşırı yüklü — bunu taramanın kendisi de yapabilir",
+        "cause2": "Planlı bakım zamanı",
+        "cause3": "Otomatik ölçeklendirme gecikmesi (yeni sunucular açılıyor)",
+        "todo1": "Maks Paralellik / Maks URL/sn değerini düşürün ve Worker Başına Gecikme ekleyin (Ayarlar → Hız)",
+        "todo2": "Retry-After değerine uyun (aşağıdaki \"Yanıt başlıklarından\" bölümüne bakın)",
+        "todo3": "Etkilenen URL'leri tarama bittikten sonra yeniden deneyin"
+      },
+      "504": {
+        "name": "Ağ Geçidi Zaman Aşımı",
+        "explanation": "Ters proxy / yük dengeleyici, arkadaki uygulama sunucusundan zamanında yanıt alamadı.",
+        "cause1": "Sayfada yavaş veritabanı sorgusu / harici API çağrısı",
+        "cause2": "Arkadaki sunucu aşırı yüklü — istekler sıra bekliyor",
+        "cause3": "Tarama yükü altında: tarama arkadaki worker havuzunu doldurdu",
+        "todo1": "Tarama hızını düşürün (Ayarlar → Hız)",
+        "todo2": "Gerçekten yavaş sayfalar için Yanıt Zaman Aşımı değerini artırın (Ayarlar → Crawler)",
+        "todo3": "Etkilenen URL'leri tarama bittikten sonra yeniden deneyin"
+      },
+      "508": {
+        "name": "Döngü Algılandı",
+        "explanation": "Sunucu isteği işlerken sonsuz bir döngü algıladı (çoğunlukla WebDAV ya da sunucu tarafında bir yönlendirme döngüsü).",
+        "cause1": "Sunucu tarafında yönlendirme döngüsü",
+        "cause2": "Özyinelemeli include / sembolik bağlantı döngüsü",
+        "todo1": "Sunucu hatası — tarayıcının yapabileceği bir şey yok"
+      },
+      "509": {
+        "name": "Bant Genişliği Sınırı Aşıldı",
+        "explanation": "Barındırma hesabının aylık bant genişliği kotasını doldurduğunu belirten standart dışı bir kod (cPanel/Apache).",
+        "cause1": "Paylaşımlı barındırmanın bant genişliği kotası doldu",
+        "todo1": "Tarayıcının yapabileceği bir şey yok — sağlayıcı tüm hesabı kısıtlıyor"
+      }
+    },
+    "signal": {
+      "cloudflare": "Cloudflare arkasında — cf-ray {{ray}}. Durum kodu, bir web tarayıcısının gördüğünü değil Cloudflare↔origin bağlantısını anlatıyor.",
+      "fronted": "Önünde {{front}} var.",
+      "origin": "Origin sunucusu: {{server}}.",
+      "retryAfterSeconds": "Sunucu Retry-After: {{seconds}} sn gönderdi — istemcilerden bu süre boyunca açıkça beklemelerini istiyor. Özenli bir tarama bu URL'yi daha erken yeniden istememeli.",
+      "retryAfter": "Sunucu Retry-After: {{value}} gönderdi.",
+      "cfCache": "Cloudflare önbellek durumu: {{status}}.",
+      "xRobots": "X-Robots-Tag: {{value}} — durum kodundan bağımsız olarak indekslenebilirliği etkiler."
+    },
+    "robots": {
+      "title": "İstek Atılmadı — robots.txt İzin Vermiyor",
+      "explanation": "Tarayıcı bu URL için hiç istek göndermedi: yapılandırılmış user-agent için bir robots.txt kuralı buna izin vermiyor. Hiç yanıt istenmediği için durum kodu yok — bu bir bağlantı hatası değil.",
+      "cause1": "Sitenin robots.txt dosyasındaki bir Disallow kuralı tarama user-agent'ı için bu yolla eşleşiyor",
+      "cause2": "URL taranan sayfalardan bağlantı aldığı için kaydedilip sayılıyor ama hiç çekilmiyor",
+      "todo1": "Hariç tutma kasıtlıysa yapılacak bir şey yok — Google da taramaz",
+      "todo2": "Sayfanın indekslenebilir olması gerekip gerekmediğini kontrol edin: engellenen bir URL bağlantı değerini aktaramaz ve içeriği hiç görülmez",
+      "todo3": "Hangi kuralın eşleştiğini görmek için Yardım → Robots.txt Test Aracı'nı kullanın ya da yine de denetlemek için Ayarlar → Crawler'da \"robots.txt'ye Uy\" seçeneğini kapatın"
+    },
+    "network": {
+      "title": "HTTP Yanıtı Yok — Ağ / Bağlantı Hatası",
+      "explanationDetail": "İstek hiçbir HTTP yanıtı almadı. Tarayıcının kaydettiği: \"{{detail}}\".",
+      "explanation": "İstek hiçbir HTTP yanıtı almadı — herhangi bir durum satırı gelmeden önce DNS sorgusu, TCP bağlantısı, TLS el sıkışması ya da yanıtın okunması başarısız oldu.",
+      "cause1": "DNS ana bilgisayar adını çözemedi (yazım hatası, ölü alan adı ya da yalnızca özel bir ağ içinden çözülebilen bir ad)",
+      "cause2": "TCP bağlantısı reddedildi ya da zaman aşımına uğradı (sunucu kapalı, güvenlik duvarı, yanlış port)",
+      "cause3": "TLS el sıkışması başarısız oldu (süresi dolmuş/geçersiz sertifika, protokol uyuşmazlığı)",
+      "cause4": "Bağlantı sıfırlandı ya da yanıtın ortasında okuma zaman aşımına uğradı",
+      "cause5": "İstek, Yanıt Zaman Aşımı (Ayarlar → Crawler) ya da Maks yanıt süresi (Ayarlar → Gelişmiş) aşıldığı için tarayıcı tarafından iptal edildi",
+      "todo1": "Ana bilgisayar adının çözüldüğünü ve sitenin bu bilgisayardaki normal bir web tarayıcısından erişilebilir olduğunu kontrol edin",
+      "todo2": "Erişilebilir ama yavaşsa Yanıt Zaman Aşımı değerini artırın (Ayarlar → Crawler)",
+      "todo3": "Yalnızca yük altında başarısız oluyorsa Maks Paralellik / Maks URL/sn değerini düşürün (Ayarlar → Hız) — origin'de bağlantı tablosunun dolması istemciye ağ hatası gibi görünür",
+      "todo4": "Etkilenen URL'leri tarama bittikten sonra yeniden deneyin (geçici sıfırlamalar tekrar denemede düzelir)"
+    },
+    "informational": {
+      "title": "{{code}} — Bilgilendirme",
+      "fallback": "Bilgilendirme",
+      "explanation": "Bir 1xx yanıtı ({{text}}). Bunlar ara yanıtlardır; tarayıcı bunları geçici sayar ve nihai durumu bekler."
+    },
+    "success": {
+      "fallback": "Başarılı",
+      "explanation": "İstek başarılı oldu. Teşhis gerekmiyor — bu bölüm yalnızca hata ve yönlendirme kodları için ek ayrıntı içerir."
+    },
+    "redirect": {
+      "fallback": "Yönlendirme",
+      "explanation301": "Kalıcı yönlendirme. Arama motorları sıralama sinyallerini hedefe aktarır ve dizinlerini yeni URL ile günceller.",
+      "explanation302": "Geçici yönlendirme. Arama motorları orijinal URL'yi dizinde tutar. Uzun süre kullanılan bir 302 yaygın bir SEO hatasıdır — genellikle 301 olmalıdır.",
+      "explanation308": "Kalıcı yönlendirme (301 gibi, ama istek yöntemi korunur).",
+      "explanation304": "Değiştirilmedi — önbellekteki kopya hâlâ güncel. Tarayıcı normalde koşullu başlıklar olmadan istek gönderir, bu yüzden bu alışılmadık bir durum.",
+      "explanationOther": "Bir {{code}} yönlendirmesi ({{text}}).",
+      "location": "Location başlığı şunu gösteriyor: {{location}}",
+      "noLocation": "Location başlığı yakalanmadı — bir yönlendirme için alışılmadık.",
+      "todoPermanent": "Bu yönlendirme kalıcıysa sıralama sinyallerinin birleşmesi için 301/308 yapın",
+      "todoChain": "Tam yönlendirme zincirini ve son hedefini görmek için Yanıt Kodları sekmesine bakın"
+    },
+    "clientError": {
+      "fallback": "İstemci Hatası",
+      "explanation": "4xx kodu, sunucunun isteği istemcinin hatası olarak reddettiği anlamına gelir (hatalı istek, izin yok, bulunamadı vb.). Taramada bağlantı verilen sayfalardaki kalıcı 4xx'ler genellikle kırık bağlantı demektir; ara sıra görülen 4xx'ler bot koruması olabilir.",
+      "cause1": "Kırık ya da bozuk bağlantı",
+      "cause2": "Bot koruması / WAF kuralı",
+      "cause3": "Sunucunun kabul etmediği yöntem ya da içerik",
+      "todo1": "Bu URL'ye neyin bağlantı verdiğini görmek için Gelen Linkler sekmesine bakın",
+      "todo2": "Bir engel gibi görünüyorsa tarayıcı benzeri bir User-Agent ve daha yavaş bir hız deneyin (Ayarlar → İstekler / Hız)"
+    },
+    "serverError": {
+      "fallback": "Sunucu Hatası",
+      "explanation": "5xx kodu, sunucunun geçerli kabul ettiği bir isteği yerine getiremediği anlamına gelir. Tarama yükü altında bunlar çoğunlukla gerçek bir sayfa hatası değil, taramanın origin'i aşırı yüklemesidir.",
+      "cause1": "Sunucu tarafında hata ya da çökme",
+      "cause2": "Origin aşırı yüklü — muhtemelen taramanın kendisi yüzünden",
+      "cause3": "Arka sunucu/proxy hatası",
+      "todo1": "5xx'ler toplu halde görülüyorsa Maks Paralellik / Maks URL/sn değerini düşürün ve Worker Başına Gecikme ekleyin (Ayarlar → Hız)",
+      "todo2": "Yeniden Deneme Sayısı'nı artırın (Ayarlar → Hız) ve etkilenen URL'leri yeniden tarayın"
+    }
   },
   "outline": {
     "emptyPrefix": "Bu sayfada tespit edilen başlık yok (",

@@ -53,6 +53,11 @@ export const RU_LABELS: Record<string, string> = {
   // Response codes
   All: 'Все',
   'Blocked by Robots': 'Заблокировано robots',
+  'Blocked by Bot Protection': 'Заблокировано защитой от ботов',
+  'Blocked by bot protection': 'заблокировано защитой от ботов',
+  Blocked: 'Заблок.',
+  Unknown: 'Неизвестно',
+  'Not crawled — bot protection answered instead of the page': 'Не обойдено — вместо страницы ответила защита от ботов',
   'No Response': 'Нет ответа',
   'Success (2xx)': 'Успех (2xx)',
   'Redirection (3xx)': 'Перенаправление (3xx)',

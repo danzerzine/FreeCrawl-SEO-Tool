@@ -4,7 +4,9 @@
     "urls": "URL",
     "percentOfTotal": "Ümumidən %",
     "siteSoft404": "Mövcud olmayan səhifələr {{status}} qaytarır (soft 404)",
-    "siteSoft404Hint": "Mövcud olmayan səhifəyə edilən sorğuya 404 əvəzinə {{status}} cavabı verildi, buna görə də bu saytdakı qırıq keçidlər axtarış sistemlərinə işləyən səhifələr kimi görünür."
+    "siteSoft404Hint": "Mövcud olmayan səhifəyə edilən sorğuya 404 əvəzinə {{status}} cavabı verildi, buna görə də bu saytdakı qırıq keçidlər axtarış sistemlərinə işləyən səhifələr kimi görünür.",
+    "siteBotBlocked": "Bot qorunması taramanın bir hissəsini blokladı",
+    "siteBotBlockedHint": "Saytın bot qorunması bu səhifələrin əvəzinə yoxlama səhifəsi ilə cavab verdi. Onlar taranmadı və qırıq keçid və sitemap yoxlamalarından kənarda saxlanılır. Tarama sürətini azaldın və ya tarayıcının user agent-ini icazə siyahısına əlavə edin, sonra onları yenidən tarayın."
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",
@@ -394,7 +396,54 @@
     "orphanMetricaVisits_one": "{{formatted}} Metrica ziyarəti (giriş)",
     "orphanMetricaVisits_other": "{{formatted}} Metrica ziyarəti (giriş)",
     "orphanMetricaPageviews_one": "{{formatted}} Metrica səhifə baxışı (hit)",
-    "orphanMetricaPageviews_other": "{{formatted}} Metrica səhifə baxışı (hit)"
+    "orphanMetricaPageviews_other": "{{formatted}} Metrica səhifə baxışı (hit)",
+    "noResponse": "Cavab yoxdur",
+    "bucketOrphan": "0 (yetim)",
+    "badge": {
+      "ok": "OK",
+      "non": "YOX",
+      "warn": "DİQQƏT",
+      "bad": "PİS",
+      "err": "XƏTA",
+      "slow": "YAVAŞ",
+      "net": "ŞƏBƏKƏ"
+    },
+    "domainHealth": "{{ok}}/{{total}} uğurlu · {{rate}}% xəta",
+    "avgMs": "orta {{ms}} ms",
+    "distinctIds_one": "{{count}} fərqli ID",
+    "distinctIds_other": "{{count}} fərqli ID",
+    "pageCount_one": "{{formatted}} səhifə",
+    "pageCount_other": "{{formatted}} səhifə",
+    "imageCount_one": "{{formatted}} şəkil",
+    "imageCount_other": "{{formatted}} şəkil",
+    "hits_one": "{{formatted}} dəfə",
+    "hits_other": "{{formatted}} dəfə",
+    "avgWords": "orta {{formatted}}",
+    "lastmod": "lastmod {{date}}",
+    "fromSitemap": "mənbə: {{sitemap}}",
+    "position": {
+      "navigation": "Naviqasiya",
+      "header": "Başlıq hissəsi",
+      "content": "Məzmun",
+      "sidebar": "Yan panel",
+      "footer": "Alt hissə",
+      "aside": "Aside"
+    },
+    "indexability": {
+      "indexable": "İndekslənə bilən",
+      "noindex": "İndekslənə bilməyən — noindex",
+      "canonical": "İndekslənə bilməyən — kanonikləşdirilmiş",
+      "robotsBlocked": "İndekslənə bilməyən — robots.txt ilə bloklanıb",
+      "redirect": "İndekslənə bilməyən — yönləndirmə",
+      "clientError": "İndekslənə bilməyən — 4xx",
+      "serverError": "İndekslənə bilməyən — 5xx",
+      "botBlocked": "Naməlum — bot qorunması tərəfindən bloklanıb"
+    },
+    "kind": {
+      "image": "Şəkil",
+      "font": "Şrift",
+      "other": "Digər"
+    }
   },
   "sitemap": {
     "title": "Sitemap yoxlayıcısı",
@@ -1049,7 +1098,267 @@
   "diag": {
     "fromHeaders": "Cavab başlıqlarına əsasən",
     "likelyCauses": "Ehtimal olunan səbəblər",
-    "whatToDo": "Nə etməli"
+    "whatToDo": "Nə etməli",
+    "cloudflareStyle": "Cloudflare tipli edge kodu",
+    "code": {
+      "520": {
+        "name": "Veb server naməlum xəta qaytardı",
+        "explanation": "Cloudflare mənbə serverinə qoşuldu, lakin boş, pozulmuş və ya gözlənilməz cavab aldı (məsələn, bağlantı cavabın ortasında kəsildi, mənbə çox böyük başlıqlar qaytardı və ya mənbə prosesi çökdü). Bu, 'mənbədə nəsə səhv getdi' mənasını verən ümumi koddur.",
+        "cause1": "Sorğunu emal edərkən mənbə server çökdü, yenidən başladı və ya işçiləri/yaddaşı tükəndi",
+        "cause2": "Mənbə tam cavab göndərməmiş TCP bağlantısını bağladı (çox vaxt tətbiq səviyyəsində vaxt aşımı və ya yaddaş çatışmazlığı səbəbindən dayandırılma)",
+        "cause3": "Taramanın sorğu sürəti mənbənin proses hovuzunu aşdı — yük altında toplu görünən 520-lər demək olar ki, həmişə bunu göstərir",
+        "cause4": "Mənbə Cloudflare-in icazə verdiyindən böyük cavab başlıqları qaytardı (nadir hal; adətən səhv qurulmuş tətbiq)",
+        "todo1": "520-lər bir çox URL-də toplu görünürsə, Maksimum paralellik / Maksimum URL/san dəyərini azaldın və İşçi başına gecikmə əlavə edin (Parametrlər → Sürət) — tarama mənbəni həddən artıq yükləyir",
+        "todo2": "Tarama bitdikdən sonra təsirlənən URL-ləri yenidən tarayın (müvəqqəti 520-lər təkrar cəhddə çox vaxt aradan qalxır — Parametrlər → Sürət bölməsində Cəhd sayını artırın)",
+        "todo3": "Yalnız müəyyən URL-lər daim 520 verirsə, həmin səhifələrdə server tərəfində xəta var — sayt sahibinə bildirin"
+      },
+      "521": {
+        "name": "Veb server işləmir",
+        "explanation": "Cloudflare mənbə serveri ilə TCP bağlantısı aça bilmədi — mənbə bağlantını açıq şəkildə rədd etdi və ya gözlənilən portu dinləmir.",
+        "cause1": "Mənbə veb server (nginx/Apache/Node və s.) dayandırılıb və ya çöküb",
+        "cause2": "Mənbənin firewall-u Cloudflare-in IP aralıqlarını bloklayır (səhv qurulma — mənbə Cloudflare-ə icazə verməlidir)",
+        "cause3": "Mənbə server yeni bağlantıları qəbul etməyəcək qədər yüklənib",
+        "todo1": "Bu, mənbənin əlçatanlıq problemidir, tarayıcının yan keçə biləcəyi bir şey deyil — sayt bu URL-lər üçün faktiki olaraq işləmir",
+        "todo2": "Sonra yenidən tarayın; davam edərsə, sayt xarabdır"
+      },
+      "522": {
+        "name": "Bağlantının vaxtı bitdi",
+        "explanation": "Cloudflare mənbə ilə TCP əl sıxmasına başladı, amma o, vaxt həddi ərzində tamamlanmadı — mənbə SYN-i qəbul etdi, lakin heç cavab vermədi və ya aradakı şəbəkə qurğusu paketləri atdı.",
+        "cause1": "Mənbə ciddi şəkildə yüklənib (TCP növbəsi dolub)",
+        "cause2": "Mənbənin firewall-u Cloudflare-in paketlərini səssizcə atır (rədd etmir)",
+        "cause3": "Cloudflare ilə mənbə arasında şəbəkə/marşrutlaşdırma problemi",
+        "cause4": "Tarama yükü altında: taramanın paralel sorğuları mənbənin bağlantı cədvəlini tükətdi",
+        "todo1": "Paralelliyi azaldın (Parametrlər → Sürət → Maksimum paralellik) və yenidən tarayın — taramanın ortasında görünürsə, adi səbəb bağlantı cədvəlinin tükənməsidir",
+        "todo2": "Təsirlənən URL-ləri tarama bitdikdən sonra yenidən sınayın"
+      },
+      "523": {
+        "name": "Mənbəyə çatmaq mümkün deyil",
+        "explanation": "Cloudflare mənbə serverinə ümumiyyətlə yol tapa bilmədi — adətən Cloudflare-dəki mənbə qeydində DNS problemi var və ya mənbənin şəbəkəsi işləmir.",
+        "cause1": "Saytın Cloudflare-dəki DNS qeydi səhv / işləməyən IP-yə yönəlir",
+        "cause2": "Mənbənin hostinq provayderində şəbəkə nasazlığı var",
+        "cause3": "Cloudflare ilə mənbə arasında BGP / marşrutlaşdırma nasazlığı",
+        "todo1": "Tarayıcının edə biləcəyi bir şey yoxdur — bu, mənbənin DNS/şəbəkə qurğusundakı xətadır"
+      },
+      "524": {
+        "name": "Vaxt aşımı baş verdi",
+        "explanation": "Cloudflare mənbə ilə TCP bağlantısını uğurla qurdu, amma mənbə Cloudflare-in vaxt həddi (standart 100 san) ərzində tam HTTP cavabı göndərmədi. Mənbə işləyir, lakin bu sorğuda çox yavaşdır.",
+        "cause1": "Səhifədə yavaş verilənlər bazası sorğusu, xarici API çağırışı və ya ağır hesablama",
+        "cause2": "Mənbə yüklənib — sorğular dolmuş işçi hovuzunun arxasında növbədədir",
+        "cause3": "Tarama yükü altında: tarama mənbənin sorğu növbəsini doldurdu və bu URL çox uzun gözlədi",
+        "todo1": "Mənbəni doydurmamaq üçün Maksimum paralellik / Maksimum URL/san dəyərini azaldın və İşçi başına gecikmə əlavə edin (Parametrlər → Sürət)",
+        "todo2": "Həqiqətən yavaş səhifələrə daha çox vaxt vermək istəyirsinizsə, Cavab gözləmə müddətini artırın (Parametrlər → Tarayıcı)",
+        "todo3": "Təsirlənən URL-ləri tarama bitdikdən sonra yenidən sınayın"
+      },
+      "525": {
+        "name": "SSL əl sıxması alınmadı",
+        "explanation": "Cloudflare ilə mənbə server arasında TLS əl sıxması alınmadı. Bu, ünvan sətrində gördüyünüz brauzer↔Cloudflare hissəsi deyil, Cloudflare↔mənbə hissəsidir — buna görə sayt adi ziyarətçiyə qaydasında görünə və yenə də 525 verə bilər.",
+        "cause1": "Mənbənin TLS sertifikatının müddəti bitib, özü tərəfindən imzalanıb və ya başqa host adı üçün verilib (Cloudflare 'Full (strict)' rejimində olanda)",
+        "cause2": "Mənbə yalnız Cloudflare-in rədd etdiyi köhnə TLS versiyalarını / şifrə dəstlərini dəstəkləyir",
+        "cause3": "Mənbə server yüklənib və TLS əl sıxmalarını atır",
+        "todo1": "Mənbənin TLS qurğusunda xəta — tarayıcının dəyişə biləcəyi bir şey deyil. Hostun sertifikatını yoxlayın (HTTPS üçün URL təfərrüatlarındakı TLS Cert sətirləri)"
+      },
+      "526": {
+        "name": "Etibarsız SSL sertifikatı",
+        "explanation": "Cloudflare ('Full (strict)' SSL rejimində) mənbə serverin TLS sertifikatını təsdiqləyə bilmədi.",
+        "cause1": "Mənbə sertifikatının müddəti bitib, özü tərəfindən imzalanıb və ya başqa host adı üçün verilib",
+        "cause2": "Mənbədəki sertifikat zənciri natamamdır (aralıq sertifikatlar yoxdur)",
+        "todo1": "Mənbə sertifikatı problemi — tarayıcının edə biləcəyi bir şey yoxdur"
+      },
+      "527": {
+        "name": "Railgun xətası (Cloudflare, köhnəlib)",
+        "explanation": "Cloudflare Railgun-da (artıq dayandırılmış mənbə sürətləndirmə məhsulu) bağlantı xətası. Faktiki olaraq köhnəlmiş koddur; onu görürsünüzsə, sayt çox köhnə Cloudflare quruluşundan istifadə edir.",
+        "cause1": "Köhnə Cloudflare Railgun bağlantı nasazlığı",
+        "todo1": "Tarayıcı tərəfindən edilə biləcək bir şey yoxdur"
+      },
+      "530": {
+        "name": "Cloudflare xətası (adətən firewall / WAF bloku — xəta 1020)",
+        "explanation": "530, Cloudflare-in \"xəta baş verdi, gövdədəki 1xxx xəta koduna baxın\" deməsinin üsuludur. Taramada bu, demək olar ki, həmişə 1020 \"Access Denied\"dir — Cloudflare Firewall / WAF / Bot-Fight qaydası sorğunu blokladı. Daha nadir hallarda 1016 (mənbə DNS xətası) və ya digər 1xxx kodları ilə birlikdə gəlir.",
+        "cause1": "Cloudflare WAF / Firewall Rules / Bot Fight Mode tarayıcını işarələdi — IP, User-Agent, sorğu sürəti və ya brauzer barmaq izlərinin olmaması səbəbindən",
+        "cause2": "Saytda tarayıcının keçə bilmədiyi \"managed challenge\" var",
+        "cause3": "(Nadir hallarda) blok deyil, mənbə DNS xətası (1016)",
+        "todo1": "Brauzerə bənzər User-Agent təyin edin (Parametrlər → Sorğular) — standart tarayıcı UA-sı ən çox rast gəlinən səbəbdir",
+        "todo2": "Maksimum paralellik / Maksimum URL/san dəyərini azaldın və İşçi başına gecikmə əlavə edin (Parametrlər → Sürət) — bir IP-dən gələn sürətli sorğular sürətə əsaslanan qaydaları işə salır",
+        "todo3": "robots.txt-ə və orada göstərilmiş Crawl-delay dəyərinə riayət edin (Parametrlər → Tarayıcı)",
+        "todo4": "Sayt sizindirsə, tarayıcını Cloudflare-də icazə siyahısına əlavə edin; əks halda sayt avtomatik girişi qəsdən bloklayır"
+      },
+      "401": {
+        "name": "İcazəsiz",
+        "explanation": "Resurs autentifikasiya tələb edir və heç bir (və ya etibarsız) giriş məlumatı göndərilmədi.",
+        "cause1": "Səhifə HTTP Basic/Bearer autentifikasiyası arxasındadır",
+        "cause2": "Sessiya kukisi tələb olunur, amma göndərilmədi",
+        "todo1": "Giriş məlumatlarınız varsa, onları Parametrlər → Autentifikasiya bölməsində qurun",
+        "todo2": "Sayt məzmunu sessiya arxasında saxlayırsa, Parametrlər → Kukilər → \"Hamısını qəbul et\" seçimindən istifadə edin"
+      },
+      "403": {
+        "name": "Qadağandır",
+        "explanation": "Server sorğunu başa düşdü, lakin onu yerinə yetirməkdən imtina edir. Taramada bu, əsl icazə problemi deyil, çox vaxt bot bloku və ya WAF qaydasıdır.",
+        "cause1": "Tarayıcının User-Agent-i, IP-si və ya sorğu sürəti WAF / bot qorunması qaydasını işə saldı",
+        "cause2": "Qovluq və ya fayl həqiqətən anonim istifadəçilər üçün əlçatan deyil",
+        "cause3": "Hotlink / referer qorunması",
+        "todo1": "Brauzerə bənzər User-Agent sınayın (Parametrlər → Sorğular)",
+        "todo2": "Tarama sürətini azaldın (Parametrlər → Sürət)",
+        "todo3": "Bütün saytda baş verirsə, sayt avtomatik girişi aktiv şəkildə bloklayır"
+      },
+      "404": {
+        "name": "Tapılmadı",
+        "explanation": "Serverdə bu URL-də heç bir resurs yoxdur.",
+        "cause1": "Qırıq daxili/xarici keçid",
+        "cause2": "Səhifə yönləndirmə olmadan silinib",
+        "cause3": "Keçidin href dəyərində yazı səhvi",
+        "todo1": "Keçid verən səhifələri düzəldin və ya keçidləri silin — buraya kimin keçid verdiyini Daxil olan keçidlər tabında görə bilərsiniz"
+      },
+      "408": {
+        "name": "Sorğunun vaxtı bitdi",
+        "explanation": "Server sorğunun tamamlanmasını gözləyərkən vaxt həddi bitdi.",
+        "cause1": "Tarayıcı ilə server arasında yavaş şəbəkə",
+        "cause2": "Server tərəfində bağlantı vaxt həddi çox aşağı qurulub",
+        "todo1": "Adətən müvəqqətidir — Cəhd sayını artırın (Parametrlər → Sürət)"
+      },
+      "410": {
+        "name": "Silinib",
+        "explanation": "Resurs qəsdən və birdəfəlik silinib — bu, 404-dən daha güclü siqnaldır.",
+        "cause1": "Səhifə qəsdən götürülüb; server tarayıcılara onu çıxarmağı bildirir",
+        "todo1": "Bu URL-ə keçidləri silin — Google onu 404-dən daha tez indeksdən çıxaracaq"
+      },
+      "429": {
+        "name": "Həddən artıq sorğu (sürət limiti)",
+        "explanation": "Server tarayıcının sürətini məhdudlaşdırır — bu IP/User-Agent-dən çox qısa müddətdə həddən artıq sorğu gəlib.",
+        "cause1": "Tarama sürəti serverin hər müştəri üçün limitini keçir",
+        "cause2": "Sərt məhdudlaşdırma tətbiq edən paylaşılan hostinq",
+        "todo1": "Maksimum paralellik / Maksimum URL/san dəyərini azaldın və İşçi başına gecikmə əlavə edin (Parametrlər → Sürət)",
+        "todo2": "Retry-After başlığına riayət edin — server göndəribsə, aşağıdakı \"Cavab başlıqlarına əsasən\" bölməsinə baxın",
+        "todo3": "\"robots.txt-in Crawl-delay dəyərinə riayət et\" seçimini aktiv edin (Parametrlər → Tarayıcı)"
+      },
+      "451": {
+        "name": "Hüquqi səbəblərə görə əlçatan deyil",
+        "explanation": "Resurs hüquqi səbəblərə görə bloklanıb (məhkəmə qərarı, GDPR coğrafi bloku, DMCA və s.).",
+        "cause1": "Coğrafi məhdudiyyətli məzmun",
+        "cause2": "Qanunla tələb olunan silinmə",
+        "todo1": "Heç nə — blok qəsdəndir"
+      },
+      "500": {
+        "name": "Daxili server xətası",
+        "explanation": "Səhifə yaradılarkən server tərəfindəki tətbiqdə emal olunmamış xəta baş verdi.",
+        "cause1": "Səhifə şablonunda / backend kodunda xəta",
+        "cause2": "Verilənlər bazası əlçatan deyil",
+        "cause3": "Serverdə səhv quraşdırma",
+        "todo1": "Tarama bitdikdən sonra yenidən sınayın (müvəqqəti 500-lər aradan qalxır; davamlı olanlar əsl xətadır)",
+        "todo2": "500-lər yük altında görünürsə, tarama verilənlər bazasını həddən artıq yükləyə bilər — taramanı yavaşladın (Parametrlər → Sürət)"
+      },
+      "502": {
+        "name": "Yanlış şlüz",
+        "explanation": "Tətbiqin qarşısındakı əks proksi / yük balanslaşdırıcısı yuxarı axındakı tətbiq serverindən etibarsız cavab aldı.",
+        "cause1": "Yuxarı axındakı tətbiq serveri çökdü və ya mənasız məlumat qaytardı",
+        "cause2": "Yuxarı axın yüklənib — tarama yükü altında tez-tez olur",
+        "cause3": "Proksi↔yuxarı axın vaxt aşımı",
+        "todo1": "502-lər toplu görünürsə, tarama sürətini azaldın (Parametrlər → Sürət)",
+        "todo2": "Təsirlənən URL-ləri tarama bitdikdən sonra yenidən sınayın"
+      },
+      "503": {
+        "name": "Xidmət əlçatan deyil",
+        "explanation": "Server sorğunu müvəqqəti olaraq emal edə bilmir — adətən həddən artıq yük və ya texniki xidmət səbəbindən. Çox vaxt Retry-After başlığı ilə gəlir.",
+        "cause1": "Server yüklənib — buna taramanın özü də səbəb ola bilər",
+        "cause2": "Planlaşdırılmış texniki xidmət vaxtı",
+        "cause3": "Avtomatik miqyaslamada gecikmə (yeni nüsxələr işə düşür)",
+        "todo1": "Maksimum paralellik / Maksimum URL/san dəyərini azaldın və İşçi başına gecikmə əlavə edin (Parametrlər → Sürət)",
+        "todo2": "Retry-After dəyərinə riayət edin (aşağıdakı \"Cavab başlıqlarına əsasən\" bölməsinə baxın)",
+        "todo3": "Təsirlənən URL-ləri tarama bitdikdən sonra yenidən sınayın"
+      },
+      "504": {
+        "name": "Şlüz vaxt aşımı",
+        "explanation": "Əks proksi / yük balanslaşdırıcısı yuxarı axındakı tətbiq serverindən vaxtında cavab almadı.",
+        "cause1": "Səhifədə yavaş verilənlər bazası sorğusu / xarici API çağırışı",
+        "cause2": "Yuxarı axın yüklənib — sorğular növbədədir",
+        "cause3": "Tarama yükü altında: tarama yuxarı axının işçi hovuzunu doydurdu",
+        "todo1": "Tarama sürətini azaldın (Parametrlər → Sürət)",
+        "todo2": "Həqiqətən yavaş səhifələr üçün Cavab gözləmə müddətini artırın (Parametrlər → Tarayıcı)",
+        "todo3": "Təsirlənən URL-ləri tarama bitdikdən sonra yenidən sınayın"
+      },
+      "508": {
+        "name": "Dövr aşkarlandı",
+        "explanation": "Server sorğunu emal edərkən sonsuz dövr aşkarladı (çox vaxt WebDAV və ya server tərəfində yönləndirmə dövrü).",
+        "cause1": "Server tərəfində yönləndirmə dövrü",
+        "cause2": "Rekursiv include / simvolik keçid dövrü",
+        "todo1": "Server xətası — tarayıcının edə biləcəyi bir şey yoxdur"
+      },
+      "509": {
+        "name": "Trafik limiti aşıldı",
+        "explanation": "Hostinq hesabının aylıq trafik limitinə çatdığını bildirən qeyri-standart kod (cPanel/Apache).",
+        "cause1": "Paylaşılan hostinqin trafik kvotası tükənib",
+        "todo1": "Tarayıcının edə biləcəyi bir şey yoxdur — provayder bütün hesabı məhdudlaşdırır"
+      }
+    },
+    "signal": {
+      "cloudflare": "Cloudflare arxasında — cf-ray {{ray}}. Status kodu brauzerin gördüyünü deyil, Cloudflare↔mənbə əlaqəsini təsvir edir.",
+      "fronted": "{{front}} vasitəsilə təqdim olunur.",
+      "origin": "Mənbə server: {{server}}.",
+      "retryAfterSeconds": "Server Retry-After: {{seconds}} san göndərdi — müştərilərdən bu müddət ərzində açıq şəkildə gözləmələrini istəyir. Diqqətli tarama bu URL-i bundan əvvəl yenidən istəməməlidir.",
+      "retryAfter": "Server Retry-After: {{value}} göndərdi.",
+      "cfCache": "Cloudflare keş statusu: {{status}}.",
+      "xRobots": "X-Robots-Tag: {{value}} — statusdan asılı olmayaraq indekslənə bilməyə təsir edir."
+    },
+    "robots": {
+      "title": "Sorğu göndərilməyib — robots.txt icazə vermir",
+      "explanation": "Tarayıcı bu URL üçün heç vaxt sorğu göndərmədi: qurulmuş user-agent üçün robots.txt qaydası buna icazə vermir. Heç vaxt cavab istənilmədiyi üçün status kodu yoxdur — bu, bağlantı xətası deyil.",
+      "cause1": "Saytın robots.txt faylındakı Disallow qaydası tarama user-agent-i üçün bu yola uyğun gəlir",
+      "cause2": "URL-ə taranmış səhifələrdən keçid verilir, ona görə də qeydə alınır və sayılır, amma heç vaxt yüklənmir",
+      "todo1": "İstisna qəsdəndirsə, heç nə etmək lazım deyil — Google da onu taramayacaq",
+      "todo2": "Səhifənin indekslənə bilən olmalı olub-olmadığını yoxlayın: bloklanmış URL keçid dəyərini ötürə bilmir və məzmunu heç vaxt görünmür",
+      "todo3": "Hansı qaydanın uyğun gəldiyini görmək üçün Kömək → robots.txt test edicisindən istifadə edin və ya yenə də yoxlamaq üçün Parametrlər → Tarayıcı bölməsində \"robots.txt-ə riayət et\" seçimini söndürün"
+    },
+    "network": {
+      "title": "HTTP cavabı yoxdur — şəbəkə / bağlantı xətası",
+      "explanationDetail": "Sorğu heç bir HTTP cavabı almadı. Tarayıcının qeydə aldığı: \"{{detail}}\".",
+      "explanation": "Sorğu heç bir HTTP cavabı almadı — hər hansı status sətri gəlməmişdən əvvəl DNS axtarışı, TCP bağlantısı, TLS əl sıxması və ya cavabın oxunması alınmadı.",
+      "cause1": "DNS host adını həll edə bilmədi (yazı səhvi, işləməyən domen və ya yalnız şəxsi şəbəkə daxilində həll olunan ad)",
+      "cause2": "TCP bağlantısı rədd edildi və ya vaxtı bitdi (host işləmir, firewall, səhv port)",
+      "cause3": "TLS əl sıxması alınmadı (müddəti bitmiş/etibarsız sertifikat, protokol uyğunsuzluğu)",
+      "cause4": "Bağlantı sıfırlandı və ya cavabın ortasında oxuma vaxtı bitdi",
+      "cause5": "Sorğu Cavab gözləmə müddətini (Parametrlər → Tarayıcı) və ya Maksimum cavab vaxtını (Parametrlər → Geniş) aşdığı üçün tarayıcı tərəfindən dayandırıldı",
+      "todo1": "Host adının həll olunduğunu və saytın bu kompüterdəki adi brauzerdən açıldığını yoxlayın",
+      "todo2": "Əlçatandırsa, amma yavaşdırsa, Cavab gözləmə müddətini artırın (Parametrlər → Tarayıcı)",
+      "todo3": "Yalnız yük altında alınmırsa, Maksimum paralellik / Maksimum URL/san dəyərini azaldın (Parametrlər → Sürət) — mənbədə bağlantı cədvəlinin tükənməsi müştəriyə şəbəkə xətası kimi görünür",
+      "todo4": "Təsirlənən URL-ləri tarama bitdikdən sonra yenidən sınayın (müvəqqəti sıfırlamalar təkrar cəhddə aradan qalxır)"
+    },
+    "informational": {
+      "title": "{{code}} — Məlumat",
+      "fallback": "Məlumat",
+      "explanation": "1xx cavabı ({{text}}). Bunlar aralıq cavablardır; tarayıcı onları müvəqqəti sayır və son statusu gözləyir."
+    },
+    "success": {
+      "fallback": "Uğurlu",
+      "explanation": "Sorğu uğurlu oldu. Diaqnoza ehtiyac yoxdur — bu bölmə yalnız xəta və yönləndirmə kodları üçün əlavə təfərrüat verir."
+    },
+    "redirect": {
+      "fallback": "Yönləndirmə",
+      "explanation301": "Daimi yönləndirmə. Axtarış sistemləri sıralama siqnallarını hədəfə ötürür və indekslərini yeni URL ilə yeniləyir.",
+      "explanation302": "Müvəqqəti yönləndirmə. Axtarış sistemləri orijinal URL-i indeksdə saxlayır. 302-nin uzun müddət istifadəsi geniş yayılmış SEO səhvidir — adətən 301 olmalıdır.",
+      "explanation308": "Daimi yönləndirmə (301 kimi, lakin sorğu metodu saxlanılır).",
+      "explanation304": "Dəyişməyib — keşdəki nüsxə hələ aktualdır. Tarayıcı adətən şərti başlıqlar olmadan sorğu göndərir, ona görə bu, qeyri-adi haldır.",
+      "explanationOther": "{{code}} yönləndirməsi ({{text}}).",
+      "location": "Location başlığı buraya yönəlir: {{location}}",
+      "noLocation": "Location başlığı tutulmadı — yönləndirmə üçün qeyri-adi haldır.",
+      "todoPermanent": "Bu yönləndirmə daimidirsə, sıralama siqnallarının birləşməsi üçün onu 301/308-ə dəyişin",
+      "todoChain": "Tam yönləndirmə zəncirini və son hədəfi görmək üçün Cavab kodları tabına baxın"
+    },
+    "clientError": {
+      "fallback": "Müştəri xətası",
+      "explanation": "4xx kodu serverin sorğunu müştərinin günahı kimi rədd etdiyini bildirir (səhv sorğu, icazə yoxdur, tapılmadı və s.). Taramada keçid verilən səhifələrdəki davamlı 4xx adətən qırıq keçid deməkdir; ara-sıra görünən 4xx bot qorunması ola bilər.",
+      "cause1": "Qırıq və ya səhv formatlı keçid",
+      "cause2": "Bot qorunması / WAF qaydası",
+      "cause3": "Serverin qəbul etmədiyi metod və ya məzmun",
+      "todo1": "Bu URL-ə nəyin keçid verdiyini görmək üçün Daxil olan keçidlər tabına baxın",
+      "todo2": "Blok kimi görünürsə, brauzerə bənzər User-Agent və daha aşağı sürət sınayın (Parametrlər → Sorğular / Sürət)"
+    },
+    "serverError": {
+      "fallback": "Server xətası",
+      "explanation": "5xx kodu serverin etibarlı kimi qəbul etdiyi sorğunu yerinə yetirə bilmədiyini bildirir. Tarama yükü altında bu, çox vaxt əsl səhifə xətası deyil, taramanın mənbəni həddən artıq yükləməsidir.",
+      "cause1": "Server tərəfində xəta və ya çökmə",
+      "cause2": "Mənbə yüklənib — bəlkə də taramanın özü səbəbindən",
+      "cause3": "Yuxarı axın/proksi nasazlığı",
+      "todo1": "5xx-lər toplu görünürsə, Maksimum paralellik / Maksimum URL/san dəyərini azaldın və İşçi başına gecikmə əlavə edin (Parametrlər → Sürət)",
+      "todo2": "Cəhd sayını artırın (Parametrlər → Sürət) və təsirlənən URL-ləri yenidən tarayın"
+    }
   },
   "outline": {
     "emptyPrefix": "Bu səhifədə başlıq tapılmadı (heç bir",

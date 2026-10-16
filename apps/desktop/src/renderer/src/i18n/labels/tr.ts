@@ -53,6 +53,11 @@ export const TR_LABELS: Record<string, string> = {
   // Response codes
   All: 'Tümü',
   'Blocked by Robots': 'Robots Tarafından Engellendi',
+  'Blocked by Bot Protection': 'Bot Koruması Tarafından Engellendi',
+  'Blocked by bot protection': 'bot koruması tarafından engellendi',
+  Blocked: 'Engellendi',
+  Unknown: 'Bilinmiyor',
+  'Not crawled — bot protection answered instead of the page': 'Taranmadı — sayfa yerine bot koruması yanıt verdi',
   'No Response': 'Yanıt Yok',
   'Success (2xx)': 'Başarılı (2xx)',
   'Redirection (3xx)': 'Yönlendirme (3xx)',

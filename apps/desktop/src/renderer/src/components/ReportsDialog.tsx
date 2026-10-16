@@ -248,8 +248,11 @@ export function ReportsDialog({ open, onClose }: Props) {
           if (!cancelled)
             setRows(
               r.map((x: StatusCodeHistogramRow) => ({
-                key: x.status === null ? 'No response' : String(x.status),
-                badge: statusBadge(x.status),
+                key:
+                  x.status === null
+                    ? t('reports.noResponse', { defaultValue: 'No response' })
+                    : String(x.status),
+                badge: statusBadge(x.status, t),
                 count: x.count,
               })),
             );
@@ -258,8 +261,11 @@ export function ReportsDialog({ open, onClose }: Props) {
           if (!cancelled)
             setRows(
               r.map((x: IndexabilityDistributionRow) => ({
-                key: indexabilityLabel(x.indexability),
-                badge: x.indexability === 'indexable' ? 'OK' : 'NON',
+                key: indexabilityLabel(x.indexability, t),
+                badge:
+                  x.indexability === 'indexable'
+                    ? t('reports.badge.ok', { defaultValue: 'OK' })
+                    : t('reports.badge.non', { defaultValue: 'NON' }),
                 count: x.count,
               })),
             );
@@ -268,7 +274,7 @@ export function ReportsDialog({ open, onClose }: Props) {
           if (!cancelled)
             setRows(
               r.map((x: ContentKindDistributionRow) => ({
-                key: contentKindLabel(x.contentKind),
+                key: contentKindLabel(x.contentKind, t),
                 count: x.count,
               })),
             );
@@ -281,8 +287,8 @@ export function ReportsDialog({ open, onClose }: Props) {
           if (!cancelled)
             setRows(
               r.map((x: ResponseTimeHistogramRow) => ({
-                key: x.label,
-                badge: rtBadge(x.label),
+                key: bucketLabel(x.label, t),
+                badge: rtBadge(x.label, t),
                 count: x.count,
               })),
             );
@@ -294,16 +300,23 @@ export function ReportsDialog({ open, onClose }: Props) {
                 key: x.domain,
                 badge:
                   x.errorRatePercent === 0
-                    ? 'OK'
+                    ? t('reports.badge.ok', { defaultValue: 'OK' })
                     : x.errorRatePercent < 10
-                      ? 'WARN'
-                      : 'BAD',
+                      ? t('reports.badge.warn', { defaultValue: 'WARN' })
+                      : t('reports.badge.bad', { defaultValue: 'BAD' }),
                 // Bar = error count so the worst domains spike visually;
                 // value label shows the breakdown.
                 count: x.errorCount,
-                valueLabel: `${x.successCount}/${x.totalUrls} OK · ${x.errorRatePercent}% err${
-                  x.avgResponseTimeMs !== null ? ` · ${x.avgResponseTimeMs}ms avg` : ''
-                }`,
+                valueLabel:
+                  t('reports.domainHealth', {
+                    defaultValue: '{{ok}}/{{total}} OK · {{rate}}% errors',
+                    ok: x.successCount.toLocaleString(),
+                    total: x.totalUrls.toLocaleString(),
+                    rate: x.errorRatePercent,
+                  }) +
+                  (x.avgResponseTimeMs !== null
+                    ? ` · ${t('reports.avgMs', { defaultValue: '{{ms}} ms avg', ms: x.avgResponseTimeMs.toLocaleString() })}`
+                    : ''),
               })),
             );
         } else if (kind === 'analytics-coverage') {
@@ -313,9 +326,16 @@ export function ReportsDialog({ open, onClose }: Props) {
               r.map((x: AnalyticsCoverageRow) => ({
                 key: x.name,
                 count: x.pageCount,
-                valueLabel: `${x.pageCount.toLocaleString()} pages · ${x.distinctIds} distinct ID${
-                  x.distinctIds === 1 ? '' : 's'
-                }${x.sampleIds.length > 0 ? ` · ${x.sampleIds.join(', ')}` : ''}`,
+                valueLabel: [
+                  pageCountLabel(x.pageCount, t),
+                  t('reports.distinctIds', {
+                    defaultValue_one: '{{count}} distinct ID',
+                    defaultValue_other: '{{count}} distinct IDs',
+                    defaultValue: '{{count}} distinct IDs',
+                    count: x.distinctIds,
+                  }),
+                  ...(x.sampleIds.length > 0 ? [x.sampleIds.join(', ')] : []),
+                ].join(' · '),
               })),
             );
         } else if (kind === 'link-positions') {
@@ -323,7 +343,7 @@ export function ReportsDialog({ open, onClose }: Props) {
           if (!cancelled)
             setRows(
               r.map((x: LinkPositionRow) => ({
-                key: x.position,
+                key: linkPositionLabel(x.position, t),
                 count: x.count,
               })),
             );
@@ -334,15 +354,19 @@ export function ReportsDialog({ open, onClose }: Props) {
               r.map((x: ImageWeightRow) => ({
                 key: x.url,
                 count: x.imageBytes,
-                valueLabel: `${VALUE_FORMAT['image-weight'](x.imageBytes)} · ${
-                  x.imageCount
-                } image${x.imageCount === 1 ? '' : 's'}`,
+                valueLabel: `${VALUE_FORMAT['image-weight'](x.imageBytes)} · ${t('reports.imageCount', {
+                  defaultValue_one: '{{formatted}} image',
+                  defaultValue_other: '{{formatted}} images',
+                  defaultValue: '{{formatted}} images',
+                  count: x.imageCount,
+                  formatted: x.imageCount.toLocaleString(),
+                })}`,
               })),
             );
         } else if (kind === 'inlinks-histogram') {
           const r = await window.freecrawl.reportsInlinksHistogram();
           if (!cancelled)
-            setRows(r.map((x: BucketHistogramRow) => ({ key: x.label, count: x.count })));
+            setRows(r.map((x: BucketHistogramRow) => ({ key: bucketLabel(x.label, t), count: x.count })));
         } else if (kind === 'word-count-histogram') {
           const r = await window.freecrawl.reportsWordCountHistogram();
           if (!cancelled)
@@ -364,9 +388,10 @@ export function ReportsDialog({ open, onClose }: Props) {
                 // directories visually spike; secondary value shows page
                 // count so the user can spot single-page outliers.
                 count: x.avgWordCount,
-                valueLabel: `${x.avgWordCount.toLocaleString()} avg · ${x.pageCount.toLocaleString()} page${
-                  x.pageCount === 1 ? '' : 's'
-                }`,
+                valueLabel: `${t('reports.avgWords', {
+                  defaultValue: '{{formatted}} avg',
+                  formatted: x.avgWordCount.toLocaleString(),
+                })} · ${pageCountLabel(x.pageCount, t)}`,
               })),
             );
         } else if (kind === 'sitemap-orphans') {
@@ -381,8 +406,10 @@ export function ReportsDialog({ open, onClose }: Props) {
                 // sitemap go to the secondary value column.
                 count: 1,
                 valueLabel: [
-                  x.lastmod ? `lastmod ${x.lastmod}` : null,
-                  x.sourceSitemap ? `from ${x.sourceSitemap}` : null,
+                  x.lastmod ? t('reports.lastmod', { defaultValue: 'lastmod {{date}}', date: x.lastmod }) : null,
+                  x.sourceSitemap
+                    ? t('reports.fromSitemap', { defaultValue: 'from {{sitemap}}', sitemap: x.sourceSitemap })
+                    : null,
                 ]
                   .filter(Boolean)
                   .join(' · ') || '—',
@@ -467,9 +494,13 @@ export function ReportsDialog({ open, onClose }: Props) {
                 // so the user can spot "high count, narrow coverage" =
                 // a single page repeating a word.
                 count: x.count,
-                valueLabel: `${x.count.toLocaleString()} hits · ${x.pages.toLocaleString()} page${
-                  x.pages === 1 ? '' : 's'
-                }`,
+                valueLabel: `${t('reports.hits', {
+                  defaultValue_one: '{{formatted}} hit',
+                  defaultValue_other: '{{formatted}} hits',
+                  defaultValue: '{{formatted}} hits',
+                  count: x.count,
+                  formatted: x.count.toLocaleString(),
+                })} · ${pageCountLabel(x.pages, t)}`,
               })),
             );
         } else if (kind === 'mobile-parity') {
@@ -699,8 +730,10 @@ export function ReportsDialog({ open, onClose }: Props) {
   );
 }
 
-function statusBadge(status: number | null): string {
-  if (status === null) return 'NET';
+type Translate = ReturnType<typeof useTranslation>['t'];
+
+function statusBadge(status: number | null, t: Translate): string {
+  if (status === null) return t('reports.badge.net', { defaultValue: 'NET' });
   if (status >= 200 && status < 300) return '2xx';
   if (status >= 300 && status < 400) return '3xx';
   if (status >= 400 && status < 500) return '4xx';
@@ -713,11 +746,48 @@ function statusBadge(status: number | null): string {
  * the histogram for "where am I losing performance?" without re-reading
  * the bucket boundaries.
  */
-function rtBadge(label: string): string {
-  if (label === 'No response') return 'ERR';
-  if (label === '< 100ms' || label === '100–500ms') return 'OK';
-  if (label === '500ms–1s') return 'WARN';
-  return 'SLOW';
+function rtBadge(label: string, t: Translate): string {
+  if (label === 'No response') return t('reports.badge.err', { defaultValue: 'ERR' });
+  if (label === '< 100ms' || label === '100–500ms') return t('reports.badge.ok', { defaultValue: 'OK' });
+  if (label === '500ms–1s') return t('reports.badge.warn', { defaultValue: 'WARN' });
+  return t('reports.badge.slow', { defaultValue: 'SLOW' });
+}
+
+/** Histogram bucket labels come from the database; only two carry words. */
+function bucketLabel(label: string, t: Translate): string {
+  if (label === 'No response') return t('reports.noResponse', { defaultValue: 'No response' });
+  if (label === '0 (orphan)') return t('reports.bucketOrphan', { defaultValue: '0 (orphan)' });
+  return label;
+}
+
+function pageCountLabel(n: number, t: Translate): string {
+  return t('reports.pageCount', {
+    defaultValue_one: '{{formatted}} page',
+    defaultValue_other: '{{formatted}} pages',
+    defaultValue: '{{formatted}} pages',
+    count: n,
+    formatted: n.toLocaleString(),
+  });
+}
+
+/** The page region a link sits in (`links.link_position`). */
+function linkPositionLabel(value: string, t: Translate): string {
+  switch (value) {
+    case 'navigation':
+      return t('reports.position.navigation', { defaultValue: 'Navigation' });
+    case 'header':
+      return t('reports.position.header', { defaultValue: 'Header' });
+    case 'content':
+      return t('reports.position.content', { defaultValue: 'Content' });
+    case 'sidebar':
+      return t('reports.position.sidebar', { defaultValue: 'Sidebar' });
+    case 'footer':
+      return t('reports.position.footer', { defaultValue: 'Footer' });
+    case 'aside':
+      return t('reports.position.aside', { defaultValue: 'Aside' });
+    default:
+      return value;
+  }
 }
 
 /**
@@ -725,22 +795,24 @@ function rtBadge(label: string): string {
  * machine-friendly token (`non-indexable:robots-blocked`) out of the UI so
  * the dropdown reads naturally — Title Case + human-readable suffix.
  */
-function indexabilityLabel(value: string): string {
+function indexabilityLabel(value: string, t: Translate): string {
   switch (value) {
     case 'indexable':
-      return 'Indexable';
+      return t('reports.indexability.indexable', { defaultValue: 'Indexable' });
     case 'non-indexable:noindex':
-      return 'Non-indexable — noindex';
+      return t('reports.indexability.noindex', { defaultValue: 'Non-indexable — noindex' });
     case 'non-indexable:canonical':
-      return 'Non-indexable — canonicalised';
+      return t('reports.indexability.canonical', { defaultValue: 'Non-indexable — canonicalised' });
     case 'non-indexable:robots-blocked':
-      return 'Non-indexable — robots-blocked';
+      return t('reports.indexability.robotsBlocked', { defaultValue: 'Non-indexable — blocked by robots.txt' });
     case 'non-indexable:redirect':
-      return 'Non-indexable — redirect';
+      return t('reports.indexability.redirect', { defaultValue: 'Non-indexable — redirect' });
     case 'non-indexable:client-error':
-      return 'Non-indexable — 4xx';
+      return t('reports.indexability.clientError', { defaultValue: 'Non-indexable — 4xx' });
     case 'non-indexable:server-error':
-      return 'Non-indexable — 5xx';
+      return t('reports.indexability.serverError', { defaultValue: 'Non-indexable — 5xx' });
+    case 'unknown:bot-blocked':
+      return t('reports.indexability.botBlocked', { defaultValue: 'Unknown — blocked by bot protection' });
     default:
       return value;
   }
@@ -751,7 +823,7 @@ function indexabilityLabel(value: string): string {
  * font / pdf / other). Upper-cases acronyms (HTML/CSS/JS/PDF) so the chart
  * matches the way users talk about file types.
  */
-function contentKindLabel(value: string): string {
+function contentKindLabel(value: string, t: Translate): string {
   switch (value) {
     case 'html':
       return 'HTML';
@@ -760,13 +832,13 @@ function contentKindLabel(value: string): string {
     case 'js':
       return 'JavaScript';
     case 'image':
-      return 'Image';
+      return t('reports.kind.image', { defaultValue: 'Image' });
     case 'font':
-      return 'Font';
+      return t('reports.kind.font', { defaultValue: 'Font' });
     case 'pdf':
       return 'PDF';
     case 'other':
-      return 'Other';
+      return t('reports.kind.other', { defaultValue: 'Other' });
     default:
       return value;
   }

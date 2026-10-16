@@ -136,6 +136,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
   'response-codes': [
     { label: 'All', category: 'all' },
     { label: 'Blocked by Robots', category: 'status:blocked-robots' },
+    { label: 'Blocked by Bot Protection', category: 'status:bot-blocked' },
     { label: 'No Response', category: 'status:no-response' },
     { label: 'Success (2xx)', category: 'status:2xx' },
     { label: 'Redirection (3xx)', category: 'status:3xx' },

@@ -4,7 +4,9 @@
     "urls": "URL",
     "percentOfTotal": "占总数百分比",
     "siteSoft404": "不存在的页面返回 {{status}}（soft 404）",
-    "siteSoft404Hint": "请求一个不存在的页面时得到的是 {{status}} 而不是 404，因此该站点上的失效链接在搜索引擎看来就像正常页面。"
+    "siteSoft404Hint": "请求一个不存在的页面时得到的是 {{status}} 而不是 404，因此该站点上的失效链接在搜索引擎看来就像正常页面。",
+    "siteBotBlocked": "机器人防护拦截了部分抓取",
+    "siteBotBlockedHint": "站点的机器人防护以验证页面代替了这些页面的响应。它们未被抓取，也不计入失效链接和站点地图检查。请降低抓取速度或将抓取器的 User-Agent 加入白名单，然后重新抓取。"
   },
   "integrations": {
     "intro": "使用你自己的凭据连接外部服务。API 密钥和机密会通过操作系统的安全存储在本地加密保存，绝不会离开这台机器。",
@@ -382,7 +384,50 @@
     "orphanGscImpressions_other": "{{formatted}} 次展示",
     "orphanGa4Sessions_other": "{{formatted}} 次 GA4 会话",
     "orphanMetricaVisits_other": "{{formatted}} 次 Metrica 访问（着陆页）",
-    "orphanMetricaPageviews_other": "{{formatted}} 次 Metrica 页面浏览（命中）"
+    "orphanMetricaPageviews_other": "{{formatted}} 次 Metrica 页面浏览（命中）",
+    "noResponse": "无响应",
+    "bucketOrphan": "0（孤立）",
+    "badge": {
+      "ok": "正常",
+      "non": "否",
+      "warn": "警告",
+      "bad": "差",
+      "err": "错误",
+      "slow": "慢",
+      "net": "网络"
+    },
+    "domainHealth": "{{ok}}/{{total}} 正常 · {{rate}}% 错误",
+    "avgMs": "平均 {{ms}} 毫秒",
+    "distinctIds_other": "{{count}} 个不同 ID",
+    "pageCount_other": "{{formatted}} 个页面",
+    "imageCount_other": "{{formatted}} 张图片",
+    "hits_other": "{{formatted}} 次",
+    "avgWords": "平均 {{formatted}}",
+    "lastmod": "lastmod {{date}}",
+    "fromSitemap": "来自 {{sitemap}}",
+    "position": {
+      "navigation": "导航",
+      "header": "页眉",
+      "content": "正文",
+      "sidebar": "侧边栏",
+      "footer": "页脚",
+      "aside": "Aside"
+    },
+    "indexability": {
+      "indexable": "可索引",
+      "noindex": "不可索引——noindex",
+      "canonical": "不可索引——已规范化",
+      "robotsBlocked": "不可索引——被 robots.txt 拦截",
+      "redirect": "不可索引——重定向",
+      "clientError": "不可索引——4xx",
+      "serverError": "不可索引——5xx",
+      "botBlocked": "未知——被机器人防护拦截"
+    },
+    "kind": {
+      "image": "图片",
+      "font": "字体",
+      "other": "其他"
+    }
   },
   "sitemap": {
     "title": "站点地图校验器",
@@ -1028,7 +1073,267 @@
   "diag": {
     "fromHeaders": "来自响应头",
     "likelyCauses": "可能的原因",
-    "whatToDo": "该怎么做"
+    "whatToDo": "该怎么做",
+    "cloudflareStyle": "Cloudflare 式边缘代码",
+    "code": {
+      "520": {
+        "name": "Web 服务器返回了未知错误",
+        "explanation": "Cloudflare 已连接到源站服务器，但收到的是空的、格式错误或意外的响应（例如响应中途连接被重置、源站返回的响应头过大，或源站进程崩溃）。这是表示“源站出了问题”的通用代码。",
+        "cause1": "源站服务器在处理请求时崩溃、重启或耗尽了工作进程/内存",
+        "cause2": "源站在发送完整响应之前关闭了 TCP 连接（通常是应用层超时或因内存不足被终止）",
+        "cause3": "抓取的请求速率压垮了源站的进程池——在负载下成批出现的 520 几乎都是这个原因",
+        "cause4": "源站返回的响应头超过了 Cloudflare 允许的大小（少见；通常是应用配置错误）",
+        "todo1": "如果 520 在大量 URL 上成批出现，请降低最大并发数 / 最大 URL/秒并添加每个工作线程的延迟（设置 → 速度）——抓取正在使源站过载",
+        "todo2": "抓取完成后重新抓取受影响的 URL（暂时性的 520 重试后通常会消失——在设置 → 速度中提高重试次数）",
+        "todo3": "如果只有特定 URL 持续返回 520，说明这些页面存在服务器端缺陷——请告知网站所有者"
+      },
+      "521": {
+        "name": "Web 服务器已宕机",
+        "explanation": "Cloudflare 无法与源站服务器建立 TCP 连接——源站主动拒绝了连接，或未在预期端口上监听。",
+        "cause1": "源站 Web 服务器（nginx/Apache/Node 等）已停止或崩溃",
+        "cause2": "源站防火墙屏蔽了 Cloudflare 的 IP 段（配置错误——源站应放行 Cloudflare）",
+        "cause3": "源站服务器过载，已无法接受新连接",
+        "todo1": "这是源站可用性问题，抓取器无法绕过——这些 URL 对应的网站实际上已宕机",
+        "todo2": "稍后重新抓取；如果问题持续，说明网站已损坏"
+      },
+      "522": {
+        "name": "连接超时",
+        "explanation": "Cloudflare 与源站开始了 TCP 握手，但未在超时时间内完成——源站接受了 SYN 却始终没有回复，或者中间的网络设备丢弃了数据包。",
+        "cause1": "源站严重过载（TCP 积压队列已满）",
+        "cause2": "源站防火墙静默丢弃（而非拒绝）Cloudflare 的数据包",
+        "cause3": "Cloudflare 与源站之间存在网络/路由问题",
+        "cause4": "抓取负载下：抓取的并行请求耗尽了源站的连接表",
+        "todo1": "降低并发（设置 → 速度 → 最大并发数）后重新抓取——在抓取过程中出现时，通常是连接表耗尽所致",
+        "todo2": "抓取结束后重试受影响的 URL"
+      },
+      "523": {
+        "name": "源站无法访问",
+        "explanation": "Cloudflare 完全无法路由到源站服务器——通常是 Cloudflare 中源站记录的 DNS 问题，或者源站网络已中断。",
+        "cause1": "网站在 Cloudflare 中的 DNS 记录指向了错误或已失效的 IP",
+        "cause2": "源站的托管服务商出现网络故障",
+        "cause3": "Cloudflare 与源站之间的 BGP / 路由故障",
+        "todo1": "抓取器无能为力——这是源站 DNS/网络配置错误"
+      },
+      "524": {
+        "name": "发生超时",
+        "explanation": "Cloudflare 已成功与源站建立 TCP 连接，但源站未在 Cloudflare 的超时时间（默认 100 秒）内发送完整的 HTTP 响应。源站仍在运行，只是处理这个请求太慢。",
+        "cause1": "页面上有缓慢的数据库查询、外部 API 调用或繁重计算",
+        "cause2": "源站过载——请求在已饱和的工作进程池后面排队",
+        "cause3": "抓取负载下：抓取填满了源站的请求队列，这个 URL 等待时间过长",
+        "todo1": "降低最大并发数 / 最大 URL/秒并添加每个工作线程的延迟（设置 → 速度），避免使源站饱和",
+        "todo2": "如果想给确实很慢的页面更多时间，请增大响应超时（设置 → 抓取器）",
+        "todo3": "抓取结束后重试受影响的 URL"
+      },
+      "525": {
+        "name": "SSL 握手失败",
+        "explanation": "Cloudflare 与源站服务器之间的 TLS 握手失败。这是 Cloudflare↔源站这一段，而不是你在地址栏中看到的浏览器↔Cloudflare 那一段——因此普通访客看到的网站可能一切正常，却仍然返回 525。",
+        "cause1": "源站的 TLS 证书已过期、为自签名证书或签发给了其他主机名（Cloudflare 处于 'Full (strict)' 模式时）",
+        "cause2": "源站只支持被 Cloudflare 拒绝的旧版 TLS / 加密套件",
+        "cause3": "源站服务器过载，正在丢弃 TLS 握手",
+        "todo1": "源站 TLS 配置错误——抓取器无法更改。请检查该主机的证书（对于 HTTPS，见 URL 详情中的 TLS Cert 行）"
+      },
+      "526": {
+        "name": "SSL 证书无效",
+        "explanation": "Cloudflare（处于 'Full (strict)' SSL 模式）无法验证源站服务器的 TLS 证书。",
+        "cause1": "源站证书已过期、为自签名证书或签发给了其他主机名",
+        "cause2": "源站的证书链不完整（缺少中间证书）",
+        "todo1": "源站证书问题——抓取器无能为力"
+      },
+      "527": {
+        "name": "Railgun 错误（Cloudflare，已弃用）",
+        "explanation": "Cloudflare Railgun（一款已停用的源站加速产品）中的连接错误。实际上已经过时；如果看到它，说明网站使用的是非常旧的 Cloudflare 配置。",
+        "cause1": "旧版 Cloudflare Railgun 连接失败",
+        "todo1": "抓取器这一侧无事可做"
+      },
+      "530": {
+        "name": "Cloudflare 错误（通常是防火墙 / WAF 拦截——错误 1020）",
+        "explanation": "530 是 Cloudflare 表示“发生了错误，请查看响应正文中的 1xxx 错误代码”的方式。在抓取场景中几乎总是 1020“Access Denied”——某条 Cloudflare Firewall / WAF / Bot-Fight 规则拦截了请求。较少见的情况下会伴随 1016（源站 DNS 错误）或其他 1xxx 代码。",
+        "cause1": "Cloudflare WAF / Firewall Rules / Bot Fight Mode 标记了抓取器——依据 IP、User-Agent、请求速率或缺少浏览器指纹",
+        "cause2": "网站启用了抓取器无法通过的“managed challenge”",
+        "cause3": "（少见）源站 DNS 错误（1016），而不是拦截",
+        "todo1": "设置类似浏览器的 User-Agent（设置 → 请求）——默认的抓取器 UA 是头号触发因素",
+        "todo2": "降低最大并发数 / 最大 URL/秒并添加每个工作线程的延迟（设置 → 速度）——来自单个 IP 的快速请求会触发基于速率的规则",
+        "todo3": "遵守 robots.txt 及其中声明的 Crawl-delay（设置 → 抓取器）",
+        "todo4": "如果网站是你的，请在 Cloudflare 中将抓取器加入白名单；否则说明该网站在有意阻止自动访问"
+      },
+      "401": {
+        "name": "未授权",
+        "explanation": "该资源需要身份验证，但请求未发送凭据（或凭据无效）。",
+        "cause1": "页面受 HTTP Basic/Bearer 身份验证保护",
+        "cause2": "需要会话 Cookie，但未发送",
+        "todo1": "如果有凭据，请在设置 → 认证中配置",
+        "todo2": "如果网站把内容放在会话之后，请使用设置 → Cookie →“全部接受”"
+      },
+      "403": {
+        "name": "禁止访问",
+        "explanation": "服务器理解了请求但拒绝提供。在抓取中，这通常是机器人拦截或 WAF 规则，而不是真正的权限问题。",
+        "cause1": "抓取器的 User-Agent、IP 或请求速率触发了 WAF / 机器人防护规则",
+        "cause2": "目录或文件确实不对匿名用户开放",
+        "cause3": "防盗链 / Referer 保护",
+        "todo1": "尝试类似浏览器的 User-Agent（设置 → 请求）",
+        "todo2": "降低抓取速度（设置 → 速度）",
+        "todo3": "如果整个网站都这样，说明网站在主动阻止自动访问"
+      },
+      "404": {
+        "name": "未找到",
+        "explanation": "服务器在此 URL 上没有任何资源。",
+        "cause1": "内部/外部链接失效",
+        "cause2": "页面被删除且未设置重定向",
+        "cause3": "链接 href 中有拼写错误",
+        "todo1": "修复或移除指向此处的页面中的链接——在入链标签页中可以看到哪些页面链接到这里"
+      },
+      "408": {
+        "name": "请求超时",
+        "explanation": "服务器在等待请求完成时超时。",
+        "cause1": "抓取器与服务器之间网络缓慢",
+        "cause2": "服务器端连接超时设置得过低",
+        "todo1": "通常是暂时性的——提高重试次数（设置 → 速度）"
+      },
+      "410": {
+        "name": "已永久删除",
+        "explanation": "该资源已被有意且永久地删除——比 404 更明确。",
+        "cause1": "页面被有意下线；服务器在告诉抓取器将其移除",
+        "todo1": "移除指向此 URL 的链接——Google 会比 404 更快地将其从索引中移除"
+      },
+      "429": {
+        "name": "请求过多（限速）",
+        "explanation": "服务器正在对抓取器限速——该 IP/User-Agent 在过短时间内发出了过多请求。",
+        "cause1": "抓取速率超过了服务器对单个客户端的限制",
+        "cause2": "共享主机的限流非常严格",
+        "todo1": "降低最大并发数 / 最大 URL/秒并添加每个工作线程的延迟（设置 → 速度）",
+        "todo2": "遵守 Retry-After 响应头——如果服务器发送了该响应头，请查看下方的“来自响应头”",
+        "todo3": "开启“遵守 robots.txt 的 Crawl-delay”（设置 → 抓取器）"
+      },
+      "451": {
+        "name": "因法律原因不可用",
+        "explanation": "该资源因法律原因被屏蔽（法院命令、GDPR 地域屏蔽、DMCA 等）。",
+        "cause1": "受地域限制的内容",
+        "cause2": "依法要求的下架",
+        "todo1": "无需处理——屏蔽是有意为之"
+      },
+      "500": {
+        "name": "服务器内部错误",
+        "explanation": "服务器端应用在生成页面时发生了未处理的错误。",
+        "cause1": "页面模板 / 后端代码存在缺陷",
+        "cause2": "数据库不可用",
+        "cause3": "服务器配置错误",
+        "todo1": "抓取结束后重试（暂时性的 500 会消失；持续出现的才是真正的缺陷）",
+        "todo2": "如果 500 在负载下出现，可能是抓取压垮了数据库——请放慢抓取（设置 → 速度）"
+      },
+      "502": {
+        "name": "网关错误",
+        "explanation": "应用前面的反向代理 / 负载均衡器从上游应用服务器收到了无效响应。",
+        "cause1": "上游应用服务器崩溃或返回了无效数据",
+        "cause2": "上游过载——在抓取负载下很常见",
+        "cause3": "代理↔上游超时",
+        "todo1": "如果 502 成批出现，请降低抓取速度（设置 → 速度）",
+        "todo2": "抓取结束后重试受影响的 URL"
+      },
+      "503": {
+        "name": "服务不可用",
+        "explanation": "服务器暂时无法处理请求——通常是由于过载或维护。往往会附带 Retry-After 响应头。",
+        "cause1": "服务器过载——抓取本身就可能导致",
+        "cause2": "计划内的维护时段",
+        "cause3": "自动扩容延迟（新实例正在启动）",
+        "todo1": "降低最大并发数 / 最大 URL/秒并添加每个工作线程的延迟（设置 → 速度）",
+        "todo2": "遵守 Retry-After（见下方的“来自响应头”）",
+        "todo3": "抓取结束后重试受影响的 URL"
+      },
+      "504": {
+        "name": "网关超时",
+        "explanation": "反向代理 / 负载均衡器未能及时从上游应用服务器获得响应。",
+        "cause1": "页面上有缓慢的数据库查询 / 外部 API 调用",
+        "cause2": "上游过载——请求在排队",
+        "cause3": "抓取负载下：抓取使上游工作进程池饱和",
+        "todo1": "降低抓取速度（设置 → 速度）",
+        "todo2": "针对确实很慢的页面，增大响应超时（设置 → 抓取器）",
+        "todo3": "抓取结束后重试受影响的 URL"
+      },
+      "508": {
+        "name": "检测到循环",
+        "explanation": "服务器在处理请求时检测到无限循环（通常是 WebDAV 或服务器端的重定向循环）。",
+        "cause1": "服务器端重定向循环",
+        "cause2": "递归 include / 符号链接循环",
+        "todo1": "服务器缺陷——抓取器无能为力"
+      },
+      "509": {
+        "name": "超出带宽限制",
+        "explanation": "一个非标准代码（cPanel/Apache），表示托管账户已用完每月的带宽配额。",
+        "cause1": "共享主机的带宽配额已用尽",
+        "todo1": "抓取器无能为力——托管服务商正在限制整个账户"
+      }
+    },
+    "signal": {
+      "cloudflare": "位于 Cloudflare 之后——cf-ray {{ray}}。状态码描述的是 Cloudflare↔源站之间的连接，而不是浏览器看到的结果。",
+      "fronted": "前端为 {{front}}。",
+      "origin": "源站服务器：{{server}}。",
+      "retryAfterSeconds": "服务器发送了 Retry-After: {{seconds}} 秒——它明确要求客户端在这段时间内暂停。礼貌的抓取不应在此之前再次请求该 URL。",
+      "retryAfter": "服务器发送了 Retry-After: {{value}}。",
+      "cfCache": "Cloudflare 缓存状态：{{status}}。",
+      "xRobots": "X-Robots-Tag: {{value}}——无论状态码如何都会影响可索引性。"
+    },
+    "robots": {
+      "title": "未请求——被 robots.txt 禁止",
+      "explanation": "抓取器从未向此 URL 发送请求：针对所配置 user-agent 的 robots.txt 规则禁止访问它。由于从未请求响应，所以没有状态码——这不是连接失败。",
+      "cause1": "网站 robots.txt 中的 Disallow 规则对抓取所用的 user-agent 匹配了此路径",
+      "cause2": "已抓取的页面链接到此 URL，因此它被记录和计数，但从未被获取",
+      "todo1": "如果是有意排除，则无需处理——Google 也不会抓取它",
+      "todo2": "检查该页面是否应当可被索引：被禁止的 URL 无法传递链接权重，其内容也永远不会被看到",
+      "todo3": "使用帮助 → robots.txt 测试器查看匹配的是哪条规则，或在设置 → 抓取器中关闭“遵守 robots.txt”以照样审计它"
+    },
+    "network": {
+      "title": "无 HTTP 响应——网络 / 连接错误",
+      "explanationDetail": "请求始终没有收到 HTTP 响应。抓取器记录的信息：“{{detail}}”。",
+      "explanation": "请求始终没有收到 HTTP 响应——在任何状态行到达之前，DNS 解析、TCP 连接、TLS 握手或响应读取就已失败。",
+      "cause1": "DNS 无法解析主机名（拼写错误、域名已失效，或该名称只能在私有网络内解析）",
+      "cause2": "TCP 连接被拒绝或超时（主机宕机、防火墙、端口错误）",
+      "cause3": "TLS 握手失败（证书过期/无效、协议不匹配）",
+      "cause4": "连接被重置，或响应中途读取超时",
+      "cause5": "请求超过了响应超时（设置 → 抓取器）或最大响应时间（设置 → 高级），被抓取器中止",
+      "todo1": "检查主机名能否解析，以及在这台电脑上用普通浏览器能否访问该网站",
+      "todo2": "如果能访问但很慢，请增大响应超时（设置 → 抓取器）",
+      "todo3": "如果只在负载下失败，请降低最大并发数 / 最大 URL/秒（设置 → 速度）——源站连接表耗尽在客户端看来就像网络错误",
+      "todo4": "抓取结束后重试受影响的 URL（暂时性的连接重置重试后会恢复）"
+    },
+    "informational": {
+      "title": "{{code}} — 信息性",
+      "fallback": "信息性",
+      "explanation": "1xx 响应（{{text}}）。这些是临时响应；抓取器将其视为暂时状态并等待最终状态。"
+    },
+    "success": {
+      "fallback": "成功",
+      "explanation": "请求成功。无需诊断——本部分只为错误码和重定向码提供额外说明。"
+    },
+    "redirect": {
+      "fallback": "重定向",
+      "explanation301": "永久重定向。搜索引擎会把排名信号转移到目标页面，并在索引中更新为新 URL。",
+      "explanation302": "临时重定向。搜索引擎会继续在索引中保留原始 URL。长期使用 302 是常见的 SEO 错误——通常应改为 301。",
+      "explanation308": "永久重定向（与 301 类似，但会保留请求方法）。",
+      "explanation304": "未修改——缓存副本仍然有效。抓取器通常不带条件请求头发送请求，因此这种情况并不常见。",
+      "explanationOther": "一个 {{code}} 重定向（{{text}}）。",
+      "location": "Location 响应头指向：{{location}}",
+      "noLocation": "未捕获到 Location 响应头——对于重定向来说并不常见。",
+      "todoPermanent": "如果这是永久重定向，请改为 301/308，以便合并排名信号",
+      "todoChain": "查看响应代码标签页，了解完整的重定向链及其最终目标"
+    },
+    "clientError": {
+      "fallback": "客户端错误",
+      "explanation": "4xx 代码表示服务器把请求当作客户端的错误而拒绝（请求错误、不允许、未找到等）。在抓取中，被链接页面上持续出现的 4xx 通常意味着链接失效；偶发的 4xx 可能是机器人防护所致。",
+      "cause1": "链接失效或格式错误",
+      "cause2": "机器人防护 / WAF 规则",
+      "cause3": "服务器拒绝的请求方法或内容",
+      "todo1": "查看入链标签页，了解哪些页面链接到此 URL",
+      "todo2": "如果看起来像是拦截，请尝试类似浏览器的 User-Agent 和更低的速率（设置 → 请求 / 速度）"
+    },
+    "serverError": {
+      "fallback": "服务器错误",
+      "explanation": "5xx 代码表示服务器无法完成一个它认为有效的请求。在抓取负载下，这往往是抓取压垮了源站，而不是页面本身真的有缺陷。",
+      "cause1": "服务器端错误或崩溃",
+      "cause2": "源站过载——可能正是抓取本身造成的",
+      "cause3": "上游/代理故障",
+      "todo1": "如果 5xx 成批出现，请降低最大并发数 / 最大 URL/秒并添加每个工作线程的延迟（设置 → 速度）",
+      "todo2": "提高重试次数（设置 → 速度）并重新抓取受影响的 URL"
+    }
   },
   "outline": {
     "emptyPrefix": "此页面未检测到标题（没有任何",

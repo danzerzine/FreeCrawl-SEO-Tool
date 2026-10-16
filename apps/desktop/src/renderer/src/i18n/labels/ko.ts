@@ -53,6 +53,11 @@ export const KO_LABELS: Record<string, string> = {
   // Response codes
   All: '전체',
   'Blocked by Robots': 'robots로 차단됨',
+  'Blocked by Bot Protection': '봇 보호로 차단됨',
+  'Blocked by bot protection': '봇 보호로 차단됨',
+  Blocked: '차단됨',
+  Unknown: '알 수 없음',
+  'Not crawled — bot protection answered instead of the page': '크롤되지 않음 — 페이지 대신 봇 보호가 응답했습니다',
   'No Response': '응답 없음',
   'Success (2xx)': '성공(2xx)',
   'Redirection (3xx)': '리다이렉트(3xx)',

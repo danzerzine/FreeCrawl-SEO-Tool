@@ -61,6 +61,11 @@ export const AZ_LABELS: Record<string, string> = {
   // Response codes
   All: 'Hamısı',
   'Blocked by Robots': 'Robots tərəfindən bloklanıb',
+  'Blocked by Bot Protection': 'Bot qorunması tərəfindən bloklanıb',
+  'Blocked by bot protection': 'bot qorunması tərəfindən bloklanıb',
+  Blocked: 'Bloklanıb',
+  Unknown: 'Naməlum',
+  'Not crawled — bot protection answered instead of the page': 'Taranmadı — səhifənin əvəzinə bot qorunması cavab verdi',
   'No Response': 'Cavab yoxdur',
   'Success (2xx)': 'Uğurlu (2xx)',
   'Redirection (3xx)': 'Yönləndirmə (3xx)',

@@ -40,6 +40,7 @@ export type UrlCategory =
   | 'external:html'
   | 'external:other'
   | 'status:blocked-robots'
+  | 'status:bot-blocked'
   | 'status:no-response'
   | 'status:2xx'
   | 'status:3xx'
@@ -261,7 +262,11 @@ export type Indexability =
   | 'non-indexable:robots-blocked'
   | 'non-indexable:redirect'
   | 'non-indexable:client-error'
-  | 'non-indexable:server-error';
+  | 'non-indexable:server-error'
+  // Bot protection (Cloudflare challenge, WAF block) or a rate limit
+  // answered instead of the page. Not "non-indexable": search engines are
+  // usually let through, the crawler wasn't — indexability is unknown.
+  | 'unknown:bot-blocked';
 
 export type ContentKind = 'html' | 'css' | 'js' | 'image' | 'pdf' | 'font' | 'other';
 
@@ -1795,7 +1800,11 @@ export interface Soft404ProbeResult {
 
 export interface OverviewCounts {
   /** Findings about the site as a whole rather than any one URL. */
-  site?: { soft404Probe: Soft404ProbeResult | null };
+  site?: {
+    soft404Probe: Soft404ProbeResult | null;
+    /** URLs bot protection kept the crawler from, with one example of what answered. */
+    botBlocked?: { count: number; sample: string | null } | null;
+  };
   summary: {
     totalInternalUrls: number;
     totalIndexable: number;
@@ -1810,6 +1819,8 @@ export interface OverviewCounts {
   responseCodes: {
     all: number;
     blockedRobots: number;
+    /** Answered by bot protection / a rate limit instead of the page — not crawled. */
+    botBlocked: number;
     noResponse: number;
     success2xx: number;
     redirect3xx: number;

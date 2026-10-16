@@ -53,6 +53,11 @@ export const IT_LABELS: Record<string, string> = {
   // Response codes
   All: 'Tutti',
   'Blocked by Robots': 'Bloccati da robots',
+  'Blocked by Bot Protection': 'Bloccati dalla protezione anti-bot',
+  'Blocked by bot protection': 'bloccata dalla protezione anti-bot',
+  Blocked: 'Bloccata',
+  Unknown: 'Sconosciuto',
+  'Not crawled — bot protection answered instead of the page': 'Non scansionata — ha risposto la protezione anti-bot al posto della pagina',
   'No Response': 'Nessuna risposta',
   'Success (2xx)': 'Successo (2xx)',
   'Redirection (3xx)': 'Reindirizzamento (3xx)',

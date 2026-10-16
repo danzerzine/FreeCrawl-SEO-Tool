@@ -314,12 +314,23 @@ function accentStyle(options: HtmlReportOptions): string {
 
 /** Site-wide findings that belong to no single URL (shown above the issue table). */
 function renderSiteNotices(counts: OverviewCounts): string {
+  let out = '';
+  const blocked = counts.site?.botBlocked;
+  if (blocked) {
+    out +=
+      `<p><span class="sev-warn">WARN</span> Bot protection blocked ${fmtNum(blocked.count)} ` +
+      `URL${blocked.count === 1 ? '' : 's'}` +
+      (blocked.sample ? ` (<span class="mono">${escape(blocked.sample)}</span>)` : '') +
+      `: they were not crawled, so this report has no data on them and leaves them out of the ` +
+      `broken-link and sitemap checks. Lower the crawl speed or allowlist the crawler, then re-crawl.</p>`;
+  }
   const probe = counts.site?.soft404Probe;
-  if (!probe) return '';
+  if (!probe) return out;
   const via = probe.finalUrl
     ? ` after redirecting to <span class="mono">${escape(probe.finalUrl)}</span>`
     : '';
   return (
+    out +
     `<p><span class="sev-warn">WARN</span> Missing pages return ${probe.status}: ` +
     `<span class="mono">${escape(probe.url)}</span>, a page that does not exist, was answered ` +
     `${probe.status}${via} instead of 404. Broken links on this site look like working pages ` +

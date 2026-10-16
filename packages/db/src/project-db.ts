@@ -2046,6 +2046,8 @@ export class ProjectDb {
       contentLength?: number | null;
       responseTimeMs?: number | null;
       redirectTarget?: string | null;
+      /** Bot protection answered instead of the page — e.g. "Cloudflare challenge (HTTP 403)". */
+      botBlocked?: string | null;
     },
   ): void {
     // Re-classify the external stub's content_kind from the probed
@@ -2058,10 +2060,16 @@ export class ProjectDb {
     // with a placeholder 'indexable'; without recomputing here, a link that
     // 404s, is bot-blocked, or never responded would stay reported as
     // "indexable" (misleading, and inflates the Indexable count).
-    const status = patch.statusCode;
+    const status = patch.botBlocked ? null : patch.statusCode;
     let indexability: string;
     let indexabilityReason: string | null;
-    if (status === null) {
+    if (patch.botBlocked) {
+      // A challenge page is the CDN's answer, not the link target's — it
+      // says nothing about whether the link works, so it is no "broken
+      // external link".
+      indexability = 'unknown:bot-blocked';
+      indexabilityReason = `Blocked by bot protection — ${patch.botBlocked}`;
+    } else if (status === null) {
       indexability = 'non-indexable:client-error';
       indexabilityReason = 'No response';
     } else if (status >= 500) {
@@ -2093,7 +2101,7 @@ export class ProjectDb {
       )
       .run({
         url,
-        status_code: patch.statusCode,
+        status_code: status,
         status_text: patch.statusText ?? null,
         content_type: patch.contentType ?? null,
         content_kind: contentKind,
@@ -3927,18 +3935,32 @@ export class ProjectDb {
         for (const e of entries) {
           if (!e.langValid) invalidCount++;
           if (e.href === r.url) selfRef = true;
+          const meta = targetMeta.get(e.href);
+          // Bot protection answered for the target: nothing is known about
+          // it, so it is neither a broken alternate nor a missing return link.
+          if (meta?.indexability === 'unknown:bot-blocked') continue;
+          // x-default is meant for a language selector or an auto-redirecting
+          // home page (Google's own example). A 3xx there is the design, and a
+          // redirect carries no hreflang back — found live as the one "issue"
+          // on all 58 locale home pages of a large multilingual site.
+          const xDefaultRedirect =
+            e.lang.toLowerCase() === 'x-default' &&
+            meta !== undefined &&
+            meta.status !== null &&
+            meta.status >= 300 &&
+            meta.status < 400;
           // Reciprocity — only score targets we actually crawled. Targets
           // outside the crawl scope can't be checked, and counting them
           // as missing would punish partial / scoped crawls.
-          if (targetMeta.has(e.href) && e.href !== r.url) {
+          if (meta && e.href !== r.url && !xDefaultRedirect) {
             const back = declaredBy.get(r.url);
             if (!back || !back.has(e.href)) reciprocityMissing++;
           }
           // Target issues: non-200, noindex, or canonicalised away.
-          const meta = targetMeta.get(e.href);
           if (meta) {
             const badStatus =
-              meta.status === null || meta.status < 200 || meta.status >= 300;
+              !xDefaultRedirect &&
+              (meta.status === null || meta.status < 200 || meta.status >= 300);
             const isNoindex = meta.indexability === 'non-indexable:noindex';
             const isCanonAway =
               meta.canonical !== null &&
@@ -6421,6 +6443,7 @@ export class ProjectDb {
     const totalNonIndexable = countCategory('indexability:non-indexable');
     // Probe-only rows (share-card images, `occurrences = 0`) aren't on any page.
     const totalImages = this.scalarCount('SELECT COUNT(*) AS c FROM images WHERE occurrences > 0');
+    const botBlocked = countCategory('status:bot-blocked');
 
     return {
       summary: {
@@ -6451,6 +6474,7 @@ export class ProjectDb {
       responseCodes: {
         all: countCategory('all'),
         blockedRobots: countCategory('status:blocked-robots'),
+        botBlocked,
         noResponse: countCategory('status:no-response'),
         success2xx: countCategory('status:2xx'),
         redirect3xx: countCategory('status:3xx'),
@@ -6469,8 +6493,23 @@ export class ProjectDb {
         blockedRobots: countCategory('indexability:blocked-robots'),
       },
       issues: this.silenceDisabledIssues(this.getIssuesCounts()),
-      site: { soft404Probe: this.readSoft404Probe() },
+      site: {
+        soft404Probe: this.readSoft404Probe(),
+        botBlocked: botBlocked > 0 ? { count: botBlocked, sample: this.botBlockedSample() } : null,
+      },
     };
+  }
+
+  /** What answered for one bot-blocked URL — e.g. "Cloudflare challenge (HTTP 403)". */
+  private botBlockedSample(): string | null {
+    if (this.overviewCollect) return null;
+    const row = this.db
+      .prepare(
+        `SELECT status_text AS s FROM urls
+          WHERE indexability = 'unknown:bot-blocked' AND status_text IS NOT NULL LIMIT 1`,
+      )
+      .get() as { s: string } | undefined;
+    return row?.s ?? null;
   }
 
   private readSoft404Probe(): Soft404ProbeResult | null {
@@ -10679,14 +10718,22 @@ export function categoryWhereClause(
       return "is_external = 1 AND content_kind != 'html'";
     case 'status:blocked-robots':
       return "indexability = 'non-indexable:robots-blocked'";
+    case 'status:bot-blocked':
+      // Bot protection (Cloudflare challenge, WAF block) or a rate limit
+      // answered instead of the page. Stored with a NULL status — it is
+      // the CDN's answer, not the page's — so no 4xx check (broken links,
+      // Non-200 in Sitemap, canonical targets…) reports a page that may
+      // be perfectly fine.
+      return "indexability = 'unknown:bot-blocked'";
     case 'status:no-response':
       // Robots-blocked URLs are recorded with a NULL status because the
       // crawler deliberately never requested them — they are not pages
       // that failed to answer. Counting them here made "No Response"
       // read as N failures on a crawl whose failure count was zero, and
       // double-counted them against the sibling Blocked by Robots row.
+      // Bot-blocked URLs did answer — just not with the page.
       return `status_code IS NULL
-              AND indexability != 'non-indexable:robots-blocked'`;
+              AND indexability NOT IN ('non-indexable:robots-blocked', 'unknown:bot-blocked')`;
     case 'status:2xx':
       return 'status_code >= 200 AND status_code < 300';
     case 'status:3xx':

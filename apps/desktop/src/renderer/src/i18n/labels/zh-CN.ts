@@ -53,6 +53,11 @@ export const ZH_CN_LABELS: Record<string, string> = {
   // Response codes
   All: '全部',
   'Blocked by Robots': '被 robots 拦截',
+  'Blocked by Bot Protection': '被机器人防护拦截',
+  'Blocked by bot protection': '被机器人防护拦截',
+  Blocked: '已拦截',
+  Unknown: '未知',
+  'Not crawled — bot protection answered instead of the page': '未抓取——响应来自机器人防护，而不是页面',
   'No Response': '无响应',
   'Success (2xx)': '成功（2xx）',
   'Redirection (3xx)': '重定向（3xx）',

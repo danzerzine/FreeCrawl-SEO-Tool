@@ -53,6 +53,11 @@ export const HI_LABELS: Record<string, string> = {
   // Response codes
   All: 'सभी',
   'Blocked by Robots': 'robots से अवरुद्ध',
+  'Blocked by Bot Protection': 'बॉट सुरक्षा से अवरुद्ध',
+  'Blocked by bot protection': 'बॉट सुरक्षा से अवरुद्ध',
+  Blocked: 'अवरुद्ध',
+  Unknown: 'अज्ञात',
+  'Not crawled — bot protection answered instead of the page': 'क्रॉल नहीं हुआ — पेज की जगह बॉट सुरक्षा ने उत्तर दिया',
   'No Response': 'कोई प्रतिक्रिया नहीं',
   'Success (2xx)': 'सफल (2xx)',
   'Redirection (3xx)': 'रीडायरेक्ट (3xx)',

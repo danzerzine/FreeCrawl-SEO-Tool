@@ -85,6 +85,7 @@ const TAB_CHILDREN: Partial<Record<TabKey, { subdir: string; children: SubCatego
     children: [
       { label: 'All', category: 'all', filename: 'all' },
       { label: 'Blocked by Robots', category: 'status:blocked-robots', filename: 'blocked-robots' },
+      { label: 'Blocked by Bot Protection', category: 'status:bot-blocked', filename: 'blocked-bot-protection' },
       { label: 'No Response', category: 'status:no-response', filename: 'no-response' },
       { label: 'Success (2xx)', category: 'status:2xx', filename: '2xx-success' },
       { label: 'Redirection (3xx)', category: 'status:3xx', filename: '3xx-redirect' },

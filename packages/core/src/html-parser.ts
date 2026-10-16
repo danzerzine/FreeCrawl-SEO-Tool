@@ -497,6 +497,9 @@ const JS_SCRIPT_TYPES = new Set([
   'application/ecmascript',
 ]);
 
+/** A Cloudflare-obfuscated `mailto:` (see the link loop in `parseHtml`). */
+const CF_EMAIL_PROTECTION_RE = /^https?:\/\/[^/]+\/cdn-cgi\/l\/email-protection(?:[?#]|$)/i;
+
 /** An `onclick` body that navigates somewhere rather than acting in place. */
 const JS_NAVIGATION_RE =
   /(?:^|[^\w$.])(?:window\.|document\.|top\.|self\.)?location(?:\.href)?\s*=(?!=)|location\.(?:assign|replace)\s*\(|window\.open\s*\(/;
@@ -541,9 +544,14 @@ function findInlineScriptHeadWrites($: cheerio.CheerioAPI): InlineScriptHeadWrit
       const m = JS_TITLE_ASSIGN_RE.exec(code);
       if (m) {
         out.titleWrite = true;
+        // `document.title = " Rendering test 1 - " + num` — the literal is
+        // only the start of an expression, so it isn't the title; showing
+        // it in the JS Title column would invent one. Known only when the
+        // string is the whole right-hand side.
         const literal = m[2];
+        const continued = /^\s*(?:[-+*%?.|&[(]|\/(?![/*]))/.test(code.slice(m.index + m[0].length));
         out.title =
-          literal !== undefined
+          literal !== undefined && !continued
             ? decodeEntities(literal.replace(/\\(.)/g, '$1')).trim() || null
             : null;
       } else if (JS_TITLE_ELEMENT_RE.test(code)) {
@@ -784,7 +792,10 @@ export function parseHtml(
   // We parse with decodeEntities:false for speed, so extracted strings
   // contain raw entities like `&#39;` or `&amp;`. Decode them before
   // storing so UI / CSV export / search see human-readable text.
-  const titleEls = $('title');
+  // `<title>` inside an inline `<svg>` is the icon's accessible name, not
+  // a document title — counting them reported "Multiple <title> Tags" on
+  // every page of a site with titled SVG icons (found live: 77 pages).
+  const titleEls = $('title').filter((_, el) => $(el).closest('svg').length === 0);
   const titleCount = titleEls.length;
   const title = decodeEntities(titleEls.first().text().trim()) || null;
   const metaDescription =
@@ -1585,6 +1596,12 @@ export function parseHtml(
       }
       return;
     }
+    // Cloudflare's Email Address Obfuscation rewrites every `mailto:` into
+    // `/cdn-cgi/l/email-protection#<hex>` and its script turns it back in
+    // the browser. To a crawler that is a 404 no visitor ever reaches (found
+    // live as the one "broken internal link" on a Cloudflare site) — it is a
+    // mailto link, and is left out like one.
+    if (CF_EMAIL_PROTECTION_RE.test(normalized)) return;
     const $el = $(el);
     const rel = ($el.attr('rel') ?? '').trim().toLowerCase() || null;
     const target = ($el.attr('target') ?? '').trim() || null;
@@ -2428,8 +2445,9 @@ const SCHEMA_REQUIRED_PROPS: Record<
  * Walk a parsed JSON-LD payload and accumulate four structured-data
  * health signals into the caller's tallies / map:
  *
- *   - **Duplicate `@id`** — populated by recording every `@id` value
- *     into `idCounts`. The caller computes the "duplicates" count as
+ *   - **Duplicate `@id`** — populated by recording the `@id` of every
+ *     node that defines an entity (has properties of its own — a bare
+ *     `{"@id": …}` reference doesn't count) into `idCounts`. The caller computes the "duplicates" count as
  *     `Σ(count > 1 ? count - 1 : 0)` after walking every block on the
  *     page. We do this in the caller (not here) so a `@id` shared
  *     across multiple `<script>` tags is still detected.
@@ -2479,9 +2497,19 @@ function walkSchemaForValidation(
     if (typeof n !== 'object') return;
     const obj = n as Record<string, unknown>;
 
-    // Record `@id` for cross-block duplicate detection.
+    // Record `@id` for cross-block duplicate detection — definitions only.
+    // `{"@id": "#org"}` (optionally with `@type`) is a *reference* to a
+    // node defined elsewhere: the linking pattern Schema.org recommends
+    // and Yoast / Rank Math emit on every page (`publisher`, `isPartOf`,
+    // `about` → `#org`, `#website`). Counting references flagged nearly
+    // every well-built graph as "Duplicate @id"; only a node that carries
+    // its own properties defines the entity.
     const idVal = obj['@id'];
-    if (typeof idVal === 'string' && idVal) {
+    if (
+      typeof idVal === 'string' &&
+      idVal &&
+      Object.keys(obj).some((k) => k !== '@id' && k !== '@type' && k !== '@context')
+    ) {
       idCounts.set(idVal, (idCounts.get(idVal) ?? 0) + 1);
     }
 

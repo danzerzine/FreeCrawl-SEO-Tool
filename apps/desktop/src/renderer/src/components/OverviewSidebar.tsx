@@ -170,6 +170,7 @@ export function OverviewSidebar() {
   const tree = useMemo(() => buildTree(overview, disabledSet), [overview, disabledSet]);
   const totalForPercent = overview?.summary.totalInternalUrls ?? 0;
   const soft404Probe = overview?.site?.soft404Probe ?? null;
+  const botBlocked = overview?.site?.botBlocked ?? null;
 
   return (
     <div className="flex h-full flex-col bg-surface-900">
@@ -182,6 +183,30 @@ export function OverviewSidebar() {
           <span>{t('sidebar.percentOfTotal', { defaultValue: '% of Total' })}</span>
         </div>
       </div>
+      {botBlocked && (
+        // The crawl itself is incomplete — said up front, because every
+        // count below silently lacks these pages otherwise.
+        <button
+          type="button"
+          className="flex w-full items-start gap-1.5 border-b border-amber-700/40 bg-amber-900/20 px-2 py-1.5 text-left text-[11px] text-amber-200 hover:bg-amber-900/30"
+          title={t('sidebar.siteBotBlockedHint', {
+            defaultValue:
+              "The site's bot protection answered with a challenge instead of these pages. They were not crawled and are left out of the broken-link and sitemap checks. Lower the crawl speed or allowlist the crawler's user agent, then re-crawl them.",
+          })}
+          onClick={() => navigateToCategory('status:bot-blocked')}
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="font-medium">
+              {t('sidebar.siteBotBlocked', { defaultValue: 'Bot protection blocked part of the crawl' })}
+            </div>
+            {botBlocked.sample && (
+              <div className="break-all font-mono text-[10px] text-amber-300/80">{botBlocked.sample}</div>
+            )}
+          </div>
+          <span className="shrink-0 font-mono tabular-nums">{botBlocked.count.toLocaleString()}</span>
+        </button>
+      )}
       {soft404Probe && (
         // A finding about the whole site, not a URL list — so a notice
         // rather than a tree node with a count and a filter behind it.
@@ -383,6 +408,13 @@ function buildTree(o: OverviewCounts | null, disabled: ReadonlySet<string>): Nod
           label: 'Blocked by Robots',
           count: o.responseCodes.blockedRobots,
           category: 'status:blocked-robots',
+          percentBase: allUrls,
+        },
+        {
+          key: 'rc-bot-blocked',
+          label: 'Blocked by Bot Protection',
+          count: o.responseCodes.botBlocked,
+          category: 'status:bot-blocked',
           percentBase: allUrls,
         },
         {

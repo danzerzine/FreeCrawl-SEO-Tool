@@ -38,6 +38,13 @@ const TICK_PAD_ROWS = 40;
 // copy per tick onto the reader pool until nothing else could get
 // through. The user's explicit Retry bypasses the hold.
 const FAILURE_BACKOFF_MS = 5000;
+// A cached chunk can be short: fetched while the crawl was still filling
+// it (the look-ahead chunk is requested the moment the table opens, when
+// it holds nothing yet). Rows on screen that such a chunk lacks are
+// re-fetched at once; a short look-ahead chunk is topped up at most this
+// often, so a live crawl doesn't turn it into a constant re-query.
+const VISIBLE_GAP_REFETCH_MS = 250;
+const LOOKAHEAD_REFETCH_MS = 1000;
 
 export interface LazyRowsOpts {
   category: UrlCategory;
@@ -97,7 +104,14 @@ function describeError(err: unknown): string {
  * count grows. The user sees a continuously-flowing, sorted table.
  */
 export function useLazyUrlRows(opts: LazyRowsOpts): LazyRowsState {
-  const [total, setTotal] = useState(0);
+  const [total, setTotalState] = useState(0);
+  // `ensureRange` runs outside React's render cycle and needs the latest
+  // total to tell a short chunk from the end of the table.
+  const totalRef = useRef(0);
+  const setTotal = useCallback((t: number): void => {
+    totalRef.current = t;
+    setTotalState(t);
+  }, []);
   const [version, setVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +125,8 @@ export function useLazyUrlRows(opts: LazyRowsOpts): LazyRowsState {
   const chunks = useRef(new Map<number, CrawlUrlRow[]>());
   const chunkOrder = useRef<number[]>([]);
   const fetching = useRef(new Set<number>());
+  /** When each chunk was last requested — paces re-fetches of short chunks. */
+  const fetchedAt = useRef(new Map<number, number>());
   const activeRange = useRef<{ first: number; last: number }>({ first: 0, last: 0 });
   /** Visible row-index span, as the virtualizer last reported it. */
   const activeRows = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
@@ -195,6 +211,7 @@ export function useLazyUrlRows(opts: LazyRowsOpts): LazyRowsState {
     chunks.current.clear();
     chunkOrder.current = [];
     fetching.current.clear();
+    fetchedAt.current.clear();
     setIsLoading(true);
     setError(null);
     failedAt.current = 0;
@@ -335,12 +352,16 @@ export function useLazyUrlRows(opts: LazyRowsOpts): LazyRowsState {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyStr]);
 
+  /** Fetch a chunk that isn't cached — or, with `minGapMs`, re-fetch a
+   *  cached one that is short, at most once per `minGapMs`. */
   const fetchChunk = useCallback(
-    async (chunkIdx: number) => {
-      if (chunks.current.has(chunkIdx)) return;
+    async (chunkIdx: number, minGapMs?: number) => {
+      if (minGapMs === undefined && chunks.current.has(chunkIdx)) return;
+      if (minGapMs !== undefined && Date.now() - (fetchedAt.current.get(chunkIdx) ?? 0) < minGapMs) return;
       if (fetching.current.has(chunkIdx)) return;
       if (inBackoff()) return;
       fetching.current.add(chunkIdx);
+      fetchedAt.current.set(chunkIdx, Date.now());
       const token = resetToken.current;
       try {
         const { rows, total: t } = await queryChunk(chunkIdx);
@@ -358,7 +379,7 @@ export function useLazyUrlRows(opts: LazyRowsOpts): LazyRowsState {
         fetching.current.delete(chunkIdx);
       }
     },
-    [queryChunk, storeChunk],
+    [queryChunk, storeChunk, setTotal],
   );
 
   const ensureRange = useCallback(
@@ -373,8 +394,28 @@ export function useLazyUrlRows(opts: LazyRowsOpts): LazyRowsState {
       // range, its rows are usually already in the cache.
       const fetchFrom = Math.max(0, first - PREFETCH_CHUNKS);
       const fetchTo = last + PREFETCH_CHUNKS;
+      const rowsNow = totalRef.current;
       for (let i = fetchFrom; i <= fetchTo; i++) {
-        if (!chunks.current.has(i)) void fetchChunk(i);
+        const chunk = chunks.current.get(i);
+        if (!chunk) {
+          void fetchChunk(i);
+          continue;
+        }
+        // A cached chunk is only as complete as the table was when it
+        // was fetched. Treating it as final left every row the crawl
+        // added after that as "…" — black rows on scroll — until the
+        // 5 s safety tick happened to cover them (the live tick stands
+        // down while the user scrolls).
+        const base = i * CHUNK_SIZE;
+        const visible = i >= first && i <= last;
+        const from = visible ? Math.max(base, start) : base;
+        const to = Math.min(visible ? end : base + CHUNK_SIZE - 1, base + CHUNK_SIZE - 1, rowsNow - 1);
+        for (let r = from; r <= to; r++) {
+          if (chunk[r - base] === undefined) {
+            void fetchChunk(i, visible ? VISIBLE_GAP_REFETCH_MS : LOOKAHEAD_REFETCH_MS);
+            break;
+          }
+        }
       }
     },
     [fetchChunk],

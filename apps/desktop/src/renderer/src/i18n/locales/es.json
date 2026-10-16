@@ -4,7 +4,9 @@
     "urls": "URL",
     "percentOfTotal": "% del total",
     "siteSoft404": "Las páginas inexistentes devuelven {{status}} (soft 404)",
-    "siteSoft404Hint": "Una solicitud a una página que no existe recibió {{status}} en lugar de 404, así que los enlaces rotos de este sitio parecen páginas válidas para los buscadores."
+    "siteSoft404Hint": "Una solicitud a una página que no existe recibió {{status}} en lugar de 404, así que los enlaces rotos de este sitio parecen páginas válidas para los buscadores.",
+    "siteBotBlocked": "La protección antibots bloqueó parte del rastreo",
+    "siteBotBlockedHint": "La protección antibots del sitio respondió con un desafío en lugar de estas páginas. No se rastrearon y quedan fuera de las comprobaciones de enlaces rotos y de sitemap. Reduce la velocidad de rastreo o añade el user agent del rastreador a la lista de permitidos y vuelve a rastrearlas."
   },
   "integrations": {
     "intro": "Conecta servicios externos con tus propias credenciales. Las claves de API y los secretos se cifran en reposo mediante el almacenamiento seguro de tu sistema operativo y nunca salen de esta máquina.",
@@ -406,7 +408,58 @@
     "orphanMetricaVisits_other": "{{formatted}} visitas de Metrica (entrada)",
     "orphanMetricaPageviews_one": "{{formatted}} vista de página de Metrica (hits)",
     "orphanMetricaPageviews_many": "{{formatted}} de vistas de página de Metrica (hits)",
-    "orphanMetricaPageviews_other": "{{formatted}} vistas de página de Metrica (hits)"
+    "orphanMetricaPageviews_other": "{{formatted}} vistas de página de Metrica (hits)",
+    "noResponse": "Sin respuesta",
+    "bucketOrphan": "0 (huérfana)",
+    "badge": {
+      "ok": "OK",
+      "non": "NO",
+      "warn": "AVISO",
+      "bad": "MAL",
+      "err": "ERROR",
+      "slow": "LENTO",
+      "net": "RED"
+    },
+    "domainHealth": "{{ok}}/{{total}} OK · {{rate}} % de errores",
+    "avgMs": "media {{ms}} ms",
+    "distinctIds_one": "{{count}} ID distinto",
+    "distinctIds_many": "{{count}} ID distintos",
+    "distinctIds_other": "{{count}} ID distintos",
+    "pageCount_one": "{{formatted}} página",
+    "pageCount_many": "{{formatted}} páginas",
+    "pageCount_other": "{{formatted}} páginas",
+    "imageCount_one": "{{formatted}} imagen",
+    "imageCount_many": "{{formatted}} imágenes",
+    "imageCount_other": "{{formatted}} imágenes",
+    "hits_one": "{{formatted}} aparición",
+    "hits_many": "{{formatted}} apariciones",
+    "hits_other": "{{formatted}} apariciones",
+    "avgWords": "media {{formatted}}",
+    "lastmod": "lastmod {{date}}",
+    "fromSitemap": "de {{sitemap}}",
+    "position": {
+      "navigation": "Navegación",
+      "header": "Cabecera",
+      "content": "Contenido",
+      "sidebar": "Barra lateral",
+      "footer": "Pie de página",
+      "aside": "Aside"
+    },
+    "indexability": {
+      "indexable": "Indexable",
+      "noindex": "No indexable — noindex",
+      "canonical": "No indexable — canonicalizada",
+      "robotsBlocked": "No indexable — bloqueada por robots.txt",
+      "redirect": "No indexable — redirección",
+      "clientError": "No indexable — 4xx",
+      "serverError": "No indexable — 5xx",
+      "botBlocked": "Desconocido — bloqueada por protección antibots"
+    },
+    "kind": {
+      "image": "Imagen",
+      "font": "Fuente",
+      "other": "Otro"
+    }
   },
   "sitemap": {
     "title": "Validador de sitemap",
@@ -1070,7 +1123,267 @@
   "diag": {
     "fromHeaders": "De las cabeceras de respuesta",
     "likelyCauses": "Causas probables",
-    "whatToDo": "Qué hacer"
+    "whatToDo": "Qué hacer",
+    "cloudflareStyle": "código de edge al estilo de Cloudflare",
+    "code": {
+      "520": {
+        "name": "El servidor web devolvió un error desconocido",
+        "explanation": "Cloudflare se conectó al servidor de origen pero recibió una respuesta vacía, malformada o inesperada (por ejemplo, la conexión se cortó a mitad de la respuesta, el origen devolvió cabeceras demasiado grandes o el proceso del origen falló). Es un código genérico para 'algo salió mal en el origen'.",
+        "cause1": "El servidor de origen falló, se reinició o se quedó sin workers/memoria mientras atendía la petición",
+        "cause2": "El origen cerró la conexión TCP antes de enviar una respuesta completa (a menudo un tiempo de espera de la aplicación o un cierre por falta de memoria)",
+        "cause3": "La velocidad de peticiones del rastreo desbordó el pool de procesos del origen: los 520 que aparecen en ráfagas bajo carga casi siempre significan esto",
+        "cause4": "El origen devolvió cabeceras de respuesta más grandes de lo que Cloudflare permite (poco común; normalmente una aplicación mal configurada)",
+        "todo1": "Si los 520 aparecen en ráfagas en muchas URL, reduce Concurrencia máxima / URL/s máximas y añade un Retardo por worker (Ajustes → Velocidad): el rastreo está sobrecargando el origen",
+        "todo2": "Vuelve a rastrear las URL afectadas cuando termine el rastreo (los 520 transitorios suelen desaparecer al reintentar; sube los Intentos de reintento en Ajustes → Velocidad)",
+        "todo3": "Si solo ciertas URL devuelven 520 de forma constante, esas páginas tienen un error en el servidor: avísale al propietario del sitio"
+      },
+      "521": {
+        "name": "El servidor web está caído",
+        "explanation": "Cloudflare no pudo abrir una conexión TCP con el servidor de origen: el origen rechazó activamente la conexión o no escucha en el puerto esperado.",
+        "cause1": "El servidor web de origen (nginx/Apache/Node, etc.) está detenido o ha fallado",
+        "cause2": "El firewall del origen bloquea los rangos de IP de Cloudflare (un error de configuración: el origen debería permitir a Cloudflare)",
+        "cause3": "El servidor de origen está tan sobrecargado que no acepta conexiones nuevas",
+        "todo1": "Es un problema de disponibilidad del origen, no algo que el rastreador pueda sortear: el sitio está caído en la práctica para estas URL",
+        "todo2": "Vuelve a rastrear más tarde; si persiste, el sitio está roto"
+      },
+      "522": {
+        "name": "Se agotó el tiempo de conexión",
+        "explanation": "Cloudflare inició un handshake TCP con el origen pero no se completó dentro del tiempo límite: el origen aceptó el SYN pero nunca respondió, o un dispositivo de red intermedio descartó los paquetes.",
+        "cause1": "El origen está muy sobrecargado (cola TCP llena)",
+        "cause2": "El firewall del origen descarta en silencio (sin rechazar) los paquetes de Cloudflare",
+        "cause3": "Problema de red/enrutamiento entre Cloudflare y el origen",
+        "cause4": "Bajo la carga del rastreo: las peticiones en paralelo del rastreo agotaron la tabla de conexiones del origen",
+        "todo1": "Reduce la concurrencia (Ajustes → Velocidad → Concurrencia máxima) y vuelve a rastrear: el agotamiento de la tabla de conexiones es la causa habitual cuando aparece en mitad del rastreo",
+        "todo2": "Reintenta las URL afectadas después del rastreo"
+      },
+      "523": {
+        "name": "El origen es inalcanzable",
+        "explanation": "Cloudflare no pudo llegar al servidor de origen en absoluto: normalmente un problema de DNS en el registro de origen de Cloudflare o la red del origen está caída.",
+        "cause1": "El registro DNS del sitio en Cloudflare apunta a una IP incorrecta o inactiva",
+        "cause2": "El proveedor de alojamiento del origen tiene una caída de red",
+        "cause3": "Fallo de BGP / enrutamiento entre Cloudflare y el origen",
+        "todo1": "El rastreador no puede hacer nada: es un error de configuración de DNS/red del origen"
+      },
+      "524": {
+        "name": "Se produjo un tiempo de espera",
+        "explanation": "Cloudflare estableció correctamente una conexión TCP con el origen, pero el origen no envió una respuesta HTTP completa dentro del tiempo límite de Cloudflare (100 s por defecto). El origen funciona, pero es demasiado lento en esta petición.",
+        "cause1": "Una consulta lenta a la base de datos, una llamada a una API externa o un cálculo pesado en la página",
+        "cause2": "El origen está sobrecargado: las peticiones hacen cola detrás de un pool de workers saturado",
+        "cause3": "Bajo la carga del rastreo: el rastreo llenó la cola de peticiones del origen y esta URL esperó demasiado",
+        "todo1": "Reduce Concurrencia máxima / URL/s máximas y añade un Retardo por worker (Ajustes → Velocidad) para no saturar el origen",
+        "todo2": "Aumenta el Tiempo de espera de respuesta (Ajustes → Rastreador) si quieres dar más tiempo a las páginas que de verdad son lentas",
+        "todo3": "Reintenta las URL afectadas después del rastreo"
+      },
+      "525": {
+        "name": "Falló el handshake SSL",
+        "explanation": "Falló el handshake TLS entre Cloudflare y el servidor de origen. Es el tramo Cloudflare↔origen, no el tramo navegador↔Cloudflare que ves en la barra de direcciones, así que el sitio puede verse bien para un visitante normal y aun así devolver 525.",
+        "cause1": "El certificado TLS del origen está caducado, autofirmado o emitido para otro nombre de host (con Cloudflare en modo 'Full (strict)')",
+        "cause2": "El origen solo admite versiones de TLS / conjuntos de cifrado antiguos que Cloudflare rechaza",
+        "cause3": "El servidor de origen está sobrecargado y descarta handshakes TLS",
+        "todo1": "Error de configuración TLS del origen: no es algo que el rastreador pueda cambiar. Revisa el certificado del host (las filas TLS Cert en Detalles de la URL, para HTTPS)"
+      },
+      "526": {
+        "name": "Certificado SSL no válido",
+        "explanation": "Cloudflare (en modo SSL 'Full (strict)') no pudo validar el certificado TLS del servidor de origen.",
+        "cause1": "El certificado del origen está caducado, autofirmado o emitido para otro nombre de host",
+        "cause2": "La cadena de certificados del origen está incompleta (faltan intermedios)",
+        "todo1": "Problema con el certificado del origen: el rastreador no puede hacer nada"
+      },
+      "527": {
+        "name": "Error de Railgun (Cloudflare, obsoleto)",
+        "explanation": "Un error de conexión en Cloudflare Railgun (un producto de aceleración del origen ya retirado). Prácticamente obsoleto; si lo ves, el sitio usa una configuración de Cloudflare muy antigua.",
+        "cause1": "Fallo de conexión del antiguo Cloudflare Railgun",
+        "todo1": "No hay nada que hacer desde el lado del rastreador"
+      },
+      "530": {
+        "name": "Error de Cloudflare (normalmente un bloqueo de firewall / WAF — error 1020)",
+        "explanation": "Un 530 es la forma en que Cloudflare dice \"ocurrió un error, consulta el código 1xxx en el cuerpo\". En un rastreo casi siempre es 1020 \"Access Denied\": una regla de Cloudflare Firewall / WAF / Bot-Fight bloqueó la petición. Con menos frecuencia va con 1016 (error de DNS del origen) u otros códigos 1xxx.",
+        "cause1": "Cloudflare WAF / Firewall Rules / Bot Fight Mode marcó al rastreador: por IP, por User-Agent, por velocidad de peticiones o por falta de huellas de navegador",
+        "cause2": "El sitio tiene un \"managed challenge\" que el rastreador no puede resolver",
+        "cause3": "(Rara vez) un error de DNS del origen (1016) en lugar de un bloqueo",
+        "todo1": "Configura un User-Agent de navegador (Ajustes → Peticiones): el UA predeterminado del rastreador es el desencadenante número 1",
+        "todo2": "Reduce Concurrencia máxima / URL/s máximas y añade un Retardo por worker (Ajustes → Velocidad): las peticiones rápidas desde una sola IP activan las reglas por velocidad",
+        "todo3": "Respeta robots.txt y cualquier Crawl-delay declarado (Ajustes → Rastreador)",
+        "todo4": "Si el sitio es tuyo, añade el rastreador a la lista de permitidos en Cloudflare; si no, el sitio bloquea a propósito el acceso automatizado"
+      },
+      "401": {
+        "name": "No autorizado",
+        "explanation": "El recurso requiere autenticación y no se enviaron credenciales (o eran inválidas).",
+        "cause1": "La página está detrás de autenticación HTTP Basic/Bearer",
+        "cause2": "Se requiere una cookie de sesión y no se envió ninguna",
+        "todo1": "Configura las credenciales en Ajustes → Autenticación si las tienes",
+        "todo2": "Usa Ajustes → Cookies → \"Aceptar todas\" si el sitio protege el contenido tras una sesión"
+      },
+      "403": {
+        "name": "Prohibido",
+        "explanation": "El servidor entendió la petición pero se niega a atenderla. En un rastreo suele ser un bloqueo de bots o una regla de WAF más que un problema real de permisos.",
+        "cause1": "Regla de WAF / protección antibots activada por el User-Agent, la IP o la velocidad de peticiones del rastreador",
+        "cause2": "El directorio o archivo realmente no es accesible para usuarios anónimos",
+        "cause3": "Protección contra hotlinking / referer",
+        "todo1": "Prueba un User-Agent de navegador (Ajustes → Peticiones)",
+        "todo2": "Reduce la velocidad del rastreo (Ajustes → Velocidad)",
+        "todo3": "Si ocurre en todo el sitio, el sitio está bloqueando activamente el acceso automatizado"
+      },
+      "404": {
+        "name": "No encontrado",
+        "explanation": "El servidor no tiene ningún recurso en esta URL.",
+        "cause1": "Enlace interno/externo roto",
+        "cause2": "La página se eliminó sin redirección",
+        "cause3": "Errata en el href de un enlace",
+        "todo1": "Corrige o quita las páginas que enlazan: mira la pestaña Enlaces entrantes para ver quién enlaza aquí"
+      },
+      "408": {
+        "name": "Tiempo de espera de la petición",
+        "explanation": "El servidor agotó el tiempo esperando a que se completara la petición.",
+        "cause1": "Red lenta entre el rastreador y el servidor",
+        "cause2": "El tiempo de espera de conexión del servidor es muy bajo",
+        "todo1": "Suele ser transitorio: sube los Intentos de reintento (Ajustes → Velocidad)"
+      },
+      "410": {
+        "name": "Eliminado",
+        "explanation": "El recurso se eliminó de forma intencionada y permanente; es una señal más fuerte que un 404.",
+        "cause1": "Página retirada a propósito; el servidor indica a los rastreadores que la descarten",
+        "todo1": "Quita los enlaces a esta URL: Google la desindexará más rápido que un 404"
+      },
+      "429": {
+        "name": "Demasiadas peticiones (límite de velocidad)",
+        "explanation": "El servidor está limitando la velocidad del rastreador: demasiadas peticiones en muy poco tiempo desde esta IP/User-Agent.",
+        "cause1": "La velocidad del rastreo supera el límite por cliente del servidor",
+        "cause2": "Alojamiento compartido con limitación agresiva",
+        "todo1": "Reduce Concurrencia máxima / URL/s máximas y añade un Retardo por worker (Ajustes → Velocidad)",
+        "todo2": "Respeta la cabecera Retry-After: mira \"De las cabeceras de respuesta\" más abajo si el servidor la envió",
+        "todo3": "Activa \"Respetar el Crawl-delay de robots.txt\" (Ajustes → Rastreador)"
+      },
+      "451": {
+        "name": "No disponible por motivos legales",
+        "explanation": "El recurso está bloqueado por motivos legales (orden judicial, geobloqueo por RGPD, DMCA, etc.).",
+        "cause1": "Contenido con restricción geográfica",
+        "cause2": "Retirada obligatoria por ley",
+        "todo1": "Nada: el bloqueo es intencionado"
+      },
+      "500": {
+        "name": "Error interno del servidor",
+        "explanation": "Se produjo un error no controlado en la aplicación del servidor al generar la página.",
+        "cause1": "Error en la plantilla de la página / código del backend",
+        "cause2": "Base de datos no disponible",
+        "cause3": "Error de configuración en el servidor",
+        "todo1": "Reintenta después del rastreo (los 500 transitorios desaparecen; los persistentes son un error real)",
+        "todo2": "Si los 500 aparecen bajo carga, el rastreo puede estar desbordando una base de datos: ralentiza el rastreo (Ajustes → Velocidad)"
+      },
+      "502": {
+        "name": "Puerta de enlace incorrecta",
+        "explanation": "Un proxy inverso / balanceador de carga delante de la aplicación recibió una respuesta no válida del servidor de aplicaciones upstream.",
+        "cause1": "El servidor de aplicaciones upstream falló o devolvió basura",
+        "cause2": "El upstream está sobrecargado: habitual bajo la carga del rastreo",
+        "cause3": "Tiempo de espera proxy↔upstream",
+        "todo1": "Reduce la velocidad del rastreo (Ajustes → Velocidad) si los 502 aparecen en ráfagas",
+        "todo2": "Reintenta las URL afectadas después del rastreo"
+      },
+      "503": {
+        "name": "Servicio no disponible",
+        "explanation": "El servidor no puede atender la petición temporalmente, normalmente por sobrecarga o mantenimiento. A menudo llega con una cabecera Retry-After.",
+        "cause1": "Servidor sobrecargado: el propio rastreo puede causarlo",
+        "cause2": "Ventana de mantenimiento programada",
+        "cause3": "Retraso del autoescalado (se están levantando instancias nuevas)",
+        "todo1": "Reduce Concurrencia máxima / URL/s máximas y añade un Retardo por worker (Ajustes → Velocidad)",
+        "todo2": "Respeta Retry-After (mira \"De las cabeceras de respuesta\" más abajo)",
+        "todo3": "Reintenta las URL afectadas después del rastreo"
+      },
+      "504": {
+        "name": "Tiempo de espera de la puerta de enlace",
+        "explanation": "Un proxy inverso / balanceador de carga no recibió a tiempo la respuesta del servidor de aplicaciones upstream.",
+        "cause1": "Consulta lenta a la base de datos / llamada a una API externa en la página",
+        "cause2": "Upstream sobrecargado: las peticiones hacen cola",
+        "cause3": "Bajo la carga del rastreo: el rastreo saturó el pool de workers del upstream",
+        "todo1": "Reduce la velocidad del rastreo (Ajustes → Velocidad)",
+        "todo2": "Aumenta el Tiempo de espera de respuesta (Ajustes → Rastreador) para las páginas que de verdad son lentas",
+        "todo3": "Reintenta las URL afectadas después del rastreo"
+      },
+      "508": {
+        "name": "Bucle detectado",
+        "explanation": "El servidor detectó un bucle infinito al procesar la petición (a menudo WebDAV o un bucle de redirección en el servidor).",
+        "cause1": "Bucle de redirección en el servidor",
+        "cause2": "Bucle de include recursivo / enlace simbólico",
+        "todo1": "Error del servidor: el rastreador no puede hacer nada"
+      },
+      "509": {
+        "name": "Límite de ancho de banda superado",
+        "explanation": "Un código no estándar (cPanel/Apache) que indica que la cuenta de alojamiento alcanzó su límite mensual de ancho de banda.",
+        "cause1": "Cuota de ancho de banda del alojamiento compartido agotada",
+        "todo1": "El rastreador no puede hacer nada: el proveedor está limitando toda la cuenta"
+      }
+    },
+    "signal": {
+      "cloudflare": "Detrás de Cloudflare: cf-ray {{ray}}. El código de estado describe el enlace Cloudflare↔origen, no lo que ve un navegador.",
+      "fronted": "Servido a través de {{front}}.",
+      "origin": "Servidor de origen: {{server}}.",
+      "retryAfterSeconds": "El servidor envió Retry-After: {{seconds}} s; pide explícitamente a los clientes que esperen ese tiempo. Un rastreo respetuoso no debería volver a pedir esta URL antes.",
+      "retryAfter": "El servidor envió Retry-After: {{value}}.",
+      "cfCache": "Estado de caché de Cloudflare: {{status}}.",
+      "xRobots": "X-Robots-Tag: {{value}}: afecta a la indexabilidad sea cual sea el estado."
+    },
+    "robots": {
+      "title": "No solicitada: bloqueada por robots.txt",
+      "explanation": "El rastreador nunca envió una petición para esta URL: una regla de robots.txt para el user-agent configurado la bloquea. No hay código de estado porque nunca se pidió una respuesta; no es un fallo de conexión.",
+      "cause1": "Una regla Disallow del robots.txt del sitio coincide con esta ruta para el user-agent del rastreo",
+      "cause2": "La URL está enlazada desde páginas rastreadas, así que se registra y se cuenta, pero nunca se descarga",
+      "todo1": "Nada, si la exclusión es intencionada: Google tampoco la rastreará",
+      "todo2": "Comprueba si la página debería ser indexable: una URL bloqueada no transmite autoridad de enlaces y su contenido nunca se ve",
+      "todo3": "Usa Ayuda → Probador de robots.txt para ver qué regla coincide, o desactiva \"Respetar robots.txt\" en Ajustes → Rastreador para auditarla igualmente"
+    },
+    "network": {
+      "title": "Sin respuesta HTTP: error de red / conexión",
+      "explanationDetail": "La petición nunca recibió una respuesta HTTP. El rastreador registró: \"{{detail}}\".",
+      "explanation": "La petición nunca recibió una respuesta HTTP: la búsqueda DNS, la conexión TCP, el handshake TLS o la lectura de la respuesta fallaron antes de que llegara una línea de estado.",
+      "cause1": "El DNS no pudo resolver el nombre de host (errata, dominio inactivo o un nombre que solo se resuelve dentro de una red privada)",
+      "cause2": "Conexión TCP rechazada o agotada (host caído, firewall, puerto incorrecto)",
+      "cause3": "Falló el handshake TLS (certificado caducado/no válido, protocolo incompatible)",
+      "cause4": "Conexión restablecida o tiempo de lectura agotado a mitad de la respuesta",
+      "cause5": "El rastreador canceló la petición porque superó el Tiempo de espera de respuesta (Ajustes → Rastreador) o el Tiempo de respuesta máximo (Ajustes → Avanzado)",
+      "todo1": "Comprueba que el nombre de host se resuelve y que el sitio es accesible desde un navegador normal en este equipo",
+      "todo2": "Si es accesible pero lento, aumenta el Tiempo de espera de respuesta (Ajustes → Rastreador)",
+      "todo3": "Si solo falla bajo carga, reduce Concurrencia máxima / URL/s máximas (Ajustes → Velocidad): agotar la tabla de conexiones del origen parece un error de red para el cliente",
+      "todo4": "Reintenta las URL afectadas después del rastreo (los restablecimientos transitorios se resuelven al reintentar)"
+    },
+    "informational": {
+      "title": "{{code}} — Informativo",
+      "fallback": "Informativo",
+      "explanation": "Una respuesta 1xx ({{text}}). Son respuestas provisionales; el rastreador las trata como transitorias y espera el estado final."
+    },
+    "success": {
+      "fallback": "Correcto",
+      "explanation": "La petición se completó correctamente. No hace falta diagnóstico: esta sección solo amplía los códigos de error y de redirección."
+    },
+    "redirect": {
+      "fallback": "Redirección",
+      "explanation301": "Redirección permanente. Los buscadores transfieren las señales de posicionamiento al destino y actualizan su índice con la nueva URL.",
+      "explanation302": "Redirección temporal. Los buscadores mantienen indexada la URL original. Usar un 302 a largo plazo es un error SEO habitual: normalmente debería ser un 301.",
+      "explanation308": "Redirección permanente (como un 301, pero se conserva el método de la petición).",
+      "explanation304": "No modificado: la copia en caché sigue vigente. El rastreador normalmente pide sin cabeceras condicionales, así que esto es inusual.",
+      "explanationOther": "Una redirección {{code}} ({{text}}).",
+      "location": "La cabecera Location apunta a: {{location}}",
+      "noLocation": "No se capturó ninguna cabecera Location: inusual en una redirección.",
+      "todoPermanent": "Si esta redirección es permanente, cámbiala a 301/308 para que se consoliden las señales de posicionamiento",
+      "todoChain": "Mira la pestaña Códigos de respuesta para ver la cadena de redirecciones completa y su destino final"
+    },
+    "clientError": {
+      "fallback": "Error del cliente",
+      "explanation": "Un código 4xx significa que el servidor rechazó la petición como error del cliente (petición incorrecta, no permitida, no encontrada, etc.). En un rastreo, un 4xx persistente en páginas enlazadas suele indicar enlaces rotos; un 4xx esporádico puede ser protección antibots.",
+      "cause1": "Enlace roto o malformado",
+      "cause2": "Protección antibots / regla de WAF",
+      "cause3": "Método o contenido que el servidor rechaza",
+      "todo1": "Mira la pestaña Enlaces entrantes para ver qué enlaza a esta URL",
+      "todo2": "Si parece un bloqueo, prueba un User-Agent de navegador y una velocidad menor (Ajustes → Peticiones / Velocidad)"
+    },
+    "serverError": {
+      "fallback": "Error del servidor",
+      "explanation": "Un código 5xx significa que el servidor no pudo completar una petición que aceptó como válida. Bajo la carga del rastreo, a menudo es el rastreo desbordando el origen más que un error real de la página.",
+      "cause1": "Error o fallo en el servidor",
+      "cause2": "Origen sobrecargado, posiblemente por el propio rastreo",
+      "cause3": "Fallo del upstream/proxy",
+      "todo1": "Reduce Concurrencia máxima / URL/s máximas y añade un Retardo por worker (Ajustes → Velocidad) si los 5xx aparecen en ráfagas",
+      "todo2": "Sube los Intentos de reintento (Ajustes → Velocidad) y vuelve a rastrear las URL afectadas"
+    }
   },
   "outline": {
     "emptyPrefix": "Esta página no tiene encabezados detectados (ningún elemento",

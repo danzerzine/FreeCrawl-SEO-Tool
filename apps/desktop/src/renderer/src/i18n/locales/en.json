@@ -4,7 +4,9 @@
     "urls": "URLs",
     "percentOfTotal": "% of Total",
     "siteSoft404": "Missing pages return {{status}} (soft 404)",
-    "siteSoft404Hint": "A request for a page that does not exist was answered {{status}} instead of 404, so broken links on this site look like working pages to search engines."
+    "siteSoft404Hint": "A request for a page that does not exist was answered {{status}} instead of 404, so broken links on this site look like working pages to search engines.",
+    "siteBotBlocked": "Bot protection blocked part of the crawl",
+    "siteBotBlockedHint": "The site's bot protection answered with a challenge instead of these pages. They were not crawled and are left out of the broken-link and sitemap checks. Lower the crawl speed or allowlist the crawler's user agent, then re-crawl them."
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",
@@ -394,7 +396,54 @@
     "orphanMetricaVisits_one": "{{formatted}} Metrica visit (landing)",
     "orphanMetricaVisits_other": "{{formatted}} Metrica visits (landing)",
     "orphanMetricaPageviews_one": "{{formatted}} Metrica pageview (hits)",
-    "orphanMetricaPageviews_other": "{{formatted}} Metrica pageviews (hits)"
+    "orphanMetricaPageviews_other": "{{formatted}} Metrica pageviews (hits)",
+    "noResponse": "No response",
+    "bucketOrphan": "0 (orphan)",
+    "badge": {
+      "ok": "OK",
+      "non": "NON",
+      "warn": "WARN",
+      "bad": "BAD",
+      "err": "ERR",
+      "slow": "SLOW",
+      "net": "NET"
+    },
+    "domainHealth": "{{ok}}/{{total}} OK · {{rate}}% errors",
+    "avgMs": "{{ms}} ms avg",
+    "distinctIds_one": "{{count}} distinct ID",
+    "distinctIds_other": "{{count}} distinct IDs",
+    "pageCount_one": "{{formatted}} page",
+    "pageCount_other": "{{formatted}} pages",
+    "imageCount_one": "{{formatted}} image",
+    "imageCount_other": "{{formatted}} images",
+    "hits_one": "{{formatted}} hit",
+    "hits_other": "{{formatted}} hits",
+    "avgWords": "{{formatted}} avg",
+    "lastmod": "lastmod {{date}}",
+    "fromSitemap": "from {{sitemap}}",
+    "position": {
+      "navigation": "Navigation",
+      "header": "Header",
+      "content": "Content",
+      "sidebar": "Sidebar",
+      "footer": "Footer",
+      "aside": "Aside"
+    },
+    "indexability": {
+      "indexable": "Indexable",
+      "noindex": "Non-indexable — noindex",
+      "canonical": "Non-indexable — canonicalised",
+      "robotsBlocked": "Non-indexable — blocked by robots.txt",
+      "redirect": "Non-indexable — redirect",
+      "clientError": "Non-indexable — 4xx",
+      "serverError": "Non-indexable — 5xx",
+      "botBlocked": "Unknown — blocked by bot protection"
+    },
+    "kind": {
+      "image": "Image",
+      "font": "Font",
+      "other": "Other"
+    }
   },
   "sitemap": {
     "title": "Sitemap Validator",
@@ -1049,7 +1098,267 @@
   "diag": {
     "fromHeaders": "From the response headers",
     "likelyCauses": "Likely causes",
-    "whatToDo": "What to do"
+    "whatToDo": "What to do",
+    "cloudflareStyle": "Cloudflare-style edge code",
+    "code": {
+      "520": {
+        "name": "Web Server Returned an Unknown Error",
+        "explanation": "Cloudflare connected to the origin server but got back an empty, malformed, or unexpected response (e.g. the connection was reset mid-response, the origin returned headers that are too large, or the origin process crashed). It is a catch-all 'something went wrong at the origin' code.",
+        "cause1": "Origin server crashed, restarted, or ran out of workers/memory while serving the request",
+        "cause2": "Origin closed the TCP connection before sending a complete response (often an app-level timeout or OOM kill)",
+        "cause3": "The crawl's request rate overwhelmed the origin's process pool — 520s that appear in bursts under load almost always mean this",
+        "cause4": "Origin returned response headers larger than Cloudflare allows (rare; usually a misconfigured app)",
+        "todo1": "If 520s appear in bursts across many URLs, lower Max Concurrency / Max URL/s and add a Per-Worker Delay (Settings → Speed) — the origin is being overloaded by the crawl",
+        "todo2": "Re-crawl the affected URLs after the crawl finishes (transient 520s often clear on retry — raise Retry Attempts in Settings → Speed)",
+        "todo3": "If only specific URLs 520 consistently, those pages have a server-side bug — flag them to the site owner"
+      },
+      "521": {
+        "name": "Web Server Is Down",
+        "explanation": "Cloudflare could not open a TCP connection to the origin server — the origin actively refused the connection or is not listening on the expected port.",
+        "cause1": "Origin web server (nginx/Apache/Node/etc.) is stopped or has crashed",
+        "cause2": "Origin's firewall is blocking Cloudflare's IP ranges (a misconfiguration — the origin should allow Cloudflare)",
+        "cause3": "Origin server is overloaded to the point of not accepting new connections",
+        "todo1": "This is an origin-availability problem, not something the crawler can work around — the site is effectively down for these URLs",
+        "todo2": "Re-crawl later; if it persists, the site is broken"
+      },
+      "522": {
+        "name": "Connection Timed Out",
+        "explanation": "Cloudflare started a TCP handshake with the origin but it never completed within the timeout — the origin accepted the SYN but never replied, or a network device between them dropped the packets.",
+        "cause1": "Origin is severely overloaded (TCP backlog full)",
+        "cause2": "Origin's firewall is silently dropping (not rejecting) Cloudflare's packets",
+        "cause3": "Network/routing issue between Cloudflare and the origin",
+        "cause4": "Under crawl load: the origin's connection table is exhausted by the crawl's parallel requests",
+        "todo1": "Lower Max Concurrency (Settings → Speed) and re-crawl — connection-table exhaustion is the usual cause when this shows up mid-crawl",
+        "todo2": "Retry the affected URLs after the crawl"
+      },
+      "523": {
+        "name": "Origin Is Unreachable",
+        "explanation": "Cloudflare could not route to the origin server at all — typically a DNS problem in Cloudflare's origin record, or the origin's network is down.",
+        "cause1": "The site's DNS record in Cloudflare points to a wrong / dead IP",
+        "cause2": "Origin's hosting provider has a network outage",
+        "cause3": "BGP / routing failure between Cloudflare and the origin",
+        "todo1": "Nothing the crawler can do — this is an origin DNS/network misconfiguration"
+      },
+      "524": {
+        "name": "A Timeout Occurred",
+        "explanation": "Cloudflare made a TCP connection to the origin successfully, but the origin did not send a complete HTTP response within Cloudflare's timeout (100 s by default). The origin is alive but too slow on this request.",
+        "cause1": "A slow database query, external API call, or heavy computation on the page",
+        "cause2": "Origin is overloaded — requests are queuing behind a saturated worker pool",
+        "cause3": "Under crawl load: the crawl filled the origin's request queue and this URL waited too long behind it",
+        "todo1": "Lower Max Concurrency / Max URL/s and add a Per-Worker Delay (Settings → Speed) so the origin isn't saturated",
+        "todo2": "Increase Response Timeout (Settings → Crawler) if you want to give genuinely slow pages more time",
+        "todo3": "Retry affected URLs after the crawl"
+      },
+      "525": {
+        "name": "SSL Handshake Failed",
+        "explanation": "The TLS handshake between Cloudflare and the origin server failed. This is the Cloudflare↔origin leg, not the browser↔Cloudflare leg you see in the address bar — so the site can look fine to a normal visitor and still 525.",
+        "cause1": "Origin's TLS certificate is expired, self-signed, or for the wrong hostname (with Cloudflare in 'Full (strict)' mode)",
+        "cause2": "Origin only supports old TLS versions / cipher suites that Cloudflare rejects",
+        "cause3": "Origin server is overloaded and dropping TLS handshakes",
+        "todo1": "Origin TLS misconfiguration — not something the crawler can change. Check the host's certificate (the TLS Cert rows in URL Details, for HTTPS)"
+      },
+      "526": {
+        "name": "Invalid SSL Certificate",
+        "explanation": "Cloudflare (in 'Full (strict)' SSL mode) could not validate the origin server's TLS certificate.",
+        "cause1": "Origin certificate is expired, self-signed, or issued for a different hostname",
+        "cause2": "Certificate chain on the origin is incomplete (missing intermediates)",
+        "todo1": "Origin certificate problem — nothing the crawler can do"
+      },
+      "527": {
+        "name": "Railgun Error (Cloudflare, deprecated)",
+        "explanation": "A connection error in Cloudflare Railgun (a now-retired origin-acceleration product). Effectively obsolete; if you see it the site is on a very old Cloudflare setup.",
+        "cause1": "Legacy Cloudflare Railgun connection failure",
+        "todo1": "Nothing actionable from the crawler side"
+      },
+      "530": {
+        "name": "Cloudflare Error (usually a firewall / WAF block — error 1020)",
+        "explanation": "A 530 is Cloudflare's way of saying \"an error happened, see the error 1xxx code in the body\". In a crawl context it is almost always 1020 \"Access Denied\" — a Cloudflare Firewall / WAF / Bot-Fight rule blocked the request. Less commonly it pairs with 1016 (origin DNS error) or other 1xxx codes.",
+        "cause1": "Cloudflare WAF / Firewall Rules / Bot Fight Mode flagged the crawler — by IP, by User-Agent, by request rate, or by missing browser fingerprints",
+        "cause2": "The site has a \"managed challenge\" the crawler can't solve",
+        "cause3": "(Rarely) an origin DNS error (1016) rather than a block",
+        "todo1": "Set a browser-like User-Agent (Settings → Requests) — the default crawler UA is the #1 trigger",
+        "todo2": "Lower Max Concurrency / Max URL/s and add a Per-Worker Delay (Settings → Speed) — rapid requests from one IP trip rate-based rules",
+        "todo3": "Respect robots.txt and any declared Crawl-delay (Settings → Crawler)",
+        "todo4": "If the site owner is you, allowlist the crawler in Cloudflare; otherwise this site is intentionally blocking automated access"
+      },
+      "401": {
+        "name": "Unauthorized",
+        "explanation": "The resource requires authentication and none (or invalid) credentials were sent.",
+        "cause1": "Page is behind HTTP Basic/Bearer auth",
+        "cause2": "A session cookie is required and none was sent",
+        "todo1": "Configure credentials in Settings → Authentication if you have them",
+        "todo2": "Use Settings → Cookies → \"Accept all\" if the site gates content behind a session"
+      },
+      "403": {
+        "name": "Forbidden",
+        "explanation": "The server understood the request but refuses to serve it. In a crawl this is most often a bot block or a WAF rule rather than a genuine permission issue.",
+        "cause1": "WAF / bot-protection rule triggered by the crawler User-Agent, IP, or request rate",
+        "cause2": "Directory or file genuinely not accessible to anonymous users",
+        "cause3": "Hotlink / referer protection",
+        "todo1": "Try a browser-like User-Agent (Settings → Requests)",
+        "todo2": "Lower the crawl rate (Settings → Speed)",
+        "todo3": "If it's site-wide, the site is actively blocking automated access"
+      },
+      "404": {
+        "name": "Not Found",
+        "explanation": "The server has no resource at this URL.",
+        "cause1": "Broken internal/external link",
+        "cause2": "Page was removed without a redirect",
+        "cause3": "Typo in a link href",
+        "todo1": "Fix or remove the linking pages — see the Inlinks tab for who links here"
+      },
+      "408": {
+        "name": "Request Timeout",
+        "explanation": "The server timed out waiting for the request to complete.",
+        "cause1": "Slow network between crawler and server",
+        "cause2": "Server-side connection timeout set very low",
+        "todo1": "Usually transient — raise Retry Attempts (Settings → Speed)"
+      },
+      "410": {
+        "name": "Gone",
+        "explanation": "The resource was intentionally and permanently removed — stronger than a 404.",
+        "cause1": "Page deliberately retired; the server is telling crawlers to drop it",
+        "todo1": "Remove links to this URL — Google will de-index it faster than a 404"
+      },
+      "429": {
+        "name": "Too Many Requests (rate limited)",
+        "explanation": "The server is rate-limiting the crawler — too many requests in too short a window from this IP/User-Agent.",
+        "cause1": "Crawl rate exceeds the server's per-client limit",
+        "cause2": "Shared hosting with aggressive throttling",
+        "todo1": "Lower Max Concurrency / Max URL/s and add a Per-Worker Delay (Settings → Speed)",
+        "todo2": "Honour the Retry-After header — see \"From the response headers\" below if the server sent one",
+        "todo3": "Turn on \"Respect robots.txt Crawl-delay\" (Settings → Crawler)"
+      },
+      "451": {
+        "name": "Unavailable for Legal Reasons",
+        "explanation": "The resource is blocked for legal reasons (court order, GDPR geoblock, DMCA, etc.).",
+        "cause1": "Geo-restricted content",
+        "cause2": "Legally-mandated takedown",
+        "todo1": "Nothing — the block is intentional"
+      },
+      "500": {
+        "name": "Internal Server Error",
+        "explanation": "An unhandled error occurred in the server-side application while building the page.",
+        "cause1": "Bug in the page template / backend code",
+        "cause2": "Database unavailable",
+        "cause3": "Misconfiguration on the server",
+        "todo1": "Retry after the crawl (transient 500s clear; persistent ones are a real bug)",
+        "todo2": "If 500s appear under load, the crawl may be overwhelming a database — slow the crawl (Settings → Speed)"
+      },
+      "502": {
+        "name": "Bad Gateway",
+        "explanation": "A reverse proxy / load balancer in front of the app got an invalid response from the upstream application server.",
+        "cause1": "Upstream app server crashed or returned garbage",
+        "cause2": "Upstream is overloaded — common under crawl load",
+        "cause3": "Proxy↔upstream timeout",
+        "todo1": "Lower the crawl rate (Settings → Speed) if 502s appear in bursts",
+        "todo2": "Retry affected URLs after the crawl"
+      },
+      "503": {
+        "name": "Service Unavailable",
+        "explanation": "The server is temporarily unable to handle the request — usually overload or maintenance. Often comes with a Retry-After header.",
+        "cause1": "Server overloaded — the crawl itself can cause this",
+        "cause2": "Scheduled maintenance window",
+        "cause3": "Auto-scaling lag (new instances spinning up)",
+        "todo1": "Lower Max Concurrency / Max URL/s and add a Per-Worker Delay (Settings → Speed)",
+        "todo2": "Honour Retry-After (see \"From the response headers\" below)",
+        "todo3": "Retry affected URLs after the crawl"
+      },
+      "504": {
+        "name": "Gateway Timeout",
+        "explanation": "A reverse proxy / load balancer didn't get a response from the upstream app server in time.",
+        "cause1": "Slow database query / external API call on the page",
+        "cause2": "Upstream overloaded — requests queueing",
+        "cause3": "Under crawl load: the crawl saturated the upstream worker pool",
+        "todo1": "Lower the crawl rate (Settings → Speed)",
+        "todo2": "Increase Response Timeout (Settings → Crawler) for genuinely slow pages",
+        "todo3": "Retry affected URLs after the crawl"
+      },
+      "508": {
+        "name": "Loop Detected",
+        "explanation": "The server detected an infinite loop while processing the request (often WebDAV or a redirect loop server-side).",
+        "cause1": "Server-side redirect loop",
+        "cause2": "Recursive include / symlink loop",
+        "todo1": "Server bug — nothing the crawler can do"
+      },
+      "509": {
+        "name": "Bandwidth Limit Exceeded",
+        "explanation": "A non-standard code (cPanel/Apache) meaning the hosting account hit its monthly bandwidth cap.",
+        "cause1": "Shared hosting bandwidth quota exhausted",
+        "todo1": "Nothing the crawler can do — the host is throttling the whole account"
+      }
+    },
+    "signal": {
+      "cloudflare": "Behind Cloudflare — cf-ray {{ray}}. The status code describes the Cloudflare↔origin link, not what a browser sees.",
+      "fronted": "Fronted by {{front}}.",
+      "origin": "Origin server: {{server}}.",
+      "retryAfterSeconds": "Server sent Retry-After: {{seconds}} s — it is explicitly asking clients to back off for that long. A polite crawl should not re-request this URL sooner.",
+      "retryAfter": "Server sent Retry-After: {{value}}.",
+      "cfCache": "Cloudflare cache status: {{status}}.",
+      "xRobots": "X-Robots-Tag: {{value}} — affects indexability regardless of the status."
+    },
+    "robots": {
+      "title": "Not Requested — Disallowed by robots.txt",
+      "explanation": "The crawler never sent a request for this URL: a robots.txt rule for the configured user-agent disallows it. There is no status code because no response was ever asked for — this is not a connection failure.",
+      "cause1": "A Disallow rule in the site robots.txt matches this path for the crawl user-agent",
+      "cause2": "The URL is linked from crawled pages, so it is recorded and counted, but never fetched",
+      "todo1": "Nothing, if the exclusion is intended — Google will not crawl it either",
+      "todo2": "Check whether the page should be indexable: a disallowed URL cannot pass on link equity and its content is never seen",
+      "todo3": "Use Help → Robots.txt Tester to see which rule matches, or turn off \"Respect robots.txt\" in Settings → Crawler to audit it anyway"
+    },
+    "network": {
+      "title": "No HTTP Response — Network / Connection Error",
+      "explanationDetail": "The request never received an HTTP response. The crawler recorded: \"{{detail}}\".",
+      "explanation": "The request never received an HTTP response — DNS lookup, TCP connection, TLS handshake, or the response read failed before any status line arrived.",
+      "cause1": "DNS could not resolve the hostname (typo, dead domain, or a name only resolvable from inside a private network)",
+      "cause2": "TCP connection refused or timed out (host down, firewall, wrong port)",
+      "cause3": "TLS handshake failed (expired/invalid certificate, protocol mismatch)",
+      "cause4": "Connection reset or read timed out mid-response",
+      "cause5": "Request aborted by the crawler because it exceeded Response Timeout (Settings → Crawler) or Max response time (Settings → Advanced)",
+      "todo1": "Check the hostname resolves and the site is reachable from a normal browser on this machine",
+      "todo2": "If it is reachable but slow, raise Response Timeout (Settings → Crawler)",
+      "todo3": "If it only fails under load, lower Max Concurrency / Max URL/s (Settings → Speed) — connection-table exhaustion on the origin looks like a network error to the client",
+      "todo4": "Retry the affected URLs after the crawl (transient resets clear on retry)"
+    },
+    "informational": {
+      "title": "{{code}} — Informational",
+      "fallback": "Informational",
+      "explanation": "A 1xx response ({{text}}). These are interim responses; the crawler treats them as transient and waits for the final status."
+    },
+    "success": {
+      "fallback": "Success",
+      "explanation": "The request succeeded. No diagnosis needed — this section only has extra detail for error and redirect codes."
+    },
+    "redirect": {
+      "fallback": "Redirect",
+      "explanation301": "Permanent redirect. Search engines transfer ranking signals to the target and update their index to the new URL.",
+      "explanation302": "Temporary redirect. Search engines keep the original URL indexed. A 302 used long-term is a common SEO mistake — it should usually be a 301.",
+      "explanation308": "Permanent redirect (like 301 but the request method is preserved).",
+      "explanation304": "Not Modified — the cached copy is still fresh. The crawler normally requests without conditional headers, so this is unusual.",
+      "explanationOther": "A {{code}} redirect ({{text}}).",
+      "location": "Location header points to: {{location}}",
+      "noLocation": "No Location header was captured — unusual for a redirect.",
+      "todoPermanent": "If this redirect is permanent, change it to a 301/308 so ranking signals consolidate",
+      "todoChain": "Check the Response Codes tab to see the full redirect chain and its final target"
+    },
+    "clientError": {
+      "fallback": "Client Error",
+      "explanation": "A 4xx code means the server rejected the request as the client's fault (bad request, not allowed, not found, etc.). In a crawl, persistent 4xx on linked pages usually means broken links; sporadic 4xx can be bot-protection.",
+      "cause1": "Broken or malformed link",
+      "cause2": "Bot-protection / WAF rule",
+      "cause3": "Method or content the server refuses",
+      "todo1": "Check the Inlinks tab to see what links to this URL",
+      "todo2": "If it looks like a block, try a browser-like User-Agent and a slower rate (Settings → Requests / Speed)"
+    },
+    "serverError": {
+      "fallback": "Server Error",
+      "explanation": "A 5xx code means the server failed to fulfil a request it accepted as valid. Under crawl load these are frequently the crawl overwhelming the origin rather than a genuine page bug.",
+      "cause1": "Server-side error or crash",
+      "cause2": "Origin overloaded — possibly by the crawl itself",
+      "cause3": "Upstream/proxy failure",
+      "todo1": "Lower Max Concurrency / Max URL/s and add a Per-Worker Delay (Settings → Speed) if 5xx appear in bursts",
+      "todo2": "Raise Retry Attempts (Settings → Speed) and re-crawl affected URLs"
+    }
   },
   "outline": {
     "emptyPrefix": "This page has no detected headings (no",

@@ -58,6 +58,28 @@ const FUNCTION_WORDS: Readonly<Record<string, readonly string[]>> = {
   uk: ['і', 'й', 'що', 'це', 'як', 'до', 'із', 'від', 'він', 'вона', 'але', 'його', 'її', 'був', 'були', 'тільки', 'або', 'ми', 'ви', 'вони', 'вже', 'є', 'якщо', 'та', 'також', 'дуже'],
 };
 
+/**
+ * Letters few other languages use, both cases. Text this full of the
+ * declared language's own letters is written (at least partly) in it even
+ * where its words are labels with no function words between them — found
+ * live on a Turkish film page ("Fragmanı İzle · Yönetmen · Puanlanmadı ·
+ * Orijinal Dili İngilizce") whose only sentences were an English synopsis.
+ */
+const DISTINCTIVE_LETTERS: Readonly<Record<string, string>> = {
+  tr: 'ğĞıİşŞ',
+  az: 'əƏğĞıİşŞ',
+  es: 'ñÑ¿¡',
+  pt: 'ãÃõÕ',
+  ro: 'ăĂîÎșȘțȚşŞţŢ',
+  pl: 'ąĄęĘłŁńŃśŚźŹżŻ',
+  hu: 'őŐűŰ',
+  de: 'ßäÄöÖüÜ',
+  sv: 'åÅäÄöÖ',
+  fi: 'äÄöÖ',
+};
+/** The declared language's own letters at this share of all letters = it is present. */
+const DECLARED_LETTERS_PRESENT_RATIO = 0.01;
+
 /** word → the single language it is distinctive for (shared words omitted). */
 const DISTINCTIVE: ReadonlyMap<string, string> = (() => {
   const owners = new Map<string, Set<string>>();
@@ -256,6 +278,14 @@ export function assessContentLanguage(text: string, declaredLang: string | null)
     return { detected, mismatch: false };
   }
   const declaredRatio = ratios.get(declared) ?? 0;
-  const mismatch = declaredRatio < DECLARED_ABSENT_RATIO;
-  return { detected, mismatch };
+  if (declaredRatio >= DECLARED_ABSENT_RATIO) return { detected, mismatch: false };
+  // Few of its function words — but labels have none. If the declared
+  // language's own letters are all over the text, it is there.
+  const own = DISTINCTIVE_LETTERS[declared];
+  if (own) {
+    let n = 0;
+    for (const ch of sample) if (own.includes(ch)) n++;
+    if (n / letters >= DECLARED_LETTERS_PRESENT_RATIO) return { detected, mismatch: false };
+  }
+  return { detected, mismatch: true };
 }
