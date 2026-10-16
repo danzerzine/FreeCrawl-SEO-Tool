@@ -145,6 +145,8 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Very Slow (>3s)', category: 'issues:response-very-slow' },
     { label: 'TTFB Slow (>600ms)', category: 'issues:ttfb-slow' },
     { label: 'TTFB Very Slow (>1.8s)', category: 'issues:ttfb-very-slow' },
+    { label: 'Soft 404', category: 'issues:soft-404' },
+    { label: 'Linked URL Blocked by robots.txt', category: 'issues:blocked-by-robots' },
   ],
   security: [
     { label: 'HTTPS URLs', category: 'security:https' },
@@ -181,6 +183,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Noindex', category: 'indexability:noindex' },
     { label: 'Canonicalised', category: 'indexability:canonicalised' },
     { label: 'Blocked by Robots', category: 'indexability:blocked-robots' },
+    { label: 'Noindex Added by JavaScript', category: 'issues:noindex-js-injected' },
   ],
 
   // ─── URL tab ────────────────────────────────────────────────────────────
@@ -212,6 +215,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Pixel Width Truncated (>600px)', category: 'issues:title-pixel-width-too-long' },
     { label: 'Placeholder Title', category: 'issues:title-placeholder' },
     { label: 'Single-Word Title', category: 'issues:title-single-word' },
+    { label: 'Title Changed by JavaScript', category: 'issues:title-changed-by-js' },
   ],
 
   // ─── Meta Description tab ───────────────────────────────────────────────
@@ -254,6 +258,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Large (>1MB)', category: 'issues:page-large' },
     { label: 'Critical Size (>3MB)', category: 'issues:page-too-large-critical' },
     { label: 'Charset Missing', category: 'issues:charset-missing' },
+    { label: 'Charset Mismatch (HTTP vs HTML)', category: 'issues:charset-mismatch' },
   ],
 
   // ─── Canonicals tab ─────────────────────────────────────────────────────
@@ -272,12 +277,14 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Canonical → Noindex', category: 'issues:canonical-to-noindex' },
     { label: 'Canonical Not Absolute', category: 'issues:canonical-not-absolute' },
     { label: 'Canonical Chain (Multi-hop)', category: 'issues:canonical-chain-multi-hop' },
+    { label: 'Canonical Outside <head>', category: 'issues:canonical-outside-head' },
   ],
 
   // ─── Redirects tab ──────────────────────────────────────────────────────
   redirects: [
     { label: 'All', category: 'tab:redirects' },
     { label: 'Redirect Loop', category: 'issues:redirect-loop' },
+    { label: 'Redirect Chain (2+ hops)', category: 'issues:redirect-chain' },
     { label: 'Long Chain (>3 hops)', category: 'issues:redirect-chain-long' },
     { label: 'Self-Redirect', category: 'issues:redirect-self' },
   ],
@@ -822,7 +829,8 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
     cat === 'issues:gunning-fog-very-high' ||
     cat === 'issues:page-large' ||
     cat === 'issues:page-too-large-critical' ||
-    cat === 'issues:charset-missing'
+    cat === 'issues:charset-missing' ||
+    cat === 'issues:charset-mismatch'
   ) {
     return 'content';
   }
@@ -873,10 +881,13 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
     cat === 'issues:response-slow' ||
     cat === 'issues:response-very-slow' ||
     cat === 'issues:ttfb-slow' ||
-    cat === 'issues:ttfb-very-slow'
+    cat === 'issues:ttfb-very-slow' ||
+    cat === 'issues:soft-404' ||
+    cat === 'issues:blocked-by-robots'
   ) {
     return 'response-codes';
   }
+  if (cat === 'issues:noindex-js-injected') return 'directives';
   // Page-level tag checks (no GA4 snippet, legacy UA, …) filter the URL
   // table; the 'analytics' tab is the GA4 traffic grid, which ignores the
   // category entirely and would show unrelated data (or a connect screen).

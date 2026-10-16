@@ -17,6 +17,7 @@ import {
   type UrlRewriteOptions,
 } from './url-utils.js';
 import { computeContentFingerprint } from './simhash.js';
+import { assessContentLanguage, primaryLanguage } from './content-language.js';
 import { runExtractionRules } from './extraction.js';
 
 const GENERIC_ANCHORS: ReadonlySet<string> = new Set(GENERIC_ANCHOR_TEXTS);
@@ -217,6 +218,8 @@ export interface ParsedPage {
    * these so any navigation that depends on them is invisible to crawl.
    * Excludes `href="#"` without `onclick` (legitimate scroll anchors)
    * and `href="#section-id"` (in-page jumps — crawlable as the same URL).
+   * Also counts non-`<a>` elements whose `onclick` navigates
+   * (`location.href = …`, `location.assign(…)`, `window.open(…)`).
    */
   jsOnlyLinksCount: number;
   /**
@@ -373,7 +376,37 @@ export interface ParsedPage {
    */
   analyticsTrackers: AnalyticsTracker[];
   links: DiscoveredLink[];
+  /**
+   * Primary language the main-content prose is written in (`tr`, `en`, …),
+   * null when it can't be told with confidence. See `content-language.ts`.
+   */
+  contentLang: string | null;
+  /** `html[lang]` names one language while the prose is clearly another. */
+  langMismatch: boolean;
+  /** MinHash signature of the main content (near-duplicate similarity); null when too short. */
+  minhash: Uint8Array | null;
+  /** `<link rel="canonical">` elements inside `<body>` (not honoured — see `canonical`). */
+  canonicalOutsideHead: number;
+  /** "Not found" wording in the title/H1 of a page with almost no content. */
+  soft404Signal: boolean;
+  /** An inline script assigns `document.title`. */
+  jsTitleWrite: boolean;
+  /** The literal title the script assigns, when readable. */
+  jsTitle: string | null;
+  /** An inline script writes a robots meta carrying noindex. */
+  jsNoindexWrite: boolean;
+  /** On-page images (`<img>` + its srcset / `<picture>` variants), deduped by URL. */
   images: DiscoveredImage[];
+  /** `<img>` elements with a usable src — the page's image slots. */
+  imageCount: number;
+  /** `<img>` slots with no alt attribute that aren't marked decorative. */
+  imagesMissingAlt: number;
+  /**
+   * `og:image` / `twitter:image` targets not already used as an `<img>`.
+   * Probed for size (the 5 MB share-card limit) but never counted as
+   * on-page images.
+   */
+  socialImages: DiscoveredImage[];
   /**
    * Non-anchor subresources (`<script src>`, `<link rel="stylesheet">`) the
    * crawler can fetch so they surface in the Internal tab. Images are carried
@@ -462,6 +495,148 @@ const JS_SCRIPT_TYPES = new Set([
   'application/ecmascript',
 ]);
 
+/** An `onclick` body that navigates somewhere rather than acting in place. */
+const JS_NAVIGATION_RE =
+  /(?:^|[^\w$.])(?:window\.|document\.|top\.|self\.)?location(?:\.href)?\s*=(?!=)|location\.(?:assign|replace)\s*\(|window\.open\s*\(/;
+
+/** `document.title = …` — an assignment, never a read or a comparison. */
+const JS_TITLE_ASSIGN_RE =
+  /(?:^|[^\w$.])document\.title\s*=(?!=)\s*(?:(["'`])((?:(?!\1)[^\\\n$]|\\.)*)\1)?/;
+/** Writing the `<title>` element's text directly. */
+const JS_TITLE_ELEMENT_RE =
+  /(?:querySelector\(\s*["']title["']\s*\)|getElementsByTagName\(\s*["']title["']\s*\)\s*\[\s*0\s*\])\s*\.\s*(?:textContent|innerText|innerHTML)\s*=(?!=)/;
+/** Markup or DOM writes a script could add a robots meta with. */
+const JS_META_WRITE_RE =
+  /createElement\s*\(\s*["']meta["']|setAttribute\s*\(\s*["']content["']|\.content\s*=(?!=)|innerHTML\s*[+]?=|insertAdjacentHTML|document\.write/;
+
+export interface InlineScriptHeadWrites {
+  /** An inline script assigns the document title. */
+  titleWrite: boolean;
+  /** The literal it assigns, when it's a plain string; null otherwise. */
+  title: string | null;
+  /** An inline script writes a robots / googlebot meta carrying noindex. */
+  noindexWrite: boolean;
+}
+
+/**
+ * Static read of what inline scripts do to `<head>` — the text-mode
+ * stand-in for rendering. A crawler that doesn't run JavaScript indexes
+ * the served title and robots directives, while Google renders the page
+ * and sees whatever the scripts leave behind; a mismatch between the two
+ * is the finding. Only executable inline scripts are read (JSON-LD and
+ * other data blocks are not code), and only unambiguous writes count:
+ * `document.title = …`, or a script that both mentions `noindex` next to
+ * `robots`/`googlebot` and writes a meta tag.
+ */
+function findInlineScriptHeadWrites($: cheerio.CheerioAPI): InlineScriptHeadWrites {
+  const out: InlineScriptHeadWrites = { titleWrite: false, title: null, noindexWrite: false };
+  $('script:not([src])').each((_, el) => {
+    const type = ($(el).attr('type') ?? '').trim().toLowerCase();
+    if (!JS_SCRIPT_TYPES.has(type)) return;
+    const code = $(el).text();
+    if (!code) return;
+    if (!out.titleWrite && /title/.test(code)) {
+      const m = JS_TITLE_ASSIGN_RE.exec(code);
+      if (m) {
+        out.titleWrite = true;
+        const literal = m[2];
+        out.title =
+          literal !== undefined
+            ? decodeEntities(literal.replace(/\\(.)/g, '$1')).trim() || null
+            : null;
+      } else if (JS_TITLE_ELEMENT_RE.test(code)) {
+        out.titleWrite = true;
+      }
+    }
+    if (
+      !out.noindexWrite &&
+      /noindex/i.test(code) &&
+      /\brobots\b|googlebot/i.test(code) &&
+      JS_META_WRITE_RE.test(code)
+    ) {
+      out.noindexWrite = true;
+    }
+    return undefined;
+  });
+  return out;
+}
+
+/**
+ * "Not found" wording in a page's title or H1, in the languages the app
+ * ships plus the larger European ones. A bare "404" only counts as an
+ * error code — at the start of the title or next to an error word — so a
+ * product called "Peugeot 404" stays a product.
+ */
+const NOT_FOUND_RES: readonly RegExp[] = [
+  /\bnot\s+(?:be\s+)?found\b|\bno\s+longer\s+(?:exists?|available)\b|\bdoes\s*n[o’']t\s+exist\b|\bno\s+results\b|\bnothing\s+found\b/i,
+  /^\s*(?:error\s*)?404\b|\b(?:error|hata(?:s[ıi])?|erreur|fehler|errore|erro)\s*:?\s*404\b|ошибка\s*:?\s*404\b|\b404\s*(?:error|hata|erreur|fehler|errore|erro|not\b|-\s*page)/i,
+  /bulunamad[ıi]|mevcut\s+de[ğg]il|art[ıi]k\s+yok|tap[ıi]lmad[ıi]|m[öo]vcud\s+deyil/i,
+  /\bno\s+(?:se\s+(?:ha\s+)?)?encontr(?:ad[oa]s?|[óo])\b|\bno\s+existe\b|\bsin\s+resultados\b/i,
+  /introuvable|\b(?:non|pas)\s+trouv[ée]e?s?\b|n['’]existe\s+(?:pas|plus)|aucun\s+r[ée]sultat/i,
+  /n[ãa]o\s+(?:foi\s+)?encontrad[oa]|n[ãa]o\s+existe|nenhum\s+resultado/i,
+  /\bnon\s+(?:[èe]\s+stat[oa]\s+)?trovat[oa]\b|\bnon\s+esiste\b|nessun\s+risultato/i,
+  /nicht\s+gefunden|existiert\s+nicht|keine\s+ergebnisse|niet\s+gevonden|bestaat\s+niet|nie\s+znaleziono|nie\s+istnieje/i,
+  /не\s+найден|не\s+существует|ничего\s+не\s+найдено|не\s+знайдено/i,
+  /未找到|找不到|页面不存在|頁面不存在|見つかりません|存在しません|찾을\s*수\s*없|존재하지\s*않|नहीं\s+मिल|मौजूद\s+नहीं/,
+];
+
+/** Main-content words a genuine "not found" page stays under. */
+const SOFT_404_MAX_MAIN_WORDS = 150;
+
+function looksNotFound(text: string | null): boolean {
+  if (!text) return false;
+  return NOT_FOUND_RES.some((re) => re.test(text));
+}
+
+/**
+ * WHATWG-canonical name for a charset label (`utf8` → `utf-8`,
+ * `iso-8859-9` → `windows-1254`, `latin1` → `windows-1252`), so two
+ * spellings of the same encoding never read as a mismatch. Labels the
+ * Encoding Standard doesn't know are returned lower-cased as-is.
+ */
+export function canonicalCharset(label: string | null | undefined): string | null {
+  const raw = (label ?? '').trim().replace(/^["']|["']$/g, '').toLowerCase();
+  if (!raw) return null;
+  try {
+    return new TextDecoder(raw).encoding;
+  } catch {
+    return raw;
+  }
+}
+
+/** Served-HTML `<title>` and robots noindex, without a full parse. */
+export interface ServedHeadSignals {
+  title: string | null;
+  noindex: boolean;
+}
+
+/**
+ * Read the title and the robots/googlebot noindex out of the HTML as the
+ * server sent it. Used in JavaScript-rendering mode, where the page is
+ * parsed from the rendered DOM, to tell what the scripts changed. A
+ * regex pass over `<head>` is enough for these two fields and keeps the
+ * second look at the document off the parser's critical path.
+ */
+export function readServedHeadSignals(html: string): ServedHeadSignals {
+  const headEnd = html.search(/<\/head\s*>/i);
+  const head = headEnd >= 0 ? html.slice(0, headEnd) : html.slice(0, 200_000);
+  const t = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(head);
+  const title = t?.[1] ? decodeEntities(t[1].replace(/\s+/g, ' ').trim()) || null : null;
+  let noindex = false;
+  for (const m of head.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = m[0];
+    const name = /\bname\s*=\s*["']?([^"'\s>]+)/i.exec(tag)?.[1]?.toLowerCase();
+    if (name !== 'robots' && name !== 'googlebot') continue;
+    const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+    const value = (content?.[1] ?? content?.[2] ?? content?.[3] ?? '').toLowerCase();
+    if (/\bnoindex\b|\bnone\b/.test(value)) {
+      noindex = true;
+      break;
+    }
+  }
+  return { title, noindex };
+}
+
 function findJsRedirect(
   $: cheerio.CheerioAPI,
   baseUrl: string,
@@ -499,6 +674,14 @@ function extractMainContentText(
   userSelector?: string,
 ): string {
   const collapse = (s: string): string => s.replace(/\s+/g, ' ').trim();
+  // Text of a region without its inline script / style payloads — a
+  // `<script>` sitting inside `<main>` is code, not content.
+  const prose = (region: ReturnType<typeof $>): string => {
+    if (region.find('script, style, noscript, template').length === 0) return collapse(region.text());
+    const copy = region.clone();
+    copy.find('script, style, noscript, template').remove();
+    return collapse(copy.text());
+  };
 
   // V2 Faz 14 — user-supplied content area selector takes precedence
   // over the heuristic. Lets duplicate fingerprinting target a specific
@@ -511,7 +694,7 @@ function extractMainContentText(
     try {
       const region = $(userSelector.trim()).first();
       if (region.length > 0) {
-        const t = collapse(region.text());
+        const t = prose(region);
         if (t.length > 0) return t;
       }
     } catch {
@@ -521,13 +704,13 @@ function extractMainContentText(
 
   const main = $('main, [role="main"]').first();
   if (main.length > 0) {
-    const t = collapse(main.text());
+    const t = prose(main);
     if (t.length > 0) return t;
   }
 
   const article = $('article').first();
   if (article.length > 0) {
-    const t = collapse(article.text());
+    const t = prose(article);
     if (t.length > 0) return t;
   }
 
@@ -536,7 +719,7 @@ function extractMainContentText(
   const body = $('body').clone();
   body
     .find(
-      'nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"], [role="complementary"]',
+      'nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"], [role="complementary"], script, style, noscript, template',
     )
     .remove();
   const stripped = collapse(body.text());
@@ -636,7 +819,15 @@ export function parseHtml(
     const text = decodeEntities(raw).slice(0, 200);
     headings.push({ level, text });
   });
-  const canonicalEls = $('link[rel="canonical"]');
+  // Only a canonical in `<head>` counts. Google ignores `rel=canonical`
+  // anywhere in `<body>` — honouring it here reported a page as properly
+  // canonicalised when the search engine sees no canonical at all. The
+  // body ones are counted for their own issue instead. (No explicit
+  // `<body>` element — tag omitted in the source — reads as head, which
+  // is where such a link sits in the HTML5 tree.)
+  const allCanonicalEls = $('link[rel="canonical"]');
+  const canonicalEls = allCanonicalEls.filter((_, el) => $(el).closest('body').length === 0);
+  const canonicalOutsideHead = allCanonicalEls.length - canonicalEls.length;
   const canonical = (canonicalEls.first().attr('href') ?? '').trim() || null;
   const canonicalCount = canonicalEls.length;
   // `canonical` above stays verbatim - the "Canonical Not Absolute" filter
@@ -1193,7 +1384,28 @@ export function parseHtml(
   $visibleBody.find('script, style, noscript').remove();
   const text = $visibleBody.text().replace(/\s+/g, ' ').trim();
   const wordCount = text.length > 0 ? text.split(' ').filter(Boolean).length : 0;
-  const readability = computeReadability(text, wordCount);
+
+  // Main-content prose (chrome stripped) — the duplicate fingerprint and
+  // the content-language check both judge a page on its own words, not
+  // on the menu it shares with every other page.
+  const mainText = extractMainContentText($, opts.contentAreaSelector);
+  const contentLanguage = assessContentLanguage(mainText, lang);
+  // Readability formula: the declared language when the prose agrees
+  // with it, otherwise whatever the prose actually is.
+  const declaredPrimary = primaryLanguage(lang);
+  const readabilityLang =
+    declaredPrimary && !contentLanguage.mismatch
+      ? declaredPrimary
+      : (contentLanguage.detected ?? assessContentLanguage(text, null).detected);
+  const readability = computeReadability(text, wordCount, readabilityLang);
+
+  // Soft 404: a 2xx page that says it isn't there. Needs the wording in
+  // the title or H1 AND almost no content of its own, so an article
+  // *about* 404 errors — long, on topic — never qualifies.
+  const mainWordCount = mainText ? mainText.split(' ').length : 0;
+  const soft404Signal =
+    (looksNotFound(title) || looksNotFound(h1)) && mainWordCount < SOFT_404_MAX_MAIN_WORDS;
+  const headWrites = findInlineScriptHeadWrites($);
 
   // Analytics / marketing trackers — fingerprinted by script src + inline
   // JS substrings + meta tags. Cheaper to scan once over `$` than per-tracker.
@@ -1203,9 +1415,7 @@ export function parseHtml(
   // Computed from the main-content region (boilerplate stripped) so two
   // pages that share a big nav/footer template but differ in body
   // content aren't falsely clustered as near-duplicates.
-  const { simhash, contentHash } = computeContentFingerprint(
-    extractMainContentText($, opts.contentAreaSelector),
-  );
+  const { simhash, contentHash, minhash } = computeContentFingerprint(mainText);
 
   // Custom Extraction — runs after all standard fields so the cheerio
   // tree is fully populated. Per-rule failures are isolated; the worst
@@ -1328,6 +1538,15 @@ export function parseHtml(
     if (href === '#' && onclick && onclick.trim() !== '') {
       jsOnlyLinksCount++;
     }
+  });
+  // Clickable non-link elements that navigate in script — `<span onclick=
+  // "location.href='/x'">`, `<button onclick="window.open(…)">`. There is
+  // no URL in the markup at all, so the target is reachable only by a
+  // visitor running JavaScript. Handlers that don't navigate (add to cart,
+  // toggle a menu) are left alone.
+  $('[onclick]').each((_, el) => {
+    if ((el as { name?: string }).name?.toLowerCase() === 'a') return;
+    if (JS_NAVIGATION_RE.test($(el).attr('onclick') ?? '')) jsOnlyLinksCount++;
   });
 
   // Hrefs that survive being an `<a href>` but not being a URL: doubled
@@ -1596,6 +1815,7 @@ export function parseHtml(
       width,
       height,
       isInternal: isSameHost(pageUrl, normalized, opts),
+      variant: true,
     });
   };
 
@@ -1604,6 +1824,26 @@ export function parseHtml(
   // The bare count surfaces in the URL Details panel as a "responsive
   // imagery adoption" signal alongside `images_responsive`.
   const pictureCount = $('picture').length;
+
+  // `<img>` alt as the accessibility tree sees it: the attribute's text,
+  // `''` for a decorative image, `null` when it is genuinely missing. An
+  // image explicitly taken out of the tree (`role="presentation"` /
+  // `role="none"` / `aria-hidden="true"`) is decorative even without the
+  // attribute — screen readers skip it, so there is nothing to describe.
+  const imgAlt = ($img: ReturnType<typeof $>): string | null => {
+    const altAttr = $img.attr('alt');
+    if (altAttr !== undefined) return decodeEntities(altAttr.trim());
+    const role = ($img.attr('role') ?? '').trim().toLowerCase();
+    const hidden = ($img.attr('aria-hidden') ?? '').trim().toLowerCase() === 'true';
+    return role === 'presentation' || role === 'none' || hidden ? '' : null;
+  };
+
+  // Per-`<img>` tallies. `imageMap` below is keyed by URL and also holds
+  // srcset / `<picture>` variants, so its size is not "how many images
+  // the page shows" — counting slots keeps Missing Alt and the lazy /
+  // responsive adoption ratios on the same footing.
+  let imageSlotCount = 0;
+  let imagesMissingAlt = 0;
 
   $('img[src]').each((_, el) => {
     const $el = $(el);
@@ -1616,18 +1856,13 @@ export function parseHtml(
     if (!normalized) return;
     if (!/^https?:/.test(normalized)) return;
 
-    const altAttr = $el.attr('alt');
-    const alt =
-      altAttr === undefined
-        ? null // alt missing entirely (accessibility issue)
-        : decodeEntities(altAttr.trim()); // empty string means decorative — kept as ''
+    // `null` = alt missing entirely (accessibility issue); `''` = decorative.
+    const alt = imgAlt($el);
+    imageSlotCount++;
+    if (alt === null) imagesMissingAlt++;
     // Count `alt=""` (decorative) separately from missing alt — Screaming
     // Frog distinguishes them in its accessibility filters and so should we.
-    if (altAttr !== undefined && (alt === '' || alt === null)) {
-      // alt="" specifically; missing-alt is tallied at the DB level via
-      // image_usages rows whose alt is null.
-      if (altAttr.trim() === '') imagesEmptyAlt++;
-    }
+    if (alt === '') imagesEmptyAlt++;
     const width = parseIntAttr($el.attr('width'));
     const height = parseIntAttr($el.attr('height'));
     const isInternal = isSameHost(pageUrl, normalized, opts);
@@ -1674,24 +1909,30 @@ export function parseHtml(
   $('picture > source[srcset]').each((_, el) => {
     const srcsetAttr = ($(el).attr('srcset') ?? '').trim();
     if (!srcsetAttr) return;
+    // A `<source>` is a format/breakpoint variant of the picture's own
+    // `<img>`, which carries the alt for every variant — the source
+    // element has no alt of its own to be "missing".
+    const $img = $(el).parent('picture').find('img').first();
+    const alt = $img.length > 0 ? imgAlt($img) : null;
     for (const candidate of parseSrcset(srcsetAttr)) {
-      addImageCandidate(candidate, null, null, null);
+      addImageCandidate(candidate, alt, null, null);
     }
   });
 
-  // OG / Twitter share-card images. They rarely appear inside `<img>`
-  // tags so the loop above misses them, but we want them in the probe
-  // pipeline so the size-validation issue filters can see whether
-  // Facebook/Twitter will refuse to render the card. We stub them as
-  // image rows with no alt/dimensions; the existing size-probe pass
-  // will fill `byte_size` automatically post-crawl.
+  // OG / Twitter share-card images. They are metadata for the social
+  // preview, not images on the page: they have no alt attribute to be
+  // missing and no slot to lazy-load. Kept out of `images` (which feeds
+  // Missing Alt and the per-page image counts) and returned separately
+  // so the post-crawl size probe can still check them against the
+  // 5 MB share-card limit.
+  const socialImages: DiscoveredImage[] = [];
   for (const ogish of [ogImage, twitterImage]) {
     if (!ogish) continue;
     const normalized = normalizeUrl(ogish, baseUrl, opts.urlRewrites);
     if (!normalized) continue;
     if (!/^https?:/.test(normalized)) continue;
-    if (imageMap.has(normalized)) continue;
-    imageMap.set(normalized, {
+    if (imageMap.has(normalized) || socialImages.some((s) => s.src === normalized)) continue;
+    socialImages.push({
       src: normalized,
       alt: null,
       width: null,
@@ -1796,7 +2037,18 @@ export function parseHtml(
     contentHash,
     analyticsTrackers,
     links: [...linkMap.values()],
+    contentLang: contentLanguage.detected,
+    langMismatch: contentLanguage.mismatch,
+    minhash,
+    canonicalOutsideHead,
+    soft404Signal,
+    jsTitleWrite: headWrites.titleWrite,
+    jsTitle: headWrites.title,
+    jsNoindexWrite: headWrites.noindexWrite,
     images: [...imageMap.values()],
+    imageCount: imageSlotCount,
+    imagesMissingAlt,
+    socialImages,
     resources: [...resourceMap.values()],
     iframes: [...iframeMap.values()],
     invalidLinks: [...invalidLinkSet],
@@ -2302,15 +2554,17 @@ function detectPathType(rawHref: string): LinkPathType {
 }
 
 /**
- * Approximate pixel width of `text` rendered in Arial 18 px (Google SERP
- * title font). Uses a per-character width table derived from canvas
- * measurements — accuracy is ~±2% which is plenty for the usual "is the
- * title going to truncate?" question. Skipping HTML canvas keeps this
- * pure-Node so the same code runs in CLI and tests.
+ * Approximate pixel width of `text` in Arial, from a per-character width
+ * table measured at 18 px (Google's SERP title size) and scaled linearly
+ * to `fontPx`. Accuracy is ~±2%, plenty for the "is this going to
+ * truncate?" question. Skipping HTML canvas keeps this pure-Node so the
+ * same code runs in CLI and tests.
  *
  * Reference truncation thresholds (Google):
- *   - Title: ~600 px before "..." appears
- *   - Meta description: ~990 px (mobile) / ~920 px (desktop)
+ *   - Title: ~600 px at 18 px
+ *   - Meta description: ~990 px at 14 px — the snippet font is smaller
+ *     than the title font, so measuring it with the title table read
+ *     every ordinary 130–160 character description as truncated.
  */
 const ARIAL_18_WIDTHS: Record<string, number> = {
   // Narrow
@@ -2333,17 +2587,48 @@ const ARIAL_18_WIDTHS: Record<string, number> = {
   '8': 10, '9': 10, '-': 6, '_': 10, '/': 5, '?': 10, '(': 6, ')': 6,
   '[': 6, ']': 6, '{': 6, '}': 6, '"': 7, '*': 7, '+': 11, '=': 11, '<': 11, '>': 11,
   '#': 11, '$': 10, '%': 16, '&': 12, '@': 18,
+  // Typographic punctuation CMSes substitute for the ASCII forms
+  '‘': 4, '’': 4, '“': 7, '”': 7, '–': 10, '—': 18,
+  '…': 18, '·': 5,
+  // Turkish dotless i has no decomposition to fall back on
+  'ı': 5,
 };
 const ARIAL_18_DEFAULT = 10;
 
-export function estimatePixelWidth(text: string): number {
+function arial18Width(ch: string): number {
+  const known = ARIAL_18_WIDTHS[ch];
+  if (known !== undefined) return known;
+  // Accented Latin letters (ç ş ğ ü ö İ é ñ …) render at their base
+  // letter's width; NFD splits off the combining mark.
+  const base = ch.normalize('NFD').charAt(0);
+  if (base !== ch) {
+    const w = ARIAL_18_WIDTHS[base];
+    if (w !== undefined) return w;
+  }
+  // CJK, kana, Hangul and full-width forms occupy a full em.
+  const cp = ch.codePointAt(0) ?? 0;
+  if (
+    (cp >= 0x1100 && cp <= 0x11ff) ||
+    (cp >= 0x2e80 && cp <= 0x9fff) ||
+    (cp >= 0xac00 && cp <= 0xd7af) ||
+    (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xff00 && cp <= 0xff60) ||
+    (cp >= 0x20000 && cp <= 0x2fa1f)
+  ) {
+    return 18;
+  }
+  return ARIAL_18_DEFAULT;
+}
+
+export function estimatePixelWidth(text: string, fontPx = 18): number {
   if (!text) return 0;
   let total = 0;
-  for (const ch of text) {
-    total += ARIAL_18_WIDTHS[ch] ?? ARIAL_18_DEFAULT;
-  }
-  return total;
+  for (const ch of text) total += arial18Width(ch);
+  return fontPx === 18 ? total : Math.round((total * fontPx) / 18);
 }
+
+/** Google renders the description snippet at 14 px. */
+export const META_DESCRIPTION_FONT_PX = 14;
 
 /**
  * Crude DOM breadcrumb for a link element — e.g. "body > main > article > a".
@@ -2586,13 +2871,58 @@ interface ReadabilityScores {
 }
 
 /**
- * Flesch / Flesch–Kincaid / Gunning Fog over the body text. Returns nulls
- * for the three scores when the page has too little prose to be stable
- * (<50 words OR zero sentences). The intermediate `sentenceCount` and
- * `complexWordCount` are still surfaced so the detail panel can show
- * what the engine actually measured.
+ * Reading-ease formula per language. The Flesch constants are calibrated
+ * on English word and syllable lengths; applied to an agglutinative
+ * language such as Turkish — long words, many syllables per word — they
+ * report every ordinary page as "very difficult". Each entry is that
+ * language's published Flesch adaptation on the same 0–100 scale, so the
+ * "Hard to Read (<30)" threshold keeps its meaning:
+ *
+ *   tr Ateşman (1997) · es Fernández Huerta · fr Kandel & Moles ·
+ *   it Franchina & Vacca · pt Martins et al. · de Amstad · nl Douma ·
+ *   ru Oborneva
+ *
+ * Syllables are counted from vowels: one per vowel in Turkish and Russian
+ * (where that is exact), one per vowel group elsewhere.
  */
-function computeReadability(text: string, wordCount: number): ReadabilityScores {
+interface ReadingEaseFormula {
+  vowels: RegExp;
+  /** Count every vowel (tr, ru) rather than every vowel group. */
+  perVowel: boolean;
+  ease(wordsPerSentence: number, syllablesPerWord: number): number;
+}
+const READING_EASE: Readonly<Record<string, ReadingEaseFormula>> = {
+  tr: { vowels: /[aeıioöuüâîû]/g, perVowel: true, ease: (w, s) => 198.825 - 40.175 * s - 2.61 * w },
+  es: { vowels: /[aeiouáéíóúü]+/g, perVowel: false, ease: (w, s) => 206.84 - 60 * s - 1.02 * w },
+  fr: { vowels: /[aeiouyàâéèêëîïôûùüœæ]+/g, perVowel: false, ease: (w, s) => 207 - 1.015 * w - 73.6 * s },
+  it: { vowels: /[aeiouàèéìíòóùú]+/g, perVowel: false, ease: (w, s) => 217 - 1.3 * w - 60 * s },
+  pt: { vowels: /[aeiouáéíóúâêôãõàü]+/g, perVowel: false, ease: (w, s) => 248.835 - 1.015 * w - 84.6 * s },
+  de: { vowels: /[aeiouyäöü]+/g, perVowel: false, ease: (w, s) => 180 - w - 58.5 * s },
+  nl: { vowels: /[aeiouyàéèëïöü]+/g, perVowel: false, ease: (w, s) => 206.835 - 0.93 * w - 77 * s },
+  ru: { vowels: /[аеёиоуыэюя]/g, perVowel: true, ease: (w, s) => 206.835 - 1.3 * w - 60.1 * s },
+};
+
+function countSyllablesIn(word: string, f: ReadingEaseFormula): number {
+  const n = word.toLocaleLowerCase().match(f.vowels)?.length ?? 0;
+  return f.perVowel ? n : Math.max(n > 0 ? 1 : 0, n);
+}
+
+/**
+ * Reading ease over the body text, in the formula for `lang` (see
+ * READING_EASE); English keeps Flesch plus Flesch–Kincaid and Gunning Fog,
+ * which have no calibrated equivalent elsewhere. A language with no
+ * published formula — or an unknown language — gets nulls rather than an
+ * English score that would misreport it. Returns nulls for the three
+ * scores when the page has too little prose to be stable (<50 words OR
+ * zero sentences). The intermediate `sentenceCount` and `complexWordCount`
+ * are still surfaced so the detail panel can show what the engine
+ * actually measured.
+ */
+function computeReadability(
+  text: string,
+  wordCount: number,
+  lang: string | null,
+): ReadabilityScores {
   if (!text || wordCount === 0) {
     return {
       fleschReadingEase: null,
@@ -2609,13 +2939,15 @@ function computeReadability(text: string, wordCount: number): ReadabilityScores 
   // which backtracks quadratically on a long unterminated run of text.
   const sentenceMatches = text.match(/[^.!?…][.!?…]/g);
   const sentenceCount = sentenceMatches ? sentenceMatches.length : 1;
+  const english = lang === 'en';
+  const formula = english ? null : (lang ? READING_EASE[lang] : undefined) ?? null;
 
   let totalSyllables = 0;
   let complexWordCount = 0;
   // Tokenise on whitespace; the upstream `text` is already normalised.
   for (const token of text.split(' ')) {
     if (!token) continue;
-    const syl = countSyllables(token);
+    const syl = formula ? countSyllablesIn(token, formula) : countSyllables(token);
     if (syl === 0) continue;
     totalSyllables += syl;
     // Gunning Fog "complex" word definition: ≥3 syllables, excluding
@@ -2625,7 +2957,7 @@ function computeReadability(text: string, wordCount: number): ReadabilityScores 
     }
   }
 
-  if (wordCount < 50 || sentenceCount === 0) {
+  if (wordCount < 50 || sentenceCount === 0 || (!english && !formula)) {
     return {
       fleschReadingEase: null,
       fleschKincaidGrade: null,
@@ -2637,15 +2969,17 @@ function computeReadability(text: string, wordCount: number): ReadabilityScores 
 
   const wordsPerSentence = wordCount / sentenceCount;
   const syllablesPerWord = totalSyllables / wordCount;
-  const flesch = 206.835 - 1.015 * wordsPerSentence - 84.6 * syllablesPerWord;
+  const ease = formula
+    ? formula.ease(wordsPerSentence, syllablesPerWord)
+    : 206.835 - 1.015 * wordsPerSentence - 84.6 * syllablesPerWord;
   const grade = 0.39 * wordsPerSentence + 11.8 * syllablesPerWord - 15.59;
   const fog = 0.4 * (wordsPerSentence + (100 * complexWordCount) / wordCount);
 
   // Clamp to the same ranges the academic formulas allow.
   return {
-    fleschReadingEase: Math.round(Math.max(-50, Math.min(120, flesch)) * 10) / 10,
-    fleschKincaidGrade: Math.round(Math.max(-2, Math.min(30, grade)) * 10) / 10,
-    gunningFogIndex: Math.round(Math.max(0, Math.min(30, fog)) * 10) / 10,
+    fleschReadingEase: Math.round(Math.max(-50, Math.min(120, ease)) * 10) / 10,
+    fleschKincaidGrade: english ? Math.round(Math.max(-2, Math.min(30, grade)) * 10) / 10 : null,
+    gunningFogIndex: english ? Math.round(Math.max(0, Math.min(30, fog)) * 10) / 10 : null,
     sentenceCount,
     complexWordCount,
   };

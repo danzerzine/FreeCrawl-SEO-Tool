@@ -689,6 +689,8 @@
       "path": "问题 → 内容 → 近似重复",
       "maxHamming": "最大汉明距离（0 = 仅完全相同，12 = 非常宽松，0 表示关闭）",
       "thresholdHint": "数值越小越严格。3 相当于 Screaming Frog 的默认值。正文内容过少（少于 50 个字符）的页面无论阈值如何都不参与聚类。",
+      "minSimilarity": "最低文本相似度 %（0 表示关闭）",
+      "similarityHint": "主体文本相似度至少达到该值的页面也会被聚类——可发现 SimHash 漏掉的改写或轻微修改的副本。90 为与 SF 等效的默认值。",
       "onlyIndexable": "仅对可索引页面聚类",
       "preNormalize": "在检查重复 URL 前先规范化 URL",
       "costLabel": "开销：",

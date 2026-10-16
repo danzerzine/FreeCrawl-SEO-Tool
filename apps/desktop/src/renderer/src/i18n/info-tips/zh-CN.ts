@@ -443,8 +443,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '当 LENGTH(url) > 此值时触发“URL 过长”问题。RFC 7230 未规定最大值，但大多数服务器和中间设备在约 2 KB 以上就会失败；Chrome 自身上限约 32 KB。',
   ["Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. Each term's per-page hit count is surfaced in the URL Details panel."]:
     '每行两种模式。(1) 用斜杠包裹表示正则：/模式/标志——支持标志 imsuy（g 强制启用）。无效模式在详情面板中显示计数 -1，便于发现拼写错误。(2) 其他任何内容都是不区分大小写的字面子串——即旧有行为。每个词的每页命中数显示在“URL 详情”面板中。',
-  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits. 3 ≈ 95% similarity over body-text shingles (Screaming Frog's tightest filter). Set to 0 to skip clustering entirely."]:
-    '两个页面的 64 位 SimHash 相差不超过此位数时标记为近似重复。3 ≈ 正文 shingle 95% 相似度（Screaming Frog 最严格的筛选）。设为 0 则完全跳过聚类。',
+  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits — this catches near-identical copies. Text that is only largely the same is judged by the similarity threshold below. Set to 0 to skip this pass."]:
+    "如果两个页面的 64 位 SimHash 最多相差这么多位，则被标记为近似重复——用于发现几乎相同的副本。仅大部分相同的文本由下方的相似度阈值判断。设为 0 可跳过此步骤。",
   ['URL declared by the first <link rel="canonical"> tag. Tells search engines which version to index when duplicates exist.']:
     '第一个 <link rel="canonical"> 标签声明的 URL。存在重复时告诉搜索引擎应索引哪个版本。',
   ['URL paths ending in any of these extensions are not enqueued. Case-insensitive. Start URL is always crawled regardless.']:
@@ -477,8 +477,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '开启（默认）时，“重复 URL”筛选器在主机转小写、去掉查询字符串、去除尾部斜杠后比较 URL——这是规范的 SEO 行为。关闭时按字节精确比较，因此筛选器只对原始 URL 字符串完全相同的行生效（因为 URL 在插入时已去重，所以很少见）。',
   ["When on, `<meta http-equiv='refresh'>` content URLs are enqueued like a redirect target. window.location body redirects are heuristic-only and currently out of scope."]:
     "开启时，`<meta http-equiv='refresh'>` content 中的 URL 会像重定向目标一样入队。正文中的 window.location 重定向仅为启发式判断，目前不在范围内。",
-  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target. Default off — most crawls treat canonicals as a signal, not a navigation hint.']:
-    '开启时，声明了指向他处 canonical 的 200 页面也会将该目标入队。默认关闭——大多数抓取将 canonical 视为信号而非导航提示。',
+  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target, so a canonical pointing at a missing or redirected page is caught. Default on.']:
+    '开启时，声明了指向他处 canonical 的 200 页面也会将该目标入队，从而发现指向不存在或已重定向页面的 canonical。默认开启。',
   ['When on, pages with noindex / canonicalised / robots-blocked indexability are excluded from clustering — the Near-Duplicate report then surfaces only issues that affect search visibility.']:
     '开启时，可索引性为 noindex / 已规范化 / 被 robots 阻止的页面会被排除在聚类之外——“近似重复”报告随之只显示影响搜索可见性的问题。',
   ["When on, rel=nofollow links are recursed into like any other link. Default off — Screaming Frog 'Respect Nofollow' default."]:
@@ -646,4 +646,18 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '对页面从不产生文档请求的 React Router / Vue Router / Angular 站点开启。',
   ['`<link rel="alternate" media="only screen and (max-width: …)" href="…">` value — the separate-URL (m-dot) mobile version of this page. Empty on responsive sites, which is most of them. A value here with no reciprocal canonical pointing back is the classic broken m-dot setup.']:
     '`<link rel="alternate" media="only screen and (max-width: …)" href="…">` 的值——本页独立 URL 的移动版本（m-dot）。在响应式站点上为空（大多数站点如此）。此处有值却没有反向指回的 canonical，是典型的失效 m-dot 配置。',
+  ["Two pages are clustered as near-duplicates when their main-content text is at least this similar, word for word. Estimated with MinHash over 3-word shingles, so it catches posts that were rewritten or lightly edited — not only identical copies. Set to 0 to skip this pass."]:
+    "当两个页面的主体文本逐词相似度至少达到该值时，会被归为近似重复。基于 3 词片段的 MinHash 估算，因此不仅能发现完全相同的副本，也能发现改写或轻微修改的文章。设为 0 可跳过此步骤。",
+  ["Language the page's main-content text is written in, read from its wording rather than the lang attribute. Compared with html[lang] for the 'Lang ≠ Content Language' check. Empty when the text is too short or the language can't be told with confidence."]:
+    "页面主体文本所用的语言，根据文本内容判断，而不是 lang 属性。用于与 html[lang] 比较以进行“lang ≠ 内容语言”检查。文本过短或无法可靠判断语言时为空。",
+  ["Character encoding named by the Content-Type response header, as a canonical encoding name. Browsers obey it over the page's own declaration."]:
+    "Content-Type 响应头声明的字符编码（规范名称）。浏览器优先遵循它，而不是页面自身的声明。",
+  ["Character encoding the document itself declares in <meta charset> or http-equiv. When it disagrees with the HTTP charset, the page renders in the header's encoding."]:
+    "文档自身在 <meta charset> 或 http-equiv 中声明的字符编码。与 HTTP charset 不一致时，页面按响应头的编码显示。",
+  ["The title JavaScript sets on the page: from the rendered DOM in JavaScript rendering mode, or from an inline document.title assignment in text mode. Empty when scripts leave the title alone."]:
+    "JavaScript 为页面设置的标题：JavaScript 渲染模式下取自渲染后的 DOM，文本模式下取自内联的 document.title 赋值。脚本未修改标题时为空。",
+  ["Highest estimated text similarity to another page in this URL's near-duplicate cluster, measured on the main-content wording. Empty for pages that aren't near-duplicates."]:
+    "与该 URL 近似重复聚类中其他页面的最高估算文本相似度，基于主体文本计算。非近似重复页面为空。",
+  ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
+    "90 = 推荐值（Screaming Frog 默认）；80 可发现改写幅度更大的副本；0 关闭此步骤。",
 };

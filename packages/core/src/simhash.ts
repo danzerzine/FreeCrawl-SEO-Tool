@@ -10,8 +10,11 @@
  *      shingle hash, `-freq` if 0.
  *   5. Final SimHash bit = sign of the accumulator.
  *
- * Two pages with hamming distance ≤ ~3 over 64 bits are considered
- * near-duplicates (>~95% similarity at the word-shingle level).
+ * Two pages within a hamming distance of ~3 over 64 bits are near-identical
+ * copies. SimHash is not a similarity percentage: two posts sharing 96% of
+ * their wording measured ~15 bits apart. The same shingle set therefore
+ * also feeds a MinHash signature (see shared-types/minhash.ts), which is
+ * what the similarity-based near-duplicate pass compares.
  *
  * Cost: ~5–10 ms on a 1 MB page (htmlparser2 already gave us trimmed text).
  * The body text itself is NOT stored in the database — only the hash.
@@ -20,6 +23,8 @@
  * numbers because Node's BigInt is fast enough at this scale (millions of
  * shingles per crawl total) and the code stays trivially correct.
  */
+import { computeMinHash } from '@freecrawl/shared-types';
+
 const FNV_OFFSET = 0xcbf29ce484222325n;
 const FNV_PRIME = 0x100000001b3n;
 const MASK64 = (1n << 64n) - 1n;
@@ -62,14 +67,15 @@ function tokenize(text: string): string[] {
 export function computeContentFingerprint(text: string): {
   simhash: string | null;
   contentHash: string | null;
+  minhash: Uint8Array | null;
 } {
   if (!text || text.length < 50) {
-    return { simhash: null, contentHash: null };
+    return { simhash: null, contentHash: null, minhash: null };
   }
 
   const tokens = tokenize(text);
   if (tokens.length < SHINGLE_SIZE) {
-    return { simhash: null, contentHash: null };
+    return { simhash: null, contentHash: null, minhash: null };
   }
 
   // Aggregate shingle frequencies first — duplicate shingles within the
@@ -107,6 +113,7 @@ export function computeContentFingerprint(text: string): {
   return {
     simhash: toHex64(sim),
     contentHash: toHex64(exact),
+    minhash: computeMinHash(shingleFreq.keys()),
   };
 }
 

@@ -94,6 +94,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-canonical-not-absolute', label: 'Canonical Not Absolute', category: 'issues:canonical-not-absolute', count: 'canonicalNotAbsolute' },
       { key: 'issues-canonical-chain-multi-hop', label: 'Canonical Chain (Multi-hop)', category: 'issues:canonical-chain-multi-hop', count: 'canonicalChainMultiHop' },
       { key: 'issues-canonical-conflict-near-duplicate', label: 'Canonical Conflict (Near-Duplicate)', category: 'issues:canonical-conflict-near-duplicate', count: 'canonicalConflictNearDuplicate' },
+      { key: 'issues-canonical-outside-head', label: 'Canonical Outside <head>', category: 'issues:canonical-outside-head', count: 'canonicalOutsideHead' },
     ],
   },
   {
@@ -119,6 +120,8 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-ttfb-slow', label: 'TTFB Slow (>600ms)', category: 'issues:ttfb-slow', count: 'ttfbSlow' },
       { key: 'issues-ttfb-very-slow', label: 'TTFB Very Slow (>1.8s)', category: 'issues:ttfb-very-slow', count: 'ttfbVerySlow' },
       { key: 'issues-over-budget', label: 'Over Performance Budget', category: 'issues:over-budget', count: 'overBudget' },
+      { key: 'issues-soft-404', label: 'Soft 404', category: 'issues:soft-404', count: 'soft404' },
+      { key: 'issues-blocked-by-robots', label: 'Linked URL Blocked by robots.txt', category: 'issues:blocked-by-robots', count: 'blockedByRobots' },
     ],
   },
   {
@@ -144,6 +147,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     items: [
       { key: 'issues-meta-refresh', label: 'Meta Refresh Used', category: 'issues:meta-refresh-used', count: 'metaRefreshUsed' },
       { key: 'issues-charset-missing', label: 'Charset Missing', category: 'issues:charset-missing', count: 'charsetMissing' },
+      { key: 'issues-charset-mismatch', label: 'Charset Mismatch (HTTP vs HTML)', category: 'issues:charset-mismatch', count: 'charsetMismatch' },
       { key: 'issues-amp-validation', label: 'AMP Validation Errors', category: 'issues:amp-validation-errors', count: 'ampValidationErrors' },
     ],
   },
@@ -171,6 +175,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     label: 'Accessibility',
     items: [
       { key: 'issues-lang-missing', label: 'Lang Attribute Missing', category: 'issues:lang-missing', count: 'langMissing' },
+      { key: 'issues-lang-content-mismatch', label: 'Lang ≠ Content Language', category: 'issues:lang-content-mismatch', count: 'langContentMismatch' },
       { key: 'issues-form-input-unlabeled', label: 'Form Inputs Missing Label', category: 'issues:form-input-unlabeled', count: 'formInputUnlabeled' },
       { key: 'issues-landmark-main-missing', label: 'Main Landmark Missing', category: 'issues:landmark-main-missing', count: 'landmarkMainMissing' },
       { key: 'issues-skip-link-missing', label: 'Skip Link Missing', category: 'issues:skip-link-missing', count: 'skipLinkMissing' },
@@ -251,6 +256,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-redirect-chain-long', label: 'Long Chain (>3 hops)', category: 'issues:redirect-chain-long', count: 'redirectChainLong' },
       { key: 'issues-redirect-self', label: 'Self-Redirect', category: 'issues:redirect-self', count: 'redirectSelf' },
       { key: 'issues-redirect-to-noindex', label: 'Redirect → Noindex', category: 'issues:redirect-to-noindex', count: 'redirectToNoindex' },
+      { key: 'issues-redirect-chain', label: 'Redirect Chain (2+ hops)', category: 'issues:redirect-chain', count: 'redirectChain' },
     ],
   },
   {
@@ -353,6 +359,14 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-internal-link-to-redirect', label: 'Internal Link → Redirect', category: 'issues:internal-link-to-redirect', count: 'internalLinkToRedirect' },
       { key: 'issues-dead-external-domain', label: 'Dead External Domain', category: 'issues:dead-external-domain', count: 'deadExternalDomain' },
       { key: 'issues-js-only-navigation', label: 'JS-Only Navigation', category: 'issues:js-only-navigation', count: 'jsOnlyNavigation' },
+    ],
+  },
+  {
+    key: 'issues-javascript',
+    label: 'JavaScript',
+    items: [
+      { key: 'issues-noindex-js-injected', label: 'Noindex Added by JavaScript', category: 'issues:noindex-js-injected', count: 'noindexJsInjected' },
+      { key: 'issues-title-changed-by-js', label: 'Title Changed by JavaScript', category: 'issues:title-changed-by-js', count: 'titleChangedByJs' },
     ],
   },
   {

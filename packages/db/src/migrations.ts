@@ -2366,6 +2366,63 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 95,
+    name: 'add_document_integrity_signals',
+    // Signals behind the charset-mismatch, canonical-outside-head,
+    // content-language, soft-404 and JavaScript-modification checks.
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      const names = new Set(cols.map((c) => c.name));
+      const add = (col: string, decl: string): void => {
+        if (!names.has(col)) db.exec(`ALTER TABLE urls ADD COLUMN ${col} ${decl}`);
+      };
+      add('http_charset', 'TEXT');
+      add('meta_charset', 'TEXT');
+      add('canonical_outside_head', 'INTEGER NOT NULL DEFAULT 0');
+      add('content_lang', 'TEXT');
+      add('lang_mismatch', 'INTEGER NOT NULL DEFAULT 0');
+      add('soft_404', 'INTEGER NOT NULL DEFAULT 0');
+      add('js_noindex', 'INTEGER NOT NULL DEFAULT 0');
+      add('js_title_changed', 'INTEGER NOT NULL DEFAULT 0');
+      add('js_title', 'TEXT');
+    },
+  },
+  {
+    version: 96,
+    name: 'add_minhash_similarity',
+    // MinHash signature per page and the best similarity found, for the
+    // similarity-based near-duplicate pass (SimHash only catches
+    // near-identical copies).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      const names = new Set(cols.map((c) => c.name));
+      if (!names.has('minhash')) db.exec('ALTER TABLE urls ADD COLUMN minhash BLOB');
+      if (!names.has('near_dup_similarity')) {
+        db.exec('ALTER TABLE urls ADD COLUMN near_dup_similarity INTEGER');
+      }
+    },
+  },
+  {
+    version: 97,
+    name: 'add_image_variant_flag',
+    // srcset / <picture> candidates of an <img>: probed like any image but
+    // kept out of the alt checks (they share the slot's alt by design).
+    up: (db) => {
+      for (const table of ['images', 'image_usages']) {
+        const cols = db
+          .prepare(`PRAGMA table_info(${table})`)
+          .all() as unknown as { name: string }[];
+        if (!cols.some((c) => c.name === 'is_variant')) {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN is_variant INTEGER NOT NULL DEFAULT 0`);
+        }
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

@@ -116,6 +116,14 @@ export type UrlCategory =
   | 'issues:image-duplicate-alt'
   | 'issues:meta-refresh-used'
   | 'issues:charset-missing'
+  | 'issues:charset-mismatch'
+  | 'issues:canonical-outside-head'
+  | 'issues:lang-content-mismatch'
+  | 'issues:soft-404'
+  | 'issues:redirect-chain'
+  | 'issues:blocked-by-robots'
+  | 'issues:noindex-js-injected'
+  | 'issues:title-changed-by-js'
   | 'issues:amp-validation-errors'
   | 'issues:canonical-conflict-near-duplicate'
   | 'issues:high-boilerplate'
@@ -583,6 +591,26 @@ export interface CrawlUrlRow {
    * classic broken m-dot setup.
    */
   mobileAlternate: string | null;
+  /** `charset=` of the HTTP Content-Type header (WHATWG-canonical encoding name). */
+  httpCharset: string | null;
+  /** Encoding the document declares in `<meta charset>` / `http-equiv` (canonical name). */
+  metaCharset: string | null;
+  /** `<link rel="canonical">` elements placed inside `<body>` — search engines ignore them. */
+  canonicalOutsideHead: number;
+  /** Primary language the main-content prose is written in (`tr`, `en`, …); null when unclear. */
+  contentLang: string | null;
+  /** `html[lang]` declares a language the prose is clearly not written in. */
+  langMismatch: boolean;
+  /** Soft 404 evidence: 0 none, 1 "not found" wording on a thin 2xx page, 2 serves the site's 404 template. */
+  soft404: number;
+  /** Noindex added by JavaScript: 0 none, 1 inline-script evidence (text mode), 2 confirmed by rendering. */
+  jsNoindex: number;
+  /** `<title>` changed by JavaScript: 0 none, 1 inline-script evidence (text mode), 2 confirmed by rendering. */
+  jsTitleChanged: number;
+  /** The title JavaScript sets, when it can be read; null otherwise. */
+  jsTitle: string | null;
+  /** Highest estimated text similarity (%) to another page in its near-duplicate cluster. */
+  nearDupSimilarity: number | null;
   /** True when the page declares `<html ⚡>` / `<html amp>`. AMP-for-Ads
    *  / AMP-for-Email variants (`⚡4ads`, `⚡4email`) count too. */
   ampPage: boolean;
@@ -983,11 +1011,19 @@ export interface CrawlConfig {
   processPriority: 'normal' | 'below-normal' | 'idle';
   /**
    * Maximum SimHash hamming distance (0–64) at which two pages are still
-   * considered near-duplicates. 3 (~95% similarity over the body text
-   * shingles) is the default and matches Screaming Frog's tightest near-
-   * duplicate filter. 0 disables near-duplicate clustering entirely.
+   * considered near-duplicates. SimHash only catches near-identical
+   * copies — two posts sharing 96% of their wording sit ~15 bits apart —
+   * so text similarity is judged by `nearDuplicateSimilarity`. 0 turns
+   * the SimHash pass off.
    */
   nearDuplicateHammingThreshold: number;
+  /**
+   * Minimum estimated text similarity (percent, word level) at which two
+   * pages are clustered as near-duplicates, measured with MinHash over
+   * word 3-shingles of the main content. 90 matches Screaming Frog's
+   * default. 0 turns the similarity pass off.
+   */
+  nearDuplicateSimilarity: number;
   /**
    * If true, only pages flagged `indexability = 'indexable'` participate
    * in near-duplicate clustering. Indexability-blocked pages (noindex,
@@ -1186,8 +1222,9 @@ export interface CrawlConfig {
   /**
    * Follow `<link rel="canonical">` like a redirect — when a 200 page
    * declares a canonical pointing elsewhere, also enqueue the canonical
-   * target. Default `false` — most crawls treat canonicals as a
-   * signal, not a navigation hint.
+   * target. Default `true`: a canonical aimed at a page nothing links to
+   * (a deleted product, an old slug) is otherwise never fetched, and
+   * "Canonical → Non-200 / Redirect / Noindex" can't see it.
    */
   followCanonicals: boolean;
   /**
@@ -1301,9 +1338,10 @@ export interface CrawlConfig {
   storeCanonicals: boolean;
   /** Persist `<link rel="next">` / `<link rel="prev">`. */
   storePagination: boolean;
-  /** Enqueue every `<link rel="alternate" hreflang>` target. Off by
-   *  default: hreflang alternates are usually in scope anyway and get
-   *  discovered through ordinary links. */
+  /** Enqueue every in-scope `<link rel="alternate" hreflang>` target.
+   *  On by default: an alternate reached only through the annotation is
+   *  otherwise never fetched, so reciprocity and target checks can't run
+   *  on it. */
   crawlHreflang: boolean;
   /** Persist hreflang declarations (Hreflang tab + reciprocity audit). */
   storeHreflang: boolean;
@@ -1852,6 +1890,22 @@ export interface OverviewCounts {
     imageMissingAlt: number;
     metaRefreshUsed: number;
     charsetMissing: number;
+    /** HTTP `Content-Type` charset and the document's `<meta charset>` disagree. */
+    charsetMismatch: number;
+    /** `<link rel="canonical">` placed inside `<body>`, where search engines ignore it. */
+    canonicalOutsideHead: number;
+    /** `html[lang]` declares a language the main content isn't written in. */
+    langContentMismatch: number;
+    /** 2xx pages that present themselves as "not found". */
+    soft404: number;
+    /** Redirect chains of two or more hops, counted at the chain's first URL. */
+    redirectChain: number;
+    /** Internally linked URLs that robots.txt blocks. */
+    blockedByRobots: number;
+    /** Pages whose noindex only appears once JavaScript runs. */
+    noindexJsInjected: number;
+    /** Pages whose `<title>` is rewritten by JavaScript. */
+    titleChangedByJs: number;
     ampValidationErrors: number;
     canonicalConflictNearDuplicate: number;
     highBoilerplate: number;
@@ -2209,6 +2263,13 @@ export interface DiscoveredImage {
   width: number | null;
   height: number | null;
   isInternal: boolean;
+  /**
+   * A `srcset` / `<picture><source>` candidate of an `<img>` rather than
+   * an image slot of its own. It carries the slot's alt, so it must not
+   * count again toward Missing / Empty / Duplicate Alt — the probes
+   * (broken, large) still check it.
+   */
+  variant?: boolean;
 }
 
 /**
@@ -2433,6 +2494,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   maxQueueSize: 0,
   processPriority: 'normal',
   nearDuplicateHammingThreshold: 3,
+  nearDuplicateSimilarity: 90,
   duplicatesOnlyIndexable: true,
   contentAreaSelector: '',
   webhookUrl: '',
@@ -2460,7 +2522,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   maxLinksPerPage: 100,
   maxResponseTimeMs: 0,
   maxFileSizeBytes: 0,
-  followCanonicals: false,
+  followCanonicals: true,
   followPaginationLinks: true,
   followNofollow: false,
   followJsRedirects: false,
@@ -2476,7 +2538,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   storeExternalLinks: true,
   storeCanonicals: true,
   storePagination: true,
-  crawlHreflang: false,
+  crawlHreflang: true,
   storeHreflang: true,
   crawlAmp: false,
   storeAmp: true,
@@ -2489,7 +2551,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   checkLinksOutsideStartFolder: true,
   followExternalNofollow: false,
   crawlInvalidLinks: false,
-  crawlLinkedSitemaps: false,
+  crawlLinkedSitemaps: true,
   crawlQueryStrings: true,
   crawlQueryStringExceptions: [],
   analyseInlinks: true,

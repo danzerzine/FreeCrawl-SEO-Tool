@@ -456,8 +456,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "LENGTH(url) bu değeri aştığında 'URL Çok Uzun' sorununu tetikler. RFC 7230 bir üst sınır zorunlu kılmaz ama çoğu sunucu ve ara katman ~2 KB üzerinde hata verir; Chrome'un kendi sınırı ~32 KB'dir.",
   ["Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. Each term's per-page hit count is surfaced in the URL Details panel."]:
     'Satır başına iki mod. (1) Regex için eğik çizgiler arasına alın: /desen/bayraklar — desteklenen bayraklar imsuy (g zorunlu uygulanır). Geçersiz desenler detay panelinde -1 sayısıyla görünür, böylece yazım hatasını fark edebilirsiniz. (2) Diğer her şey büyük/küçük harf duyarsız birebir alt dizedir — eski davranış. Her terimin sayfa başına eşleşme sayısı URL Detayları panelinde gösterilir.',
-  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits. 3 ≈ 95% similarity over body-text shingles (Screaming Frog's tightest filter). Set to 0 to skip clustering entirely."]:
-    "İki sayfanın 64-bit SimHash değeri en fazla bu kadar bit farklıysa yakın-yinelenen olarak işaretlenir. 3 ≈ gövde metni parçaları üzerinde %95 benzerlik (Screaming Frog'un en sıkı filtresi). Kümelemeyi tamamen atlamak için 0 yapın.",
+  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits — this catches near-identical copies. Text that is only largely the same is judged by the similarity threshold below. Set to 0 to skip this pass."]:
+    "İki sayfanın 64 bitlik SimHash değerleri en fazla bu kadar bit farklıysa yakın yinelenen olarak işaretlenir — bu, neredeyse birebir kopyaları yakalar. Büyük ölçüde aynı olan metinler aşağıdaki benzerlik eşiğiyle değerlendirilir. Bu adımı atlamak için 0 girin.",
   ['URL declared by the first <link rel="canonical"> tag. Tells search engines which version to index when duplicates exist.']:
     'İlk <link rel="canonical"> etiketinde tanımlanan URL. Yinelenenler varken arama motorlarına hangi sürümün indeksleneceğini söyler.',
   ['URL paths ending in any of these extensions are not enqueued. Case-insensitive. Start URL is always crawled regardless.']:
@@ -490,8 +490,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "AÇIK olduğunda (varsayılan), Yinelenen URL filtresi URL'leri host küçük harfe çevrilmiş, sorgu dizesi atılmış ve sondaki eğik çizgi kırpılmış halde karşılaştırır — standart SEO davranışı. KAPALI olduğunda karşılaştırma bayt bazındadır, bu yüzden filtre yalnızca birebir aynı ham URL dizesini paylaşan satırlarda tetiklenir (URL'ler ekleme sırasında zaten tekilleştirildiği için nadirdir).",
   ["When on, `<meta http-equiv='refresh'>` content URLs are enqueued like a redirect target. window.location body redirects are heuristic-only and currently out of scope."]:
     "Açıkken `<meta http-equiv='refresh'>` içeriğindeki URL'ler bir yönlendirme hedefi gibi kuyruğa alınır. window.location ile yapılan gövde yönlendirmeleri yalnızca sezgiseldir ve şu an kapsam dışıdır.",
-  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target. Default off — most crawls treat canonicals as a signal, not a navigation hint.']:
-    "Açıkken, başka bir yeri gösteren canonical tanımlayan 200 sayfaları o hedefi de kuyruğa alır. Varsayılan kapalıdır — çoğu crawl canonical'ı gezinme ipucu değil, sinyal olarak değerlendirir.",
+  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target, so a canonical pointing at a missing or redirected page is caught. Default on.']:
+    'Açıkken, başka bir yeri gösteren canonical tanımlayan 200 sayfaları o hedefi de kuyruğa alır; böylece olmayan ya da yönlenen bir sayfayı gösteren canonical yakalanır. Varsayılan açıktır.',
   ['When on, pages with noindex / canonicalised / robots-blocked indexability are excluded from clustering — the Near-Duplicate report then surfaces only issues that affect search visibility.']:
     'Açıkken noindex / canonical ile yönlendirilmiş / robots tarafından engellenmiş sayfalar kümelemenin dışında tutulur — Yakın Yinelenen raporu böylece yalnızca arama görünürlüğünü etkileyen sorunları gösterir.',
   ["When on, rel=nofollow links are recursed into like any other link. Default off — Screaming Frog 'Respect Nofollow' default."]:
@@ -663,4 +663,18 @@ export const TR_INFO_TIPS: Record<string, string> = {
     'Sayfaları hiçbir zaman bir doküman isteği üretmeyen React Router / Vue Router / Angular siteleri için açık.',
   ['`<link rel="alternate" media="only screen and (max-width: …)" href="…">` value — the separate-URL (m-dot) mobile version of this page. Empty on responsive sites, which is most of them. A value here with no reciprocal canonical pointing back is the classic broken m-dot setup.']:
     '`<link rel="alternate" media="only screen and (max-width: …)" href="…">` değeri — bu sayfanın ayrı URL\'li (m-dot) mobil sürümü. Responsive sitelerde — ki çoğu öyledir — boştur. Burada bir değer olup geri işaret eden karşılıklı bir canonical yoksa, bu klasik bozuk m-dot kurulumudur.',
+  ["Two pages are clustered as near-duplicates when their main-content text is at least this similar, word for word. Estimated with MinHash over 3-word shingles, so it catches posts that were rewritten or lightly edited — not only identical copies. Set to 0 to skip this pass."]:
+    "İki sayfa, ana içerik metinleri kelime kelime en az bu oranda benzediğinde yakın yinelenen olarak kümelenir. 3 kelimelik parçalar üzerinden MinHash ile tahmin edilir; yalnızca birebir kopyaları değil, yeniden yazılmış ya da az değiştirilmiş yazıları da yakalar. Bu adımı atlamak için 0 girin.",
+  ["Language the page's main-content text is written in, read from its wording rather than the lang attribute. Compared with html[lang] for the 'Lang ≠ Content Language' check. Empty when the text is too short or the language can't be told with confidence."]:
+    "Sayfanın ana içerik metninin yazıldığı dil; lang niteliğinden değil, metnin kendisinden okunur. 'Lang ≠ İçerik Dili' kontrolü için html[lang] ile karşılaştırılır. Metin çok kısaysa ya da dil güvenle belirlenemiyorsa boştur.",
+  ["Character encoding named by the Content-Type response header, as a canonical encoding name. Browsers obey it over the page's own declaration."]:
+    "Content-Type yanıt başlığının belirttiği karakter kodlaması, standart kodlama adıyla. Tarayıcılar sayfanın kendi beyanı yerine buna uyar.",
+  ["Character encoding the document itself declares in <meta charset> or http-equiv. When it disagrees with the HTTP charset, the page renders in the header's encoding."]:
+    "Belgenin kendi içinde <meta charset> ya da http-equiv ile beyan ettiği karakter kodlaması. HTTP charset'iyle uyuşmazsa sayfa başlıktaki kodlamayla gösterilir.",
+  ["The title JavaScript sets on the page: from the rendered DOM in JavaScript rendering mode, or from an inline document.title assignment in text mode. Empty when scripts leave the title alone."]:
+    "JavaScript'in sayfaya verdiği başlık: JavaScript render modunda render edilmiş DOM'dan, metin modunda satır içi document.title atamasından okunur. Betikler başlığa dokunmuyorsa boştur.",
+  ["Highest estimated text similarity to another page in this URL's near-duplicate cluster, measured on the main-content wording. Empty for pages that aren't near-duplicates."]:
+    "Bu URL'nin yakın yinelenen kümesindeki başka bir sayfayla en yüksek tahmini metin benzerliği; ana içerik metni üzerinden ölçülür. Yakın yinelenen olmayan sayfalarda boştur.",
+  ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
+    "90 = önerilen (Screaming Frog varsayılanı); 80 daha gevşek yeniden yazımları yakalar; 0 bu adımı kapatır.",
 };

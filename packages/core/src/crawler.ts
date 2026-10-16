@@ -20,12 +20,21 @@ import {
   isPrivateHost,
   isUrlMalformed,
   detectUrlTrap,
+  calendarPatternKey,
   resolveStartUrl,
   compileUrlRegexRewrites,
   toEscapedFragmentUrl,
   type UrlRewriteOptions,
 } from './url-utils.js';
-import { parseHtml, estimatePixelWidth, type ParsedPage } from './html-parser.js';
+import { hammingDistance } from './simhash.js';
+import {
+  parseHtml,
+  estimatePixelWidth,
+  canonicalCharset,
+  readServedHeadSignals,
+  META_DESCRIPTION_FONT_PX,
+  type ParsedPage,
+} from './html-parser.js';
 import { analyseCookies, extractSetCookies } from './cookies.js';
 import { loadRobots, robotsUserAgentToken, type RobotsChecker } from './robots.js';
 import {
@@ -914,6 +923,10 @@ export class Crawler extends EventEmitter {
    * the flag is what makes it visible in the Crawl Trap filter.
    */
   private trapKind(url: string): string | null {
+    if (this.calendarTraps.size > 0) {
+      const key = calendarPatternKey(url);
+      if (key && this.calendarTraps.has(key)) return 'calendar';
+    }
     return detectUrlTrap(url, {
       maxRepeatedSegments: this.config.maxRepeatedPathSegments,
       maxQueryParams: this.config.maxQueryParams,
@@ -937,6 +950,83 @@ export class Crawler extends EventEmitter {
 
   /** URLs dropped by `isLoopTrap`, reported at the end of the crawl. */
   private loopTrapsDropped = 0;
+
+  /**
+   * Infinite date navigation ("next month" forever). One calendar page
+   * looks like any other page, so the trap is recognised by behaviour:
+   * pages sharing a date-URL shape (`calendarPatternKey`) that keep coming
+   * back with the same near-empty content. Once a shape has produced
+   * CALENDAR_TRAP_MIN_PAGES pages and CALENDAR_TRAP_SIMILAR_SHARE of them
+   * are near-identical, it is flagged and no longer followed. A real event
+   * calendar or a blog's monthly archive shows different content per
+   * period and never trips it.
+   */
+  private static readonly CALENDAR_TRAP_MIN_PAGES = 20;
+  private static readonly CALENDAR_TRAP_SIMILAR_SHARE = 0.8;
+  /** SimHash bits two "same template, different month" pages may differ by. */
+  private static readonly CALENDAR_TRAP_MAX_HAMMING = 6;
+  private calendarStats = new Map<
+    string,
+    { pages: number; similar: number; base: string | null; urls: string[] }
+  >();
+  private calendarTraps = new Set<string>();
+  private calendarTrapDropped = 0;
+
+  private isCalendarTrapped(url: string): boolean {
+    if (this.calendarTraps.size === 0) return false;
+    const key = calendarPatternKey(url);
+    return key !== null && this.calendarTraps.has(key);
+  }
+
+  /** Feed one fetched 2xx HTML page into the calendar-trap detector. */
+  private observeCalendarPage(url: string, simhash: string | null): void {
+    const key = calendarPatternKey(url);
+    if (!key || this.calendarTraps.has(key)) return;
+    let st = this.calendarStats.get(key);
+    if (!st) {
+      // `base` is the first page's fingerprint; empty pages (no SimHash —
+      // too little text) count as alike with each other.
+      st = { pages: 0, similar: 0, base: simhash, urls: [] };
+      this.calendarStats.set(key, st);
+    }
+    st.pages++;
+    st.urls.push(url);
+    const alike =
+      st.pages === 1 ||
+      (simhash === null && st.base === null) ||
+      (simhash !== null &&
+        st.base !== null &&
+        hammingDistance(simhash, st.base) <= Crawler.CALENDAR_TRAP_MAX_HAMMING);
+    if (alike) st.similar++;
+    if (
+      st.pages >= Crawler.CALENDAR_TRAP_MIN_PAGES &&
+      st.similar / st.pages >= Crawler.CALENDAR_TRAP_SIMILAR_SHARE
+    ) {
+      this.calendarTraps.add(key);
+      const urls = st.urls;
+      this.calendarStats.delete(key);
+      this.emit(
+        'warn',
+        `Crawl trap: ${urls.length} near-identical pages behind one date-navigation URL pattern ` +
+          `(${urls[0]} …) — flagged, and further URLs of that pattern are not followed.`,
+      );
+      void this.dbCall<void>('markUrlTrap', [urls, 'calendar']).catch(() => {
+        /* best-effort flag — the crawl itself is unaffected */
+      });
+    } else if (st.pages > Crawler.CALENDAR_TRAP_MIN_PAGES * 4 && st.similar / st.pages < 0.5) {
+      // Plainly a real archive — stop tracking it so memory stays flat.
+      this.calendarStats.delete(key);
+    }
+  }
+  /**
+   * Sitemap entries waiting to be crawled (Crawl Linked XML Sitemaps).
+   * Held back until the link crawl has drained: seeding them up front put
+   * every sitemap URL in the queue at depth 0, so pages the home page
+   * links to were recorded at depth 0 instead of 1 and the depth report
+   * read as flat. Fed after the link graph is complete, they only add
+   * what links never reached — the orphans.
+   */
+  private deferredSitemapSeeds: string[] = [];
 
   /**
    * Drop URLs whose path extension matches any user-configured exclude
@@ -1301,6 +1391,29 @@ export class Crawler extends EventEmitter {
         await this.queue.onIdle();
         await this.externalQueue.onIdle();
       }
+      // Sitemap URLs no link reached (see `deferredSitemapSeeds`). The
+      // `seen` check inside enqueue drops everything already crawled, so
+      // only orphans — and 404s the sitemap still lists — are fetched.
+      if (this.deferredSitemapSeeds.length > 0 && !this.stopped) {
+        const seeds = this.deferredSitemapSeeds;
+        this.deferredSitemapSeeds = [];
+        let queued = 0;
+        for (const url of seeds) {
+          if (this.seen.has(url)) continue;
+          this.enqueue({ url, depth: 0 });
+          queued++;
+        }
+        if (queued > 0) {
+          this.emit('info', `Sitemap: ${queued} URL(s) not reached by links queued from the sitemap`);
+          this.setOp('crawl:sitemap-orphans');
+          while (!this.stopped) {
+            await this.queue.onIdle();
+            await new Promise<void>((r) => setTimeout(r, 50));
+            if (this.queue.size + this.queue.pending === 0) break;
+          }
+          await this.externalQueue.onIdle();
+        }
+      }
     } finally {
       if (this.progressTimer) clearInterval(this.progressTimer);
       this.progressTimer = null;
@@ -1322,6 +1435,13 @@ export class Crawler extends EventEmitter {
     // Say what the loop guard dropped. Silently shrinking a crawl is exactly
     // the kind of invisible behaviour that makes a missing page impossible
     // to explain afterwards.
+    if (this.calendarTrapDropped > 0) {
+      this.emit(
+        'info',
+        `Crawl trap guard: skipped ${this.calendarTrapDropped.toLocaleString()} URL(s) of a ` +
+          'date-navigation pattern that only produced near-identical pages.',
+      );
+    }
     if (this.loopTrapsDropped > 0) {
       this.emit(
         'info',
@@ -1408,9 +1528,9 @@ export class Crawler extends EventEmitter {
       await yieldToEventLoop();
       this.emit('info', 'Clustering duplicates…');
       this.setOp('post-crawl:cluster-duplicates');
-      // Duplicate clustering has JS-side simhash work that lives on
-      // the crawler instance, not the DB; can't blindly off-thread it.
-      this.runDuplicateClustering();
+      // Through the host's DB hook — the writer worker on desktop — so the
+      // SimHash + MinHash passes never run on the main thread.
+      await this.runDuplicateClustering();
 
       // Template / boilerplate detection — runs alongside duplicate
       // clustering because both are content-similarity passes; surfaces the
@@ -1451,16 +1571,6 @@ export class Crawler extends EventEmitter {
       this.setOp('post-crawl:pagination-sequence');
       await this.runDbPass('recomputePaginationSequence');
     }
-    if (this.config.analyseIssues) {
-      await yieldToEventLoop();
-      this.emit('info', 'Materialising issue counters…');
-      this.setOp('post-crawl:materialise-issues');
-      // Route through the injected hook — in the desktop host this
-      // dispatches to the writer-worker, keeping the 70+ correlated
-      // subqueries off the main thread. CLI / tests fall back to
-      // running inline via `db.recomputeUrlsIssuesYielding`.
-      await this.recomputeIssues(EXPENSIVE_ISSUE_DEFINITIONS);
-    }
     await yieldToEventLoop();
     this.setOp('post-crawl:image-probes');
     await this.runImageSizeProbes();
@@ -1482,6 +1592,21 @@ export class Crawler extends EventEmitter {
     await yieldToEventLoop();
     this.setOp('post-crawl:performance-budget');
     this.runBudgetPass();
+    if (this.config.analyseIssues) {
+      await yieldToEventLoop();
+      this.emit('info', 'Materialising issue counters…');
+      this.setOp('post-crawl:materialise-issues');
+      // Last of the analysis passes on purpose: Broken Image, Large Image,
+      // Slow Image and the share-card size checks read the image / social
+      // probe results above. Materialised before them, those counters
+      // stayed at zero after every fresh crawl.
+      //
+      // Route through the injected hook — in the desktop host this
+      // dispatches to the writer-worker, keeping the 70+ correlated
+      // subqueries off the main thread. CLI / tests fall back to
+      // running inline via `db.recomputeUrlsIssuesYielding`.
+      await this.recomputeIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+    }
     // Fold the WAL back into the main DB file now that the write burst
     // is over. wal_autocheckpoint bounds WAL growth *during* the crawl;
     // this TRUNCATE pass reclaims the file afterwards so the project
@@ -1544,18 +1669,24 @@ export class Crawler extends EventEmitter {
    * cluster count as an `info` event so the user can see the post-crawl
    * pass actually fired. Threshold = 0 disables clustering.
    */
-  private runDuplicateClustering(): void {
+  private async runDuplicateClustering(): Promise<void> {
     const threshold = this.config.nearDuplicateHammingThreshold;
-    if (!threshold || threshold <= 0) return;
+    const similarity = this.config.nearDuplicateSimilarity ?? 0;
+    if ((!threshold || threshold <= 0) && similarity <= 0) return;
     try {
-      const { clusters, clusteredUrls } = this.db.recomputeDuplicateClusters(
-        threshold,
+      const { clusters, clusteredUrls } = await this.dbCall<{
+        clusters: number;
+        clusteredUrls: number;
+      }>('recomputeDuplicateClusters', [
+        threshold > 0 ? threshold : -1,
         this.config.duplicatesOnlyIndexable,
-      );
+        similarity,
+      ]);
       if (clusters > 0) {
         this.emit(
           'info',
-          `Duplicates: ${clusters} near-duplicate clusters across ${clusteredUrls} URLs (hamming ≤ ${threshold})`,
+          `Duplicates: ${clusters} near-duplicate clusters across ${clusteredUrls} URLs ` +
+            `(SimHash hamming ≤ ${threshold}, text similarity ≥ ${similarity}%)`,
         );
       }
     } catch (err) {
@@ -2504,15 +2635,9 @@ export class Crawler extends EventEmitter {
           // filters compare against. Crawling them as well is what finds
           // orphans — pages the sitemap declares but nothing links to.
           if (this.config.crawlLinkedSitemaps) {
-            let seeded = 0;
             for (const e of res.entries) {
               const norm = normalizeUrl(e.url, undefined, this.urlRewrites);
-              if (!norm) continue;
-              this.enqueue({ url: norm, depth: 0 });
-              seeded++;
-            }
-            if (seeded > 0) {
-              this.emit('info', `Sitemap: ${seeded} discovered URL(s) queued as crawl seeds`);
+              if (norm) this.deferredSitemapSeeds.push(norm);
             }
           }
         }
@@ -3285,6 +3410,10 @@ export class Crawler extends EventEmitter {
       this.loopTrapsDropped++;
       return;
     }
+    if (item.url !== this.config.startUrl && this.isCalendarTrapped(item.url)) {
+      this.calendarTrapDropped++;
+      return;
+    }
     if (this.config.respectRobotsTxt && !this.robotsAllows(item.url)) {
       // Record it instead of dropping it silently. This is the whole point
       // of the "Blocked by robots.txt" counter — which was permanently 0
@@ -3379,7 +3508,7 @@ export class Crawler extends EventEmitter {
 
   private enqueueResources(parsed: ParsedPage, depth: number): void {
     if (this.config.checkImages) {
-      for (const img of parsed.images) {
+      for (const img of [...parsed.images, ...parsed.socialImages]) {
         if (img.isInternal) this.enqueue({ url: img.src, depth, resourceRow: 'image' });
         // External images: status/size are filled by the post-crawl image
         // probe (images table), which now covers external images too — so
@@ -3626,6 +3755,11 @@ export class Crawler extends EventEmitter {
 
   private async fetchAndProcess(item: QueueItem): Promise<void> {
     if (this.stopped) return;
+    // Queued before its pattern was recognised as a calendar trap.
+    if (item.url !== this.config.startUrl && this.isCalendarTrapped(item.url)) {
+      this.calendarTrapDropped++;
+      return;
+    }
     this.setOp(`crawl:fetch:${item.url}`);
 
     // I-1 — Cooperative yield BEFORE we start work on this URL. The
@@ -4209,9 +4343,38 @@ export class Crawler extends EventEmitter {
       // HTTP Content-Type header's `charset=` parameter so older sites
       // without a meta still surface a value.
       let charset: string | null = parsed.charset;
-      if (!charset && contentType) {
-        const m = contentType.toLowerCase().match(/charset\s*=\s*([^\s;]+)/);
-        if (m && m[1]) charset = m[1];
+      const headerCharset = contentType
+        ? (contentType.toLowerCase().match(/charset\s*=\s*([^\s;]+)/)?.[1] ?? null)
+        : null;
+      if (!charset && headerCharset) charset = headerCharset;
+      // Both declarations, canonicalised, for the mismatch check. When
+      // they disagree the browser obeys the header and the page renders
+      // in the wrong encoding — the declared one in the document never
+      // gets a say.
+      const httpCharset = canonicalCharset(headerCharset);
+      const metaCharset = canonicalCharset(parsed.charset);
+
+      // What JavaScript does to <title> and robots. In rendering mode the
+      // page was parsed from the rendered DOM, so the served HTML is the
+      // reference; in text mode the inline scripts are the only evidence.
+      const sameTitle = (a: string | null, b: string | null): boolean =>
+        (a ?? '').replace(/\s+/g, ' ').trim() === (b ?? '').replace(/\s+/g, ' ').trim();
+      let jsNoindex = 0;
+      let jsTitleChanged = 0;
+      let jsTitle: string | null = null;
+      if (renderedHtml) {
+        const served = readServedHeadSignals(body);
+        if (parsed.hasNoindex && !served.noindex) jsNoindex = 2;
+        if (parsed.title && !sameTitle(parsed.title, served.title)) {
+          jsTitleChanged = 2;
+          jsTitle = parsed.title;
+        }
+      } else {
+        if (parsed.jsNoindexWrite && !parsed.hasNoindex) jsNoindex = 1;
+        if (parsed.jsTitleWrite && (parsed.jsTitle === null || !sameTitle(parsed.jsTitle, parsed.title))) {
+          jsTitleChanged = 1;
+          jsTitle = parsed.jsTitle;
+        }
       }
 
       // Honour bot-scoped directives correctly: `X-Robots-Tag: bingbot:
@@ -4307,7 +4470,6 @@ export class Crawler extends EventEmitter {
         }
       }
 
-      const imagesMissingAlt = parsed.images.filter((img) => img.alt === null).length;
       // Phase 1b — Build the entire per-URL write payload up front and
       // ship it across the writer-worker boundary in one shot. The
       // worker runs the upsert + headers + body snapshot + links +
@@ -4316,6 +4478,9 @@ export class Crawler extends EventEmitter {
       // Falls back to an inline transaction in the no-worker (CLI)
       // case via the default `writeFetchedUrl` injected in the
       // constructor.
+      // Before the write, so a page that completes a calendar trap is
+      // itself stored with the trap flag.
+      if (statusCode >= 200 && statusCode < 300) this.observeCalendarPage(item.url, parsed.simhash);
       this.setOp(`crawl:write:${item.url}`);
       const { urlId } = await this.writeFetchedUrl({
         upsert: {
@@ -4358,8 +4523,8 @@ export class Crawler extends EventEmitter {
           ttfbMs,
           depth: item.depth,
           outlinks: storableLinks.length,
-          imagesCount: parsed.images.length,
-          imagesMissingAlt,
+          imagesCount: parsed.imageCount,
+          imagesMissingAlt: parsed.imagesMissingAlt,
           lang: parsed.lang,
           viewport: parsed.viewport,
           ogTitle: parsed.ogTitle,
@@ -4420,6 +4585,16 @@ export class Crawler extends EventEmitter {
           metaRefreshUrl: this.config.storeMetaRefresh ? parsed.metaRefreshUrl : null,
           jsRedirectUrl: parsed.jsRedirectUrl,
           charset,
+          httpCharset,
+          metaCharset,
+          canonicalOutsideHead: this.config.storeCanonicals ? parsed.canonicalOutsideHead : 0,
+          contentLang: parsed.contentLang,
+          langMismatch: parsed.langMismatch ? 1 : 0,
+          soft404: parsed.soft404Signal && statusCode >= 200 && statusCode < 300 ? 1 : 0,
+          jsNoindex,
+          jsTitleChanged,
+          jsTitle,
+          minhash: parsed.minhash,
           extractionResults: parsed.extractionResults
             ? JSON.stringify(parsed.extractionResults)
             : null,
@@ -4436,7 +4611,7 @@ export class Crawler extends EventEmitter {
           insecureFormActionCount: parsed.insecureFormActionCount,
           missingSriCount: parsed.missingSriCount,
           titlePixelWidth: estimatePixelWidth(parsed.title ?? ''),
-          metaPixelWidth: estimatePixelWidth(parsed.metaDescription ?? ''),
+          metaPixelWidth: estimatePixelWidth(parsed.metaDescription ?? '', META_DESCRIPTION_FONT_PX),
           cookiesCount: cookieSummary.count,
           cookiesInsecure: cookieSummary.insecureCount,
           cookiesNoHttpOnly: cookieSummary.noHttpOnlyCount,
@@ -4490,6 +4665,7 @@ export class Crawler extends EventEmitter {
           : null,
         links: persistedLinks,
         images: this.config.storeImages ? parsed.images : [],
+        socialImages: parsed.socialImages,
         // Whether the empty lists above mean "this page has none"
         // (storage on → the writer replaces the page's rows) or "not
         // recording" (storage off → it keeps what an earlier crawl stored).

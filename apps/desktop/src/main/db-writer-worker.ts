@@ -126,6 +126,7 @@ const ALLOWED_METHODS = new Set<string>([
   'recomputeHreflangAnalysis',
   'recomputeHreflangInconsistent',
   'recomputeDuplicateClusters',
+  'markUrlTrap',
   'recomputeBoilerplateCoverage',
   'recomputePaginationSequence',
   'recomputeUrlsIssues',

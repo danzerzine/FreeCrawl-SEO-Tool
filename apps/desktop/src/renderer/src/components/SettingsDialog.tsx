@@ -175,6 +175,7 @@ interface FormState {
   processPriority: 'normal' | 'below-normal' | 'idle';
   // duplicates
   nearDuplicateHammingThreshold: string;
+  nearDuplicateSimilarity: string;
   duplicatesOnlyIndexable: boolean;
   dedupePreNormalize: boolean;
   contentAreaSelector: string;
@@ -583,7 +584,7 @@ function configToForm(c: CrawlConfig): FormState {
     storeExternalLinks: c.storeExternalLinks ?? true,
     storeCanonicals: c.storeCanonicals ?? true,
     storePagination: c.storePagination ?? true,
-    crawlHreflang: c.crawlHreflang ?? false,
+    crawlHreflang: c.crawlHreflang ?? true,
     storeHreflang: c.storeHreflang ?? true,
     crawlAmp: c.crawlAmp ?? false,
     storeAmp: c.storeAmp ?? true,
@@ -598,7 +599,7 @@ function configToForm(c: CrawlConfig): FormState {
     crawlInvalidLinks: c.crawlInvalidLinks ?? false,
     crawlQueryStrings: c.crawlQueryStrings ?? true,
     crawlQueryStringExceptionsText: (c.crawlQueryStringExceptions ?? []).join(', '),
-    crawlLinkedSitemaps: c.crawlLinkedSitemaps ?? false,
+    crawlLinkedSitemaps: c.crawlLinkedSitemaps ?? true,
     userAgent: c.userAgent,
     acceptLanguage: c.acceptLanguage,
     customHeadersText: Object.entries(c.customHeaders ?? {})
@@ -622,6 +623,7 @@ function configToForm(c: CrawlConfig): FormState {
     maxQueueSize: String(c.maxQueueSize),
     processPriority: c.processPriority,
     nearDuplicateHammingThreshold: String(c.nearDuplicateHammingThreshold),
+    nearDuplicateSimilarity: String(c.nearDuplicateSimilarity ?? 90),
     duplicatesOnlyIndexable: c.duplicatesOnlyIndexable,
     dedupePreNormalize: c.dedupePreNormalize ?? true,
     contentAreaSelector: c.contentAreaSelector ?? '',
@@ -667,7 +669,7 @@ function configToForm(c: CrawlConfig): FormState {
     maxUrlLength: String(c.maxUrlLength ?? 2048),
     maxQueryStringLength: String(c.maxQueryStringLength ?? 0),
     maxFolderDepth: String(c.maxFolderDepth ?? 0),
-    followCanonicals: c.followCanonicals ?? false,
+    followCanonicals: c.followCanonicals ?? true,
     followPaginationLinks: c.followPaginationLinks ?? true,
     followNofollow: c.followNofollow ?? false,
     followJsRedirects: c.followJsRedirects ?? false,
@@ -955,6 +957,10 @@ export function SettingsDialog({ open, onClose }: Props) {
           12,
           num(form.nearDuplicateHammingThreshold, config.nearDuplicateHammingThreshold),
         ),
+      ),
+      nearDuplicateSimilarity: Math.max(
+        0,
+        Math.min(100, num(form.nearDuplicateSimilarity, config.nearDuplicateSimilarity ?? 90)),
       ),
       duplicatesOnlyIndexable: form.duplicatesOnlyIndexable,
       dedupePreNormalize: form.dedupePreNormalize,
@@ -3787,11 +3793,21 @@ function DuplicatesPanel({ form, update }: PanelProps) {
           label={t('settingsPanels.duplicates.maxHamming', { defaultValue: 'Max Hamming distance (0 = exact only, 12 = very loose, 0 disables)' })}
           value={form.nearDuplicateHammingThreshold}
           onChange={(v) => update('nearDuplicateHammingThreshold', v)}
-          info="Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits. 3 ≈ 95% similarity over body-text shingles (Screaming Frog's tightest filter). Set to 0 to skip clustering entirely."
+          info="Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits — this catches near-identical copies. Text that is only largely the same is judged by the similarity threshold below. Set to 0 to skip this pass."
           example="3 = recommended; 5 catches looser duplicates (templated content with light variation); 0 turns the post-crawl pass off."
         />
         <p className="mt-1 text-[10px] text-surface-500">
           {t('settingsPanels.duplicates.thresholdHint', { defaultValue: 'Lower = stricter. 3 is the SF-equivalent default. Pages with too little body content (<50 characters) are excluded from clustering regardless of threshold.' })}
+        </p>
+        <Num
+          label={t('settingsPanels.duplicates.minSimilarity', { defaultValue: 'Minimum text similarity % (0 disables)' })}
+          value={form.nearDuplicateSimilarity}
+          onChange={(v) => update('nearDuplicateSimilarity', v)}
+          info="Two pages are clustered as near-duplicates when their main-content text is at least this similar, word for word. Estimated with MinHash over 3-word shingles, so it catches posts that were rewritten or lightly edited — not only identical copies. Set to 0 to skip this pass."
+          example="90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."
+        />
+        <p className="mt-1 text-[10px] text-surface-500">
+          {t('settingsPanels.duplicates.similarityHint', { defaultValue: 'Pages whose main-content wording is at least this similar are clustered too — this catches rewritten or lightly edited copies that SimHash misses. 90 is the SF-equivalent default.' })}
         </p>
       </div>
 
@@ -4228,7 +4244,7 @@ function AdvancedPanel({ form, update }: PanelProps) {
           label={t('settingsPanels.advanced.followCanonical', { defaultValue: 'Follow canonical targets' })}
           checked={form.followCanonicals}
           onChange={(v) => update('followCanonicals', v)}
-          info="When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target. Default off — most crawls treat canonicals as a signal, not a navigation hint."
+          info="When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target, so a canonical pointing at a missing or redirected page is caught. Default on."
         />
         <Bool
           label={t('settingsPanels.advanced.followNextPrev', { defaultValue: 'Follow rel=next / rel=prev' })}

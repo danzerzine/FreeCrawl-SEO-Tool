@@ -456,8 +456,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Вызывает проблему «Слишком длинный URL», когда LENGTH(url) > этого значения. RFC 7230 не задаёт максимум, но большинство серверов и промежуточных узлов отказывают выше ~2 КБ; сам Chrome ограничивает ~32 КБ.',
   ["Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. Each term's per-page hit count is surfaced in the URL Details panel."]:
     'Два режима на строку. (1) Заключите в слэши для regex: /шаблон/флаги — поддерживаются флаги imsuy (g принудительно). Некорректные шаблоны показываются со счётчиком -1 в панели деталей, чтобы заметить опечатку. (2) Всё остальное — литеральная регистронезависимая подстрока — прежнее поведение. Число совпадений каждого термина на странице видно в панели «Детали URL».',
-  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits. 3 ≈ 95% similarity over body-text shingles (Screaming Frog's tightest filter). Set to 0 to skip clustering entirely."]:
-    'Две страницы помечаются как почти дубликаты, если их 64-битные SimHash различаются не более чем на это число бит. 3 ≈ 95 % сходства по шинглам текста тела (самый строгий фильтр Screaming Frog). Установите 0, чтобы полностью пропустить кластеризацию.',
+  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits — this catches near-identical copies. Text that is only largely the same is judged by the similarity threshold below. Set to 0 to skip this pass."]:
+    "Две страницы отмечаются как почти дубликаты, если их 64-битный SimHash отличается не более чем на столько бит — так находятся почти идентичные копии. Текст, совпадающий лишь в основном, оценивается порогом сходства ниже. Укажите 0, чтобы пропустить этот шаг.",
   ['URL declared by the first <link rel="canonical"> tag. Tells search engines which version to index when duplicates exist.']:
     'URL, объявленный первым тегом <link rel="canonical">. Сообщает поисковым системам, какую версию индексировать при наличии дубликатов.',
   ['URL paths ending in any of these extensions are not enqueued. Case-insensitive. Start URL is always crawled regardless.']:
@@ -490,8 +490,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Если ВКЛ. (по умолчанию), фильтр «Дубликат URL» сравнивает URL после приведения хоста к нижнему регистру, отбрасывания строки запроса и удаления завершающего слэша — каноническое SEO-поведение. Если ВЫКЛ., сравнение побайтовое, поэтому фильтр срабатывает только на строках с идентичной сырой строкой URL (редко, так как URL дедуплицируются при вставке).',
   ["When on, `<meta http-equiv='refresh'>` content URLs are enqueued like a redirect target. window.location body redirects are heuristic-only and currently out of scope."]:
     "Если включено, URL из content `<meta http-equiv='refresh'>` ставятся в очередь как цель перенаправления. Перенаправления window.location в теле — только эвристика и сейчас вне области.",
-  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target. Default off — most crawls treat canonicals as a signal, not a navigation hint.']:
-    'Если включено, страница 200, объявляющая canonical на другой адрес, также ставит эту цель в очередь. По умолчанию выключено — большинство сканирований трактуют canonical как сигнал, а не как подсказку навигации.',
+  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target, so a canonical pointing at a missing or redirected page is caught. Default on.']:
+    'Если включено, страница 200, объявляющая canonical на другой адрес, также ставит эту цель в очередь — так обнаруживается canonical, указывающий на отсутствующую или перенаправленную страницу. По умолчанию включено.',
   ['When on, pages with noindex / canonicalised / robots-blocked indexability are excluded from clustering — the Near-Duplicate report then surfaces only issues that affect search visibility.']:
     'Если включено, страницы с индексируемостью noindex / канонизирована / заблокирована robots исключаются из кластеризации — отчёт «Почти дубликаты» тогда показывает только проблемы, влияющие на видимость в поиске.',
   ["When on, rel=nofollow links are recursed into like any other link. Default off — Screaming Frog 'Respect Nofollow' default."]:
@@ -663,4 +663,18 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Вкл. для сайтов на React Router / Vue Router / Angular, чьи страницы никогда не порождают запрос документа.',
   ['`<link rel="alternate" media="only screen and (max-width: …)" href="…">` value — the separate-URL (m-dot) mobile version of this page. Empty on responsive sites, which is most of them. A value here with no reciprocal canonical pointing back is the classic broken m-dot setup.']:
     'Значение `<link rel="alternate" media="only screen and (max-width: …)" href="…">` — мобильная версия этой страницы на отдельном URL (m-dot). Пусто на адаптивных сайтах, а таких большинство. Значение здесь без ответного canonical назад — классическая сломанная m-dot-настройка.',
+  ["Two pages are clustered as near-duplicates when their main-content text is at least this similar, word for word. Estimated with MinHash over 3-word shingles, so it catches posts that were rewritten or lightly edited — not only identical copies. Set to 0 to skip this pass."]:
+    "Две страницы объединяются как почти дубликаты, если их основной текст похож пословно как минимум на столько. Оценивается через MinHash по фрагментам из 3 слов, поэтому находит переписанные или слегка изменённые тексты, а не только идентичные копии. Укажите 0, чтобы пропустить этот шаг.",
+  ["Language the page's main-content text is written in, read from its wording rather than the lang attribute. Compared with html[lang] for the 'Lang ≠ Content Language' check. Empty when the text is too short or the language can't be told with confidence."]:
+    "Язык, на котором написан основной текст страницы, — определяется по самим словам, а не по атрибуту lang. Сравнивается с html[lang] в проверке «lang ≠ язык контента». Пусто, если текст слишком короткий или язык нельзя определить уверенно.",
+  ["Character encoding named by the Content-Type response header, as a canonical encoding name. Browsers obey it over the page's own declaration."]:
+    "Кодировка символов из заголовка ответа Content-Type в каноническом виде. Браузеры следуют ей, а не объявлению в самой странице.",
+  ["Character encoding the document itself declares in <meta charset> or http-equiv. When it disagrees with the HTTP charset, the page renders in the header's encoding."]:
+    "Кодировка, которую сам документ объявляет в <meta charset> или http-equiv. Если она не совпадает с charset из HTTP, страница отображается в кодировке заголовка.",
+  ["The title JavaScript sets on the page: from the rendered DOM in JavaScript rendering mode, or from an inline document.title assignment in text mode. Empty when scripts leave the title alone."]:
+    "Заголовок, который JavaScript задаёт странице: из отрисованного DOM в режиме рендеринга JavaScript или из встроенного присваивания document.title в текстовом режиме. Пусто, если скрипты не трогают заголовок.",
+  ["Highest estimated text similarity to another page in this URL's near-duplicate cluster, measured on the main-content wording. Empty for pages that aren't near-duplicates."]:
+    "Наибольшее расчётное сходство текста с другой страницей из группы почти дубликатов этого URL, по основному тексту. Пусто для страниц, не являющихся почти дубликатами.",
+  ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
+    "90 = рекомендуется (по умолчанию в Screaming Frog); 80 находит более свободные переписывания; 0 отключает этот шаг.",
 };

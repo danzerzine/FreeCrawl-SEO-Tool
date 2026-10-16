@@ -725,6 +725,8 @@
       "path": "Problèmes → Contenu → Quasi-doublon",
       "maxHamming": "Distance de Hamming maximale (0 = exacts uniquement, 12 = très permissif, 0 désactive)",
       "thresholdHint": "Plus bas = plus strict. 3 est la valeur équivalente à Screaming Frog. Les pages dont le corps contient trop peu de texte (<50 caractères) sont exclues du regroupement quel que soit le seuil.",
+      "minSimilarity": "Similarité textuelle minimale % (0 désactive)",
+      "similarityHint": "Les pages dont le texte principal est au moins aussi similaire sont aussi regroupées — cela détecte les copies réécrites ou légèrement modifiées que SimHash manque. 90 est la valeur par défaut équivalente à SF.",
       "onlyIndexable": "Ne regrouper que les pages indexables",
       "preNormalize": "Normaliser les URL avant la vérification des URL dupliquées",
       "costLabel": "Coût :",

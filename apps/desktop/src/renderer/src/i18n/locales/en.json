@@ -707,6 +707,8 @@
       "path": "Issues → Content → Near-Duplicate",
       "maxHamming": "Max Hamming distance (0 = exact only, 12 = very loose, 0 disables)",
       "thresholdHint": "Lower = stricter. 3 is the SF-equivalent default. Pages with too little body content (<50 characters) are excluded from clustering regardless of threshold.",
+      "minSimilarity": "Minimum text similarity % (0 disables)",
+      "similarityHint": "Pages whose main-content wording is at least this similar are clustered too — this catches rewritten or lightly edited copies that SimHash misses. 90 is the SF-equivalent default.",
       "onlyIndexable": "Only cluster indexable pages",
       "preNormalize": "Normalise URLs before duplicate-URL check",
       "costLabel": "Cost:",

@@ -447,8 +447,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     "LENGTH(url) > 이 값이면 'URL이 너무 김' 문제가 발생합니다. RFC 7230은 최대치를 정하지 않지만 대부분의 서버와 중간 장비는 약 2 KB 이상에서 실패하며, Chrome 자체는 약 32 KB로 제한합니다.",
   ["Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. Each term's per-page hit count is surfaced in the URL Details panel."]:
     '한 줄당 두 가지 모드. (1) 정규식은 슬래시로 감쌉니다: /패턴/플래그 — 지원 플래그 imsuy(g는 강제). 잘못된 패턴은 상세 패널에 카운트 -1로 표시되어 오타를 찾을 수 있습니다. (2) 그 외는 모두 대소문자를 구분하지 않는 리터럴 부분 문자열 — 기존 동작입니다. 각 검색어의 페이지별 일치 수는 URL 상세 패널에 표시됩니다.',
-  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits. 3 ≈ 95% similarity over body-text shingles (Screaming Frog's tightest filter). Set to 0 to skip clustering entirely."]:
-    '두 페이지의 64비트 SimHash가 이 비트 수 이하로 다르면 유사 중복으로 표시됩니다. 3 ≈ 본문 텍스트 shingle 기준 95% 유사도(Screaming Frog의 가장 엄격한 필터). 클러스터링을 완전히 건너뛰려면 0으로 설정하세요.',
+  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits — this catches near-identical copies. Text that is only largely the same is judged by the similarity threshold below. Set to 0 to skip this pass."]:
+    "두 페이지의 64비트 SimHash 차이가 이 비트 수 이하이면 유사 중복으로 표시합니다. 거의 동일한 사본을 잡아냅니다. 대부분만 같은 텍스트는 아래 유사도 임계값으로 판단합니다. 이 단계를 건너뛰려면 0으로 설정하세요.",
   ['URL declared by the first <link rel="canonical"> tag. Tells search engines which version to index when duplicates exist.']:
     '첫 번째 <link rel="canonical"> 태그가 선언한 URL. 중복이 있을 때 검색 엔진에 어떤 버전을 색인할지 알려줍니다.',
   ['URL paths ending in any of these extensions are not enqueued. Case-insensitive. Start URL is always crawled regardless.']:
@@ -481,8 +481,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '켜면(기본값) 중복 URL 필터가 호스트를 소문자로 바꾸고 쿼리 문자열을 버리고 후행 슬래시를 제거한 뒤 URL을 비교합니다 — 표준적인 SEO 동작입니다. 끄면 바이트 단위로 정확히 비교하므로 동일한 원시 URL 문자열을 공유하는 행에서만 필터가 발동합니다(URL은 삽입 시 중복 제거되므로 드뭅니다).',
   ["When on, `<meta http-equiv='refresh'>` content URLs are enqueued like a redirect target. window.location body redirects are heuristic-only and currently out of scope."]:
     "켜면 `<meta http-equiv='refresh'>` content의 URL이 리디렉션 대상처럼 큐에 들어갑니다. 본문의 window.location 리디렉션은 휴리스틱에 불과하며 현재 범위 밖입니다.",
-  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target. Default off — most crawls treat canonicals as a signal, not a navigation hint.']:
-    '켜면 다른 곳을 가리키는 canonical을 선언한 200 페이지가 그 대상도 큐에 넣습니다. 기본값은 끔 — 대부분의 크롤링은 canonical을 탐색 힌트가 아닌 신호로 취급합니다.',
+  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target, so a canonical pointing at a missing or redirected page is caught. Default on.']:
+    '켜면 다른 곳을 가리키는 canonical을 선언한 200 페이지가 그 대상도 큐에 넣어, 없는 페이지나 리다이렉트되는 페이지를 가리키는 canonical을 잡아냅니다. 기본값은 켬.',
   ['When on, pages with noindex / canonicalised / robots-blocked indexability are excluded from clustering — the Near-Duplicate report then surfaces only issues that affect search visibility.']:
     '켜면 색인 가능성이 noindex / 표준화됨 / robots 차단인 페이지가 클러스터링에서 제외됩니다 — 유사 중복 보고서에는 검색 가시성에 영향을 주는 문제만 나타납니다.',
   ["When on, rel=nofollow links are recursed into like any other link. Default off — Screaming Frog 'Respect Nofollow' default."]:
@@ -652,4 +652,18 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '페이지가 문서 요청을 전혀 만들지 않는 React Router / Vue Router / Angular 사이트에는 켬.',
   ['`<link rel="alternate" media="only screen and (max-width: …)" href="…">` value — the separate-URL (m-dot) mobile version of this page. Empty on responsive sites, which is most of them. A value here with no reciprocal canonical pointing back is the classic broken m-dot setup.']:
     '`<link rel="alternate" media="only screen and (max-width: …)" href="…">` 값 — 이 페이지의 별도 URL(m-dot) 모바일 버전. 반응형 사이트(대부분)에서는 비어 있습니다. 여기 값이 있는데 되돌아오는 상호 canonical이 없으면 전형적인 깨진 m-dot 설정입니다.',
+  ["Two pages are clustered as near-duplicates when their main-content text is at least this similar, word for word. Estimated with MinHash over 3-word shingles, so it catches posts that were rewritten or lightly edited — not only identical copies. Set to 0 to skip this pass."]:
+    "두 페이지의 본문 텍스트가 단어 단위로 이 정도 이상 유사하면 유사 중복으로 묶습니다. 3단어 조각에 대한 MinHash로 추정하므로 동일한 사본뿐 아니라 재작성되거나 약간 수정된 글도 잡아냅니다. 이 단계를 건너뛰려면 0으로 설정하세요.",
+  ["Language the page's main-content text is written in, read from its wording rather than the lang attribute. Compared with html[lang] for the 'Lang ≠ Content Language' check. Empty when the text is too short or the language can't be told with confidence."]:
+    "페이지 본문 텍스트가 쓰인 언어로, lang 속성이 아니라 텍스트 자체에서 판단합니다. 'lang ≠ 콘텐츠 언어' 검사를 위해 html[lang]과 비교합니다. 텍스트가 너무 짧거나 언어를 확실히 판단할 수 없으면 비어 있습니다.",
+  ["Character encoding named by the Content-Type response header, as a canonical encoding name. Browsers obey it over the page's own declaration."]:
+    "Content-Type 응답 헤더가 지정한 문자 인코딩(표준 이름). 브라우저는 페이지 자체 선언보다 이를 따릅니다.",
+  ["Character encoding the document itself declares in <meta charset> or http-equiv. When it disagrees with the HTTP charset, the page renders in the header's encoding."]:
+    "문서 자체가 <meta charset> 또는 http-equiv로 선언한 문자 인코딩. HTTP charset과 다르면 페이지는 헤더의 인코딩으로 표시됩니다.",
+  ["The title JavaScript sets on the page: from the rendered DOM in JavaScript rendering mode, or from an inline document.title assignment in text mode. Empty when scripts leave the title alone."]:
+    "JavaScript가 페이지에 설정한 제목: JavaScript 렌더링 모드에서는 렌더링된 DOM에서, 텍스트 모드에서는 인라인 document.title 할당에서 읽습니다. 스크립트가 제목을 건드리지 않으면 비어 있습니다.",
+  ["Highest estimated text similarity to another page in this URL's near-duplicate cluster, measured on the main-content wording. Empty for pages that aren't near-duplicates."]:
+    "이 URL의 유사 중복 클러스터 안 다른 페이지와의 최고 추정 텍스트 유사도로, 본문 텍스트 기준입니다. 유사 중복이 아닌 페이지는 비어 있습니다.",
+  ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
+    "90 = 권장(Screaming Frog 기본값), 80은 더 느슨한 재작성까지 잡음, 0은 이 단계를 끔.",
 };

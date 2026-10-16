@@ -452,8 +452,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     "जब LENGTH(url) > यह हो तो 'URL बहुत लंबा' समस्या उठाता है। RFC 7230 कोई अधिकतम अनिवार्य नहीं करता पर अधिकांश सर्वर + मिडलबॉक्स ~2 KB से ऊपर विफल होते हैं; Chrome स्वयं ~32 KB पर सीमित करता है।",
   ["Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. Each term's per-page hit count is surfaced in the URL Details panel."]:
     'प्रति पंक्ति दो मोड। (1) regex के लिए स्लैश में लपेटें: /pattern/flags — समर्थित फ़्लैग imsuy (g बाध्य)। अमान्य पैटर्न विवरण पैनल में -1 गिनती के साथ दिखते हैं ताकि आप टाइपो पकड़ सकें। (2) बाकी सब केस-असंवेदनशील शाब्दिक सबस्ट्रिंग है — पुराना व्यवहार। हर शब्द की प्रति-पेज हिट गिनती URL विवरण पैनल में दिखती है।',
-  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits. 3 ≈ 95% similarity over body-text shingles (Screaming Frog's tightest filter). Set to 0 to skip clustering entirely."]:
-    'दो पेज निकट-डुप्लिकेट चिह्नित होते हैं यदि उनका 64-बिट SimHash अधिकतम इतने बिट से भिन्न हो। 3 ≈ बॉडी-टेक्स्ट शिंगल्स पर 95% समानता (Screaming Frog का सबसे सख्त फ़िल्टर)। क्लस्टरिंग पूरी तरह छोड़ने के लिए 0 सेट करें।',
+  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits — this catches near-identical copies. Text that is only largely the same is judged by the similarity threshold below. Set to 0 to skip this pass."]:
+    "यदि दो पेजों का 64-बिट SimHash अधिकतम इतने बिट से भिन्न है, तो उन्हें निकट-प्रतिलिपि चिह्नित किया जाता है — इससे लगभग समान प्रतियां पकड़ी जाती हैं। जो टेक्स्ट केवल अधिकांशतः समान है, उसे नीचे दी गई समानता सीमा से आंका जाता है। इस चरण को छोड़ने के लिए 0 रखें।",
   ['URL declared by the first <link rel="canonical"> tag. Tells search engines which version to index when duplicates exist.']:
     'पहले <link rel="canonical"> टैग द्वारा घोषित URL। डुप्लिकेट होने पर सर्च इंजन को बताता है कि कौन-सा संस्करण इंडेक्स करें।',
   ['URL paths ending in any of these extensions are not enqueued. Case-insensitive. Start URL is always crawled regardless.']:
@@ -486,8 +486,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     'चालू (डिफ़ॉल्ट) होने पर डुप्लिकेट URL फ़िल्टर होस्ट लोअरकेस करके, क्वेरी स्ट्रिंग हटाकर और अंतिम स्लैश काटकर URL की तुलना करता है — कैनोनिकल SEO व्यवहार। बंद होने पर तुलना बाइट-सटीक है, इसलिए फ़िल्टर केवल उन पंक्तियों पर चलता है जिनकी कच्ची URL स्ट्रिंग समान हो (दुर्लभ, क्योंकि URL इन्सर्ट के समय डीडुप्लिकेट होते हैं)।',
   ["When on, `<meta http-equiv='refresh'>` content URLs are enqueued like a redirect target. window.location body redirects are heuristic-only and currently out of scope."]:
     "चालू होने पर `<meta http-equiv='refresh'>` content URL रीडायरेक्ट लक्ष्य की तरह कतार में डाले जाते हैं। window.location बॉडी रीडायरेक्ट केवल ह्यूरिस्टिक हैं और फ़िलहाल दायरे से बाहर।",
-  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target. Default off — most crawls treat canonicals as a signal, not a navigation hint.']:
-    'चालू होने पर कहीं और कैनोनिकल घोषित करने वाला 200 पेज उस लक्ष्य को भी कतार में डालता है। डिफ़ॉल्ट बंद — अधिकांश क्रॉल कैनोनिकल को नेविगेशन संकेत नहीं, सिग्नल मानते हैं।',
+  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target, so a canonical pointing at a missing or redirected page is caught. Default on.']:
+    'चालू होने पर कहीं और कैनोनिकल घोषित करने वाला 200 पेज उस लक्ष्य को भी कतार में डालता है, ताकि गायब या रीडायरेक्ट हुए पेज की ओर इशारा करने वाला कैनोनिकल पकड़ा जा सके। डिफ़ॉल्ट चालू।',
   ['When on, pages with noindex / canonicalised / robots-blocked indexability are excluded from clustering — the Near-Duplicate report then surfaces only issues that affect search visibility.']:
     'चालू होने पर noindex / कैनोनिकल किए गए / robots-अवरुद्ध इंडेक्सेबिलिटी वाले पेज क्लस्टरिंग से बाहर रखे जाते हैं — निकट-डुप्लिकेट रिपोर्ट तब केवल खोज दृश्यता को प्रभावित करने वाली समस्याएँ दिखाती है।',
   ["When on, rel=nofollow links are recursed into like any other link. Default off — Screaming Frog 'Respect Nofollow' default."]:
@@ -659,4 +659,18 @@ export const HI_INFO_TIPS: Record<string, string> = {
     'React Router / Vue Router / Angular साइटों के लिए चालू जिनके पेज कभी दस्तावेज़ अनुरोध नहीं बनाते।',
   ['`<link rel="alternate" media="only screen and (max-width: …)" href="…">` value — the separate-URL (m-dot) mobile version of this page. Empty on responsive sites, which is most of them. A value here with no reciprocal canonical pointing back is the classic broken m-dot setup.']:
     '`<link rel="alternate" media="only screen and (max-width: …)" href="…">` का मान — इस पेज का अलग-URL (m-dot) मोबाइल संस्करण। रिस्पॉन्सिव साइटों पर खाली, जो अधिकांश हैं। यहाँ मान हो पर वापस इशारा करने वाला कोई पारस्परिक कैनोनिकल न हो तो यह क्लासिक टूटा m-dot सेटअप है।',
+  ["Two pages are clustered as near-duplicates when their main-content text is at least this similar, word for word. Estimated with MinHash over 3-word shingles, so it catches posts that were rewritten or lightly edited — not only identical copies. Set to 0 to skip this pass."]:
+    "जब दो पेजों का मुख्य टेक्स्ट शब्द-दर-शब्द कम से कम इतना समान हो, तो उन्हें निकट-प्रतिलिपि के रूप में क्लस्टर किया जाता है। 3-शब्द टुकड़ों पर MinHash से अनुमानित, इसलिए यह केवल समान प्रतियां ही नहीं, बल्कि दोबारा लिखे या थोड़े बदले गए लेख भी पकड़ता है। इस चरण को छोड़ने के लिए 0 रखें।",
+  ["Language the page's main-content text is written in, read from its wording rather than the lang attribute. Compared with html[lang] for the 'Lang ≠ Content Language' check. Empty when the text is too short or the language can't be told with confidence."]:
+    "पेज का मुख्य टेक्स्ट जिस भाषा में लिखा है, वह lang विशेषता से नहीं बल्कि शब्दों से पढ़ी जाती है। 'lang ≠ सामग्री की भाषा' जांच के लिए html[lang] से तुलना की जाती है। टेक्स्ट बहुत छोटा हो या भाषा भरोसे से तय न हो सके तो खाली रहता है।",
+  ["Character encoding named by the Content-Type response header, as a canonical encoding name. Browsers obey it over the page's own declaration."]:
+    "Content-Type रिस्पॉन्स हेडर में बताई गई कैरेक्टर एन्कोडिंग, मानक नाम के रूप में। ब्राउज़र पेज की अपनी घोषणा के बजाय इसी का पालन करते हैं।",
+  ["Character encoding the document itself declares in <meta charset> or http-equiv. When it disagrees with the HTTP charset, the page renders in the header's encoding."]:
+    "दस्तावेज़ स्वयं <meta charset> या http-equiv में जो कैरेक्टर एन्कोडिंग घोषित करता है। HTTP charset से मेल न खाने पर पेज हेडर की एन्कोडिंग में दिखता है।",
+  ["The title JavaScript sets on the page: from the rendered DOM in JavaScript rendering mode, or from an inline document.title assignment in text mode. Empty when scripts leave the title alone."]:
+    "JavaScript पेज पर जो शीर्षक सेट करता है: JavaScript रेंडरिंग मोड में रेंडर किए गए DOM से, टेक्स्ट मोड में इनलाइन document.title असाइनमेंट से। स्क्रिप्ट शीर्षक न बदलें तो खाली रहता है।",
+  ["Highest estimated text similarity to another page in this URL's near-duplicate cluster, measured on the main-content wording. Empty for pages that aren't near-duplicates."]:
+    "इस URL के निकट-प्रतिलिपि क्लस्टर के किसी अन्य पेज से सबसे अधिक अनुमानित टेक्स्ट समानता, मुख्य टेक्स्ट पर मापी गई। जो पेज निकट-प्रतिलिपि नहीं हैं उनमें खाली रहता है।",
+  ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
+    "90 = अनुशंसित (Screaming Frog डिफ़ॉल्ट); 80 अधिक ढीले पुनर्लेखन पकड़ता है; 0 इस चरण को बंद करता है।",
 };

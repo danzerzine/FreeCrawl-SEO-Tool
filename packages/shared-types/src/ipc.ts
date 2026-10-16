@@ -1515,6 +1515,8 @@ export interface UrlClusterMember {
   inlinks: number;
   /** SimHash hamming distance from the queried URL (0 = identical fingerprint). */
   hammingDistance: number;
+  /** Estimated text similarity to the queried URL in percent (MinHash); null when unknown. */
+  similarity: number | null;
 }
 
 export interface UrlRewritePreviewResult {

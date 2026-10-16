@@ -1667,6 +1667,7 @@ function DuplicatesView({
           disabled={members.length === 0}
           getData={() => ({
             headers: [
+              translateLabel('Similarity %', lang),
               translateLabel('Hamming', lang),
               'URL',
               translateLabel('Status', lang),
@@ -1676,6 +1677,7 @@ function DuplicatesView({
               translateLabel('Title', lang),
             ],
             rows: members.map((m) => [
+              m.similarity ?? '',
               m.hammingDistance,
               m.url,
               m.statusCode ?? '',
@@ -1691,6 +1693,7 @@ function DuplicatesView({
         <table className="w-full text-[11px]">
           <thead className="sticky top-0 bg-surface-900 text-left text-[10px] text-surface-400">
             <tr>
+              <th className="px-3 py-1 font-normal">{translateLabel('Similarity %', lang)}</th>
               <th className="px-3 py-1 font-normal">{translateLabel('Hamming', lang)}</th>
               <th className="px-3 py-1 font-normal">URL</th>
               <th className="px-3 py-1 font-normal">{translateLabel('Status', lang)}</th>
@@ -1707,6 +1710,9 @@ function DuplicatesView({
                 className="border-t border-surface-800 hover:bg-surface-900"
               >
                 <td className="px-3 py-1 font-mono text-emerald-300">
+                  {m.similarity !== null ? `${m.similarity}%` : '—'}
+                </td>
+                <td className="px-3 py-1 font-mono text-surface-300">
                   {m.hammingDistance}
                 </td>
                 <td

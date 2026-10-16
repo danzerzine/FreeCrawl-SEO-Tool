@@ -85,8 +85,15 @@ const WARNING: UrlCategory[] = [
   'issues:cors-wildcard-with-credentials',
   'issues:structured-data-invalid',
   'issues:pagination-broken',
-  'issues:hreflang-x-default-missing',
   'issues:redirect-chain-long',
+  'issues:redirect-chain',
+  'issues:charset-mismatch',
+  'issues:canonical-outside-head',
+  'issues:lang-content-mismatch',
+  'issues:soft-404',
+  'issues:blocked-by-robots',
+  'issues:noindex-js-injected',
+  'issues:title-changed-by-js',
   'issues:compression-missing',
   'issues:non-indexable-in-sitemap',
   'issues:non-200-in-sitemap',
@@ -158,6 +165,9 @@ const WARNING: UrlCategory[] = [
 /** Informational / stylistic / nice-to-have signals. */
 const INFO: UrlCategory[] = [
   'issues:hreflang-unlinked',
+  // Google recommends x-default but never requires it — a missing one is
+  // a suggestion, not a defect.
+  'issues:hreflang-x-default-missing',
   'issues:heading-skipped-level',
   'issues:canonical-self-referencing',
   'issues:canonical-non-self',

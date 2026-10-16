@@ -68,6 +68,12 @@ import {
   ISSUE_COUNT_KEY,
   issueCategoriesBySeverity,
   normalizeDisabledIssues,
+  isValidHreflangCode,
+  MINHASH_SLOTS,
+  MINHASH_BANDS,
+  MINHASH_BAND_ROWS,
+  minhashSlot,
+  minhashSimilarity,
 } from '@freecrawl/shared-types';
 import { runMigrations } from './migrations.js';
 
@@ -206,6 +212,28 @@ interface UrlRowDb {
   amphtml: string | null;
   /** Separate-URL mobile version from `<link rel="alternate" media=…>`. */
   mobile_alternate: string | null;
+  /** `charset=` of the HTTP Content-Type header (WHATWG-canonical name). */
+  http_charset: string | null;
+  /** `<meta charset>` / `http-equiv` declaration (WHATWG-canonical name). */
+  meta_charset: string | null;
+  /** `<link rel="canonical">` elements inside `<body>` — ignored by search engines. */
+  canonical_outside_head: number;
+  /** Primary language the main-content prose is written in. */
+  content_lang: string | null;
+  /** 1 when `html[lang]` names a language the prose clearly isn't in. */
+  lang_mismatch: number;
+  /** Soft 404 evidence: 0 none, 1 not-found wording, 2 the site's 404 template. */
+  soft_404: number;
+  /** JS-added noindex: 0 none, 1 inline-script evidence, 2 confirmed by rendering. */
+  js_noindex: number;
+  /** JS-changed `<title>`: 0 none, 1 inline-script evidence, 2 confirmed by rendering. */
+  js_title_changed: number;
+  /** The title JavaScript sets, when it can be read. */
+  js_title: string | null;
+  /** 128-byte MinHash signature of the main content (near-duplicate similarity). */
+  minhash: Uint8Array | null;
+  /** Best estimated similarity (%) to a near-duplicate cluster mate. */
+  near_dup_similarity: number | null;
   /** 1 when the page declares `<html ⚡>` / `<html amp>`, else 0. */
   amp_page: number;
   /** JSON string array of AMP smoke-validator error codes. Empty when
@@ -477,6 +505,16 @@ export interface UpsertUrlInput {
   amphtml?: string | null;
   /** Separate-URL mobile version from `<link rel="alternate" media=…>`. */
   mobileAlternate?: string | null;
+  httpCharset?: string | null;
+  metaCharset?: string | null;
+  canonicalOutsideHead?: number;
+  contentLang?: string | null;
+  langMismatch?: number;
+  soft404?: number;
+  jsNoindex?: number;
+  jsTitleChanged?: number;
+  jsTitle?: string | null;
+  minhash?: Uint8Array | null;
   ampPage?: boolean;
   /** JSON-stringified array of AMP validator error codes. */
   ampValidationErrors?: string | null;
@@ -659,7 +697,9 @@ const UPSERT_URL_SQL = `
     schema_duplicate_ids, schema_unknown_types, schema_missing_required,
     schema_missing_recommended, schema_findings,
     heading_order_violations, subresource_request_count,
-    amp_page, amp_validation_errors, mobile_alternate
+    amp_page, amp_validation_errors, mobile_alternate,
+    http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
+    soft_404, js_noindex, js_title_changed, js_title, minhash
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
     :title, :title_length, :meta_description, :meta_description_length,
@@ -702,7 +742,9 @@ const UPSERT_URL_SQL = `
     :schema_duplicate_ids, :schema_unknown_types, :schema_missing_required,
     :schema_missing_recommended, :schema_findings,
     :heading_order_violations, :subresource_request_count,
-    :amp_page, :amp_validation_errors, :mobile_alternate
+    :amp_page, :amp_validation_errors, :mobile_alternate,
+    :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash
   )
   ON CONFLICT(url) DO UPDATE SET
     content_kind = excluded.content_kind,
@@ -845,6 +887,16 @@ const UPSERT_URL_SQL = `
     amp_page = excluded.amp_page,
     amp_validation_errors = excluded.amp_validation_errors,
     mobile_alternate = excluded.mobile_alternate,
+    http_charset = excluded.http_charset,
+    meta_charset = excluded.meta_charset,
+    canonical_outside_head = excluded.canonical_outside_head,
+    content_lang = excluded.content_lang,
+    lang_mismatch = excluded.lang_mismatch,
+    soft_404 = excluded.soft_404,
+    js_noindex = excluded.js_noindex,
+    js_title_changed = excluded.js_title_changed,
+    js_title = excluded.js_title,
+    minhash = excluded.minhash,
     changed = ${CHANGED_FLAG_SQL},
     crawled_at = CURRENT_TIMESTAMP
   RETURNING id
@@ -881,14 +933,18 @@ function truncateUtf8(input: string, cap: number): string {
  * templated alt. Shared by the overview count, `queryImages`, and the CSV
  * export so all three agree on what "duplicate alt" means.
  */
-const DUPLICATE_ALT_PREDICATE = `alt IS NOT NULL AND alt != '' AND alt IN (
-  SELECT alt FROM images WHERE alt IS NOT NULL AND alt != '' GROUP BY alt HAVING COUNT(*) > 1
+// Variants (srcset / <picture> candidates) share their slot's alt by
+// design and are left out on both sides.
+const DUPLICATE_ALT_PREDICATE = `is_variant = 0 AND alt IS NOT NULL AND alt != '' AND alt IN (
+  SELECT alt FROM images WHERE is_variant = 0 AND alt IS NOT NULL AND alt != ''
+   GROUP BY alt HAVING COUNT(*) > 1
 )`;
 
 // Per-usage duplicate-alt: a usage whose alt text is shared by >1 usage.
 // Operates on `image_usages.alt` to match the per-usage Images view.
-const USAGE_DUPLICATE_ALT_PREDICATE = `iu.alt IS NOT NULL AND iu.alt != '' AND iu.alt IN (
-  SELECT alt FROM image_usages WHERE alt IS NOT NULL AND alt != '' GROUP BY alt HAVING COUNT(*) > 1
+const USAGE_DUPLICATE_ALT_PREDICATE = `iu.is_variant = 0 AND iu.alt IS NOT NULL AND iu.alt != '' AND iu.alt IN (
+  SELECT alt FROM image_usages WHERE is_variant = 0 AND alt IS NOT NULL AND alt != ''
+   GROUP BY alt HAVING COUNT(*) > 1
 )`;
 
 // Missing / empty alt are computed from PER-USAGE truth (`image_usages.alt`):
@@ -1617,6 +1673,13 @@ export class ProjectDb {
     links: DiscoveredLink[];
     images: DiscoveredImage[];
     /**
+     * `og:image` / `twitter:image` targets. Registered in `images` so the
+     * post-crawl size probe measures them for the share-card size checks,
+     * but given no `image_usages` row: they aren't on-page images, so
+     * they never count toward Missing Alt or the Images tab.
+     */
+    socialImages?: DiscoveredImage[];
+    /**
      * Whether the crawl is recording this page's link graph at all
      * (Spider → Crawl → Store for hyperlinks / iframes / invalid links).
      * When false, `links` is empty because nothing is being recorded —
@@ -1682,6 +1745,9 @@ export class ProjectDb {
           if (payload.images.length > 0) {
             this.insertImages(urlId, payload.images);
           }
+        }
+        if (payload.socialImages && payload.socialImages.length > 0) {
+          this.registerProbeOnlyImages(payload.socialImages);
         }
       }
       return { urlId };
@@ -2153,6 +2219,16 @@ export class ProjectDb {
       amp_page: input.ampPage ? 1 : 0,
       amp_validation_errors: input.ampValidationErrors ?? null,
       mobile_alternate: input.mobileAlternate ?? null,
+      http_charset: input.httpCharset ?? null,
+      meta_charset: input.metaCharset ?? null,
+      canonical_outside_head: input.canonicalOutsideHead ?? 0,
+      content_lang: input.contentLang ?? null,
+      lang_mismatch: input.langMismatch ?? 0,
+      soft_404: input.soft404 ?? 0,
+      js_noindex: input.jsNoindex ?? 0,
+      js_title_changed: input.jsTitleChanged ?? 0,
+      js_title: input.jsTitle ?? null,
+      minhash: input.minhash ?? null,
       favicon: input.favicon ?? null,
       mixed_content_count: input.mixedContentCount ?? 0,
       mixed_content_active: input.mixedContentActive ?? 0,
@@ -3006,26 +3082,27 @@ export class ProjectDb {
   }
 
   /**
-   * Cluster pages by SimHash hamming distance ≤ `thresholdBits` and
-   * write `cluster_id` / `cluster_size` back to every URL.
+   * Cluster near-duplicate pages and write `cluster_id` / `cluster_size`
+   * (and the best similarity found, `near_dup_similarity`) back to every
+   * URL. Two independent passes feed one Union-Find:
    *
-   * Algorithm — band-based LSH + Union-Find:
+   *   1. **SimHash** (`thresholdBits`, 0–64; negative skips the pass) —
+   *      near-identical copies. Each 64-bit hash is split into 4 × 16-bit
+   *      bands; by pigeonhole any two hashes within ≤ 3 bits share a band,
+   *      so only same-band pairs are compared.
+   *   2. **MinHash** (`minSimilarityPct`, 1–100; 0 skips the pass) — pages
+   *      whose main-content text is at least that similar, word for word.
+   *      21 LSH bands of 3 slots surface candidate pairs (a 90%-similar
+   *      pair collides in some band ~99% of the time); each candidate's
+   *      similarity is then estimated from the full 64-slot signature
+   *      (see shared-types/minhash.ts) and kept only above the threshold.
    *
-   *   1. Pull `(id, simhash)` for every internal HTML row whose simhash
-   *      is non-null. (Optionally restrict to indexable rows.)
-   *   2. Split each 64-bit hash into 4 × 16-bit bands. By the pigeonhole
-   *      principle, any two hashes within hamming distance ≤ 3 must
-   *      agree on at least one band — so candidates are a strict subset
-   *      of "shares a band value". This collapses the comparison from
-   *      O(N²) to ~O(N · avg_bucket_size).
-   *   3. For every band-value bucket, do exact pairwise hamming checks.
-   *      Pairs within the threshold get unioned in a Union-Find DSU.
-   *   4. The DSU's connected components ARE the clusters. Map each root
-   *      to a sequential cluster_id and write back `(cluster_id,
-   *      cluster_size)` in a batched UPDATE.
+   * Connected components are the clusters, numbered from 1 (0 means
+   * "singleton" so the `cluster_id > 0` issue filter stays correct).
+   * Buckets are capped at BUCKET_LIMIT so a flood of empty template pages
+   * sharing one band value can't turn the pass quadratic.
    *
-   * Memory: O(N) for the SimHash list + DSU. ~80 MB at 1M URLs.
-   * Time:   ~3–10 s at 1M URLs depending on bucket distribution.
+   * Memory: O(N) — the hashes plus 128 bytes of signature per page.
    *
    * `onlyIndexable=true` skips noindex / canonicalised / blocked-robots
    * pages — the duplicate report then surfaces only issues that actually
@@ -3034,32 +3111,37 @@ export class ProjectDb {
   recomputeDuplicateClusters(
     thresholdBits: number,
     onlyIndexable: boolean,
+    minSimilarityPct = 0,
   ): { clusters: number; clusteredUrls: number } {
     // Reset all clustering state first so a re-run with different
     // thresholds doesn't leave stale partitions behind.
     this.db.exec('UPDATE urls SET cluster_id = 0, cluster_size = 1 WHERE cluster_id != 0');
+    this.db.exec('UPDATE urls SET near_dup_similarity = NULL WHERE near_dup_similarity IS NOT NULL');
 
-    if (thresholdBits < 0 || thresholdBits > 64) {
-      return { clusters: 0, clusteredUrls: 0 };
-    }
+    const useSimhash = thresholdBits >= 0 && thresholdBits <= 64;
+    const useMinhash = minSimilarityPct > 0 && minSimilarityPct <= 100;
+    if (!useSimhash && !useMinhash) return { clusters: 0, clusteredUrls: 0 };
 
     const indexClause = onlyIndexable ? "AND indexability = 'indexable'" : '';
     const rows = this.db
       .prepare(
-        `SELECT id, simhash FROM urls
+        `SELECT id, simhash, minhash FROM urls
            WHERE is_external = 0 AND content_kind = 'html'
-             AND simhash IS NOT NULL ${indexClause}`,
+             AND (simhash IS NOT NULL OR minhash IS NOT NULL) ${indexClause}`,
       )
-      .all() as { id: number; simhash: string }[];
+      .all() as { id: number; simhash: string | null; minhash: Uint8Array | null }[];
 
     if (rows.length < 2) return { clusters: 0, clusteredUrls: 0 };
 
     const N = rows.length;
     const ids = new Int32Array(N);
-    const hashes: bigint[] = new Array<bigint>(N);
+    const hashes: (bigint | null)[] = new Array<bigint | null>(N);
+    const sigs: (Uint8Array | null)[] = new Array<Uint8Array | null>(N);
     for (let i = 0; i < N; i++) {
-      ids[i] = rows[i]!.id;
-      hashes[i] = BigInt('0x' + rows[i]!.simhash);
+      const r = rows[i]!;
+      ids[i] = r.id;
+      hashes[i] = r.simhash ? BigInt('0x' + r.simhash) : null;
+      sigs[i] = r.minhash && r.minhash.length === MINHASH_SLOTS * 2 ? r.minhash : null;
     }
 
     // Union-Find with path compression + union-by-rank.
@@ -3088,6 +3170,16 @@ export class ProjectDb {
         rank[ra]!++;
       }
     };
+    // Best similarity (0–1) each page reached against a cluster mate.
+    const best = new Float64Array(N).fill(-1);
+    const noteSimilarity = (a: number, b: number): void => {
+      const sa = sigs[a];
+      const sb = sigs[b];
+      if (!sa || !sb) return;
+      const s = minhashSimilarity(sa, sb);
+      if (s > best[a]!) best[a] = s;
+      if (s > best[b]!) best[b] = s;
+    };
 
     // Hamming distance over 64-bit BigInt — popcount via Brian Kernighan.
     const hamming = (a: bigint, b: bigint): number => {
@@ -3100,36 +3192,80 @@ export class ProjectDb {
       return c;
     };
 
-    // Band buckets: 4 bands × Map<bandValue, indices[]>. We cap bucket
-    // size to BUCKET_LIMIT — pathological banner-only pages can otherwise
-    // produce a single bucket containing every page on the site, which
-    // would make the inner-loop comparison quadratic again.
     const BUCKET_LIMIT = 5000;
-    for (let band = 0; band < 4; band++) {
-      const shift = BigInt(band * 16);
-      const mask = 0xffffn;
-      const buckets = new Map<number, number[]>();
-      for (let i = 0; i < N; i++) {
-        const v = Number((hashes[i]! >> shift) & mask);
-        let bucket = buckets.get(v);
-        if (!bucket) {
-          bucket = [];
-          buckets.set(v, bucket);
+
+    // ── Pass 1: SimHash ────────────────────────────────────────────────
+    if (useSimhash) {
+      for (let band = 0; band < 4; band++) {
+        const shift = BigInt(band * 16);
+        const mask = 0xffffn;
+        const buckets = new Map<number, number[]>();
+        for (let i = 0; i < N; i++) {
+          const h = hashes[i];
+          if (h === null || h === undefined) continue;
+          const v = Number((h >> shift) & mask);
+          let bucket = buckets.get(v);
+          if (!bucket) {
+            bucket = [];
+            buckets.set(v, bucket);
+          }
+          if (bucket.length < BUCKET_LIMIT) bucket.push(i);
         }
-        if (bucket.length < BUCKET_LIMIT) bucket.push(i);
+        for (const bucket of buckets.values()) {
+          if (bucket.length < 2) continue;
+          for (let a = 0; a < bucket.length; a++) {
+            const ia = bucket[a]!;
+            for (let b = a + 1; b < bucket.length; b++) {
+              const ib = bucket[b]!;
+              // Skip pairs already in the same component — the same pair
+              // shows up again in the other bands and the DSU find is cheap.
+              if (find(ia) === find(ib)) continue;
+              if (hamming(hashes[ia]!, hashes[ib]!) <= thresholdBits) {
+                union(ia, ib);
+                noteSimilarity(ia, ib);
+              }
+            }
+          }
+        }
       }
-      for (const bucket of buckets.values()) {
-        if (bucket.length < 2) continue;
-        for (let a = 0; a < bucket.length; a++) {
-          const ia = bucket[a]!;
-          for (let b = a + 1; b < bucket.length; b++) {
-            const ib = bucket[b]!;
-            // Skip pairs already in the same component — we're going to
-            // touch the same band repeatedly across all 4 passes and the
-            // DSU find is cheap.
-            if (find(ia) === find(ib)) continue;
-            if (hamming(hashes[ia]!, hashes[ib]!) <= thresholdBits) {
+    }
+
+    // ── Pass 2: MinHash similarity ─────────────────────────────────────
+    if (useMinhash) {
+      const threshold = minSimilarityPct / 100;
+      for (let band = 0; band < MINHASH_BANDS; band++) {
+        const first = band * MINHASH_BAND_ROWS;
+        const buckets = new Map<number, number[]>();
+        for (let i = 0; i < N; i++) {
+          const sig = sigs[i];
+          if (!sig) continue;
+          // Three 16-bit slots → one exact 48-bit key.
+          const key =
+            minhashSlot(sig, first) +
+            minhashSlot(sig, first + 1) * 0x10000 +
+            minhashSlot(sig, first + 2) * 0x100000000;
+          let bucket = buckets.get(key);
+          if (!bucket) {
+            bucket = [];
+            buckets.set(key, bucket);
+          }
+          if (bucket.length < BUCKET_LIMIT) bucket.push(i);
+        }
+        for (const bucket of buckets.values()) {
+          if (bucket.length < 2) continue;
+          for (let a = 0; a < bucket.length; a++) {
+            const ia = bucket[a]!;
+            for (let b = a + 1; b < bucket.length; b++) {
+              const ib = bucket[b]!;
+              // Already clustered and both sides have a similarity on
+              // record: nothing left to learn from this pair. Keeps a
+              // flood of identical template pages linear per band.
+              if (find(ia) === find(ib) && best[ia]! >= threshold && best[ib]! >= threshold) continue;
+              const s = minhashSimilarity(sigs[ia]!, sigs[ib]!);
+              if (s < threshold) continue;
               union(ia, ib);
+              if (s > best[ia]!) best[ia] = s;
+              if (s > best[ib]!) best[ib] = s;
             }
           }
         }
@@ -3156,7 +3292,7 @@ export class ProjectDb {
     }
 
     const upd = this.db.prepare(
-      'UPDATE urls SET cluster_id = ?, cluster_size = ? WHERE id = ?',
+      'UPDATE urls SET cluster_id = ?, cluster_size = ?, near_dup_similarity = ? WHERE id = ?',
     );
     this.db.exec('BEGIN');
     try {
@@ -3164,7 +3300,8 @@ export class ProjectDb {
         const root = find(i);
         const cid = rootToCluster.get(root);
         if (cid !== undefined) {
-          upd.run(cid, clusterSize.get(root)!, ids[i]!);
+          const sim = best[i]! >= 0 ? Math.round(best[i]! * 100) : null;
+          upd.run(cid, clusterSize.get(root)!, sim, ids[i]!);
         }
       }
       this.db.exec('COMMIT');
@@ -3561,15 +3698,18 @@ export class ProjectDb {
     wordCount: number | null;
     inlinks: number;
     hammingDistance: number;
+    similarity: number | null;
   }> {
     const self = this.db
-      .prepare('SELECT cluster_id, simhash FROM urls WHERE id = ?')
-      .get(urlId) as { cluster_id: number | null; simhash: string | null } | undefined;
+      .prepare('SELECT cluster_id, simhash, minhash FROM urls WHERE id = ?')
+      .get(urlId) as
+      | { cluster_id: number | null; simhash: string | null; minhash: Uint8Array | null }
+      | undefined;
     if (!self || !self.cluster_id || self.cluster_id <= 0) return [];
 
     const rows = this.db
       .prepare(
-        `SELECT id, url, status_code, indexability, title, word_count, inlinks, simhash
+        `SELECT id, url, status_code, indexability, title, word_count, inlinks, simhash, minhash
            FROM urls
           WHERE cluster_id = ? AND id != ?
           ORDER BY url ASC`,
@@ -3583,6 +3723,7 @@ export class ProjectDb {
       word_count: number | null;
       inlinks: number;
       simhash: string | null;
+      minhash: Uint8Array | null;
     }>;
 
     const popcount = (x: bigint): number => {
@@ -3605,6 +3746,10 @@ export class ProjectDb {
         inlinks: r.inlinks,
         hammingDistance:
           selfBig !== null && r.simhash ? popcount(selfBig ^ BigInt('0x' + r.simhash)) : 0,
+        similarity:
+          self.minhash && r.minhash
+            ? Math.round(minhashSimilarity(self.minhash, r.minhash) * 100)
+            : null,
       }))
       .sort((a, b) => a.hammingDistance - b.hammingDistance || a.url.localeCompare(b.url));
   }
@@ -4174,10 +4319,12 @@ export class ProjectDb {
   insertImages(fromUrlId: number, images: DiscoveredImage[]): void {
     if (images.length === 0) return;
     const upsertImage = this.db.prepare(
-      `INSERT INTO images (src, alt, width, height, is_internal, occurrences)
-       VALUES (?, ?, ?, ?, ?, 1)
+      `INSERT INTO images (src, alt, width, height, is_internal, occurrences, is_variant)
+       VALUES (?, ?, ?, ?, ?, 1, ?)
        ON CONFLICT(src) DO UPDATE SET
          occurrences = occurrences + 1,
+         -- A variant anywhere that is also a slot somewhere is a slot.
+         is_variant = MIN(images.is_variant, excluded.is_variant),
          -- Fill in alt / dimensions from later occurrences only if the
          -- current stored row is missing them.
          alt = COALESCE(images.alt, excluded.alt),
@@ -4186,22 +4333,26 @@ export class ProjectDb {
        RETURNING id`,
     );
     const upsertUsage = this.db.prepare(
-      `INSERT INTO image_usages (from_url_id, image_id, alt)
-       VALUES (?, ?, ?)
-       ON CONFLICT(from_url_id, image_id) DO UPDATE SET alt = excluded.alt`,
+      `INSERT INTO image_usages (from_url_id, image_id, alt, is_variant)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(from_url_id, image_id) DO UPDATE SET
+         alt = excluded.alt,
+         is_variant = MIN(image_usages.is_variant, excluded.is_variant)`,
     );
     const ownsTx = !this.isInTransaction();
     if (ownsTx) this.db.exec('BEGIN');
     try {
       for (const img of images) {
+        const variant = img.variant ? 1 : 0;
         const row = upsertImage.get(
           img.src,
           img.alt,
           img.width,
           img.height,
           img.isInternal ? 1 : 0,
+          variant,
         ) as { id: number };
-        upsertUsage.run(fromUrlId, row.id, img.alt);
+        upsertUsage.run(fromUrlId, row.id, img.alt, variant);
       }
       if (ownsTx) this.db.exec('COMMIT');
     } catch (err) {
@@ -4214,6 +4365,34 @@ export class ProjectDb {
       }
       throw err;
     }
+  }
+
+  /**
+   * Flag already-crawled URLs as part of a crawl trap the crawler only
+   * recognised after fetching them (a calendar's pages look ordinary one
+   * at a time). Chunked under SQLite's parameter limit.
+   */
+  markUrlTrap(urls: readonly string[], kind: string): void {
+    for (let i = 0; i < urls.length; i += 500) {
+      const slice = urls.slice(i, i + 500);
+      this.db
+        .prepare(`UPDATE urls SET url_trap = ? WHERE url IN (${slice.map(() => '?').join(',')})`)
+        .run(kind, ...slice);
+    }
+  }
+
+  /**
+   * Make sure each image has an `images` row for the post-crawl probes
+   * without recording a usage. An image that is also shown via `<img>`
+   * somewhere keeps its usage-derived alt and occurrence count.
+   */
+  registerProbeOnlyImages(images: DiscoveredImage[]): void {
+    const insert = this.db.prepare(
+      `INSERT INTO images (src, alt, width, height, is_internal, occurrences)
+       VALUES (?, NULL, NULL, NULL, ?, 0)
+       ON CONFLICT(src) DO NOTHING`,
+    );
+    for (const img of images) insert.run(img.src, img.isInternal ? 1 : 0);
   }
 
   /**
@@ -5876,8 +6055,8 @@ export class ProjectDb {
       const where: string[] = [];
       const args: (string | number)[] = [];
       if (params.internalOnly) where.push('i.is_internal = 1');
-      if (params.missingAltOnly) where.push('iu.alt IS NULL');
-      if (params.emptyAltOnly) where.push("iu.alt = ''");
+      if (params.missingAltOnly) where.push('iu.alt IS NULL AND iu.is_variant = 0');
+      if (params.emptyAltOnly) where.push("iu.alt = '' AND iu.is_variant = 0");
       if (params.duplicateAltOnly) where.push(USAGE_DUPLICATE_ALT_PREDICATE);
       if (params.search) {
         where.push('(i.src LIKE ? OR iu.alt LIKE ?)');
@@ -5937,7 +6116,8 @@ export class ProjectDb {
     }
 
     // Legacy fallback — per distinct image (no usage rows to expand).
-    const where: string[] = [];
+    // `occurrences = 0` rows are probe-only share-card images, not page images.
+    const where: string[] = ['i.occurrences > 0'];
     const args: (string | number)[] = [];
     if (params.internalOnly) where.push('i.is_internal = 1');
     if (params.missingAltOnly) where.push('i.alt IS NULL');
@@ -6231,7 +6411,8 @@ export class ProjectDb {
     // tab shows exactly the rows this headline counts.
     const totalIndexable = countCategory('indexability:indexable');
     const totalNonIndexable = countCategory('indexability:non-indexable');
-    const totalImages = this.scalarCount('SELECT COUNT(*) AS c FROM images');
+    // Probe-only rows (share-card images, `occurrences = 0`) aren't on any page.
+    const totalImages = this.scalarCount('SELECT COUNT(*) AS c FROM images WHERE occurrences > 0');
 
     return {
       summary: {
@@ -6379,12 +6560,15 @@ export class ProjectDb {
       ),
       canonicalToNoindex: countWhere(
         `${html} AND canonical IS NOT NULL AND canonical != ''
+         AND ${CANONICAL_CMP} != url
          AND EXISTS (
            SELECT 1 FROM urls t WHERE t.url = ${CANONICAL_CMP_Q}
              AND t.indexability = 'non-indexable:noindex'
          )`,
       ),
-      contentThin: countWhere(`${indexable} AND word_count IS NOT NULL AND word_count < 300`),
+      contentThin: countWhere(
+        `${indexable} AND indexability = 'indexable' AND word_count IS NOT NULL AND word_count < 300`,
+      ),
       // Only a completed check yields a finding count — an unsupported or
       // language-mismatched page stores zero because nothing was collected.
       // Stating `status = 'ok'` keeps that explicit rather than leaning on
@@ -6489,8 +6673,8 @@ export class ProjectDb {
         // Per-usage to match the per-usage Images tab (count = table). Legacy
         // projects with no usage rows fall back to the distinct-image count.
         `SELECT (CASE WHEN EXISTS(SELECT 1 FROM image_usages)
-           THEN (SELECT COUNT(*) FROM image_usages WHERE alt IS NULL)
-           ELSE (SELECT COUNT(*) FROM images WHERE alt IS NULL) END) AS c`,
+           THEN (SELECT COUNT(*) FROM image_usages WHERE alt IS NULL AND is_variant = 0)
+           ELSE (SELECT COUNT(*) FROM images WHERE alt IS NULL AND occurrences > 0) END) AS c`,
       ),
       // Distinct images sharing a non-empty alt with ≥1 other image —
       // non-descriptive / templated alt reuse. Counted image-level (the
@@ -6502,6 +6686,22 @@ export class ProjectDb {
       metaRefreshUsed: countWhere(
         `${html} AND meta_refresh IS NOT NULL AND meta_refresh != ''`,
       ),
+      charsetMismatch: countWhere(
+        `${html} AND http_charset IS NOT NULL AND meta_charset IS NOT NULL
+         AND http_charset != meta_charset`,
+      ),
+      canonicalOutsideHead: countWhere(`${html} AND canonical_outside_head > 0`),
+      langContentMismatch: countWhere(`${html} AND lang_mismatch = 1`),
+      soft404: countWhere(`${html} AND status_code BETWEEN 200 AND 299 AND soft_404 > 0`),
+      redirectChain: countWhere(
+        `is_external = 0 AND redirect_chain_length >= 2
+         AND NOT EXISTS (SELECT 1 FROM urls p WHERE p.redirect_target = urls.url)`,
+      ),
+      blockedByRobots: countWhere(
+        `is_external = 0 AND indexability = 'non-indexable:robots-blocked' AND inlinks > 0`,
+      ),
+      noindexJsInjected: countWhere(`${html} AND js_noindex > 0`),
+      titleChangedByJs: countWhere(`${html} AND js_title_changed > 0`),
       charsetMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND (charset IS NULL OR charset = '')`,
@@ -6569,7 +6769,7 @@ export class ProjectDb {
       // Alt and matches the Images tab drill-down.
       imageEmptyAlt: this.scalarCount(
         `SELECT (CASE WHEN EXISTS(SELECT 1 FROM image_usages)
-           THEN (SELECT COUNT(*) FROM image_usages WHERE alt = '')
+           THEN (SELECT COUNT(*) FROM image_usages WHERE alt = '' AND is_variant = 0)
            ELSE (SELECT COUNT(*) FROM images WHERE alt = '') END) AS c`,
       ),
       linkEmptyAnchor: countWhere(`${html} AND empty_anchor_count > 0`),
@@ -6757,7 +6957,7 @@ export class ProjectDb {
       imageBrokenSrc: issueCount('issues:image-broken-src'),
       targetBlankNoNoopener: issueCount('issues:target-blank-no-noopener'),
       pageEmpty: countWhere(
-        `${html} AND status_code BETWEEN 200 AND 299
+        `${html} AND status_code BETWEEN 200 AND 299 AND indexability = 'indexable'
          AND word_count IS NOT NULL AND word_count < 30`,
       ),
       ogImageNotAbsolute: countWhere(
@@ -7483,8 +7683,8 @@ export class ProjectDb {
     const minBytes = Math.max(0, Math.floor(options.minByteSize ?? 0));
     // Per-usage export to match the per-usage Images tab (one row per page).
     if (this.hasImageUsages()) {
-      if (options.missingAltOnly) where.push('iu.alt IS NULL');
-      if (options.emptyAltOnly) where.push("iu.alt = ''");
+      if (options.missingAltOnly) where.push('iu.alt IS NULL AND iu.is_variant = 0');
+      if (options.emptyAltOnly) where.push("iu.alt = '' AND iu.is_variant = 0");
       if (options.duplicateAltOnly) where.push(USAGE_DUPLICATE_ALT_PREDICATE);
       if (options.search) {
         where.push('(i.src LIKE ? OR iu.alt LIKE ?)');
@@ -7529,7 +7729,9 @@ export class ProjectDb {
       return;
     }
 
-    // Legacy fallback — per distinct image.
+    // Legacy fallback — per distinct image. Probe-only share-card rows
+    // (`occurrences = 0`) aren't page images.
+    where.push('i.occurrences > 0');
     if (options.missingAltOnly) where.push('i.alt IS NULL');
     if (options.emptyAltOnly) where.push("i.alt = ''");
     if (options.duplicateAltOnly) where.push(DUPLICATE_ALT_PREDICATE);
@@ -9773,6 +9975,16 @@ export class ProjectDb {
     videos: r.videos ?? null,
     amphtml: r.amphtml,
     mobileAlternate: r.mobile_alternate ?? null,
+    httpCharset: r.http_charset ?? null,
+    metaCharset: r.meta_charset ?? null,
+    canonicalOutsideHead: r.canonical_outside_head ?? 0,
+    contentLang: r.content_lang ?? null,
+    langMismatch: (r.lang_mismatch ?? 0) === 1,
+    soft404: r.soft_404 ?? 0,
+    jsNoindex: r.js_noindex ?? 0,
+    jsTitleChanged: r.js_title_changed ?? 0,
+    jsTitle: r.js_title ?? null,
+    nearDupSimilarity: r.near_dup_similarity ?? null,
     ampPage: r.amp_page === 1,
     ampValidationErrors: r.amp_validation_errors,
     boilerplateCoverage: r.boilerplate_coverage,
@@ -10635,9 +10847,12 @@ export function categoryWhereClause(
     case 'issues:canonical-to-noindex':
       // Canonical implies "use this as authoritative"; noindex says
       // "don't index". Contradictory — page sends mixed signals to
-      // search engines.
+      // search engines. Only when the canonical points elsewhere: a
+      // noindexed page naming itself as canonical (a cart, an account
+      // page) asks for nothing contradictory — the noindex simply wins.
       return `is_external = 0 AND content_kind = 'html'
               AND canonical IS NOT NULL AND canonical != ''
+              AND ${CANONICAL_CMP} != url
               AND EXISTS (
                 SELECT 1 FROM urls t WHERE t.url = ${CANONICAL_CMP_Q}
                   AND t.indexability = 'non-indexable:noindex'
@@ -10677,8 +10892,11 @@ export function categoryWhereClause(
               )`;
     case 'issues:content-thin':
       // 2xx only — a text/html 404 template is short by design and was
-      // being counted as thin content.
-      return `${INDEXABLE_HTML_SCOPE} AND word_count IS NOT NULL AND word_count < 300`;
+      // being counted as thin content. Indexable only: a noindexed cart or
+      // a page canonicalised elsewhere never competes in search, so its
+      // word count says nothing about content quality.
+      return `${INDEXABLE_HTML_SCOPE} AND indexability = 'indexable'
+              AND word_count IS NOT NULL AND word_count < 300`;
     case 'issues:spelling-grammar':
       return `is_external = 0 AND content_kind = 'html' AND EXISTS (
                 SELECT 1 FROM spelling_results s
@@ -10840,6 +11058,46 @@ export function categoryWhereClause(
       // occurrence is worth surfacing.
       return `is_external = 0 AND content_kind = 'html'
               AND meta_refresh IS NOT NULL AND meta_refresh != ''`;
+    case 'issues:charset-mismatch':
+      // Header and document name different encodings. The header wins in
+      // every browser, so the document's own declaration is ignored and
+      // the text renders as mojibake. Both sides are stored canonicalised
+      // (WHATWG names), so `utf8` vs `UTF-8` never reads as a mismatch.
+      return `is_external = 0 AND content_kind = 'html'
+              AND http_charset IS NOT NULL AND meta_charset IS NOT NULL
+              AND http_charset != meta_charset`;
+    case 'issues:canonical-outside-head':
+      // `rel=canonical` inside <body> is ignored by search engines — the
+      // page has no canonical as far as they're concerned.
+      return "is_external = 0 AND content_kind = 'html' AND canonical_outside_head > 0";
+    case 'issues:lang-content-mismatch':
+      // html[lang] names a language the main content clearly isn't in
+      // (different writing system, or none of its function words while
+      // dense with another language's). See core/content-language.ts.
+      return "is_external = 0 AND content_kind = 'html' AND lang_mismatch = 1";
+    case 'issues:soft-404':
+      // 2xx page that tells the visitor it doesn't exist: "not found"
+      // wording in the title/H1 over a near-empty page, or the site's own
+      // 404 template served with 200.
+      return `is_external = 0 AND content_kind = 'html'
+              AND status_code BETWEEN 200 AND 299 AND soft_404 > 0`;
+    case 'issues:redirect-chain':
+      // Two or more redirects before the final URL, reported once at the
+      // first URL of the chain (a URL some redirect points at is a middle
+      // hop, not a start).
+      return `is_external = 0
+              AND redirect_chain_length >= 2
+              AND NOT EXISTS (SELECT 1 FROM urls p WHERE p.redirect_target = urls.url)`;
+    case 'issues:blocked-by-robots':
+      // Internal URLs the site links to but robots.txt forbids crawling —
+      // the links spend equity on pages search engines can't fetch.
+      return `is_external = 0 AND indexability = 'non-indexable:robots-blocked' AND inlinks > 0`;
+    case 'issues:noindex-js-injected':
+      // Noindex that exists only after JavaScript runs: confirmed by the
+      // rendered DOM in JS mode, or an inline script that writes it.
+      return "is_external = 0 AND content_kind = 'html' AND js_noindex > 0";
+    case 'issues:title-changed-by-js':
+      return "is_external = 0 AND content_kind = 'html' AND js_title_changed > 0";
     case 'issues:charset-missing':
       // HTML 2xx page declares no charset anywhere — neither
       // `<meta charset>` / `<meta http-equiv="Content-Type">` nor the
@@ -11322,6 +11580,7 @@ export function categoryWhereClause(
       // wasted crawl budget and a thin-content signal.
       return `is_external = 0 AND content_kind = 'html'
               AND status_code BETWEEN 200 AND 299
+              AND indexability = 'indexable'
               AND word_count IS NOT NULL
               AND word_count < 30`;
     case 'issues:og-image-not-absolute':
@@ -11702,23 +11961,6 @@ export function categoryWhereClause(
     default:
       return null;
   }
-}
-
-/**
- * Validate a hreflang `lang` token against the practical BCP-47 subset
- * that Google accepts: ISO 639-1 (2 chars), ISO 639-2/3 (3 chars),
- * optional region (`-XX` country or `-NNN` UN M.49 numeric), or the
- * literal `x-default`. Case-insensitive in the wild (`tr-TR` and
- * `TR-tr` both accepted by Google) — we lowercase before matching.
- *
- * Rejects: bare uppercase/lowercase mixed errors, spaces, country-only,
- * underscored variants, three-letter region codes that aren't M.49.
- */
-function isValidHreflangCode(raw: string): boolean {
-  const code = raw.trim().toLowerCase();
-  if (!code) return false;
-  if (code === 'x-default') return true;
-  return /^[a-z]{2,3}(-[a-z]{2}|-[0-9]{3})?$/.test(code);
 }
 
 /**

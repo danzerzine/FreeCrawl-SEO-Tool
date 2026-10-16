@@ -454,8 +454,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     "LENGTH(url) > bu olduqda 'URL çox uzundur' problemi işə düşür. RFC 7230 maksimum tələb etmir, amma serverlərin və ara qurğuların əksəriyyəti ~2 KB-dan yuxarı uğursuz olur; Chrome özü ~32 KB-da məhdudlaşdırır.",
   ["Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. Each term's per-page hit count is surfaced in the URL Details panel."]:
     'Hər sətirdə iki rejim. (1) Regex üçün slaşlarla bükün: /şablon/bayraqlar — dəstəklənən bayraqlar imsuy (g məcburidir). Yanlış şablonlar detal panelində -1 sayı ilə görünür ki, yazı səhvini tapa biləsiniz. (2) Qalan hər şey hərf registrinə həssas olmayan hərfi alt-sətirdir — köhnə davranış. Hər terminin səhifə başına uyğunluq sayı URL detalları panelində göstərilir.',
-  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits. 3 ≈ 95% similarity over body-text shingles (Screaming Frog's tightest filter). Set to 0 to skip clustering entirely."]:
-    'İki səhifənin 64-bit SimHash-i ən çox bu qədər bit fərqlənirsə oxşar-təkrar kimi işarələnir. 3 ≈ gövdə mətni shingle-ları üzərində 95% oxşarlıq (Screaming Frog-un ən sıx filtri). Klasterləşdirməni tamamilə atlamaq üçün 0 təyin edin.',
+  ["Two pages are flagged as near-duplicates if their 64-bit SimHash differs by at most this many bits — this catches near-identical copies. Text that is only largely the same is judged by the similarity threshold below. Set to 0 to skip this pass."]:
+    "İki səhifənin 64 bitlik SimHash dəyərləri ən çox bu qədər bit fərqlənirsə, onlar yaxın dublikat kimi işarələnir — bu, demək olar ki, eyni nüsxələri tutur. Böyük ölçüdə eyni olan mətnlər aşağıdakı oxşarlıq həddi ilə qiymətləndirilir. Bu mərhələni keçmək üçün 0 yazın.",
   ['URL declared by the first <link rel="canonical"> tag. Tells search engines which version to index when duplicates exist.']:
     'İlk <link rel="canonical"> teqi ilə bəyan edilmiş URL. Təkrarlar olduqda axtarış sistemlərinə hansı versiyanı indeksləməli olduğunu bildirir.',
   ['URL paths ending in any of these extensions are not enqueued. Case-insensitive. Start URL is always crawled regardless.']:
@@ -488,8 +488,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     'AKTİV olduqda (standart) Təkrar URL filtri URL-ləri hostu kiçik hərfə çevirib, sorğu sətrini atıb və sonluq slaşını kəsib müqayisə edir — kanonik SEO davranışı. SÖNDÜRÜLÜ olduqda müqayisə bayt-dəqiqdir, ona görə filtr yalnız eyni xam URL sətrini paylaşan sətirlərdə işləyir (nadirdir, çünki URL-lər daxil edilərkən təkrarsızlaşdırılır).',
   ["When on, `<meta http-equiv='refresh'>` content URLs are enqueued like a redirect target. window.location body redirects are heuristic-only and currently out of scope."]:
     "Aktiv olduqda `<meta http-equiv='refresh'>` content URL-ləri yönləndirmə hədəfi kimi növbəyə qoyulur. window.location gövdə yönləndirmələri yalnız evristikdir və hazırda əhatə xaricindədir.",
-  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target. Default off — most crawls treat canonicals as a signal, not a navigation hint.']:
-    'Aktiv olduqda başqa yerə kanonik bəyan edən 200 səhifə həmin hədəfi də növbəyə qoyur. Standart söndürülü — taramaların əksəriyyəti kanonikləri naviqasiya göstərişi yox, siqnal kimi qəbul edir.',
+  ['When on, a 200 page declaring a canonical pointing elsewhere also enqueues that target, so a canonical pointing at a missing or redirected page is caught. Default on.']:
+    'Aktiv olduqda başqa yerə kanonik bəyan edən 200 səhifə həmin hədəfi də növbəyə qoyur, beləliklə mövcud olmayan və ya yönləndirilən səhifəyə göstərən kanonik aşkarlanır. Standart aktivdir.',
   ['When on, pages with noindex / canonicalised / robots-blocked indexability are excluded from clustering — the Near-Duplicate report then surfaces only issues that affect search visibility.']:
     'Aktiv olduqda noindex / kanonikləşdirilmiş / robots ilə bloklanmış indekslənmə statusu olan səhifələr klasterləşdirmədən çıxarılır — Oxşar-təkrar hesabatı o zaman yalnız axtarış görünürlüyünə təsir edən problemləri göstərir.',
   ["When on, rel=nofollow links are recursed into like any other link. Default off — Screaming Frog 'Respect Nofollow' default."]:
@@ -662,4 +662,18 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     'Səhifələri heç vaxt sənəd sorğusu yaratmayan React Router / Vue Router / Angular saytları üçün aktiv.',
   ['`<link rel="alternate" media="only screen and (max-width: …)" href="…">` value — the separate-URL (m-dot) mobile version of this page. Empty on responsive sites, which is most of them. A value here with no reciprocal canonical pointing back is the classic broken m-dot setup.']:
     '`<link rel="alternate" media="only screen and (max-width: …)" href="…">` dəyəri — bu səhifənin ayrı URL-li (m-dot) mobil versiyası. Responsiv saytlarda boşdur, ki onlar əksəriyyətdir. Burada dəyər olub geriyə işarə edən qarşılıqlı kanonik yoxdursa, bu klassik qırıq m-dot qurulumudur.',
+  ["Two pages are clustered as near-duplicates when their main-content text is at least this similar, word for word. Estimated with MinHash over 3-word shingles, so it catches posts that were rewritten or lightly edited — not only identical copies. Set to 0 to skip this pass."]:
+    "İki səhifə əsas məzmun mətni söz-söz ən azı bu qədər oxşar olduqda yaxın dublikat kimi qruplaşdırılır. 3 sözlük parçalar üzərində MinHash ilə qiymətləndirilir, buna görə yalnız eyni nüsxələri deyil, yenidən yazılmış və ya az dəyişdirilmiş yazıları da tutur. Bu mərhələni keçmək üçün 0 yazın.",
+  ["Language the page's main-content text is written in, read from its wording rather than the lang attribute. Compared with html[lang] for the 'Lang ≠ Content Language' check. Empty when the text is too short or the language can't be told with confidence."]:
+    "Səhifənin əsas məzmun mətninin yazıldığı dil; lang atributundan deyil, mətnin özündən oxunur. 'lang ≠ məzmun dili' yoxlaması üçün html[lang] ilə müqayisə edilir. Mətn çox qısa olduqda və ya dil etibarlı müəyyən edilə bilmədikdə boşdur.",
+  ["Character encoding named by the Content-Type response header, as a canonical encoding name. Browsers obey it over the page's own declaration."]:
+    "Content-Type cavab başlığının göstərdiyi simvol kodlaması, standart kodlama adı ilə. Brauzerlər səhifənin öz bəyanı əvəzinə buna əməl edir.",
+  ["Character encoding the document itself declares in <meta charset> or http-equiv. When it disagrees with the HTTP charset, the page renders in the header's encoding."]:
+    "Sənədin özünün <meta charset> və ya http-equiv ilə bəyan etdiyi simvol kodlaması. HTTP charset ilə uyğun gəlmədikdə səhifə başlıqdakı kodlama ilə göstərilir.",
+  ["The title JavaScript sets on the page: from the rendered DOM in JavaScript rendering mode, or from an inline document.title assignment in text mode. Empty when scripts leave the title alone."]:
+    "JavaScript-in səhifəyə verdiyi başlıq: JavaScript render rejimində render edilmiş DOM-dan, mətn rejimində daxili document.title təyinatından oxunur. Skriptlər başlığa toxunmursa boşdur.",
+  ["Highest estimated text similarity to another page in this URL's near-duplicate cluster, measured on the main-content wording. Empty for pages that aren't near-duplicates."]:
+    "Bu URL-in yaxın dublikat qrupundakı başqa bir səhifə ilə ən yüksək təxmini mətn oxşarlığı; əsas məzmun mətni üzərindən ölçülür. Yaxın dublikat olmayan səhifələrdə boşdur.",
+  ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
+    "90 = tövsiyə olunan (Screaming Frog standartı); 80 daha sərbəst yenidən yazılmaları tutur; 0 bu mərhələni söndürür.",
 };

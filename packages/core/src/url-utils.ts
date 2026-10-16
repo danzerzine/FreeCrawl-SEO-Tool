@@ -487,6 +487,57 @@ const CALENDAR_PARAMS: ReadonlySet<string> = new Set([
   'end_date',
 ]);
 
+/**
+ * A query value or path segment that names a calendar period: `2026-10`,
+ * `2026/10`, `202610`, `2026-10-16`, `20261016`. Years outside 1900–2199
+ * don't qualify, so IDs and prices that happen to be six digits rarely do.
+ */
+const DATE_VALUE_RE = /^(?:19|20|21)\d{2}[-_/.]?(?:0[1-9]|1[0-2])(?:[-_/.]?(?:0[1-9]|[12]\d|3[01]))?$/;
+const YEAR_RE = /^(?:19|20|21)\d{2}$/;
+
+/**
+ * The URL "shape" behind a date-navigation widget, or null when the URL
+ * carries no date at all. Two URLs that differ only in which period they
+ * show — `/events?month=2026-10&day=5` and `/events?month=2031-02&day=9`,
+ * or `/agenda/2026/10/` and `/agenda/2027/03/` — share a key, which is
+ * what lets the crawler see a "next month" link receding forever as one
+ * growing family of pages instead of thousands of unrelated URLs.
+ *
+ * Parameter names are kept and values dropped; numeric path segments are
+ * folded. Detection is by the value's shape, so it works whatever the
+ * site calls the parameter (`ay`, `mes`, `monat`, `month`, …).
+ */
+export function calendarPatternKey(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  let dated = false;
+  const names = new Set<string>();
+  for (const [k, v] of u.searchParams) {
+    const name = k.toLowerCase();
+    names.add(name);
+    const value = v.trim();
+    if (DATE_VALUE_RE.test(value) || (CALENDAR_PARAMS.has(name) && /^\d{1,8}$/.test(value))) {
+      dated = true;
+    }
+  }
+  const path = u.pathname
+    .split('/')
+    .map((seg) => {
+      if (DATE_VALUE_RE.test(seg) || YEAR_RE.test(seg)) {
+        dated = true;
+        return '{date}';
+      }
+      return /^\d+$/.test(seg) ? '{n}' : seg;
+    })
+    .join('/');
+  if (!dated) return null;
+  return `${u.host}${path}?${[...names].sort().join('&')}`;
+}
+
 /** Why a URL was judged a crawl trap. */
 export type UrlTrapKind = 'repeated-segment' | 'query-params' | 'session-id' | 'calendar';
 
