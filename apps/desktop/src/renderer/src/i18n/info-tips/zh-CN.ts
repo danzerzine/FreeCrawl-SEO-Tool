@@ -561,8 +561,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '“抓取”关（默认）——检查外链状态但不去抓取整个互联网。',
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     '<link rel=canonical> 及其 HTTP Link: 响应头形式。“抓取”还会将 canonical 目标入队，视其为导航提示。“存储”为“规范链接”标签页和所有 canonical 问题筛选器提供数据。',
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    '“抓取”关（默认）——canonical 是信号而非路径。“存储”开。',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    '“抓取”开（默认）——指向缺失或已重定向页面的 canonical 会被发现。“存储”开。',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>。标准发现图的一部分；关闭“抓取”可隔离分页循环，而无需在各处禁用链接跟踪。',
   ['Both on unless you are debugging an infinite paginated series.']:

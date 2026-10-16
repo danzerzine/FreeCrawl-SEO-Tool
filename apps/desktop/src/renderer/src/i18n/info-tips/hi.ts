@@ -570,8 +570,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     'क्रॉल बंद (डिफ़ॉल्ट) — पूरा वेब स्पाइडर किए बिना बाहरी लिंक की स्टेटस-जाँच करें।',
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     '<link rel=canonical> और उसका HTTP Link: हेडर रूप। क्रॉल कैनोनिकल लक्ष्य को भी नेविगेशन संकेत मानकर कतार में डालता है। संग्रह कैनोनिकल टैब और हर कैनोनिकल समस्या फ़िल्टर को डेटा देता है।',
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    'क्रॉल बंद (डिफ़ॉल्ट) — कैनोनिकल एक सिग्नल है, रास्ता नहीं। संग्रह चालू।',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    'क्रॉल चालू (डिफ़ॉल्ट) — गायब या रीडायरेक्ट किए गए पेज की ओर इशारा करने वाला कैनोनिकल पकड़ा जाता है। संग्रह चालू।',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>। मानक खोज ग्राफ़ का हिस्सा; हर जगह लिंक-फ़ॉलो बंद किए बिना पेजिनेशन लूप अलग करने के लिए क्रॉल बंद करें।',
   ['Both on unless you are debugging an infinite paginated series.']:

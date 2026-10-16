@@ -134,6 +134,7 @@ const ISSUES: IssueDef[] = [
   { key: 'charsetMissing', label: 'Charset Missing', severity: 'warn' },
   { key: 'charsetMismatch', label: 'Charset Mismatch (HTTP vs HTML)', severity: 'warn' },
   { key: 'canonicalOutsideHead', label: 'Canonical Outside <head>', severity: 'warn' },
+  { key: 'hreflangOutsideHead', label: 'Hreflang Outside <head>', severity: 'warn' },
   { key: 'langContentMismatch', label: 'Lang ≠ Content Language', severity: 'warn' },
   { key: 'soft404', label: 'Soft 404', severity: 'warn' },
   { key: 'redirectChain', label: 'Redirect Chain (2+ hops)', severity: 'warn' },
@@ -240,6 +241,7 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   charsetMissing: 'Declare the character encoding (meta charset or Content-Type header).',
   charsetMismatch: 'Make the Content-Type header charset match the meta charset — browsers obey the header.',
   canonicalOutsideHead: 'Move rel=canonical into <head>; search engines ignore it in <body>.',
+  hreflangOutsideHead: 'Move hreflang <link> tags into <head>; search engines ignore them in <body>.',
   langContentMismatch: 'Set html[lang] to the language the page is actually written in.',
   soft404: 'Return 404/410 for pages that no longer exist instead of a 200 "not found" page.',
   redirectChain: 'Point links and redirects straight at the final URL.',
@@ -310,7 +312,23 @@ function accentStyle(options: HtmlReportOptions): string {
   return ok ? `:root{--accent:${raw}}` : '';
 }
 
+/** Site-wide findings that belong to no single URL (shown above the issue table). */
+function renderSiteNotices(counts: OverviewCounts): string {
+  const probe = counts.site?.soft404Probe;
+  if (!probe) return '';
+  const via = probe.finalUrl
+    ? ` after redirecting to <span class="mono">${escape(probe.finalUrl)}</span>`
+    : '';
+  return (
+    `<p><span class="sev-warn">WARN</span> Missing pages return ${probe.status}: ` +
+    `<span class="mono">${escape(probe.url)}</span>, a page that does not exist, was answered ` +
+    `${probe.status}${via} instead of 404. Broken links on this site look like working pages ` +
+    `to search engines (soft 404) — return a real 404 or 410 for missing URLs.</p>`
+  );
+}
+
 function renderIssues(counts: OverviewCounts): string {
+  const notices = renderSiteNotices(counts);
   const rows = ISSUES.map((d) => {
     const c = counts.issues[d.key] as number;
     return { ...d, count: c };
@@ -320,7 +338,7 @@ function renderIssues(counts: OverviewCounts): string {
       SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.count - a.count,
     );
   if (rows.length === 0) {
-    return '<p class="muted">No issues detected. Nice.</p>';
+    return notices || '<p class="muted">No issues detected. Nice.</p>';
   }
   const body = rows
     .map(
@@ -331,7 +349,7 @@ function renderIssues(counts: OverviewCounts): string {
       </tr>`,
     )
     .join('');
-  return `<table><thead><tr><th>Severity</th><th>Issue</th><th class="right">URLs</th></tr></thead><tbody>${body}</tbody></table>`;
+  return `${notices}<table><thead><tr><th>Severity</th><th>Issue</th><th class="right">URLs</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
 export async function exportHtmlReport(

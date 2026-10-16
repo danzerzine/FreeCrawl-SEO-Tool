@@ -565,8 +565,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '크롤링 끔(기본값) — 웹 전체를 스파이더링하지 않고 외부 링크 상태만 검사합니다.',
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     '<link rel=canonical>과 그 HTTP Link: 헤더 형식. 크롤링은 canonical 대상도 탐색 힌트로 취급해 큐에 넣습니다. 저장은 표준 링크 탭과 모든 canonical 문제 필터에 데이터를 제공합니다.',
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    '크롤링 끔(기본값) — canonical은 경로가 아니라 신호입니다. 저장 켬.',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    '크롤링 켬(기본값) — 없는 페이지나 리다이렉트된 페이지를 가리키는 canonical을 찾아냅니다. 저장 켬.',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>. 표준 발견 그래프의 일부입니다. 모든 곳의 링크 추적을 끄지 않고 페이지네이션 루프만 격리하려면 크롤링을 끄세요.',
   ['Both on unless you are debugging an infinite paginated series.']:

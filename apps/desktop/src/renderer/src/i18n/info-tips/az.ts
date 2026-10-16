@@ -572,8 +572,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     'Tara söndürülü (standart) — bütün vebi taramadan xaricilərin statusunu yoxla.',
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     '<link rel=canonical> və onun HTTP Link: başlıq forması. Tara həm də kanonik hədəfi naviqasiya göstərişi kimi növbəyə qoyur. Saxla Kanoniklər sekmesini və hər kanonik problem filtrini doldurur.',
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    'Tara söndürülü (standart) — kanoniklər siqnaldır, marşrut deyil. Saxla aktiv.',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    'Tara aktiv (standart) — mövcud olmayan və ya yönləndirilmiş səhifəyə işarə edən kanonik aşkarlanır. Saxla aktiv.',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>. Standart kəşf qrafının hissəsi; keçid izləməni hər yerdə söndürmədən səhifələmə dövrünü təcrid etmək üçün Tara-nı söndürün.',
   ['Both on unless you are debugging an infinite paginated series.']:

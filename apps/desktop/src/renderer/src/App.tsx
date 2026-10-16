@@ -47,6 +47,8 @@ export function App() {
   const reset = useAppStore((s) => s.reset);
   const settingsOpen = useAppStore((s) => s.settingsOpen);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
+  const configNotice = useAppStore((s) => s.configNotice);
+  const dismissConfigNotice = useAppStore((s) => s.dismissConfigNotice);
   const setConfig = useAppStore((s) => s.setConfig);
   const applyProjectConfig = useAppStore((s) => s.applyProjectConfig);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
@@ -530,6 +532,33 @@ export function App() {
       {dropFlash && (
         <div className="border-b border-blue-700/50 bg-blue-900/30 px-4 py-1 text-[11px] text-blue-100">
           {dropFlash}
+        </div>
+      )}
+      {configNotice === 'target-crawl-defaults' && (
+        <div className="flex items-center gap-3 border-b border-blue-700/50 bg-blue-900/30 px-4 py-1 text-[11px] text-blue-100">
+          <span className="min-w-0 flex-1">
+            {t('app.targetCrawlDefaults', {
+              defaultValue:
+                'Crawl defaults updated: canonical targets, hreflang alternates and linked XML sitemaps are now crawled, so errors on pages nothing links to are caught.',
+            })}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 font-medium underline-offset-2 hover:underline"
+            onClick={() => {
+              dismissConfigNotice();
+              setSettingsOpen(true, { section: 'spider-crawl' });
+            }}
+          >
+            {t('app.targetCrawlDefaultsReview', { defaultValue: 'Review settings' })}
+          </button>
+          <button
+            type="button"
+            className="shrink-0 text-blue-300 underline-offset-2 hover:underline"
+            onClick={dismissConfigNotice}
+          >
+            {t('app.noticeDismiss', { defaultValue: 'Dismiss' })}
+          </button>
         </div>
       )}
       <TabsBar />

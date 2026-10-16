@@ -2,7 +2,9 @@
   "sidebar": {
     "overview": "Ümumi baxış",
     "urls": "URL",
-    "percentOfTotal": "Ümumidən %"
+    "percentOfTotal": "Ümumidən %",
+    "siteSoft404": "Mövcud olmayan səhifələr {{status}} qaytarır (soft 404)",
+    "siteSoft404Hint": "Mövcud olmayan səhifəyə edilən sorğuya 404 əvəzinə {{status}} cavabı verildi, buna görə də bu saytdakı qırıq keçidlər axtarış sistemlərinə işləyən səhifələr kimi görünür."
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",
@@ -297,7 +299,10 @@
     "deleteDomainResult_one": "{{host}} adresindən {{formatted}} URL sətri silindi.",
     "deleteDomainResult_other": "{{host}} adresindən {{formatted}} URL sətri silindi.",
     "deleteDomainLinks_one": "Onlarla birlikdə {{formatted}} əlaqəli keçid də silindi.",
-    "deleteDomainLinks_other": "Onlarla birlikdə {{formatted}} əlaqəli keçid də silindi."
+    "deleteDomainLinks_other": "Onlarla birlikdə {{formatted}} əlaqəli keçid də silindi.",
+    "targetCrawlDefaults": "Standart tarama parametrləri yeniləndi: canonical hədəfləri, hreflang alternativləri və keçidli XML sitemap-lər artıq taranır, beləliklə heç bir keçidin aparmadığı səhifələrdəki xətalar da aşkarlanır.",
+    "targetCrawlDefaultsReview": "Parametrlərə bax",
+    "noticeDismiss": "Bağla"
   },
   "infoTip": {
     "moreInfo": "Ətraflı məlumat",

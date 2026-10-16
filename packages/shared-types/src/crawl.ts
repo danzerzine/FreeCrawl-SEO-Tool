@@ -118,6 +118,7 @@ export type UrlCategory =
   | 'issues:charset-missing'
   | 'issues:charset-mismatch'
   | 'issues:canonical-outside-head'
+  | 'issues:hreflang-outside-head'
   | 'issues:lang-content-mismatch'
   | 'issues:soft-404'
   | 'issues:redirect-chain'
@@ -597,6 +598,8 @@ export interface CrawlUrlRow {
   metaCharset: string | null;
   /** `<link rel="canonical">` elements placed inside `<body>` — search engines ignore them. */
   canonicalOutsideHead: number;
+  /** `<link rel="alternate" hreflang>` elements placed inside `<body>` — ignored likewise. */
+  hreflangOutsideHead: number;
   /** Primary language the main-content prose is written in (`tr`, `en`, …); null when unclear. */
   contentLang: string | null;
   /** `html[lang]` declares a language the prose is clearly not written in. */
@@ -1775,7 +1778,24 @@ export interface ExtractionRulesImportResult {
   error?: string;
 }
 
+/**
+ * Site-level soft-404 check: what the server answered for a URL that cannot
+ * exist. Recorded only when that answer was a 2xx page that didn't mark
+ * itself noindex — i.e. a missing page looks like a real one, so a broken
+ * link on the site never shows up as a 404.
+ */
+export interface Soft404ProbeResult {
+  /** The made-up URL that was requested. */
+  url: string;
+  /** The 2xx status it was answered with. */
+  status: number;
+  /** Where redirects ended when the request was redirected, else null. */
+  finalUrl: string | null;
+}
+
 export interface OverviewCounts {
+  /** Findings about the site as a whole rather than any one URL. */
+  site?: { soft404Probe: Soft404ProbeResult | null };
   summary: {
     totalInternalUrls: number;
     totalIndexable: number;
@@ -1894,6 +1914,8 @@ export interface OverviewCounts {
     charsetMismatch: number;
     /** `<link rel="canonical">` placed inside `<body>`, where search engines ignore it. */
     canonicalOutsideHead: number;
+    /** hreflang `<link>` elements placed inside `<body>`, where search engines ignore them. */
+    hreflangOutsideHead: number;
     /** `html[lang]` declares a language the main content isn't written in. */
     langContentMismatch: number;
     /** 2xx pages that present themselves as "not found". */

@@ -2423,6 +2423,20 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 98,
+    name: 'add_hreflang_outside_head',
+    // hreflang <link> elements inside <body> — ignored by search engines,
+    // counted for their own issue (mirrors canonical_outside_head).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'hreflang_outside_head')) {
+        db.exec('ALTER TABLE urls ADD COLUMN hreflang_outside_head INTEGER NOT NULL DEFAULT 0');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

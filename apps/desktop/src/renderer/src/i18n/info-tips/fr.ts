@@ -575,8 +575,8 @@ export const FR_INFO_TIPS: Record<string, string> = {
     'Explorer désactivé (par défaut) — vérifier le statut des externes sans explorer tout le web.',
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     "<link rel=canonical> et sa forme d'en-tête HTTP Link:. Explorer met aussi la cible canonique en file, en la traitant comme une indication de navigation. Stocker alimente l'onglet Canoniques et tous les filtres de problèmes de canonique.",
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    'Explorer désactivé (par défaut) — les canoniques sont un signal, pas un itinéraire. Stocker activé.',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    'Explorer activé (par défaut) — une canonique pointant vers une page manquante ou redirigée est détectée. Stocker activé.',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>. Fait partie du graphe de découverte standard ; désactivez Explorer pour isoler une boucle de pagination sans désactiver le suivi de liens partout.',
   ['Both on unless you are debugging an infinite paginated series.']:

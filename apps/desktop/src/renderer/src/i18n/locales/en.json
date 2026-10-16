@@ -2,7 +2,9 @@
   "sidebar": {
     "overview": "Overview",
     "urls": "URLs",
-    "percentOfTotal": "% of Total"
+    "percentOfTotal": "% of Total",
+    "siteSoft404": "Missing pages return {{status}} (soft 404)",
+    "siteSoft404Hint": "A request for a page that does not exist was answered {{status}} instead of 404, so broken links on this site look like working pages to search engines."
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",
@@ -297,7 +299,10 @@
     "clearAllConfirm": "Clear ALL data in the active project?\n\nEvery URL, link, image, header, source snapshot, sitemap, and issue will be wiped. This cannot be undone — Save Project As… first if you want a backup.",
     "clearFailed": "Could not clear the crawl: {{detail}}",
     "deleteDomainLinks_one": "{{formatted}} associated link was removed with them.",
-    "deleteDomainLinks_other": "{{formatted}} associated links were removed with them."
+    "deleteDomainLinks_other": "{{formatted}} associated links were removed with them.",
+    "targetCrawlDefaults": "Crawl defaults updated: canonical targets, hreflang alternates and linked XML sitemaps are now crawled, so errors on pages nothing links to are caught.",
+    "targetCrawlDefaultsReview": "Review settings",
+    "noticeDismiss": "Dismiss"
   },
   "infoTip": {
     "moreInfo": "More info",

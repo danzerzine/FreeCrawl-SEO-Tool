@@ -574,8 +574,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "Tara kapalı (varsayılan) — tüm web'i taramadan dış bağlantıların durumunu kontrol edin.",
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     "<link rel=canonical> ve onun HTTP Link: başlığı biçimi. Tara ayrıca canonical hedefini de kuyruğa alır, yani onu bir navigasyon ipucu gibi değerlendirir. Sakla, Canonical'lar sekmesini ve tüm canonical sorun filtrelerini besler.",
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    'Tara kapalı (varsayılan) — canonical bir sinyaldir, bir rota değil. Sakla açık.',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    'Tara açık (varsayılan) — eksik ya da yönlendirilmiş bir sayfayı gösteren canonical yakalanır. Sakla açık.',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     "<link rel=next> / <link rel=prev>. Standart keşif grafiğinin parçasıdır; her yerde bağlantı takibini kapatmadan bir sayfalama döngüsünü izole etmek için Tara'yı kapatın.",
   ['Both on unless you are debugging an infinite paginated series.']:

@@ -199,6 +199,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Lang Attribute Missing': 'lang atributu yoxdur',
   'Charset Missing': 'Charset yoxdur',
   'Canonical Outside <head>': 'Canonical <head> xaricində',
+  'Hreflang Outside <head>': 'Hreflang <head> xaricində',
   'Soft 404': 'Soft 404',
   'Linked URL Blocked by robots.txt': 'Keçid verilən URL robots.txt ilə bloklanıb',
   'Charset Mismatch (HTTP vs HTML)': 'Charset uyğunsuzluğu (HTTP və HTML)',

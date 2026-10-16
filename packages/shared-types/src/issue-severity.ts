@@ -89,6 +89,7 @@ const WARNING: UrlCategory[] = [
   'issues:redirect-chain',
   'issues:charset-mismatch',
   'issues:canonical-outside-head',
+  'issues:hreflang-outside-head',
   'issues:lang-content-mismatch',
   'issues:soft-404',
   'issues:blocked-by-robots',

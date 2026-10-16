@@ -2,7 +2,9 @@
   "sidebar": {
     "overview": "Vue d'ensemble",
     "urls": "URL",
-    "percentOfTotal": "% du total"
+    "percentOfTotal": "% du total",
+    "siteSoft404": "Les pages inexistantes renvoient {{status}} (soft 404)",
+    "siteSoft404Hint": "Une requête vers une page qui n'existe pas a reçu {{status}} au lieu de 404 : les liens cassés de ce site ressemblent donc à des pages valides pour les moteurs de recherche."
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",
@@ -304,7 +306,10 @@
     "deleteDomainResult_other": "{{formatted}} lignes d'URL supprimées de {{host}}.",
     "deleteDomainLinks_one": "{{formatted}} lien associé a été supprimé avec elles.",
     "deleteDomainLinks_many": "{{formatted}} de liens associés ont été supprimés avec elles.",
-    "deleteDomainLinks_other": "{{formatted}} liens associés ont été supprimés avec elles."
+    "deleteDomainLinks_other": "{{formatted}} liens associés ont été supprimés avec elles.",
+    "targetCrawlDefaults": "Paramètres d'exploration par défaut mis à jour : les cibles canonical, les alternatives hreflang et les sitemaps XML liés sont désormais explorés, pour détecter les erreurs sur les pages vers lesquelles aucun lien ne pointe.",
+    "targetCrawlDefaultsReview": "Vérifier les paramètres",
+    "noticeDismiss": "Ignorer"
   },
   "infoTip": {
     "moreInfo": "Plus d'informations",

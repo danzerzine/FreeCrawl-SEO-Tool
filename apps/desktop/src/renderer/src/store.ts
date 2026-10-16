@@ -306,6 +306,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Reciprocity Missing', category: 'issues:hreflang-reciprocity-missing' },
     { label: 'Target Issues', category: 'issues:hreflang-target-issues' },
     { label: 'Inconsistent Lang', category: 'issues:hreflang-inconsistent-lang' },
+    { label: 'Hreflang Outside <head>', category: 'issues:hreflang-outside-head' },
   ],
 
   // ─── Structured Data tab ────────────────────────────────────────────────
@@ -377,6 +378,9 @@ export interface TabViewState {
 
 interface AppState {
   config: CrawlConfig;
+  /** One-time notice shown under the top bar until dismissed. */
+  configNotice: 'target-crawl-defaults' | null;
+  dismissConfigNotice: () => void;
   progress: CrawlProgress | null;
   summary: CrawlSummary | null;
   overview: OverviewCounts | null;
@@ -483,14 +487,55 @@ function loadRecentUrls(): string[] {
 function loadInitialConfig(): CrawlConfig {
   if (typeof window === 'undefined' || !window.freecrawl) return DEFAULT_CRAWL_CONFIG;
   const saved = window.freecrawl.prefsGet('crawl-config');
-  if (!saved || typeof saved !== 'object') return { ...DEFAULT_CRAWL_CONFIG, startUrl: '' };
+  if (!saved || typeof saved !== 'object') {
+    // A fresh install already starts on the new defaults; mark it so a
+    // later `false` the user saves is never "upgraded" back.
+    window.freecrawl.prefsSet(TARGET_CRAWL_DEFAULTS_PREF, 1);
+    return { ...DEFAULT_CRAWL_CONFIG, startUrl: '' };
+  }
   return {
     ...DEFAULT_CRAWL_CONFIG,
-    ...(saved as Partial<CrawlConfig>),
+    ...upgradeSavedConfig(saved as Partial<CrawlConfig>),
     startUrl: '',
     mode: 'spider',
     deviceMode: 'desktop',
   };
+}
+
+/**
+ * One-time move of a saved config onto the target-crawl defaults.
+ * Following canonical targets, hreflang alternates and linked XML sitemaps
+ * became the default because without them every error on a page nothing
+ * links to goes unseen. But the whole config is saved on every edit, so
+ * anyone who ever changed a setting still carries the old `false`s and
+ * would never get the new defaults — and a deliberate `false` can't be told
+ * apart from an inherited one. So the three are switched on once, a notice
+ * says so (with a way back), and any `false` saved after that is the user's
+ * own choice and stays. Saved projects keep the config they were crawled
+ * with — that is part of the document.
+ */
+const TARGET_CRAWL_DEFAULTS_PREF = 'crawl-config-target-defaults';
+let targetCrawlDefaultsApplied = false;
+
+function upgradeSavedConfig(saved: Partial<CrawlConfig>): Partial<CrawlConfig> {
+  if (window.freecrawl.prefsGet(TARGET_CRAWL_DEFAULTS_PREF)) return saved;
+  window.freecrawl.prefsSet(TARGET_CRAWL_DEFAULTS_PREF, 1);
+  if (
+    saved.followCanonicals !== false &&
+    saved.crawlHreflang !== false &&
+    saved.crawlLinkedSitemaps !== false
+  ) {
+    return saved;
+  }
+  const upgraded: Partial<CrawlConfig> = {
+    ...saved,
+    followCanonicals: true,
+    crawlHreflang: true,
+    crawlLinkedSitemaps: true,
+  };
+  window.freecrawl.prefsSet('crawl-config', upgraded);
+  targetCrawlDefaultsApplied = true;
+  return upgraded;
 }
 
 /**
@@ -537,8 +582,12 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', flushConfigPersist);
 }
 
+const initialConfig = loadInitialConfig();
+
 export const useAppStore = create<AppState>((set, get) => ({
-  config: loadInitialConfig(),
+  config: initialConfig,
+  configNotice: targetCrawlDefaultsApplied ? 'target-crawl-defaults' : null,
+  dismissConfigNotice: () => set({ configNotice: null }),
   progress: null,
   summary: null,
   overview: null,

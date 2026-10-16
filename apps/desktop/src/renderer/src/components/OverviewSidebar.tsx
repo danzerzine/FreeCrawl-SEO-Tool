@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import {
@@ -169,6 +169,7 @@ export function OverviewSidebar() {
   const disabledSet = useMemo(() => new Set<string>(disabledIssues ?? []), [disabledIssues]);
   const tree = useMemo(() => buildTree(overview, disabledSet), [overview, disabledSet]);
   const totalForPercent = overview?.summary.totalInternalUrls ?? 0;
+  const soft404Probe = overview?.site?.soft404Probe ?? null;
 
   return (
     <div className="flex h-full flex-col bg-surface-900">
@@ -181,6 +182,33 @@ export function OverviewSidebar() {
           <span>{t('sidebar.percentOfTotal', { defaultValue: '% of Total' })}</span>
         </div>
       </div>
+      {soft404Probe && (
+        // A finding about the whole site, not a URL list — so a notice
+        // rather than a tree node with a count and a filter behind it.
+        <div
+          className="flex items-start gap-1.5 border-b border-amber-700/40 bg-amber-900/20 px-2 py-1.5 text-[11px] text-amber-200"
+          title={t('sidebar.siteSoft404Hint', {
+            defaultValue:
+              'A request for a page that does not exist was answered {{status}} instead of 404, so broken links on this site look like working pages to search engines.',
+            status: soft404Probe.status,
+          })}
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="min-w-0">
+            <div className="font-medium">
+              {t('sidebar.siteSoft404', {
+                defaultValue: 'Missing pages return {{status}} (soft 404)',
+                status: soft404Probe.status,
+              })}
+            </div>
+            <div className="break-all font-mono text-[10px] text-amber-300/80">
+              {soft404Probe.finalUrl
+                ? `${soft404Probe.url} → ${soft404Probe.finalUrl}`
+                : soft404Probe.url}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex-1 overflow-auto">
         <div className="py-1 text-[11px]">
           {tree.map((node) => (

@@ -190,6 +190,7 @@ export const TR_LABELS: Record<string, string> = {
   'Lang Attribute Missing': 'Lang Niteliği Eksik',
   'Charset Missing': 'Charset Eksik',
   'Canonical Outside <head>': 'Canonical <head> Dışında',
+  'Hreflang Outside <head>': 'Hreflang <head> Dışında',
   'Soft 404': 'Soft 404',
   'Linked URL Blocked by robots.txt': 'Bağlantı Verilen URL robots.txt ile Engelli',
   'Charset Mismatch (HTTP vs HTML)': 'Charset Uyuşmazlığı (HTTP ve HTML)',

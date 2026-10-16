@@ -2,7 +2,9 @@
   "sidebar": {
     "overview": "概览",
     "urls": "URL",
-    "percentOfTotal": "占总数百分比"
+    "percentOfTotal": "占总数百分比",
+    "siteSoft404": "不存在的页面返回 {{status}}（soft 404）",
+    "siteSoft404Hint": "请求一个不存在的页面时得到的是 {{status}} 而不是 404，因此该站点上的失效链接在搜索引擎看来就像正常页面。"
   },
   "integrations": {
     "intro": "使用你自己的凭据连接外部服务。API 密钥和机密会通过操作系统的安全存储在本地加密保存，绝不会离开这台机器。",
@@ -290,7 +292,10 @@
     "clearAllConfirm": "清除当前项目中的全部数据吗？\n\n所有 URL、链接、图片、响应头、源码快照、站点地图和问题都会被清空。此操作无法撤销——如需备份，请先使用“项目另存为…”。",
     "clearFailed": "无法清除抓取数据：{{detail}}",
     "deleteDomainResult_other": "已从 {{host}} 删除 {{formatted}} 行 URL。",
-    "deleteDomainLinks_other": "随之一并移除了 {{formatted}} 条关联链接。"
+    "deleteDomainLinks_other": "随之一并移除了 {{formatted}} 条关联链接。",
+    "targetCrawlDefaults": "抓取默认设置已更新：现在会抓取 canonical 目标、hreflang 备用版本和关联的 XML 站点地图，从而发现没有任何链接指向的页面上的错误。",
+    "targetCrawlDefaultsReview": "查看设置",
+    "noticeDismiss": "关闭"
   },
   "infoTip": {
     "moreInfo": "更多信息",

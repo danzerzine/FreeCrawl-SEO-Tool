@@ -2,7 +2,9 @@
   "sidebar": {
     "overview": "अवलोकन",
     "urls": "URL",
-    "percentOfTotal": "कुल का %"
+    "percentOfTotal": "कुल का %",
+    "siteSoft404": "मौजूद न होने वाले पेज {{status}} लौटाते हैं (soft 404)",
+    "siteSoft404Hint": "मौजूद न होने वाले पेज के अनुरोध का उत्तर 404 के बजाय {{status}} मिला, इसलिए इस साइट के टूटे लिंक सर्च इंजनों को काम करते पेज जैसे दिखते हैं।"
   },
   "integrations": {
     "intro": "अपनी ही क्रेडेंशियल से बाहरी सेवाएँ जोड़ें। API कुंजियाँ और सीक्रेट आपके ऑपरेटिंग सिस्टम के सुरक्षित स्टोरेज से एन्क्रिप्ट होकर रखे जाते हैं और कभी इस मशीन से बाहर नहीं जाते।",
@@ -297,7 +299,10 @@
     "deleteDomainResult_one": "{{host}} से {{formatted}} URL पंक्ति हटाई गई।",
     "deleteDomainResult_other": "{{host}} से {{formatted}} URL पंक्तियाँ हटाई गईं।",
     "deleteDomainLinks_one": "इनके साथ {{formatted}} संबंधित लिंक भी हटाया गया।",
-    "deleteDomainLinks_other": "इनके साथ {{formatted}} संबंधित लिंक भी हटाए गए।"
+    "deleteDomainLinks_other": "इनके साथ {{formatted}} संबंधित लिंक भी हटाए गए।",
+    "targetCrawlDefaults": "क्रॉल डिफ़ॉल्ट अपडेट किए गए: अब canonical लक्ष्य, hreflang विकल्प और लिंक किए गए XML साइटमैप भी क्रॉल होते हैं, ताकि उन पेजों की त्रुटियाँ भी पकड़ी जाएँ जिन पर कोई लिंक नहीं है।",
+    "targetCrawlDefaultsReview": "सेटिंग्स देखें",
+    "noticeDismiss": "खारिज करें"
   },
   "infoTip": {
     "moreInfo": "अधिक जानकारी",

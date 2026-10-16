@@ -191,6 +191,7 @@ export const KO_LABELS: Record<string, string> = {
   'Lang Attribute Missing': 'lang 속성 없음',
   'Charset Missing': 'charset 없음',
   'Canonical Outside <head>': '<head> 밖의 canonical',
+  'Hreflang Outside <head>': '<head> 밖의 hreflang',
   'Soft 404': '소프트 404',
   'Linked URL Blocked by robots.txt': 'robots.txt로 차단된 링크 URL',
   'Charset Mismatch (HTTP vs HTML)': 'charset 불일치(HTTP vs HTML)',

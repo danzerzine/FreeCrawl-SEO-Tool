@@ -2172,7 +2172,7 @@ function SpiderCrawlPanel({ form, update }: PanelProps) {
             <CrawlRow
               label="Canonicals"
               info="<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter."
-              example="Crawl off (default) — canonicals are a signal, not a route. Store on."
+              example="Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on."
               crawl={{ checked: form.followCanonicals, onChange: (v) => update('followCanonicals', v) }}
               store={{ checked: form.storeCanonicals, onChange: (v) => update('storeCanonicals', v) }}
             />

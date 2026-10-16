@@ -330,7 +330,9 @@ async function main(): Promise<void> {
     exportedTo = outPath;
   }
 
-  const issues = db.getOverviewCounts().issues;
+  const overview = db.getOverviewCounts();
+  const issues = overview.issues;
+  const soft404Probe = overview.site?.soft404Probe ?? null;
   // A crawl that fetched nothing (unreachable seed, everything filtered) is a
   // failure for CI purposes — a successful spider always fetches ≥1 page.
   const hasErrors =
@@ -351,6 +353,7 @@ async function main(): Promise<void> {
           dbPath,
           summary,
           issues,
+          site: { soft404Probe },
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
         },
@@ -364,6 +367,12 @@ async function main(): Promise<void> {
     );
     if (exportedTo) {
       console.log(`Wrote ${rowsWritten} rows -> ${exportedTo}`);
+    }
+    if (soft404Probe) {
+      console.log(
+        `Warning: missing pages return ${soft404Probe.status} (soft 404) — ${soft404Probe.url}` +
+          (soft404Probe.finalUrl ? ` -> ${soft404Probe.finalUrl}` : ''),
+      );
     }
   }
 

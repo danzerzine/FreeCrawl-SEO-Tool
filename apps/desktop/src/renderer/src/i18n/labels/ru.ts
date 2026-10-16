@@ -191,6 +191,7 @@ export const RU_LABELS: Record<string, string> = {
   'Lang Attribute Missing': 'Нет атрибута lang',
   'Charset Missing': 'Нет charset',
   'Canonical Outside <head>': 'Canonical вне <head>',
+  'Hreflang Outside <head>': 'Hreflang вне <head>',
   'Soft 404': 'Soft 404',
   'Linked URL Blocked by robots.txt': 'URL со ссылками заблокирован robots.txt',
   'Charset Mismatch (HTTP vs HTML)': 'Несовпадение charset (HTTP и HTML)',

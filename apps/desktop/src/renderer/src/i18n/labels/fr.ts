@@ -191,6 +191,7 @@ export const FR_LABELS: Record<string, string> = {
   'Lang Attribute Missing': 'Attribut lang manquant',
   'Charset Missing': 'Charset manquant',
   'Canonical Outside <head>': 'Canonical hors de <head>',
+  'Hreflang Outside <head>': 'Hreflang hors de <head>',
   'Soft 404': 'Soft 404',
   'Linked URL Blocked by robots.txt': 'URL liée bloquée par robots.txt',
   'Charset Mismatch (HTTP vs HTML)': 'Charset incohérent (HTTP vs HTML)',

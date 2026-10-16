@@ -574,8 +574,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
     '«Сканировать» выкл. (по умолчанию) — проверять статус внешних, не обходя весь интернет.',
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     '<link rel=canonical> и его форма в HTTP-заголовке Link:. «Сканировать» также ставит цель canonical в очередь как подсказку навигации. «Сохранять» питает вкладку «Canonical» и все фильтры проблем canonical.',
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    '«Сканировать» выкл. (по умолчанию) — canonical это сигнал, а не маршрут. «Сохранять» вкл.',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    '«Сканировать» вкл. (по умолчанию) — canonical, указывающий на отсутствующую или перенаправленную страницу, будет обнаружен. «Сохранять» вкл.',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>. Часть стандартного графа обнаружения; выключите «Сканировать», чтобы изолировать петлю пагинации, не отключая переходы по ссылкам повсюду.',
   ['Both on unless you are debugging an infinite paginated series.']:

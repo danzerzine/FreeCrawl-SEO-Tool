@@ -573,8 +573,8 @@ export const PT_BR_INFO_TIPS: Record<string, string> = {
     'Rastrear desligado (padrão) — verificar o status dos externos sem rastrear a web inteira.',
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     '<link rel=canonical> e sua forma de cabeçalho HTTP Link:. Rastrear também enfileira o destino canonical, tratando-o como dica de navegação. Armazenar alimenta a aba Canonicals e todos os filtros de problemas de canonical.',
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    'Rastrear desligado (padrão) — canonicals são um sinal, não uma rota. Armazenar ligado.',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    'Rastrear ligado (padrão) — um canonical que aponta para uma página inexistente ou redirecionada é detectado. Armazenar ligado.',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>. Parte do grafo de descoberta padrão; desligue Rastrear para isolar um loop de paginação sem desativar o seguimento de links em todo lugar.',
   ['Both on unless you are debugging an infinite paginated series.']:

@@ -191,6 +191,7 @@ export const HI_LABELS: Record<string, string> = {
   'Lang Attribute Missing': 'lang विशेषता नहीं',
   'Charset Missing': 'charset नहीं',
   'Canonical Outside <head>': 'Canonical <head> के बाहर',
+  'Hreflang Outside <head>': 'Hreflang <head> के बाहर',
   'Soft 404': 'सॉफ़्ट 404',
   'Linked URL Blocked by robots.txt': 'लिंक किया गया URL robots.txt से अवरुद्ध',
   'Charset Mismatch (HTTP vs HTML)': 'charset बेमेल (HTTP बनाम HTML)',

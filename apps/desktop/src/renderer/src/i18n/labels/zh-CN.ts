@@ -191,6 +191,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Lang Attribute Missing': '缺少 lang 属性',
   'Charset Missing': '缺少 charset',
   'Canonical Outside <head>': 'Canonical 位于 <head> 之外',
+  'Hreflang Outside <head>': 'Hreflang 位于 <head> 之外',
   'Soft 404': '软 404',
   'Linked URL Blocked by robots.txt': '被 robots.txt 拦截的链接 URL',
   'Charset Mismatch (HTTP vs HTML)': 'charset 不一致（HTTP 与 HTML）',

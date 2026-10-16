@@ -387,6 +387,8 @@ export interface ParsedPage {
   minhash: Uint8Array | null;
   /** `<link rel="canonical">` elements inside `<body>` (not honoured — see `canonical`). */
   canonicalOutsideHead: number;
+  /** `<link rel="alternate" hreflang>` elements inside `<body>` (not honoured — see `hreflangs`). */
+  hreflangOutsideHead: number;
   /** "Not found" wording in the title/H1 of a page with almost no content. */
   soft404Signal: boolean;
   /** An inline script assigns `document.title`. */
@@ -1172,10 +1174,19 @@ export function parseHtml(
   const paginationPrev = paginationPrevRaw ? normalizeUrl(paginationPrevRaw, baseUrl, opts.urlRewrites) : null;
 
   // Hreflang — `<link rel="alternate" hreflang="…" href="…">`. We dedupe
-  // by lang+href because some sites repeat tags accidentally.
+  // by lang+href because some sites repeat tags accidentally. Same rule as
+  // the canonical: search engines only read these links in `<head>`, so
+  // the ones in `<body>` are counted for their own issue and otherwise
+  // ignored — honouring them made the hreflang audits judge annotations
+  // Google never sees.
   const hreflangSet = new Set<string>();
   const hreflangs: HreflangEntry[] = [];
+  let hreflangOutsideHead = 0;
   $('link[rel="alternate"][hreflang]').each((_, el) => {
+    if ($(el).closest('body').length > 0) {
+      hreflangOutsideHead++;
+      return;
+    }
     const lang = ($(el).attr('hreflang') ?? '').trim();
     const rawHref = ($(el).attr('href') ?? '').trim();
     if (!lang || !rawHref) return;
@@ -2041,6 +2052,7 @@ export function parseHtml(
     langMismatch: contentLanguage.mismatch,
     minhash,
     canonicalOutsideHead,
+    hreflangOutsideHead,
     soft404Signal,
     jsTitleWrite: headWrites.titleWrite,
     jsTitle: headWrites.title,

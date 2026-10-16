@@ -17,6 +17,7 @@ import type {
   InlinkRow,
   OutlinkRow,
   OverviewCounts,
+  Soft404ProbeResult,
   PerformanceBudgetConfig,
   PagespeedMetrics,
   PagespeedRow,
@@ -81,6 +82,8 @@ import { runMigrations } from './migrations.js';
 export const DISABLED_ISSUES_META_KEY = 'disabledIssues';
 /** `meta` key mirroring `CrawlConfig.dedupePreNormalize` ('1' / '0'). */
 export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
+/** JSON `Soft404ProbeResult` of the last crawl's missing-page probe; '' when clean. */
+export const SOFT404_PROBE_META_KEY = 'soft404Probe';
 /**
  * Orphan page: an internal 2xx HTML page nothing links to. The start URL
  * is exempt (nothing links to a homepage from inside the site by
@@ -218,6 +221,8 @@ interface UrlRowDb {
   meta_charset: string | null;
   /** `<link rel="canonical">` elements inside `<body>` — ignored by search engines. */
   canonical_outside_head: number;
+  /** hreflang `<link>` elements inside `<body>` — ignored likewise. */
+  hreflang_outside_head: number;
   /** Primary language the main-content prose is written in. */
   content_lang: string | null;
   /** 1 when `html[lang]` names a language the prose clearly isn't in. */
@@ -508,6 +513,7 @@ export interface UpsertUrlInput {
   httpCharset?: string | null;
   metaCharset?: string | null;
   canonicalOutsideHead?: number;
+  hreflangOutsideHead?: number;
   contentLang?: string | null;
   langMismatch?: number;
   soft404?: number;
@@ -699,7 +705,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, minhash
+    soft_404, js_noindex, js_title_changed, js_title, minhash, hreflang_outside_head
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
     :title, :title_length, :meta_description, :meta_description_length,
@@ -744,7 +750,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :hreflang_outside_head
   )
   ON CONFLICT(url) DO UPDATE SET
     content_kind = excluded.content_kind,
@@ -890,6 +896,7 @@ const UPSERT_URL_SQL = `
     http_charset = excluded.http_charset,
     meta_charset = excluded.meta_charset,
     canonical_outside_head = excluded.canonical_outside_head,
+    hreflang_outside_head = excluded.hreflang_outside_head,
     content_lang = excluded.content_lang,
     lang_mismatch = excluded.lang_mismatch,
     soft_404 = excluded.soft_404,
@@ -2222,6 +2229,7 @@ export class ProjectDb {
       http_charset: input.httpCharset ?? null,
       meta_charset: input.metaCharset ?? null,
       canonical_outside_head: input.canonicalOutsideHead ?? 0,
+      hreflang_outside_head: input.hreflangOutsideHead ?? 0,
       content_lang: input.contentLang ?? null,
       lang_mismatch: input.langMismatch ?? 0,
       soft_404: input.soft404 ?? 0,
@@ -6461,7 +6469,20 @@ export class ProjectDb {
         blockedRobots: countCategory('indexability:blocked-robots'),
       },
       issues: this.silenceDisabledIssues(this.getIssuesCounts()),
+      site: { soft404Probe: this.readSoft404Probe() },
     };
+  }
+
+  private readSoft404Probe(): Soft404ProbeResult | null {
+    const raw = this.getMeta(SOFT404_PROBE_META_KEY);
+    if (!raw) return null;
+    try {
+      const v = JSON.parse(raw) as Partial<Soft404ProbeResult>;
+      if (typeof v.url !== 'string' || typeof v.status !== 'number') return null;
+      return { url: v.url, status: v.status, finalUrl: typeof v.finalUrl === 'string' ? v.finalUrl : null };
+    } catch {
+      return null;
+    }
   }
 
   private getIssuesCounts(): OverviewCounts['issues'] {
@@ -6691,6 +6712,7 @@ export class ProjectDb {
          AND http_charset != meta_charset`,
       ),
       canonicalOutsideHead: countWhere(`${html} AND canonical_outside_head > 0`),
+      hreflangOutsideHead: countWhere(`${html} AND hreflang_outside_head > 0`),
       langContentMismatch: countWhere(`${html} AND lang_mismatch = 1`),
       soft404: countWhere(`${html} AND status_code BETWEEN 200 AND 299 AND soft_404 > 0`),
       redirectChain: countWhere(
@@ -9978,6 +10000,7 @@ export class ProjectDb {
     httpCharset: r.http_charset ?? null,
     metaCharset: r.meta_charset ?? null,
     canonicalOutsideHead: r.canonical_outside_head ?? 0,
+    hreflangOutsideHead: r.hreflang_outside_head ?? 0,
     contentLang: r.content_lang ?? null,
     langMismatch: (r.lang_mismatch ?? 0) === 1,
     soft404: r.soft_404 ?? 0,
@@ -11070,6 +11093,10 @@ export function categoryWhereClause(
       // `rel=canonical` inside <body> is ignored by search engines — the
       // page has no canonical as far as they're concerned.
       return "is_external = 0 AND content_kind = 'html' AND canonical_outside_head > 0";
+    case 'issues:hreflang-outside-head':
+      // Same as above for hreflang: links in <body> are never read, so the
+      // page has no alternates as far as search engines are concerned.
+      return "is_external = 0 AND content_kind = 'html' AND hreflang_outside_head > 0";
     case 'issues:lang-content-mismatch':
       // html[lang] names a language the main content clearly isn't in
       // (different writing system, or none of its function words while

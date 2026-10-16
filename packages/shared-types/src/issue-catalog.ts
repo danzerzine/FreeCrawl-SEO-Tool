@@ -326,6 +326,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-hreflang-target-issues', label: 'Target Issues', category: 'issues:hreflang-target-issues', count: 'hreflangTargetIssues' },
       { key: 'issues-hreflang-unlinked', label: 'Unlinked Targets', category: 'issues:hreflang-unlinked', count: 'hreflangUnlinked' },
       { key: 'issues-hreflang-inconsistent-lang', label: 'Inconsistent Lang (same lang, two hrefs)', category: 'issues:hreflang-inconsistent-lang', count: 'hreflangInconsistentLang' },
+      { key: 'issues-hreflang-outside-head', label: 'Hreflang Outside <head>', category: 'issues:hreflang-outside-head', count: 'hreflangOutsideHead' },
     ],
   },
   {

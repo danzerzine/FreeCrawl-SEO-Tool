@@ -2,7 +2,9 @@
   "sidebar": {
     "overview": "Genel Bakış",
     "urls": "URL'ler",
-    "percentOfTotal": "Toplamın %"
+    "percentOfTotal": "Toplamın %",
+    "siteSoft404": "Olmayan sayfalar {{status}} döndürüyor (soft 404)",
+    "siteSoft404Hint": "Var olmayan bir sayfa için yapılan istek 404 yerine {{status}} ile yanıtlandı; bu yüzden sitedeki kırık bağlantılar arama motorlarına çalışan sayfalar gibi görünüyor."
   },
   "integrations": {
     "intro": "Harici servisleri kendi kimlik bilgilerinle bağla. API anahtarları ve secret'lar işletim sisteminin güvenli depolaması ile şifreli saklanır ve bu makineden asla çıkmaz.",
@@ -297,7 +299,10 @@
     "clearAllConfirm": "Aktif projedeki TÜM veriler temizlensin mi?\n\nHer URL, link, görsel, başlık, kaynak snapshot, sitemap ve issue silinecek. Geri alınamaz — yedek istiyorsan önce Projeyi Farklı Kaydet.",
     "clearFailed": "Tarama temizlenemedi: {{detail}}",
     "deleteDomainLinks_one": "Bunlarla birlikte {{formatted}} ilişkili bağlantı da kaldırıldı.",
-    "deleteDomainLinks_other": "Bunlarla birlikte {{formatted}} ilişkili bağlantı da kaldırıldı."
+    "deleteDomainLinks_other": "Bunlarla birlikte {{formatted}} ilişkili bağlantı da kaldırıldı.",
+    "targetCrawlDefaults": "Tarama varsayılanları güncellendi: canonical hedefleri, hreflang alternatifleri ve bağlantılı XML sitemap'ler artık taranıyor; böylece hiçbir bağlantının ulaşmadığı sayfalardaki hatalar da yakalanıyor.",
+    "targetCrawlDefaultsReview": "Ayarları İncele",
+    "noticeDismiss": "Kapat"
   },
   "infoTip": {
     "moreInfo": "Daha fazla bilgi",

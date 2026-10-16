@@ -11,7 +11,12 @@ import type {
   DiscoveredLink,
   Indexability,
 } from '@freecrawl/shared-types';
-import { type ProjectDb, type ProbeWrite, EXPENSIVE_ISSUE_DEFINITIONS } from '@freecrawl/db';
+import {
+  type ProjectDb,
+  type ProbeWrite,
+  EXPENSIVE_ISSUE_DEFINITIONS,
+  SOFT404_PROBE_META_KEY,
+} from '@freecrawl/db';
 import {
   normalizeUrl,
   isSameHost,
@@ -1172,6 +1177,9 @@ export class Crawler extends EventEmitter {
       this.db.reset();
       this.db.setMeta('startUrl', start);
     }
+    // The missing-page probe describes the crawl that is starting; it is
+    // re-run at the end (a stopped crawl simply has no verdict).
+    if (!isRespider) this.db.setMeta(SOFT404_PROBE_META_KEY, '');
     const isRefresh = isSameSite && !isRespider && !this.resumeOnly;
     // Change markers describe the run that is starting now, so anything
     // a previous refresh flagged is cleared first. A wiped project has
@@ -1590,6 +1598,9 @@ export class Crawler extends EventEmitter {
     this.setOp('post-crawl:pdf-probes');
     await this.runPdfMetadataProbes();
     await yieldToEventLoop();
+    this.setOp('post-crawl:soft-404-probe');
+    await this.runSoft404Probe();
+    await yieldToEventLoop();
     this.setOp('post-crawl:performance-budget');
     this.runBudgetPass();
     if (this.config.analyseIssues) {
@@ -1933,6 +1944,99 @@ export class Crawler extends EventEmitter {
       'info',
       `Manifest probe complete: ${probed - failed}/${probed} parsed, ${failed} failed`,
     );
+  }
+
+  /**
+   * Site-level soft-404 check. Asks for one page that cannot exist and
+   * looks at the answer: a 2xx (directly or after redirects) means every
+   * broken link on the site also "works" — search engines file those as
+   * soft 404s, and the 4xx reports here stay empty however many links are
+   * dead. One request, never stored as a URL row: the result is a notice
+   * about the site, not a page issue, so no crawled page is flagged.
+   *
+   * Only an unambiguous answer counts. A page that marks itself noindex
+   * (meta, `X-Robots-Tag`, or a script writing the meta — Google's advice
+   * for single-page apps) or moves on via meta refresh / JS redirect is
+   * handling the case; auth walls, bot challenges, 5xx and timeouts say
+   * nothing about it. Spider mode only — a list or sitemap crawl is not a
+   * crawl of one site.
+   */
+  private async runSoft404Probe(): Promise<void> {
+    if (this.config.mode !== 'spider' || this.stopped) return;
+    let probeUrl: string;
+    try {
+      const start = new URL(this.config.startUrl);
+      if (start.protocol !== 'http:' && start.protocol !== 'https:') return;
+      // Resolved against the start URL, so a crawl scoped to /blog/ probes
+      // /blog/<token> rather than a path outside its scope.
+      const token = Math.random().toString(36).slice(2, 12);
+      probeUrl = new URL(`freecrawl-404-check-${token}`, start).href;
+    } catch {
+      return;
+    }
+    if (this.config.respectRobotsTxt && !this.robotsAllows(probeUrl)) return;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
+    let verdict: { status: number; finalUrl: string | null } | null = null;
+    try {
+      let url = probeUrl;
+      for (let hop = 0; hop <= 5; hop++) {
+        const res = await this.fetchWithRetry(url, controller.signal);
+        const status = res.status;
+        if (status >= 300 && status < 400) {
+          const location = res.headers.get('location');
+          await res.body?.cancel().catch(() => undefined);
+          if (!location) break;
+          url = new URL(location, url).href;
+          continue;
+        }
+        if (status < 200 || status >= 300) {
+          await res.body?.cancel().catch(() => undefined);
+          break;
+        }
+        const xRobots = res.headers.get('x-robots-tag');
+        if (
+          xRobots &&
+          xRobotsTagDirectives(xRobots, robotsUserAgentToken(this.config.userAgent)).noindex
+        ) {
+          await res.body?.cancel().catch(() => undefined);
+          break;
+        }
+        const type = (res.headers.get('content-type') ?? '').toLowerCase();
+        if (type && !type.includes('html')) {
+          // A file served for any path is still a 2xx for a missing page.
+          await res.body?.cancel().catch(() => undefined);
+          verdict = { status, finalUrl: url === probeUrl ? null : url };
+          break;
+        }
+        const read = await readBodyCapped(res, this.config.maxFileSizeBytes);
+        if (read.overCap) break;
+        const page = parseHtml(new TextDecoder().decode(read.bytes), url);
+        if (page.hasNoindex || page.jsNoindexWrite || page.metaRefresh || page.jsRedirectUrl) break;
+        verdict = { status, finalUrl: url === probeUrl ? null : url };
+        break;
+      }
+    } catch {
+      /* inconclusive — timeouts and network errors say nothing about 404 handling */
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!verdict) return;
+    this.emit(
+      'warn',
+      `Soft 404: ${probeUrl} (a page that does not exist) answered ${verdict.status}` +
+        (verdict.finalUrl ? ` after redirecting to ${verdict.finalUrl}` : '') +
+        ' instead of 404 — broken links on this site look like working pages.',
+    );
+    try {
+      await this.dbCall<void>('setMeta', [
+        SOFT404_PROBE_META_KEY,
+        JSON.stringify({ url: probeUrl, ...verdict }),
+      ]);
+    } catch {
+      /* the notice is best-effort; the crawl results are unaffected */
+    }
   }
 
   /**
@@ -4588,6 +4692,7 @@ export class Crawler extends EventEmitter {
           httpCharset,
           metaCharset,
           canonicalOutsideHead: this.config.storeCanonicals ? parsed.canonicalOutsideHead : 0,
+          hreflangOutsideHead: this.config.storeHreflang ? parsed.hreflangOutsideHead : 0,
           contentLang: parsed.contentLang,
           langMismatch: parsed.langMismatch ? 1 : 0,
           soft404: parsed.soft404Signal && statusCode >= 200 && statusCode < 300 ? 1 : 0,

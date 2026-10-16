@@ -2,7 +2,9 @@
   "sidebar": {
     "overview": "Visão geral",
     "urls": "URLs",
-    "percentOfTotal": "% do total"
+    "percentOfTotal": "% do total",
+    "siteSoft404": "Páginas inexistentes retornam {{status}} (soft 404)",
+    "siteSoft404Hint": "Uma solicitação para uma página que não existe recebeu {{status}} em vez de 404, então os links quebrados deste site parecem páginas válidas para os buscadores."
   },
   "integrations": {
     "intro": "Conecte serviços externos com suas próprias credenciais. As chaves de API e os segredos são criptografados em repouso pelo armazenamento seguro do seu sistema operacional e nunca saem desta máquina.",
@@ -304,7 +306,10 @@
     "deleteDomainResult_other": "{{formatted}} linhas de URL excluídas de {{host}}.",
     "deleteDomainLinks_one": "Junto com elas, {{formatted}} link associado foi removido.",
     "deleteDomainLinks_many": "Junto com elas, {{formatted}} de links associados foram removidos.",
-    "deleteDomainLinks_other": "Junto com elas, {{formatted}} links associados foram removidos."
+    "deleteDomainLinks_other": "Junto com elas, {{formatted}} links associados foram removidos.",
+    "targetCrawlDefaults": "Padrões de rastreamento atualizados: destinos canonical, alternativas hreflang e sitemaps XML vinculados agora são rastreados, para detectar erros em páginas que nenhum link alcança.",
+    "targetCrawlDefaultsReview": "Revisar configurações",
+    "noticeDismiss": "Dispensar"
   },
   "infoTip": {
     "moreInfo": "Mais informações",

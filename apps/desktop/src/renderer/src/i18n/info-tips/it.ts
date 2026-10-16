@@ -575,8 +575,8 @@ export const IT_INFO_TIPS: Record<string, string> = {
     "Scansiona disattivato (predefinito) — controlla lo stato degli esterni senza scansionare l'intero web.",
   ['<link rel=canonical> and its HTTP Link: header form. Crawl also enqueues the canonical target, treating it as a navigation hint. Store feeds the Canonicals tab and every canonical issue filter.']:
     '<link rel=canonical> e la sua forma di header HTTP Link:. Scansiona accoda anche la destinazione canonical, trattandola come un suggerimento di navigazione. Memorizza alimenta la scheda Canonical e ogni filtro problema sui canonical.',
-  ['Crawl off (default) — canonicals are a signal, not a route. Store on.']:
-    'Scansiona disattivato (predefinito) — i canonical sono un segnale, non un percorso. Memorizza attivato.',
+  ['Crawl on (default) — a canonical pointing at a missing or redirected page is caught. Store on.']:
+    'Scansiona attivato (predefinito) — un canonical che punta a una pagina mancante o reindirizzata viene rilevato. Memorizza attivato.',
   ['<link rel=next> / <link rel=prev>. Part of the standard discovery graph; turn Crawl off to isolate a pagination loop without disabling link-following everywhere.']:
     '<link rel=next> / <link rel=prev>. Parte del grafo di scoperta standard; disattiva Scansiona per isolare un ciclo di paginazione senza disabilitare il follow dei link ovunque.',
   ['Both on unless you are debugging an infinite paginated series.']:
