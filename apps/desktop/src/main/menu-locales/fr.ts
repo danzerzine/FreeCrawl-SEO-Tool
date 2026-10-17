@@ -222,7 +222,7 @@ export const MENU_FR: MenuLabels = {
   detailDownloadSmartScreen:
     'Windows SmartScreen peut afficher « Application non reconnue » car le programme d\'installation n\'est pas signé. Cliquez sur « Informations complémentaires → Exécuter quand même » pour continuer.',
   detailDownloadGatekeeper:
-    'Gatekeeper de macOS peut bloquer l\'application à la première ouverture car elle n\'est pas notariée. Clic droit sur le .dmg → Ouvrir pour contourner.',
+    'macOS peut bloquer l\'application à la première ouverture car elle n\'est pas notariée. macOS 15 Sequoia et ultérieur : ouvrez Réglages Système → Confidentialité et sécurité puis cliquez sur « Ouvrir quand même ». macOS 12–14 : clic droit sur l\'app → Ouvrir.',
   msgDownloadFailed: 'Impossible de télécharger {name}',
   detailDownloadFailed:
     'État du téléchargement : {state}\n\nVous pouvez réessayer depuis la page GitHub Releases.',

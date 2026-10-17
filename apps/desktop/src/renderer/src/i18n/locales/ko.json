@@ -2316,7 +2316,7 @@
     "allowAlways": "이 도구 항상 허용",
     "deny": "거부",
     "resultChars": "{{n}}자",
-    "placeholder": "예: 제목 문제가 가장 심각한 페이지는 어디이고 왜 그런가요? (Ctrl+Enter로 전송)",
+    "placeholder": "예: 제목 문제가 가장 심각한 페이지는 어디이고 왜 그런가요? ({{mod}}+Enter로 전송)",
     "stop": "중지",
     "send": "보내기",
     "toolCount_other": "도구 {{count}}개"

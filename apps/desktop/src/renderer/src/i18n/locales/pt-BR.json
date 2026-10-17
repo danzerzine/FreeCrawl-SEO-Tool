@@ -2404,7 +2404,7 @@
     "allowAlways": "Sempre permitir esta ferramenta",
     "deny": "Negar",
     "resultChars": "{{n}} caracteres",
-    "placeholder": "ex.: Quais páginas têm os piores problemas de título, e por quê? (Ctrl+Enter para enviar)",
+    "placeholder": "ex.: Quais páginas têm os piores problemas de título, e por quê? ({{mod}}+Enter para enviar)",
     "stop": "Parar",
     "send": "Enviar",
     "toolCount_one": "{{count}} ferramenta",

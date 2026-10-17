@@ -220,7 +220,7 @@ export const MENU_TR: MenuLabels = {
   detailDownloadSmartScreen:
     'Yükleyici kod imzalı olmadığı için Windows SmartScreen "Tanınmayan uygulama" uyarısı gösterebilir. Devam etmek için "Ek bilgi → Yine de çalıştır"a tıklayın.',
   detailDownloadGatekeeper:
-    'Uygulama notarize edilmediği için macOS Gatekeeper ilk açılışta engelleyebilir. Atlamak için .dmg dosyasına sağ tıklayıp → Aç seçin.',
+    'Uygulama notarize edilmediği için macOS ilk açılışta engelleyebilir. macOS 15 Sequoia ve üzeri: Sistem Ayarları → Gizlilik ve Güvenlik bölümünden "Yine de Aç"a tıklayın. macOS 12–14: uygulamaya sağ tıklayıp Aç seçin.',
   msgDownloadFailed: '{name} indirilemedi',
   detailDownloadFailed:
     'İndirme durumu: {state}\n\nGitHub Releases sayfasından yeniden deneyebilirsiniz.',

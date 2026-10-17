@@ -2,7 +2,7 @@
 
 # FreeCrawl SEO Tool
 
-<img src="Freecrawl.gif" alt="FreeCrawl SEO Tool in action: dense table view, live crawl progress, and detail panel" width="100%" />
+<img src="Freecrawl.gif" alt="FreeCrawl SEO Tool in action: a live crawl streaming into the table, issue filters in the Overview, analysis tabs, URL Details, the export dialog, per-project issue settings and the light theme" width="100%" />
 
 ### Open-source desktop SEO crawler. A free, cross-platform alternative to Screaming Frog.
 
@@ -21,7 +21,7 @@
 
 <br />
 
-A high-performance website crawler built for serious SEO audits. Targets <kbd>1M+ URLs</kbd> on a single machine, with a dense Screaming Frog-style UI, **172 SEO issue checks**, an interface in **11 languages** with dark and light themes, and zero native dependencies.
+A high-performance website crawler built for serious SEO audits. Targets <kbd>1M+ URLs</kbd> on a single machine, with a dense Screaming Frog-style UI, **181 SEO issue checks**, an interface in **11 languages** with dark and light themes, and zero native dependencies.
 
 </div>
 
@@ -38,11 +38,13 @@ A high-performance website crawler built for serious SEO audits. Targets <kbd>1M
 
 FreeCrawl crawls your website and checks it for SEO problems. It is a free desktop alternative to Screaming Frog that handles very large sites (**1M+ URLs on one machine**) and streams the results into a fast, dense table while the crawl is still running.
 
-It runs **172 SEO checks across 32 tabs**: page titles, meta descriptions, headings, duplicate content, broken links, redirects, canonicals, hreflang, structured data, security headers, readability, mobile usability, and more. It can also render JavaScript pages with a real headless browser to capture the final DOM, screenshots, and Core Web Vitals. Any check you do not care about can be switched off per project.
+It runs **181 SEO checks across 33 tabs**: page titles, meta descriptions, headings, duplicate content, broken links, redirects, canonicals, hreflang, structured data, security headers, readability, mobile usability, soft 404s, and more. It can also render JavaScript pages with a real headless browser to capture the final DOM, screenshots, and Core Web Vitals. Any check you do not care about can be switched off per project.
 
 Every link type (images, CSS, JavaScript, media, canonicals, pagination, hreflang, AMP, iframes) has its own **Crawl** and **Store** switch, so you decide exactly what gets fetched and what gets reported. Right-click any table selection to copy cells, rows, or columns straight to the clipboard.
 
-Pull in real data from **Google Search Console, Analytics 4, PageSpeed Insights, and Chrome UX Report**, check spelling and grammar with **LanguageTool** (with a **bundled offline dictionary** for languages LanguageTool has no rules for, such as Turkish), and run your own **AI prompts** on each page (OpenAI, Claude, or Ollama). Open several projects side by side, each in its own window running its own crawl, and manage them from a Projects dialog with search, tags, and starter templates.
+The crawler is built for real sites, not only clean ones. It recognises bot-protection challenges (Cloudflare, AWS WAF, Vercel, Sucuri, DataDome) and marks those URLs as **blocked** instead of reporting hundreds of false broken links, re-checks external links with a GET and a browser User-Agent before calling them broken, probes the site for **soft-404** behaviour after every spider crawl, and can slow itself down on 429 / Retry-After responses with the opt-in **Adaptive speed** switch. `srcset` image variants are listed but not fetched unless you turn them on, the status bar shows every post-crawl phase (measuring images, running checks) as it happens, and stored page bodies are **zstd-compressed** with a per-project dictionary so large projects stay small on disk.
+
+Pull in real data from **Google Search Console, Analytics 4, PageSpeed Insights, Chrome UX Report, and Yandex Metrica**, check spelling and grammar with **LanguageTool** (with a **bundled offline dictionary** for languages LanguageTool has no rules for, such as Turkish), and run your own **AI prompts** on each page (OpenAI, Claude, or Ollama). Open several projects side by side, each in its own window running its own crawl, and manage them from a Projects dialog with search, tags, and starter templates.
 
 Export to **Excel, CSV, JSON, XML**, an HTML or brandable **PDF report**, sitemaps, a Screaming Frog-compatible **SEO Audit** folder, **Google Sheets**, or **BigQuery**. Save each project as **one compressed file** (or a **password-protected encrypted file**), and export any URL Details sub-table on its own. A built-in **MCP server** (100+ tools) lets AI agents like Claude drive crawls live and read every result. Every action a human can take in the desktop is callable from an agent, and **several agents can run in parallel**, each in its own isolated crawl session.
 
@@ -62,13 +64,15 @@ Grab the prebuilt app from the [Releases page](https://github.com/kemalai/FreeCr
 | 🪟 **Windows, no install** | `FreeCrawl-SEO-Tool-<version>-Windows-Portable.exe` | Single file, runs from anywhere, including a USB stick |
 | 🍎 **Mac with Apple Silicon** (M1, M2, M3, M4 and newer) | `FreeCrawl-SEO-Tool-<version>-macOS-Apple-Silicon.dmg` | Native build, fastest on these Macs |
 | 🍎 **Mac with an Intel processor** | `FreeCrawl-SEO-Tool-<version>-macOS-Intel.dmg` | For Intel-based Macs (2020 and earlier models) |
-| 🐧 **Linux, any distribution** | `FreeCrawl-SEO-Tool-<version>-Linux-x86_64.AppImage` | Make it executable and run, no install |
+| 🐧 **Linux, any distribution** | `FreeCrawl-SEO-Tool-<version>-Linux-x86_64.AppImage` | Make it executable and run, no install (needs FUSE 2, see below) |
 | 🐧 **Linux, Debian / Ubuntu** | `FreeCrawl-SEO-Tool-<version>-Linux-amd64.deb` | `sudo apt install ./FreeCrawl-SEO-Tool-<version>-Linux-amd64.deb` |
 | 🐧 **Linux, Fedora / RHEL** | `FreeCrawl-SEO-Tool-<version>-Linux-x86_64.rpm` | `sudo dnf install ./FreeCrawl-SEO-Tool-<version>-Linux-x86_64.rpm` |
 
 > **Not sure which Mac you have?** Open the Apple menu and choose **About This Mac**. A line that says **Chip: Apple M...** means Apple Silicon; a line that says **Processor: Intel...** means Intel. If you already run the Intel build on an Apple Silicon Mac, **Help → Check for Updates** offers the native build.
 
-> **macOS Gatekeeper:** the builds are not yet notarized. On first launch, right-click the app and choose **Open**, then confirm. If macOS still reports the app as damaged, run `xattr -cr "/Applications/FreeCrawl SEO Tool.app"` once in Terminal.
+> **macOS Gatekeeper:** the builds are not yet notarized. On **macOS 15 Sequoia and newer** the first launch is blocked: open **System Settings → Privacy & Security** and click **Open Anyway** (the old right-click → Open override no longer works there). On macOS 12 to 14, right-click the app and choose **Open**. If macOS reports the app as damaged, run `xattr -cr "/Applications/FreeCrawl SEO Tool.app"` once in Terminal.
+
+> **System requirements** (set by Electron 41): Windows 10 or newer (64-bit); macOS 12 Monterey or newer; Linux on Ubuntu 18.04 / Debian 10 / Fedora 32 or newer. The AppImage needs FUSE 2 (`sudo apt install libfuse2`, on Ubuntu 24.04 `libfuse2t64`). On Ubuntu 24.04+ the kernel denies unprivileged user namespaces to apps without an AppArmor profile, which an AppImage cannot install, so there the AppImage starts with Chromium's sandbox disabled (it tells you so on stderr); the `.deb` keeps the sandbox on, because its installer registers an AppArmor profile, so prefer it on Ubuntu.
 
 The Playwright Chromium browser is bundled in every installer, so JavaScript rendering works on first launch without an extra download. All files are built by the same [GitHub Actions workflow](.github/workflows/release.yml) on every release, and the `.yml` and `.blockmap` files listed next to them are build metadata you can ignore.
 
@@ -92,7 +96,7 @@ The Playwright Chromium browser is bundled in every installer, so JavaScript ren
 
 | Layer | Choice |
 | :--- | :--- |
-| 🟢 **Runtime** | Node.js 22 LTS+ (ESM-first) |
+| 🟢 **Runtime** | Node.js 22.13+ (ESM-first; `node:sqlite` is unflagged from 22.13, zstd body compression from 22.15) |
 | 📘 **Language** | TypeScript 5.7+ strict |
 | 🪟 **Desktop shell** | Electron 41 |
 | ⚡ **Build** | electron-vite 5 / Vite 7 |
@@ -205,6 +209,12 @@ npm run dev
 npx tsc -b apps/cli     # builds the CLI + its workspace packages
 node apps/cli/dist/index.js https://example.com --depth 2 --max 500 --out out.csv
 node apps/cli/dist/index.js --list urls.txt --out out.json     # list mode + JSON
+node apps/cli/dist/index.js https://example.com --adaptive-speed --image-variants   # back off on 429 / Retry-After, crawl srcset variants
+node apps/cli/dist/index.js compare before.seoproject after.seoproject              # diff two crawls
+
+# Yandex Metrica: pull per-page pageviews / visits / users into a project (YANDEX_METRICA_TOKEN in the env)
+node apps/cli/dist/index.js metrica-counters
+node apps/cli/dist/index.js metrica-fetch --counter 12345678 --days 28 --project crawl.seoproject
 
 # Log file analysis: parse an access log into the project for crawl x log reporting
 node apps/cli/dist/index.js analyze-logs samples/apache-access.txt --project crawl.seoproject
@@ -362,7 +372,7 @@ By default the server reads `<userData>/projects/default.seoproject` (the same f
 
 | Component | Minimum | Where |
 | :--- | :--- | :--- |
-| **Node.js** | 22 LTS (24 also OK) | [nodejs.org](https://nodejs.org/) |
+| **Node.js** | 22.13 or newer (24 also OK) | [nodejs.org](https://nodejs.org/) |
 | **npm** | 10+ (ships with Node) | bundled |
 | **Git** | any recent | [git-scm.com](https://git-scm.com/) |
 
@@ -440,7 +450,7 @@ graph LR
 ## 📈 Status
 
 > [!NOTE]
-> **v1.0.0, the full release.** All 32 analysis tabs, 172 issue checks (each one can be disabled per project), JavaScript rendering (screenshots, LCP candidate, mobile usability), multi-window projects, the link visualiser, every Google integration (Search Console / GA4 / PageSpeed / CrUX), LanguageTool spelling, AI per-URL prompts, SEO Authority providers, Google Sheets + BigQuery export, HTML and PDF reports, the Screaming Frog-compatible SEO Audit export, scheduled crawls with automatic exports and webhooks, encrypted projects, the MCP server with live crawl control, the standalone Log File Analyzer, dark and light themes, and an interface in 11 languages all ship today.
+> **v1.0.0, the full release.** All 33 analysis tabs, 181 issue checks (each one can be disabled per project), JavaScript rendering (screenshots, LCP candidate, mobile usability), multi-window projects, the link visualiser, every Google integration (Search Console / GA4 / PageSpeed / CrUX) plus Yandex Metrica, bot-protection and soft-404 detection, LanguageTool spelling, AI per-URL prompts, SEO Authority providers, Google Sheets + BigQuery export, HTML and PDF reports, the Screaming Frog-compatible SEO Audit export, scheduled crawls with automatic exports and webhooks, encrypted projects, the MCP server with live crawl control, the standalone Log File Analyzer, dark and light themes, and an interface in 11 languages all ship today.
 >
 > Cross-platform installers ship for Windows (setup + portable), macOS (Apple Silicon + Intel), and Linux (`.AppImage` / `.deb` / `.rpm`), with Playwright Chromium bundled so JS rendering works on first launch. The canvas-rendered URL table stays smooth on 25K+ row crawls, streams the first row in about 1 s, and long crawls are tuned for Apple Silicon (see [docs](docs/macos-apple-silicon-performance.md)).
 >

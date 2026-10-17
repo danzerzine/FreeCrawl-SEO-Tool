@@ -217,7 +217,7 @@ export const MENU_ZH_CN: MenuLabels = {
   detailDownloadSmartScreen:
     '由于安装程序未进行代码签名，Windows SmartScreen 可能提示“无法识别的应用”。点击“更多信息 → 仍要运行”即可继续。',
   detailDownloadGatekeeper:
-    '由于应用未经过公证，macOS Gatekeeper 可能在首次打开时拦截它。右键单击 .dmg → 打开，即可绕过。',
+    '由于应用未经过公证，macOS 可能在首次打开时拦截它。macOS 15 Sequoia 及更新版本：打开"系统设置" → "隐私与安全性"，点击"仍要打开"。macOS 12–14：右键单击应用 → 打开。',
   msgDownloadFailed: '无法下载 {name}',
   detailDownloadFailed:
     '下载状态：{state}\n\n您可以在 GitHub Releases 页面重试。',

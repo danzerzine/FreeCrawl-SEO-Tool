@@ -219,7 +219,7 @@ export const MENU_KO: MenuLabels = {
   detailDownloadSmartScreen:
     '설치 파일에 코드 서명이 없어 Windows SmartScreen이 "알 수 없는 앱"이라고 표시할 수 있습니다. "추가 정보 → 실행"을 클릭하면 계속됩니다.',
   detailDownloadGatekeeper:
-    '앱이 공증되지 않았기 때문에 macOS Gatekeeper가 첫 실행을 차단할 수 있습니다. .dmg 파일을 마우스 오른쪽 버튼으로 클릭 → 열기를 선택하면 우회됩니다.',
+    '앱이 공증되지 않았기 때문에 macOS가 첫 실행을 차단할 수 있습니다. macOS 15 Sequoia 이상: 시스템 설정 → 개인정보 보호 및 보안에서 "그래도 열기"를 클릭하세요. macOS 12–14: 앱을 마우스 오른쪽 버튼으로 클릭 → 열기.',
   msgDownloadFailed: '{name}을(를) 다운로드할 수 없습니다',
   detailDownloadFailed:
     '다운로드 상태: {state}\n\nGitHub Releases 페이지에서 다시 시도할 수 있습니다.',

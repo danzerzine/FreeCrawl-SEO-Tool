@@ -2362,7 +2362,7 @@
     "allowAlways": "Always allow this tool",
     "deny": "Deny",
     "resultChars": "{{n}} chars",
-    "placeholder": "e.g. Which pages have the worst title problems, and why? (Ctrl+Enter to send)",
+    "placeholder": "e.g. Which pages have the worst title problems, and why? ({{mod}}+Enter to send)",
     "stop": "Stop",
     "send": "Send"
   }

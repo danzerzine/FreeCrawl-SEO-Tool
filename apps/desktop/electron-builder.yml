@@ -76,6 +76,11 @@ mac:
   target:
     - dmg
   category: public.app-category.developer-tools
+# Linux AppImage only: wraps the binary in a launcher that adds --no-sandbox
+# on kernels that deny unprivileged user namespaces (Ubuntu 23.10+ AppArmor),
+# where Chromium would otherwise abort before the app starts. The hook is a
+# no-op for every other platform and target; see the file for the reasoning.
+afterPack: scripts/after-pack.mjs
 linux:
   executableName: freecrawl-seo
   artifactName: FreeCrawl-SEO-Tool-${version}-Linux-${arch}.${ext}

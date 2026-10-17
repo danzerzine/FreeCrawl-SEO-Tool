@@ -69,6 +69,10 @@ Options:
                         (one request every N seconds). Off by default — the directive is
                         not part of RFC 9309 and published values are often crippling.
   --external          Follow external links
+  --image-variants    Also fetch and measure srcset / <picture> image variants (off by default;
+                        a WordPress blog can go from ~2k to ~40k image requests with this on)
+  --adaptive-speed    Back off automatically on HTTP 429/503 and Retry-After, then recover
+                        (off by default; the fixed --rps / --concurrency hold otherwise)
   --header <K: V>     Extra request header; repeatable (e.g. --header "Authorization: Bearer X")
   --include <regex>   Only crawl URLs matching this regex; repeatable
   --exclude <regex>   Skip URLs matching this regex; repeatable
@@ -123,6 +127,8 @@ async function main(): Promise<void> {
       'no-robots': { type: 'boolean' },
       'respect-crawl-delay': { type: 'boolean' },
       external: { type: 'boolean' },
+      'image-variants': { type: 'boolean' },
+      'adaptive-speed': { type: 'boolean' },
       header: { type: 'string', multiple: true },
       include: { type: 'string', multiple: true },
       exclude: { type: 'string', multiple: true },
@@ -287,6 +293,8 @@ async function main(): Promise<void> {
     ...(values['no-robots'] ? { respectRobotsTxt: false } : {}),
     ...(values['respect-crawl-delay'] ? { respectCrawlDelay: true } : {}),
     ...(values.external ? { crawlExternal: true } : {}),
+    ...(values['image-variants'] ? { crawlImageVariants: true } : {}),
+    ...(values['adaptive-speed'] ? { adaptiveSpeed: true } : {}),
     ...(values.header !== undefined ? { customHeaders: parseHeaders(values.header) } : {}),
     ...(values.include !== undefined ? { includePatterns: values.include } : {}),
     ...(values.exclude !== undefined ? { excludePatterns: values.exclude } : {}),

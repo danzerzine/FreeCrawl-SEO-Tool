@@ -2316,7 +2316,7 @@
     "allowAlways": "始终允许此工具",
     "deny": "拒绝",
     "resultChars": "{{n}} 个字符",
-    "placeholder": "例如：哪些页面的标题问题最严重，为什么？（Ctrl+Enter 发送）",
+    "placeholder": "例如：哪些页面的标题问题最严重，为什么？（{{mod}}+Enter 发送）",
     "stop": "停止",
     "send": "发送",
     "toolCount_other": "{{count}} 个工具"

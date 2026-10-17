@@ -2360,7 +2360,7 @@
     "allowAlways": "Bu alətə hər zaman icazə ver",
     "deny": "Rədd et",
     "resultChars": "{{n}} simvol",
-    "placeholder": "məsələn: Hansı səhifələrdə başlıq problemləri ən ağırdır və niyə? (göndərmək üçün Ctrl+Enter)",
+    "placeholder": "məsələn: Hansı səhifələrdə başlıq problemləri ən ağırdır və niyə? (göndərmək üçün {{mod}}+Enter)",
     "stop": "Dayandır",
     "send": "Göndər",
     "toolCount_one": "{{count}} alət",

@@ -2404,7 +2404,7 @@
     "allowAlways": "Consenti sempre questo strumento",
     "deny": "Nega",
     "resultChars": "{{n}} caratteri",
-    "placeholder": "es. Quali pagine hanno i peggiori problemi di titolo, e perché? (Ctrl+Invio per inviare)",
+    "placeholder": "es. Quali pagine hanno i peggiori problemi di titolo, e perché? ({{mod}}+Invio per inviare)",
     "stop": "Interrompi",
     "send": "Invia",
     "toolCount_one": "{{count}} strumento",

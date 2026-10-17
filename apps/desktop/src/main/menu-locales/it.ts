@@ -222,7 +222,7 @@ export const MENU_IT: MenuLabels = {
   detailDownloadSmartScreen:
     'Windows SmartScreen potrebbe mostrare "App non riconosciuta" perché l\'installer non è firmato digitalmente. Fai clic su "Ulteriori informazioni → Esegui comunque" per procedere.',
   detailDownloadGatekeeper:
-    'Gatekeeper di macOS potrebbe bloccare l\'app alla prima apertura perché non è notarizzata. Clic destro sul .dmg → Apri per aggirare il blocco.',
+    'macOS potrebbe bloccare l\'app alla prima apertura perché non è notarizzata. macOS 15 Sequoia o successivo: apri Impostazioni di Sistema → Privacy e sicurezza e fai clic su "Apri comunque". macOS 12–14: clic destro sull\'app → Apri.',
   msgDownloadFailed: 'Impossibile scaricare {name}',
   detailDownloadFailed:
     'Stato del download: {state}\n\nPuoi riprovare dalla pagina GitHub Releases.',

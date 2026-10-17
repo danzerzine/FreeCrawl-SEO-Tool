@@ -220,7 +220,7 @@ export const MENU_EN: MenuLabels = {
   detailDownloadSmartScreen:
     'Windows SmartScreen may show "Unrecognized app" because the installer is not code-signed. Click "More info → Run anyway" to proceed.',
   detailDownloadGatekeeper:
-    'macOS Gatekeeper may block the app on first open because it is not notarised. Right-click the .dmg → Open to bypass.',
+    'macOS may block the app on first open because it is not notarised. macOS 15 Sequoia and newer: open System Settings → Privacy & Security and click "Open Anyway". macOS 12–14: right-click the app → Open.',
   msgDownloadFailed: 'Could not download {name}',
   detailDownloadFailed:
     'Download state: {state}\n\nYou can retry from the GitHub Releases page.',

@@ -2404,7 +2404,7 @@
     "allowAlways": "Toujours autoriser cet outil",
     "deny": "Refuser",
     "resultChars": "{{n}} caractères",
-    "placeholder": "p. ex. Quelles pages ont les pires problèmes de titre, et pourquoi ? (Ctrl+Entrée pour envoyer)",
+    "placeholder": "p. ex. Quelles pages ont les pires problèmes de titre, et pourquoi ? ({{mod}}+Entrée pour envoyer)",
     "stop": "Arrêter",
     "send": "Envoyer",
     "toolCount_one": "{{count}} outil",

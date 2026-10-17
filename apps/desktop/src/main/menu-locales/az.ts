@@ -227,7 +227,7 @@ export const MENU_AZ: MenuLabels = {
   detailDownloadSmartScreen:
     'Quraşdırıcı kod imzalı olmadığı üçün Windows SmartScreen "Tanınmayan tətbiq" xəbərdarlığı göstərə bilər. Davam etmək üçün "Ətraflı məlumat → Hər halda işlət" seçin.',
   detailDownloadGatekeeper:
-    'Tətbiq notarial təsdiqdən keçmədiyi üçün macOS Gatekeeper ilk açılışda onu bağlaya bilər. Yan keçmək üçün .dmg faylına sağ düymə ilə klikləyib → Aç seçin.',
+    'Tətbiq notarial təsdiqdən keçmədiyi üçün macOS ilk açılışda onu bloklaya bilər. macOS 15 Sequoia və daha yeni: Sistem Ayarları → Məxfilik və Təhlükəsizlik bölməsini açıb "Yenə də Aç" düyməsinə klikləyin. macOS 12–14: tətbiqə sağ klik → Aç.',
   msgDownloadFailed: '{name} endirilə bilmədi',
   detailDownloadFailed:
     'Endirmə vəziyyəti: {state}\n\nGitHub Releases səhifəsindən yenidən cəhd edə bilərsiniz.',

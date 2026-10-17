@@ -2362,7 +2362,7 @@
     "allowAlways": "Bu araca her zaman izin ver",
     "deny": "Reddet",
     "resultChars": "{{n}} karakter",
-    "placeholder": "ör. Başlık sorunları en kötü olan sayfalar hangileri, neden? (Göndermek için Ctrl+Enter)",
+    "placeholder": "ör. Başlık sorunları en kötü olan sayfalar hangileri, neden? (Göndermek için {{mod}}+Enter)",
     "stop": "Durdur",
     "send": "Gönder"
   }

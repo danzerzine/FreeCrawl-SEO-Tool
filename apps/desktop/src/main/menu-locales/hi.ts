@@ -222,7 +222,7 @@ export const MENU_HI: MenuLabels = {
   detailDownloadSmartScreen:
     'इंस्टॉलर कोड-साइन्ड नहीं है, इसलिए Windows SmartScreen "अपरिचित ऐप" दिखा सकता है। आगे बढ़ने के लिए "अधिक जानकारी → फिर भी चलाएँ" पर क्लिक करें।',
   detailDownloadGatekeeper:
-    'ऐप नोटराइज़ नहीं है, इसलिए macOS Gatekeeper पहली बार खोलने पर इसे रोक सकता है। बायपास करने के लिए .dmg पर राइट-क्लिक → खोलें चुनें।',
+    'ऐप नोटराइज़ नहीं है, इसलिए macOS पहली बार खोलने पर इसे रोक सकता है। macOS 15 Sequoia और नया: System Settings → Privacy & Security खोलें और "Open Anyway" पर क्लिक करें। macOS 12–14: ऐप पर राइट-क्लिक → Open।',
   msgDownloadFailed: '{name} डाउनलोड नहीं हो सका',
   detailDownloadFailed:
     'डाउनलोड स्थिति: {state}\n\nआप GitHub Releases पृष्ठ से दोबारा कोशिश कर सकते हैं।',

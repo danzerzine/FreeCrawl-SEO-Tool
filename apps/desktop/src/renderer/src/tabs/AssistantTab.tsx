@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IS_MAC } from '../utils/clipboard.js';
 import {
   AlertTriangle,
   Check,
@@ -449,7 +450,8 @@ export function AssistantTab() {
             }}
             placeholder={t('assistant.placeholder', {
               defaultValue:
-                'e.g. Which pages have the worst title problems, and why? (Ctrl+Enter to send)',
+                'e.g. Which pages have the worst title problems, and why? ({{mod}}+Enter to send)',
+              mod: IS_MAC ? '⌘' : 'Ctrl',
             })}
           />
           {running ? (
