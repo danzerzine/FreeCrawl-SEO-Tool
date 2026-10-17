@@ -168,3 +168,14 @@ export {
   type SheetSpec,
   type SheetColumn,
 } from './spreadsheet.js';
+export {
+  listCounters as listMetricaCounters,
+  fetchPageMetrics as fetchMetricaPageMetrics,
+  MetricaError,
+  MetricaCancelledError,
+  type MetricaDeps,
+  type MetricaPageRow,
+  type MetricaFetchProgress,
+  type MetricaFetchOptions,
+  type MetricaPageMetrics,
+} from './metrica.js';

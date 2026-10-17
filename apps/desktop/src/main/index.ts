@@ -265,7 +265,7 @@ import {
   detectProjectFormat,
   packProject,
   unpackProject,
-} from './project-archive.js';
+} from '@freecrawl/db';
 import {
   BrowserPool,
   PlaywrightBrowserMissingError,
