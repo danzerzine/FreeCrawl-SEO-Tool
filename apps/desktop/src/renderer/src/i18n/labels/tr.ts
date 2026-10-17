@@ -670,6 +670,7 @@ export const TR_LABELS: Record<string, string> = {
   // Spider → Crawl matrix row labels (the ones not already registered
   // above as table columns / sidebar nodes).
   Media: 'Medya',
+  'srcset Variants': 'srcset Varyantları',
   'Internal Hyperlinks': 'Dahili Bağlantılar',
   'External Links': 'Harici Bağlantılar',
   'Pagination (Rel Next/Prev)': 'Sayfalama (Rel Next/Prev)',

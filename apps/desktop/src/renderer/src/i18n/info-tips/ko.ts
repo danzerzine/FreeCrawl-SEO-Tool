@@ -539,8 +539,12 @@ export const KO_INFO_TIPS: Record<string, string> = {
     "Crawl-delay 지시문을 전역 속도 제한(N초마다 요청 하나)으로 준수합니다. Crawl-delay는 RFC 9309에 포함되지 않으며 — Google은 무시하고 Screaming Frog는 구현하지 않습니다 — 게시된 값은 오래된 경우가 많습니다: 'Crawl-delay: 30'은 500개 URL 크롤링을 몇 시간짜리로 만듭니다. 기본적으로 무시되며, 발견되면 로그에는 여전히 보고됩니다.",
   ['Off (default) for normal audits. On when an ops policy requires it — expect the crawl to take Crawl-delay seconds per URL.']:
     '일반 감사에는 끔(기본값). 운영 정책이 요구할 때 켬 — URL당 Crawl-delay 초가 걸릴 것을 감안하세요.',
-  ['Crawl fetches internal <img> targets (incl. srcset / <picture> sources) so each appears in the Internal tab with status, content type, and size — every one counts toward Max URLs. Store keeps the <img> declarations in the Images tab, which works even with Crawl off: you get the full image inventory with alt text for the cost of zero extra requests.']:
-    '크롤링은 내부 <img> 대상(srcset / <picture> 소스 포함)을 가져와 각각 상태, 콘텐츠 유형, 크기와 함께 내부 탭에 표시합니다 — 모두 최대 URL 수에 포함됩니다. 저장은 <img> 선언을 이미지 탭에 유지하며 크롤링이 꺼져 있어도 동작합니다: 추가 요청 없이 alt 텍스트가 포함된 전체 이미지 목록을 얻습니다.',
+  ['Crawl fetches internal <img> targets so each appears in the Internal tab with status, content type, and size — every one counts toward Max URLs. Store keeps the <img> declarations in the Images tab, which works even with Crawl off: you get the full image inventory with alt text for the cost of zero extra requests.']:
+    '크롤링은 내부 <img> 대상을 가져와 각각 상태, 콘텐츠 유형, 크기와 함께 내부 탭에 표시합니다 — 모두 최대 URL 수에 포함됩니다. 저장은 <img> 선언을 이미지 탭에 유지하며 크롤링이 꺼져 있어도 동작합니다: 추가 요청 없이 alt 텍스트가 포함된 전체 이미지 목록을 얻습니다.',
+  ["Also fetch the extra sizes an <img> lists in srcset / <picture> — the 300×169, 768×432… copies WordPress and most CDNs generate. Off: only the image's own src is requested and measured; the variants are still listed in the Images tab. One blog went from 2,300 to 41,600 image requests with this on."]:
+    "<img>가 srcset / <picture>에 나열한 추가 크기도 가져옵니다 — WordPress와 대부분의 CDN이 생성하는 300×169, 768×432… 사본입니다. 꺼져 있으면 이미지 자체의 src만 요청·측정되며, 변형은 여전히 이미지 탭에 표시됩니다. 한 블로그에서는 이 옵션을 켜자 이미지 요청이 2,300건에서 41,600건으로 늘었습니다.",
+  ["Leave off unless you audit responsive image sets for broken or oversized sizes."]:
+    "깨지거나 너무 큰 크기를 찾기 위해 반응형 이미지 세트를 감사하는 경우가 아니면 꺼 두세요.",
   ['Store on, Crawl off is the cheap alt-text audit. Both on for a full image health check.']:
     '저장 켬, 크롤링 끔은 저렴한 alt 텍스트 감사입니다. 완전한 이미지 상태 점검에는 둘 다 켜세요.',
   ['<video> / <audio> and the <source> children they own. Off by default — media files are large and rarely what an SEO crawl is looking for.']:

@@ -500,6 +500,36 @@ const JS_SCRIPT_TYPES = new Set([
 /** A Cloudflare-obfuscated `mailto:` (see the link loop in `parseHtml`). */
 const CF_EMAIL_PROTECTION_RE = /^https?:\/\/[^/]+\/cdn-cgi\/l\/email-protection(?:[?#]|$)/i;
 
+/**
+ * Lazy-load plugins (LiteSpeed, WP Rocket, a3, Smush, Next.js blur
+ * placeholders…) ship a `data:` placeholder — or no `src` at all — and the
+ * real address in one of these. Read in this order, first non-empty wins.
+ */
+const LAZY_SRC_ATTRS = ['data-src', 'data-lazy-src', 'data-original', 'data-lazy', 'data-url'] as const;
+const LAZY_SRCSET_ATTRS = ['data-srcset', 'data-lazy-srcset'] as const;
+
+/**
+ * Endpoints that only ever serve a tracking pixel. Such an `<img>` is a
+ * beacon, not a content image: it has no alt to be missing and is on every
+ * page of a site with the tag installed, so counting it put Missing Alt on
+ * all 7,491 pages of one crawl (Meta Pixel's `<noscript>` fallback).
+ */
+const TRACKING_PIXEL_RE =
+  /^https?:\/\/(?:www\.)?(?:facebook\.com\/tr[/?]|px\.ads\.linkedin\.com\/|dc\.ads\.linkedin\.com\/|bat\.bing\.com\/action\/|(?:www\.)?google-analytics\.com\/(?:collect|__utm\.gif)|(?:www\.)?googleadservices\.com\/pagead\/conversion\/|googleads\.g\.doubleclick\.net\/pagead\/viewthroughconversion\/|ct\.pinterest\.com\/|analytics\.twitter\.com\/|t\.co\/i\/adsct|tr\.snapchat\.com\/|alb\.reddit\.com\/|mc\.yandex\.ru\/watch\/|(?:ib|secure)\.adnxs\.com\/|insight\.adsrvr\.org\/track\/|(?:sslwidget|widget|dynamic)\.criteo\.com\/|trc\.taboola\.com\/|q\.quora\.com\/_\/ad\/|tags\.tiqcdn\.com\/|cdn\.evgnet\.com\/|px\.owneriq\.net\/|p\.adsymptotic\.com\/|secure\.gaug\.es\/)/i;
+
+/** Attributes that make an `<img>` a hidden 1×1 beacon rather than a picture. */
+function isTrackingPixel(
+  src: string,
+  attr: (name: string) => string | undefined,
+  insideNoscript: boolean,
+): boolean {
+  if (TRACKING_PIXEL_RE.test(src)) return true;
+  const w = (attr('width') ?? '').trim();
+  const h = (attr('height') ?? '').trim();
+  if ((w === '1' || w === '0') && (h === '1' || h === '0')) return true;
+  return insideNoscript && /display\s*:\s*none/i.test(attr('style') ?? '');
+}
+
 /** An `onclick` body that navigates somewhere rather than acting in place. */
 const JS_NAVIGATION_RE =
   /(?:^|[^\w$.])(?:window\.|document\.|top\.|self\.)?location(?:\.href)?\s*=(?!=)|location\.(?:assign|replace)\s*\(|window\.open\s*\(/;
@@ -797,10 +827,15 @@ export function parseHtml(
   // every page of a site with titled SVG icons (found live: 77 pages).
   const titleEls = $('title').filter((_, el) => $(el).closest('svg').length === 0);
   const titleCount = titleEls.length;
-  const title = decodeEntities(titleEls.first().text().trim()) || null;
+  // Whitespace inside the title, description and heading is collapsed the
+  // way a browser (and a search result) renders it: a line break or a
+  // double space in the markup is not a character the reader sees, so it
+  // must not count toward the length limits or make "H1 = Title" miss.
+  const collapseWs = (s: string): string => s.replace(/\s+/g, ' ').trim();
+  const title = decodeEntities(collapseWs(titleEls.first().text())) || null;
   const metaDescription =
-    decodeEntities(($('meta[name="description"]').attr('content') ?? '').trim()) || null;
-  const h1 = decodeEntities($('h1').first().text().trim()) || null;
+    decodeEntities(collapseWs($('meta[name="description"]').attr('content') ?? '')) || null;
+  const h1 = decodeEntities(collapseWs($('h1').first().text())) || null;
   const h1Count = $('h1').length;
   const h2Count = $('h2').length;
   const h3Count = $('h3').length;
@@ -1623,12 +1658,21 @@ export function parseHtml(
     // below: the link graph keeps one record per target, so an icon-only,
     // generic or `target=_blank` link to a page the nav already links to
     // never reached the `links` table and the page went unflagged.
-    // Empty anchor: no usable text inside the <a> AND no alt on a nested
-    // image. Common accessibility/SEO failure on icon-only or image-only
-    // links. Only count internal links — externals aren't our problem.
-    if (isInternal && !anchor && !altText) emptyAnchorCount++;
-    if (anchor && anchor.length > 100) anchorTooLongCount++;
-    if (anchor && GENERIC_ANCHORS.has(anchor.trim().toLowerCase())) genericAnchorCount++;
+    // Empty anchor: no usable text inside the <a>, no alt on a nested image
+    // and no accessible name from `aria-label` / `aria-labelledby` / `title`
+    // (WCAG 2.4.4 — an icon link that carries one is named; flagging it put
+    // every page of a site with an aria-labelled cart icon in the list).
+    // Common accessibility/SEO failure on icon-only or image-only links.
+    // Only count internal links — externals aren't our problem.
+    const hasAriaName =
+      ($el.attr('aria-label') ?? '').trim() !== '' ||
+      ($el.attr('aria-labelledby') ?? '').trim() !== '' ||
+      ($el.attr('title') ?? '').trim() !== '';
+    if (isInternal && !anchor && !altText && !hasAriaName) emptyAnchorCount++;
+    const anchorTooLong = !!anchor && [...anchor].length > 100;
+    const anchorGeneric = !!anchor && GENERIC_ANCHORS.has(anchor.trim().toLowerCase());
+    if (anchorTooLong) anchorTooLongCount++;
+    if (anchorGeneric) genericAnchorCount++;
     if (
       target?.toLowerCase() === '_blank' &&
       !rel?.includes('noopener') &&
@@ -1652,6 +1696,17 @@ export function parseHtml(
         // A followable content link also carries the more useful anchor
         // text than an icon-only nav link, so take it when we had none.
         if (!existing.anchor && anchor) existing.anchor = anchor;
+      }
+      // The page is flagged above for a too-long / generic anchor even when
+      // the same target is also linked with a fine one (a product card's
+      // "Read more" next to its title link). Keep the offending text on the
+      // one record this target gets, otherwise Outlinks shows nothing that
+      // explains the flag and the user cannot find the link to fix.
+      if ((anchorTooLong || anchorGeneric) && anchor) {
+        const ex = existing.anchor;
+        const exFlagged =
+          !!ex && ([...ex].length > 100 || GENERIC_ANCHORS.has(ex.trim().toLowerCase()));
+        if (!exFlagged) existing.anchor = anchor;
       }
       return;
     }
@@ -1873,16 +1928,35 @@ export function parseHtml(
   let imageSlotCount = 0;
   let imagesMissingAlt = 0;
 
-  $('img[src]').each((_, el) => {
+  $('img').each((_, el) => {
     const $el = $(el);
-    const rawSrc = $el.attr('src');
-    if (!rawSrc) return;
+    // The address the browser ends up loading: `src` unless it is an inline
+    // `data:` placeholder (or absent), then the lazy-load attribute that
+    // holds the real one. Pages whose every image was lazy-loaded this way
+    // used to show 0 images (found live: ~2,070 pages of one site), with
+    // the Images sub-tab empty and no alt / size check reaching them.
+    let rawSrc = ($el.attr('src') ?? '').trim();
+    let viaLazyAttr = false;
+    if (!rawSrc || rawSrc.startsWith('data:')) {
+      rawSrc = '';
+      for (const name of LAZY_SRC_ATTRS) {
+        const v = ($el.attr(name) ?? '').trim();
+        if (v && !v.startsWith('data:')) {
+          rawSrc = v;
+          viaLazyAttr = true;
+          break;
+        }
+      }
+    }
     // Skip inline data URIs — they're not "web resources" in the crawler
     // sense and would bloat the images table fast on any CMS.
-    if (rawSrc.startsWith('data:')) return;
+    if (!rawSrc) return;
     const normalized = normalizeUrl(rawSrc, baseUrl, opts.urlRewrites);
     if (!normalized) return;
     if (!/^https?:/.test(normalized)) return;
+    if (isTrackingPixel(normalized, (n) => $el.attr(n), $el.closest('noscript').length > 0)) {
+      return;
+    }
 
     // `null` = alt missing entirely (accessibility issue); `''` = decorative.
     const alt = imgAlt($el);
@@ -1896,18 +1970,25 @@ export function parseHtml(
     const isInternal = isSameHost(pageUrl, normalized, opts);
 
     // Lazy-loading adoption — `loading="lazy"` is the native browser
-    // attribute and the only signal that's reliable without rendering JS.
-    if (($el.attr('loading') ?? '').trim().toLowerCase() === 'lazy') {
+    // attribute; an image whose real address sits in a lazy-load data
+    // attribute is deferred by script, which is lazy loading as well.
+    if (($el.attr('loading') ?? '').trim().toLowerCase() === 'lazy' || viaLazyAttr) {
       imagesLazy++;
     }
 
     // Responsive imagery — an `<img>` is "responsive" if it carries
-    // `srcset` itself OR is wrapped in `<picture>` (the parent supplies
-    // the variants via `<source>` siblings). We only count the primary
-    // `<img>` here so a single page contributes 1 per slot, not 1 per
-    // variant URL — the variant URLs themselves go into `imageMap` so
-    // the broken-image / large-image probes still see them.
-    const srcsetAttr = ($el.attr('srcset') ?? '').trim();
+    // `srcset` itself (or its lazy-load twin) OR is wrapped in `<picture>`
+    // (the parent supplies the variants via `<source>` siblings). We only
+    // count the primary `<img>` here so a single page contributes 1 per
+    // slot, not 1 per variant URL — the variant URLs themselves go into
+    // `imageMap` so the broken-image / large-image probes still see them.
+    let srcsetAttr = ($el.attr('srcset') ?? '').trim();
+    if (!srcsetAttr) {
+      for (const name of LAZY_SRCSET_ATTRS) {
+        srcsetAttr = ($el.attr(name) ?? '').trim();
+        if (srcsetAttr) break;
+      }
+    }
     const inPicture = $el.parent('picture').length > 0;
     if (srcsetAttr || inPicture) imagesResponsive++;
 
@@ -1934,8 +2015,8 @@ export function parseHtml(
   // instead of the inner `<img src>`. Includes format-fallback cases
   // (avif → webp → jpg) where the primary `<img>` references only the
   // last fallback.
-  $('picture > source[srcset]').each((_, el) => {
-    const srcsetAttr = ($(el).attr('srcset') ?? '').trim();
+  $('picture > source[srcset], picture > source[data-srcset]').each((_, el) => {
+    const srcsetAttr = ($(el).attr('srcset') ?? $(el).attr('data-srcset') ?? '').trim();
     if (!srcsetAttr) return;
     // A `<source>` is a format/breakpoint variant of the picture's own
     // `<img>`, which carries the alt for every variant — the source

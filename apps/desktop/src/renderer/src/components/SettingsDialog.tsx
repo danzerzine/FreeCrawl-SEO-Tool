@@ -124,6 +124,7 @@ interface FormState {
   // spider → crawl matrix
   scope: CrawlScope;
   storeImages: boolean;
+  crawlImageVariants: boolean;
   crawlMedia: boolean;
   storeMedia: boolean;
   storeCss: boolean;
@@ -575,6 +576,7 @@ function configToForm(c: CrawlConfig): FormState {
     discoverSitemaps: c.discoverSitemaps,
     scope: c.scope,
     storeImages: c.storeImages ?? true,
+    crawlImageVariants: c.crawlImageVariants ?? false,
     crawlMedia: c.crawlMedia ?? false,
     storeMedia: c.storeMedia ?? false,
     storeCss: c.storeCss ?? true,
@@ -899,6 +901,7 @@ export function SettingsDialog({ open, onClose }: Props) {
       discoverSitemaps: form.discoverSitemaps,
       scope: form.scope,
       storeImages: form.storeImages,
+      crawlImageVariants: form.crawlImageVariants,
       crawlMedia: form.crawlMedia,
       storeMedia: form.storeMedia,
       storeCss: form.storeCss,
@@ -2099,10 +2102,21 @@ function SpiderCrawlPanel({ form, update }: PanelProps) {
           >
             <CrawlRow
               label="Images"
-              info="Crawl fetches internal <img> targets (incl. srcset / <picture> sources) so each appears in the Internal tab with status, content type, and size — every one counts toward Max URLs. Store keeps the <img> declarations in the Images tab, which works even with Crawl off: you get the full image inventory with alt text for the cost of zero extra requests."
+              info="Crawl fetches internal <img> targets so each appears in the Internal tab with status, content type, and size — every one counts toward Max URLs. Store keeps the <img> declarations in the Images tab, which works even with Crawl off: you get the full image inventory with alt text for the cost of zero extra requests."
               example="Store on, Crawl off is the cheap alt-text audit. Both on for a full image health check."
               crawl={{ checked: form.checkImages, onChange: (v) => update('checkImages', v) }}
               store={{ checked: form.storeImages, onChange: (v) => update('storeImages', v) }}
+            />
+            <CrawlRow
+              label="srcset Variants"
+              info="Also fetch the extra sizes an <img> lists in srcset / <picture> — the 300×169, 768×432… copies WordPress and most CDNs generate. Off: only the image's own src is requested and measured; the variants are still listed in the Images tab. One blog went from 2,300 to 41,600 image requests with this on."
+              example="Leave off unless you audit responsive image sets for broken or oversized sizes."
+              crawl={{
+                checked: form.crawlImageVariants,
+                disabled: !form.checkImages,
+                onChange: (v) => update('crawlImageVariants', v),
+              }}
+              store={null}
             />
             <CrawlRow
               label="Media"

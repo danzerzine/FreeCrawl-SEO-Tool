@@ -2437,6 +2437,43 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 99,
+    name: 'add_resource_usages',
+    // Which page references which script / stylesheet / font / media URL.
+    // Mirrors images + image_usages: one row per distinct resource URL, one
+    // usage row per (page, resource). Gives a resource row its Inlinks —
+    // the pages that embed it — which the hyperlink-only `links` table
+    // never held, so the tab stayed empty for every JS / CSS / font URL.
+    up: `
+      CREATE TABLE IF NOT EXISTS resources (
+        id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        url  TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS resource_usages (
+        from_url_id INTEGER NOT NULL REFERENCES urls(id) ON DELETE CASCADE,
+        resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+        PRIMARY KEY (from_url_id, resource_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_resource_usages_resource ON resource_usages(resource_id);
+    `,
+  },
+  {
+    version: 100,
+    name: 'add_body_dictionary',
+    // The zstd dictionary stored page bodies are compressed with (see
+    // `BodyCodec` in project-db.ts). Written once from the first pages of
+    // the first crawl and never replaced — rows reference its bytes, so
+    // `reset()` deliberately leaves it alone.
+    up: `
+      CREATE TABLE IF NOT EXISTS body_dictionary (
+        id         INTEGER PRIMARY KEY CHECK (id = 1),
+        dict       BLOB NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

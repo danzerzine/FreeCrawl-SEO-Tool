@@ -687,6 +687,7 @@ export const ES_LABELS: Record<string, string> = {
 
   // Spider → Crawl matrix row labels
   Media: 'Medios',
+  'srcset Variants': 'Variantes srcset',
   'Internal Hyperlinks': 'Hiperenlaces internos',
   'External Links': 'Enlaces externos',
   'Pagination (Rel Next/Prev)': 'Paginación (rel next/prev)',

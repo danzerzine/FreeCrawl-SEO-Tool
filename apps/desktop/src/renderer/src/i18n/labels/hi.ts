@@ -680,6 +680,7 @@ export const HI_LABELS: Record<string, string> = {
 
   // Spider → Crawl matrix row labels
   Media: 'मीडिया',
+  'srcset Variants': 'srcset वैरिएंट',
   'Internal Hyperlinks': 'आंतरिक हाइपरलिंक',
   'External Links': 'बाहरी लिंक',
   'Pagination (Rel Next/Prev)': 'पेजिनेशन (rel next/prev)',

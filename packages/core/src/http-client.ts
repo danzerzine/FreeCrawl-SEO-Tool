@@ -339,7 +339,13 @@ export function formatFetchError(err: unknown): string {
   if (/ENOTFOUND|EAI_AGAIN|ENODATA|ESERVFAIL|EREFUSED|ENOTIMP|ENONAME/.test(chain)) {
     return `${chain}  (DNS lookup failed across all 3 layers (OS, public DNS, DoH). Most likely the host genuinely doesn't exist, or your machine has no internet at all. Check the spelling and your connection.)`;
   }
-  if (/UNABLE_TO_GET_ISSUER_CERT_LOCALLY|SELF_SIGNED_CERT_IN_CHAIN|CERT_HAS_EXPIRED|DEPTH_ZERO_SELF_SIGNED_CERT|UNABLE_TO_VERIFY_LEAF_SIGNATURE/.test(chain)) {
+  // An expired certificate is the site's problem, not this machine's: a
+  // browser shows the same warning. Pointing the user at a proxy or
+  // antivirus here sent them looking in the wrong place.
+  if (/CERT_HAS_EXPIRED/.test(chain)) {
+    return `${chain}  (the site's TLS certificate has expired — browsers show a security warning for it too; nothing to change on this machine, the site owner must renew it)`;
+  }
+  if (/UNABLE_TO_GET_ISSUER_CERT_LOCALLY|SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT|UNABLE_TO_VERIFY_LEAF_SIGNATURE/.test(chain)) {
     return `${chain}  (TLS certificate rejected — likely corporate proxy or antivirus HTTPS inspection; set NODE_EXTRA_CA_CERTS to your CA bundle)`;
   }
   if (/UND_ERR_HEADERS_TIMEOUT/.test(chain)) {

@@ -1321,6 +1321,15 @@ export interface CrawlConfig {
    *  tab). Independent of `checkImages`, which decides whether the image
    *  bytes are actually requested. */
   storeImages: boolean;
+  /**
+   * Also fetch the extra sizes an `<img>` lists in `srcset` / `<picture>`
+   * (the 300×169, 768×432… copies WordPress and most CDNs generate). Off
+   * by default: only the slot's own `src` is requested and the variants
+   * are still stored in the Images tab. Reading lazy-loaded `data-srcset`
+   * took one blog from 2,300 to 41,600 image requests, which quadrupled
+   * the crawl for sizes that rarely differ in health from the original.
+   */
+  crawlImageVariants: boolean;
   /** Fetch internal `<video>` / `<audio>` / their `<source>` targets so
    *  they land in the Internal tab with status + size. Off by default —
    *  media files are large and rarely the point of an SEO crawl. */
@@ -2248,6 +2257,16 @@ export interface CrawlProgress {
    * silent Stop button read as a frozen app.
    */
   finishing?: boolean;
+  /**
+   * What the crawler is doing right now, as the operation name the
+   * freeze watchdog also sees (`post-crawl:image-probes`, `crawl:login`,
+   * `idle`…). The status bar turns it into a readable step so a crawl
+   * that shows Pending 0 for twenty minutes says *why*.
+   */
+  phase?: string;
+  /** Items done / planned in the current phase, when it counts (probes). */
+  phaseDone?: number;
+  phaseTotal?: number;
   startUrl: string;
 }
 
@@ -2562,6 +2581,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   // Spider → Crawl matrix. Each value reproduces the behaviour that was
   // hardcoded before the matrix existed, so the defaults are a no-op.
   storeImages: true,
+  crawlImageVariants: false,
   crawlMedia: false,
   storeMedia: false,
   storeCss: true,

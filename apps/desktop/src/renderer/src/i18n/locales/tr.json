@@ -6,7 +6,9 @@
     "siteSoft404": "Olmayan sayfalar {{status}} döndürüyor (soft 404)",
     "siteSoft404Hint": "Var olmayan bir sayfa için yapılan istek 404 yerine {{status}} ile yanıtlandı; bu yüzden sitedeki kırık bağlantılar arama motorlarına çalışan sayfalar gibi görünüyor.",
     "siteBotBlocked": "Bot koruması taramanın bir kısmını engelledi",
-    "siteBotBlockedHint": "Sitenin bot koruması bu sayfalar yerine bir doğrulama sayfasıyla yanıt verdi. Bu sayfalar taranmadı; kırık bağlantı ve sitemap kontrollerinin dışında tutuldu. Tarama hızını düşürün ya da tarayıcının user agent’ını izin listesine ekleyin, sonra yeniden tarayın."
+    "siteBotBlockedHint": "Sitenin bot koruması bu sayfalar yerine bir doğrulama sayfasıyla yanıt verdi. Bu sayfalar taranmadı; kırık bağlantı ve sitemap kontrollerinin dışında tutuldu. Tarama hızını düşürün ya da tarayıcının user agent’ını izin listesine ekleyin, sonra yeniden tarayın.",
+    "checkOff": "Kapalı",
+    "cookiesOffHint": "Taramanın çerez politikası \"Tümünü reddet\" olduğu için çerez kontrolleri kapalı. Set-Cookie başlıklarını incelemek için Ayarlar → Çerezler altında \"Tümünü kabul et\" veya \"Üçüncü tarafları engelle\" seçin."
   },
   "integrations": {
     "intro": "Harici servisleri kendi kimlik bilgilerinle bağla. API anahtarları ve secret'lar işletim sisteminin güvenli depolaması ile şifreli saklanır ve bu makineden asla çıkmaz.",
@@ -130,6 +132,30 @@
     "closeTitle": "Bu ajan oturumunu kapat (crawl'ını durdurur ve kaynakları serbest bırakır)"
   },
   "stats": {
+    "finishingTitle": "Sayfalar çekildi; tarama şimdi analiz geçişlerini çalıştırıyor. Her adım çalışırken burada listelenir.",
+    "phase": {
+      "externalLinks": "Dış bağlantılar kontrol ediliyor",
+      "sitemapOrphans": "Sitemap öksüzleri",
+      "login": "Oturum açılıyor",
+      "optimize": "Veritabanı optimize ediliyor",
+      "inlinks": "Gelen bağlantılar sayılıyor",
+      "linkScore": "Bağlantı puanları",
+      "redirectChains": "Yönlendirme zincirleri",
+      "hreflang": "Hreflang analizi",
+      "duplicates": "Kopyalar kümeleniyor",
+      "boilerplate": "Şablon içerik tespit ediliyor",
+      "pagination": "Sayfalama dizileri",
+      "imageProbes": "Görseller ölçülüyor",
+      "tlsProbes": "TLS sertifikaları",
+      "manifestProbes": "Web manifestleri",
+      "socialImages": "Sosyal görseller",
+      "mobileParity": "Mobil eşitlik",
+      "pdfProbes": "PDF dosyaları",
+      "soft404": "Soft 404 sondası",
+      "performanceBudget": "Performans bütçesi",
+      "issues": "Sorunlar hesaplanıyor",
+      "checkpoint": "Veritabanı yazılıyor"
+    },
     "discovered": "Keşfedilen",
     "crawled": "Taranan",
     "pending": "Bekleyen",

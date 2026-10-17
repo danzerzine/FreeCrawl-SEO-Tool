@@ -1,4 +1,5 @@
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
+import * as zlib from 'node:zlib';
 import type {
   MobileParityDiff,
   AdvancedFilter,
@@ -8,6 +9,7 @@ import type {
   CrawlUrlRow,
   DiscoveredImage,
   DiscoveredLink,
+  DiscoveredResource,
   DuplicateClusterRow,
   FilterClause,
   FilterField,
@@ -933,6 +935,178 @@ function truncateUtf8(input: string, cap: number): string {
 }
 
 /**
+ * Page bodies (`url_sources.body` / `rendered_body`) are stored compressed.
+ * The working database of one 7,500-page crawl was 4.6 GB with 4.3 GB of
+ * it raw HTML — about 60 GB at the 100k-URL target.
+ *
+ * Codec: zstd level 3 with a per-project *dictionary*. Pages of one site
+ * share most of their markup (header, nav, footer, product cards), and a
+ * per-row compressor cannot see that from inside a single page: plain
+ * gzip / zstd got 4–6× on two real crawls. Seeding zstd with the first
+ * ~1 MB of HTML the crawl stores lets every later page reference that
+ * shared markup, which measured 30× on a template-heavy shop and 8.7× on a
+ * blog, at ~2.5 ms per page. The dictionary is written once, into
+ * `body_dictionary`, and never changes: every reader (the main process,
+ * the reader workers, the CLI) decodes with the same bytes, and a row
+ * compressed before the dictionary existed is a plain frame that decodes
+ * with or without it.
+ *
+ * The per-row approach matters for the saved `.seoproject` too: the
+ * archive brotli-compresses the SQLite file as a whole, and already
+ * compressed rows do not shrink again. With gzip rows a 45 MB project
+ * became 577 MB on disk; the dictionary recovers most of that.
+ *
+ * Rows written before compression landed are plain TEXT and rows from
+ * the gzip interim are gzip BLOBs; `unpack` reads all three by signature,
+ * so no migration touches existing data. `body_length` keeps the
+ * uncompressed size. On a Node.js without zstd (before 22.15) bodies fall
+ * back to gzip, and the CLI reports a clear error if it meets a zstd row.
+ */
+const ZSTD_LEVEL = 3;
+/** Dictionary size cap — matches zstd's level-3 window, so nothing past it would be reachable anyway. */
+const BODY_DICT_CAP = 1_048_576;
+/** Stop seeding after this many pages even when the cap is not reached (small-page sites). */
+const BODY_DICT_SEED_PAGES = 16;
+
+type ZstdOpts = zlib.ZstdOptions & { dictionary?: Buffer };
+
+/**
+ * zstd entry points, or null when this Node.js predates them. `dictionaries`
+ * is probed at load: a runtime that accepts the option but ignores it would
+ * write plain frames (harmless) — and must not be *told* it used one.
+ */
+const zstd = ((): {
+  compress: (buf: Buffer, opts?: ZstdOpts) => Buffer;
+  decompress: (buf: Uint8Array, opts?: ZstdOpts) => Buffer;
+  dictionaries: boolean;
+} | null => {
+  const z = zlib as Partial<typeof zlib>;
+  if (typeof z.zstdCompressSync !== 'function' || typeof z.zstdDecompressSync !== 'function') {
+    return null;
+  }
+  const compress = z.zstdCompressSync;
+  const decompress = z.zstdDecompressSync;
+  // Incompressible pseudo-random bytes: with the dictionary honoured the
+  // frame is a few bytes of back-reference, without it ~4 KB.
+  const probe = Buffer.alloc(4096);
+  let x = 0x2545f491;
+  for (let i = 0; i < probe.length; i++) {
+    x = (Math.imul(x, 1103515245) + 12345) >>> 0;
+    probe[i] = x >>> 24;
+  }
+  let dictionaries = false;
+  try {
+    const withDict = compress(probe, { dictionary: probe });
+    dictionaries =
+      withDict.length < probe.length / 4 &&
+      decompress(withDict, { dictionary: probe }).equals(probe);
+  } catch {
+    dictionaries = false;
+  }
+  return { compress, decompress, dictionaries };
+})();
+
+function isZstdFrame(b: Uint8Array): boolean {
+  return b.length >= 4 && b[0] === 0x28 && b[1] === 0xb5 && b[2] === 0x2f && b[3] === 0xfd;
+}
+
+/** Compresses and decompresses stored page bodies; one per connection. */
+class BodyCodec {
+  /** undefined = not looked up yet; null = the project has no dictionary (yet). */
+  private dict: Buffer | null | undefined = undefined;
+  private seed: Buffer[] = [];
+  private seedBytes = 0;
+
+  constructor(private readonly db: DatabaseSync) {}
+
+  pack(body: string): Uint8Array {
+    const buf = Buffer.from(body, 'utf8');
+    if (!zstd) return zlib.gzipSync(buf, { level: 4 });
+    const opts: ZstdOpts = { params: { [zlib.constants.ZSTD_c_compressionLevel]: ZSTD_LEVEL } };
+    const dict = this.dictForWrite(buf);
+    if (dict) opts.dictionary = dict;
+    return zstd.compress(buf, opts);
+  }
+
+  /** Inverse of `pack`; also accepts gzip rows of the interim build and the plain TEXT of older projects. */
+  unpack(stored: unknown): string | null {
+    if (stored === null || stored === undefined) return null;
+    if (typeof stored === 'string') return stored;
+    if (!(stored instanceof Uint8Array)) return String(stored);
+    if (stored.length === 0) return '';
+    if (stored[0] === 0x1f && stored[1] === 0x8b) return zlib.gunzipSync(stored).toString('utf8');
+    if (isZstdFrame(stored)) {
+      if (!zstd) {
+        throw new Error(
+          'This project stores page HTML with zstd, which needs Node.js 22.15 or newer to read.',
+        );
+      }
+      // A null cache is re-checked: the writer may have created the
+      // dictionary after this connection first looked.
+      const dict = this.dict ?? this.load();
+      try {
+        return zstd.decompress(stored, dict ? { dictionary: dict } : undefined).toString('utf8');
+      } catch (err) {
+        throw new Error(
+          `Could not decompress a stored page body: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return Buffer.from(stored.buffer, stored.byteOffset, stored.byteLength).toString('utf8');
+  }
+
+  private load(): Buffer | null {
+    try {
+      const row = this.db.prepare('SELECT dict FROM body_dictionary WHERE id = 1').get() as
+        | { dict: Uint8Array }
+        | undefined;
+      this.dict = row ? Buffer.from(row.dict) : null;
+    } catch {
+      // Read-only connection to a project that predates the table.
+      this.dict = null;
+    }
+    return this.dict;
+  }
+
+  /**
+   * The project's dictionary, creating it from the first pages stored when
+   * there is none yet. Two writers can race here (main process + db-writer
+   * worker); `INSERT OR IGNORE` plus a reload means both end up using the
+   * row that won.
+   */
+  private dictForWrite(buf: Buffer): Buffer | null {
+    if (!zstd?.dictionaries) return null;
+    const current = this.dict === undefined ? this.load() : this.dict;
+    if (current) return current;
+    const room = BODY_DICT_CAP - this.seedBytes;
+    if (room > 0) {
+      const part = buf.subarray(0, room);
+      this.seed.push(Buffer.from(part));
+      this.seedBytes += part.length;
+    }
+    if (this.seedBytes < BODY_DICT_CAP && this.seed.length < BODY_DICT_SEED_PAGES) return null;
+    const dict = Buffer.concat(this.seed);
+    this.seed = [];
+    try {
+      this.db.prepare('INSERT OR IGNORE INTO body_dictionary (id, dict) VALUES (1, ?)').run(dict);
+    } catch {
+      return null;
+    }
+    return this.load();
+  }
+}
+
+/**
+ * Length in characters (code points), not UTF-16 units: `'🚀'.length` is 2,
+ * and the title / meta description limits are about what a person reads.
+ * One crawl had 12 titles wrongly "Over 60" and 163 descriptions wrongly
+ * "Over 160" because every emoji counted twice.
+ */
+function charLength(text: string): number {
+  return Array.from(text).length;
+}
+
+/**
  * SQL predicate (against the `images` table) matching images whose
  * non-empty alt text is shared by ≥2 distinct images. The `images` table
  * is deduped by `src`, so a self-join via `GROUP BY alt HAVING COUNT(*) > 1`
@@ -947,11 +1121,15 @@ const DUPLICATE_ALT_PREDICATE = `is_variant = 0 AND alt IS NOT NULL AND alt != '
    GROUP BY alt HAVING COUNT(*) > 1
 )`;
 
-// Per-usage duplicate-alt: a usage whose alt text is shared by >1 usage.
-// Operates on `image_usages.alt` to match the per-usage Images view.
+// Per-usage duplicate-alt: a usage whose alt text is also carried by a
+// DIFFERENT image somewhere on the site. Operates on `image_usages.alt` to
+// match the per-usage Images view. `COUNT(DISTINCT image_id)`, not
+// `COUNT(*)`: the same logo on 1,263 pages is one image with one alt, not
+// 1,263 duplicates — counting usages listed every page's header image and
+// made the sidebar (2 images) and the grid (1,263 rows) disagree.
 const USAGE_DUPLICATE_ALT_PREDICATE = `iu.is_variant = 0 AND iu.alt IS NOT NULL AND iu.alt != '' AND iu.alt IN (
   SELECT alt FROM image_usages WHERE is_variant = 0 AND alt IS NOT NULL AND alt != ''
-   GROUP BY alt HAVING COUNT(*) > 1
+   GROUP BY alt HAVING COUNT(DISTINCT image_id) > 1
 )`;
 
 // Missing / empty alt are computed from PER-USAGE truth (`image_usages.alt`):
@@ -1088,6 +1266,7 @@ export class ProjectDb {
   private disabledIssuesRaw: string | null = null;
   private disabledIssuesSet: ReadonlySet<UrlCategory> | null = null;
   private readonly db: DatabaseSync;
+  private readonly bodies: BodyCodec;
   /** Read-only connections can't write `sqlite_stat1`; see `optimize()`. */
   private readonly readOnly: boolean;
   private readonly stmtUpsertUrl: StatementSync;
@@ -1126,6 +1305,7 @@ export class ProjectDb {
     this.db = readOnly
       ? new DatabaseSync(filePath, { readOnly: true })
       : new DatabaseSync(filePath);
+    this.bodies = new BodyCodec(this.db);
     if (!readOnly) {
       this.db.exec('PRAGMA journal_mode = WAL');
       this.db.exec('PRAGMA synchronous = NORMAL');
@@ -1239,6 +1419,8 @@ export class ProjectDb {
         this.db.exec(
           `DELETE FROM image_usages;
          DELETE FROM images;
+         DELETE FROM resource_usages;
+         DELETE FROM resources;
          DELETE FROM links;
          DELETE FROM headers;
          DELETE FROM url_sources;
@@ -1368,6 +1550,9 @@ export class ProjectDb {
             .run(...slice);
           this.db
             .prepare(`DELETE FROM image_usages WHERE from_url_id IN (${placeholders})`)
+            .run(...slice);
+          this.db
+            .prepare(`DELETE FROM resource_usages WHERE from_url_id IN (${placeholders})`)
             .run(...slice);
           this.db
             .prepare(`DELETE FROM urls_issues WHERE url_id IN (${placeholders})`)
@@ -1696,6 +1881,12 @@ export class ProjectDb {
     storeLinks?: boolean;
     /** Same contract for `image_usages` (Spider → Crawl → Store → Images). */
     storeImages?: boolean;
+    /**
+     * Scripts / stylesheets / fonts / media the page references. Recorded
+     * in `resource_usages` under the `storeLinks` gate so a resource row's
+     * Inlinks tab can list the pages that embed it.
+     */
+    resources?: DiscoveredResource[];
     fromDepth: number;
   }): { urlId: number } {
     return this.runInTransaction(() => {
@@ -1730,6 +1921,10 @@ export class ProjectDb {
           this.db.prepare('DELETE FROM links WHERE from_url_id = ?').run(urlId);
           if (payload.links.length > 0) {
             this.insertLinks(urlId, payload.links, payload.fromDepth);
+          }
+          if (payload.resources) {
+            this.db.prepare('DELETE FROM resource_usages WHERE from_url_id = ?').run(urlId);
+            if (payload.resources.length > 0) this.insertResources(urlId, payload.resources);
           }
         }
         if (payload.storeImages ?? true) {
@@ -2177,11 +2372,12 @@ export class ProjectDb {
       indexability: input.indexability ?? 'indexable',
       indexability_reason: input.indexabilityReason ?? null,
       title: input.title ?? null,
-      title_length: input.title?.length ?? null,
+      title_length: input.title != null ? charLength(input.title) : null,
       meta_description: input.metaDescription ?? null,
-      meta_description_length: input.metaDescription?.length ?? null,
+      meta_description_length:
+        input.metaDescription != null ? charLength(input.metaDescription) : null,
       h1: input.h1 ?? null,
-      h1_length: input.h1?.length ?? null,
+      h1_length: input.h1 != null ? charLength(input.h1) : null,
       h1_count: input.h1Count ?? 0,
       h2_count: input.h2Count ?? 0,
       h3_count: input.h3Count ?? 0,
@@ -3448,8 +3644,10 @@ export class ProjectDb {
     // versus the ~2 GB the pre-batching `.all(sampleSize)` reached.
     const BATCH = 64;
     const BODY_CHAR_CAP = 1_048_576;
+    // Bodies are compressed BLOBs (see `BodyCodec`), so the character cap is
+    // applied after decompression rather than with SQL SUBSTR.
     const pickBatch = this.db.prepare(
-      `SELECT u.id AS id, SUBSTR(us.body, 1, ${BODY_CHAR_CAP}) AS body
+      `SELECT u.id AS id, us.body AS body
          FROM urls u
          JOIN url_sources us ON us.url_id = u.id
         WHERE u.id > ?
@@ -3465,11 +3663,12 @@ export class ProjectDb {
     while (remaining > 0) {
       const batch = pickBatch.all(lastId, Math.min(BATCH, remaining)) as {
         id: number;
-        body: string;
+        body: string | Uint8Array;
       }[];
       if (batch.length === 0) break;
       for (const row of batch) {
-        const shingles = shingleHashes(stripHtml(row.body));
+        const body = (this.bodies.unpack(row.body) ?? '').slice(0, BODY_CHAR_CAP);
+        const shingles = shingleHashes(stripHtml(body));
         pageShingles.set(row.id, shingles);
         for (const h of shingles) {
           shingleCounts.set(h, (shingleCounts.get(h) ?? 0) + 1);
@@ -4398,6 +4597,31 @@ export class ProjectDb {
   }
 
   /**
+   * Record which scripts / stylesheets / fonts / media a page references.
+   * One `resources` row per distinct URL, one `resource_usages` row per
+   * (page, resource) — the shape `images` / `image_usages` use. Runs inside
+   * the caller's `writeFetchedUrl` transaction.
+   */
+  insertResources(fromUrlId: number, resources: DiscoveredResource[]): void {
+    if (resources.length === 0) return;
+    const upsertResource = this.db.prepare(
+      `INSERT INTO resources (url, kind) VALUES (?, ?)
+       ON CONFLICT(url) DO UPDATE SET kind = excluded.kind
+       RETURNING id`,
+    );
+    const insertUsage = this.db.prepare(
+      `INSERT OR IGNORE INTO resource_usages (from_url_id, resource_id) VALUES (?, ?)`,
+    );
+    const seen = new Set<string>();
+    for (const r of resources) {
+      if (seen.has(r.url)) continue;
+      seen.add(r.url);
+      const row = upsertResource.get(r.url, r.kind) as { id: number };
+      insertUsage.run(fromUrlId, row.id);
+    }
+  }
+
+  /**
    * Flag already-crawled URLs as part of a crawl trap the crawler only
    * recognised after fetching them (a calendar's pages look ordinary one
    * at a time). Chunked under SQLite's parameter limit.
@@ -4776,9 +5000,9 @@ export class ProjectDb {
            LEFT JOIN url_sources s ON s.url_id = u.id
           WHERE u.url = ?`,
       )
-      .get(url) as { lang: string | null; body: string | null } | undefined;
+      .get(url) as { lang: string | null; body: string | Uint8Array | null } | undefined;
     if (!row) return null;
-    return { body: row.body ?? null, lang: row.lang ?? null };
+    return { body: this.bodies.unpack(row.body), lang: row.lang ?? null };
   }
 
   /**
@@ -5939,7 +6163,7 @@ export class ProjectDb {
           title: string | null;
           meta_description: string | null;
           h1: string | null;
-          body: string | null;
+          body: string | Uint8Array | null;
         }
       | undefined;
     if (!row) return null;
@@ -5948,7 +6172,7 @@ export class ProjectDb {
       title: row.title,
       metaDescription: row.meta_description,
       h1: row.h1,
-      body: row.body,
+      body: this.bodies.unpack(row.body),
     };
   }
 
@@ -6444,6 +6668,11 @@ export class ProjectDb {
     // Probe-only rows (share-card images, `occurrences = 0`) aren't on any page.
     const totalImages = this.scalarCount('SELECT COUNT(*) AS c FROM images WHERE occurrences > 0');
     const botBlocked = countCategory('status:bot-blocked');
+    // The banner is about the site being crawled. An external page behind
+    // a bot wall (52 fandom.com links on one crawl) is that site's business
+    // and must not read as "your crawl is being blocked"; the Response
+    // Codes row above keeps externals, like its siblings.
+    const botBlockedInternal = countWhere("is_external = 0 AND indexability = 'unknown:bot-blocked'");
 
     return {
       summary: {
@@ -6495,18 +6724,22 @@ export class ProjectDb {
       issues: this.silenceDisabledIssues(this.getIssuesCounts()),
       site: {
         soft404Probe: this.readSoft404Probe(),
-        botBlocked: botBlocked > 0 ? { count: botBlocked, sample: this.botBlockedSample() } : null,
+        botBlocked:
+          botBlockedInternal > 0
+            ? { count: botBlockedInternal, sample: this.botBlockedSample() }
+            : null,
       },
     };
   }
 
-  /** What answered for one bot-blocked URL — e.g. "Cloudflare challenge (HTTP 403)". */
+  /** What answered for one bot-blocked internal URL — e.g. "Cloudflare challenge (HTTP 403)". */
   private botBlockedSample(): string | null {
     if (this.overviewCollect) return null;
     const row = this.db
       .prepare(
         `SELECT status_text AS s FROM urls
-          WHERE indexability = 'unknown:bot-blocked' AND status_text IS NOT NULL LIMIT 1`,
+          WHERE is_external = 0 AND indexability = 'unknown:bot-blocked'
+            AND status_text IS NOT NULL LIMIT 1`,
       )
       .get() as { s: string } | undefined;
     return row?.s ?? null;
@@ -6736,12 +6969,15 @@ export class ProjectDb {
            THEN (SELECT COUNT(*) FROM image_usages WHERE alt IS NULL AND is_variant = 0)
            ELSE (SELECT COUNT(*) FROM images WHERE alt IS NULL AND occurrences > 0) END) AS c`,
       ),
-      // Distinct images sharing a non-empty alt with ≥1 other image —
-      // non-descriptive / templated alt reuse. Counted image-level (the
-      // `images` table is deduped by src) so it lines up with the Images
-      // tab drill-down and with Missing/Empty Alt.
+      // Usages whose non-empty alt is shared with a different image —
+      // non-descriptive / templated alt reuse. Per-usage, with the very
+      // predicate the Images tab filters by, so the sidebar count equals
+      // the rows the click lists (as Missing / Empty Alt already do).
+      // Legacy projects without usage rows fall back to distinct images.
       imageDuplicateAlt: this.scalarCount(
-        `SELECT COUNT(*) AS c FROM images WHERE ${DUPLICATE_ALT_PREDICATE}`,
+        `SELECT (CASE WHEN EXISTS(SELECT 1 FROM image_usages)
+           THEN (SELECT COUNT(*) FROM image_usages iu WHERE ${USAGE_DUPLICATE_ALT_PREDICATE})
+           ELSE (SELECT COUNT(*) FROM images WHERE ${DUPLICATE_ALT_PREDICATE}) END) AS c`,
       ),
       metaRefreshUsed: countWhere(
         `${html} AND meta_refresh IS NOT NULL AND meta_refresh != ''`,
@@ -7236,9 +7472,45 @@ export class ProjectDb {
   }
 
   getInlinks(url: string, limit: number): { rows: InlinkRow[]; total: number } {
-    const total = (
+    // Hyperlinks come from `links`. An image's or a script / stylesheet /
+    // font's inlinks are the pages that embed it, which live in
+    // `image_usages` and `resource_usages` — the tab was empty for every
+    // such row while this read `links` alone.
+    const hyperTotal = (
       this.db.prepare('SELECT COUNT(*) AS c FROM links WHERE to_url = ?').get(url) as { c: number }
     ).c;
+    const imageTotal = (
+      this.db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM image_usages iu
+             JOIN images i ON i.id = iu.image_id WHERE i.src = ?`,
+        )
+        .get(url) as { c: number }
+    ).c;
+    const resourceTotal = (
+      this.db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM resource_usages ru
+             JOIN resources r ON r.id = ru.resource_id WHERE r.url = ?`,
+        )
+        .get(url) as { c: number }
+    ).c;
+    const total = hyperTotal + imageTotal + resourceTotal;
+    type Row = {
+      from_url: string;
+      from_status_code: number | null;
+      to_status_code: number | null;
+      to_size: number | null;
+      type: string | null;
+      anchor: string | null;
+      alt_text: string | null;
+      rel: string | null;
+      target: string | null;
+      path_type: string | null;
+      link_path: string | null;
+      link_position: string | null;
+      link_origin: string | null;
+    };
     const rows = this.db
       .prepare(
         `SELECT
@@ -7254,21 +7526,51 @@ export class ProjectDb {
          WHERE l.to_url = ?
          LIMIT ?`,
       )
-      .all(url, limit) as unknown as {
-      from_url: string;
-      from_status_code: number | null;
-      to_status_code: number | null;
-      to_size: number | null;
-      type: string | null;
-      anchor: string | null;
-      alt_text: string | null;
-      rel: string | null;
-      target: string | null;
-      path_type: string | null;
-      link_path: string | null;
-      link_position: string | null;
-      link_origin: string | null;
-    }[];
+      .all(url, limit) as unknown as Row[];
+    if (rows.length < limit && imageTotal > 0) {
+      rows.push(
+        ...(this.db
+          .prepare(
+            `SELECT
+               f.url AS from_url,
+               f.status_code AS from_status_code,
+               t.status_code AS to_status_code,
+               t.content_length AS to_size,
+               'image' AS type, NULL AS anchor, iu.alt AS alt_text, NULL AS rel, NULL AS target,
+               NULL AS path_type, NULL AS link_path, NULL AS link_position, 'html' AS link_origin
+             FROM image_usages iu
+             JOIN images i ON i.id = iu.image_id
+             JOIN urls f ON f.id = iu.from_url_id
+             LEFT JOIN urls t ON t.url = i.src
+             WHERE i.src = ?
+             LIMIT ?`,
+          )
+          .all(url, limit - rows.length) as unknown as Row[]),
+      );
+    }
+    if (rows.length < limit && resourceTotal > 0) {
+      rows.push(
+        ...(this.db
+          .prepare(
+            `SELECT
+               f.url AS from_url,
+               f.status_code AS from_status_code,
+               t.status_code AS to_status_code,
+               t.content_length AS to_size,
+               CASE r.kind WHEN 'css' THEN 'stylesheet' WHEN 'js' THEN 'script'
+                           WHEN 'image' THEN 'image' ELSE 'other' END AS type,
+               NULL AS anchor, NULL AS alt_text, NULL AS rel, NULL AS target,
+               NULL AS path_type, NULL AS link_path, NULL AS link_position, 'html' AS link_origin
+             FROM resource_usages ru
+             JOIN resources r ON r.id = ru.resource_id
+             JOIN urls f ON f.id = ru.from_url_id
+             LEFT JOIN urls t ON t.url = r.url
+             WHERE r.url = ?
+             LIMIT ?`,
+          )
+          .all(url, limit - rows.length) as unknown as Row[]),
+      );
+    }
     return {
       total,
       rows: rows.map((r) => ({
@@ -7450,7 +7752,7 @@ export class ProjectDb {
            truncated = excluded.truncated,
            captured_at = CURRENT_TIMESTAMP`,
       )
-      .run(urlId, stored, fullLength, truncated);
+      .run(urlId, this.bodies.pack(stored), fullLength, truncated);
   }
 
   /**
@@ -7481,11 +7783,11 @@ export class ProjectDb {
       )
       .get(urlId) as
       | {
-          body: string;
+          body: string | Uint8Array;
           body_length: number;
           truncated: number;
           captured_at: string;
-          rendered_body: string | null;
+          rendered_body: string | Uint8Array | null;
           rendered_body_length: number | null;
           render_ms: number | null;
           screenshot_fullpage_path: string | null;
@@ -7495,11 +7797,11 @@ export class ProjectDb {
       | undefined;
     if (!row) return null;
     return {
-      body: row.body,
+      body: this.bodies.unpack(row.body) ?? '',
       bodyLength: row.body_length,
       truncated: row.truncated === 1,
       capturedAt: row.captured_at,
-      renderedBody: row.rendered_body,
+      renderedBody: this.bodies.unpack(row.rendered_body),
       renderedBodyLength: row.rendered_body_length,
       renderMs: row.render_ms,
       screenshotFullpagePath: row.screenshot_fullpage_path,
@@ -7703,7 +8005,7 @@ export class ProjectDb {
            render_ms = excluded.render_ms,
            captured_at = CURRENT_TIMESTAMP`,
       )
-      .run(urlId, stored, fullLength, renderMs);
+      .run(urlId, this.bodies.pack(stored), fullLength, renderMs);
   }
 
   *iterateAllUrls(): IterableIterator<CrawlUrlRow> {
@@ -9151,11 +9453,16 @@ export class ProjectDb {
     );
     let lastId = 0;
     for (;;) {
-      const rows = stmt.all(lastId) as unknown as { id: number; url: string; body: string }[];
+      const rows = stmt.all(lastId) as unknown as {
+        id: number;
+        url: string;
+        body: string | Uint8Array;
+      }[];
       if (rows.length === 0) return;
       for (const r of rows) {
         lastId = r.id;
-        if (r.body) yield { url: r.url, body: r.body };
+        const body = this.bodies.unpack(r.body);
+        if (body) yield { url: r.url, body };
       }
       if (rows.length < 200) return;
     }
@@ -9352,16 +9659,22 @@ export class ProjectDb {
    * issue fires on dead external/CDN images too; the "Large Image" issue
    * stays internal-only via its own `is_internal = 1` join filter.
    */
-  unprobedImages(limit = 20_000): { id: number; src: string }[] {
+  /**
+   * Images still waiting for the post-crawl size probe. srcset / `<picture>`
+   * sizes are left out unless `includeVariants` — they are stored for the
+   * Images tab but, like the crawl itself, only requested on demand.
+   */
+  unprobedImages(limit = 20_000, includeVariants = false): { id: number; src: string }[] {
     return this.db
       .prepare(
         `SELECT id, src FROM images
           WHERE probe_status IS NULL
             AND src LIKE 'http%'
+            AND (? OR is_variant = 0)
           ORDER BY id
           LIMIT ?`,
       )
-      .all(limit) as { id: number; src: string }[];
+      .all(includeVariants ? 1 : 0, limit) as { id: number; src: string }[];
   }
 
   /**

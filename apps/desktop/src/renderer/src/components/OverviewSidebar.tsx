@@ -22,6 +22,9 @@ interface Node {
    *  never bogus), and Response Codes / Security use internal+external (they
    *  count external URLs, so an internal-only base would exceed 100%). */
   percentBase?: number;
+  /** The check is switched off by a crawl setting, so there is no count to
+   *  show — rendered as "Off" instead of a misleading 0. */
+  off?: boolean;
   children?: Node[];
 }
 
@@ -167,7 +170,19 @@ export function OverviewSidebar() {
   // 150-node object construction on every progress-driven render.
   const disabledIssues = useAppStore((s) => s.config.disabledIssues);
   const disabledSet = useMemo(() => new Set<string>(disabledIssues ?? []), [disabledIssues]);
-  const tree = useMemo(() => buildTree(overview, disabledSet), [overview, disabledSet]);
+  // Under "Reject all" the crawler skips Set-Cookie analysis altogether, so
+  // the three cookie checks have nothing to count: a 0 there read as "no
+  // insecure cookies" on a site that sets them on every page.
+  const cookiesOff = useAppStore((s) => (s.config.cookiePolicy ?? 'reject-all') === 'reject-all');
+  const tree = useMemo(
+    () => buildTree(overview, disabledSet, cookiesOff),
+    [overview, disabledSet, cookiesOff],
+  );
+  const offLabel = t('sidebar.checkOff', { defaultValue: 'Off' });
+  const cookiesOffHint = t('sidebar.cookiesOffHint', {
+    defaultValue:
+      'Cookie checks are off because the crawl\'s cookie policy is "Reject all". Choose "Accept all" or "Block third-party" under Settings → Cookies to analyse Set-Cookie headers.',
+  });
   const totalForPercent = overview?.summary.totalInternalUrls ?? 0;
   const soft404Probe = overview?.site?.soft404Probe ?? null;
   const botBlocked = overview?.site?.botBlocked ?? null;
@@ -247,6 +262,8 @@ export function OverviewSidebar() {
               onClick={navigateToCategory}
               total={totalForPercent}
               lang={lang}
+              offLabel={offLabel}
+              offHint={cookiesOffHint}
             />
           ))}
         </div>
@@ -264,6 +281,8 @@ const TreeNode = memo(function TreeNode({
   onClick,
   total,
   lang,
+  offLabel,
+  offHint,
 }: {
   node: Node;
   depth: number;
@@ -273,6 +292,8 @@ const TreeNode = memo(function TreeNode({
   onClick: (c: UrlCategory) => void;
   total: number;
   lang: string;
+  offLabel: string;
+  offHint: string;
 }) {
   const isExpanded = expanded.has(node.key);
   const isActive = node.category && node.category === activeCategory;
@@ -301,7 +322,12 @@ const TreeNode = memo(function TreeNode({
           <span className="w-3 shrink-0" />
         )}
         <span className="min-w-0 flex-1 truncate text-surface-200">{translateLabel(node.label, lang)}</span>
-        {node.count !== undefined && (
+        {node.off && (
+          <span className="w-[4.5rem] text-right font-mono italic text-surface-500" title={offHint}>
+            {offLabel}
+          </span>
+        )}
+        {!node.off && node.count !== undefined && (
           <>
             <span className="font-mono tabular-nums text-surface-300">
               {node.count.toLocaleString()}
@@ -327,13 +353,19 @@ const TreeNode = memo(function TreeNode({
             onClick={onClick}
             total={total}
             lang={lang}
+            offLabel={offLabel}
+            offHint={offHint}
           />
         ))}
     </>
   );
 });
 
-function buildTree(o: OverviewCounts | null, disabled: ReadonlySet<string>): Node[] {
+function buildTree(
+  o: OverviewCounts | null,
+  disabled: ReadonlySet<string>,
+  cookiesOff: boolean,
+): Node[] {
   if (!o) return [];
   // Response Codes and Security deliberately count external URLs too (that's
   // how a broken outbound link surfaces), so their numerators exceed the
@@ -516,6 +548,7 @@ function buildTree(o: OverviewCounts | null, disabled: ReadonlySet<string>): Nod
             count: issueCount(o.issues, i),
             category: i.category,
             ...(i.percentBase === 'images' ? { percentBase: o.summary.totalImages } : {}),
+            ...(cookiesOff && i.category.startsWith('issues:cookie-') ? { off: true } : {}),
           })),
       })).filter((g) => g.children.length > 0),
     },

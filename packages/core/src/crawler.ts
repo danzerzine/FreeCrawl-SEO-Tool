@@ -142,6 +142,7 @@ const EXT_TO_KIND: Record<string, ContentKind> = {
   woff2: 'font',
   ttf: 'font',
   otf: 'font',
+  eot: 'font',
 };
 
 // Statuses a HEAD request often reports that differ from a real GET: many
@@ -255,13 +256,18 @@ export function detectBotProtection(
   status: number,
   headers: { get(name: string): string | null },
 ): string | null {
+  // AWS WAF's JavaScript challenge answers 202 with `x-amzn-waf-action:
+  // challenge` and an interstitial body — a success code for a page that
+  // was never served — so it is checked before the 4xx gate.
+  const aws = headers.get('x-amzn-waf-action');
+  if (aws && (status >= 400 || status === 202)) {
+    return `AWS WAF ${aws.trim().toLowerCase()} (HTTP ${status})`;
+  }
   if (status < 400) return null;
   const cf = headers.get('cf-mitigated');
   if (cf) return `Cloudflare ${cf.trim().toLowerCase()} (HTTP ${status})`;
   const vercel = headers.get('x-vercel-mitigated');
   if (vercel) return `Vercel ${vercel.trim().toLowerCase()} (HTTP ${status})`;
-  const aws = headers.get('x-amzn-waf-action');
-  if (aws) return `AWS WAF ${aws.trim().toLowerCase()} (HTTP ${status})`;
   if (headers.get('x-sucuri-block')) return `Sucuri block (HTTP ${status})`;
   if (status === 403 && headers.get('x-datadome')) return `DataDome block (HTTP ${status})`;
   if (status === 429) return `Rate limited (HTTP ${status})`;
@@ -794,7 +800,15 @@ export class Crawler extends EventEmitter {
     super();
     this.respiderSeeds = opts.respiderSeeds ?? null;
     this.resumeOnly = opts.resumeOnly === true;
-    this.setOp = opts.setOp ?? ((): void => undefined);
+    // The watchdog's operation label doubles as the progress phase shown
+    // in the status bar; a new op resets the per-phase counters.
+    const hostSetOp = opts.setOp ?? ((): void => undefined);
+    this.setOp = (op: string): void => {
+      this.phase = op;
+      this.phaseDone = undefined;
+      this.phaseTotal = undefined;
+      hostSetOp(op);
+    };
     this.parsePage =
       opts.parseHtml ??
       ((html, pageUrl, parseOpts) => Promise.resolve(parseHtml(html, pageUrl, parseOpts)));
@@ -1773,6 +1787,11 @@ export class Crawler extends EventEmitter {
 
   private async probeTick(state: ProbeProgress): Promise<void> {
     state.started++;
+    this.phaseDone = state.started;
+    this.phaseTotal = state.total;
+    // Throttled like every other progress emit, so the status bar's
+    // "Measuring images 3,470 / 20,000" ticks without flooding IPC.
+    this.emitProgress();
     const now = Date.now();
     if (now - state.lastEmitAt >= Crawler.PROBE_PROGRESS_INTERVAL_MS) {
       state.lastEmitAt = now;
@@ -1803,7 +1822,7 @@ export class Crawler extends EventEmitter {
     if (this.stopped) return;
     let unprobed: { id: number; src: string }[] = [];
     try {
-      unprobed = this.db.unprobedImages(20_000);
+      unprobed = this.db.unprobedImages(20_000, this.config.crawlImageVariants);
     } catch (err) {
       this.emit(
         'info',
@@ -3085,7 +3104,7 @@ export class Crawler extends EventEmitter {
         /* ignore */
       }
       const rank = (r: Awaited<ReturnType<typeof undiciFetch>>): number =>
-        r.status < 400 ? 0 : detectBotProtection(r.status, r.headers) ? 1 : 2;
+        detectBotProtection(r.status, r.headers) ? 1 : r.status < 400 ? 0 : 2;
       let got = await attempt('GET', cfgUa);
       if (
         got.res &&
@@ -3608,7 +3627,11 @@ export class Crawler extends EventEmitter {
             url: item.url,
             urlMalformed: isUrlMalformed(item.url) ? 1 : 0,
             urlTrap: this.trapKind(item.url),
-            contentKind: 'html',
+            // Never fetched, so the extension is all there is to go on. A
+            // flat 'html' put blocked scripts, styles and images in the HTML
+            // / Non-Indexable counts (40 of 58 robots-blocked URLs on one
+            // site were assets).
+            contentKind: detectContentKind(item.url, null),
             statusCode: null,
             statusText: null,
             indexability: 'non-indexable:robots-blocked',
@@ -3689,6 +3712,9 @@ export class Crawler extends EventEmitter {
   private enqueueResources(parsed: ParsedPage, depth: number): void {
     if (this.config.checkImages) {
       for (const img of [...parsed.images, ...parsed.socialImages]) {
+        // srcset / <picture> sizes are stored either way (Images tab) but
+        // fetched only on request — see `crawlImageVariants`.
+        if (img.variant && !this.config.crawlImageVariants) continue;
         if (img.isInternal) this.enqueue({ url: img.src, depth, resourceRow: 'image' });
         // External images: status/size are filled by the post-crawl image
         // probe (images table), which now covers external images too — so
@@ -4095,7 +4121,9 @@ export class Crawler extends EventEmitter {
             url: item.url,
             urlMalformed: isUrlMalformed(item.url) ? 1 : 0,
             urlTrap: this.trapKind(item.url),
-            contentKind: 'html',
+            // The challenge page is HTML whatever the URL was; classify by
+            // the URL, as the robots-blocked path does.
+            contentKind: detectContentKind(item.url, null),
             statusCode: null,
             statusText: botBlock,
             indexability: 'unknown:bot-blocked',
@@ -4905,6 +4933,9 @@ export class Crawler extends EventEmitter {
           this.config.storeIframes ||
           this.config.crawlInvalidLinks,
         storeImages: this.config.storeImages,
+        // Lets a script / stylesheet / font row list the pages that embed
+        // it under Inlinks.
+        resources: parsed.resources,
         fromDepth: item.depth,
       });
       // V2 Faz 1 — Persist render artefacts inline so they finish before
@@ -5147,7 +5178,9 @@ export class Crawler extends EventEmitter {
           url: item.url,
           urlMalformed: isUrlMalformed(item.url) ? 1 : 0,
           urlTrap: this.trapKind(item.url),
-          contentKind: 'html',
+          // Nothing came back, so the kind comes from the URL: a failed
+          // `.webp` stays an image instead of appearing among HTML pages.
+          contentKind: detectContentKind(item.url, null),
           statusCode: null,
           statusText: detail,
           indexability: 'non-indexable:client-error',
@@ -5725,6 +5758,10 @@ export class Crawler extends EventEmitter {
   private lastProgressEmitTs = 0;
   /** See `CrawlProgress.finishing`. */
   private finishing = false;
+  /** Current operation label (see `setOp`) and its item counters. */
+  private phase = 'idle';
+  private phaseDone: number | undefined;
+  private phaseTotal: number | undefined;
   private progressTrailingTimer: ReturnType<typeof setTimeout> | null = null;
   /** Minimum gap between two progress events. 200 ms = 5 Hz, which is
    * dense enough that the user reads the URL/s + Crawled counters as
@@ -5795,6 +5832,9 @@ export class Crawler extends EventEmitter {
       running: this.running,
       paused: this.paused,
       finishing: this.finishing,
+      phase: this.phase,
+      phaseDone: this.phaseDone,
+      phaseTotal: this.phaseTotal,
       startUrl: this.config.startUrl,
     };
     this.emit('progress', progress);

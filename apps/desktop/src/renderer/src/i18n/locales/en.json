@@ -6,7 +6,9 @@
     "siteSoft404": "Missing pages return {{status}} (soft 404)",
     "siteSoft404Hint": "A request for a page that does not exist was answered {{status}} instead of 404, so broken links on this site look like working pages to search engines.",
     "siteBotBlocked": "Bot protection blocked part of the crawl",
-    "siteBotBlockedHint": "The site's bot protection answered with a challenge instead of these pages. They were not crawled and are left out of the broken-link and sitemap checks. Lower the crawl speed or allowlist the crawler's user agent, then re-crawl them."
+    "siteBotBlockedHint": "The site's bot protection answered with a challenge instead of these pages. They were not crawled and are left out of the broken-link and sitemap checks. Lower the crawl speed or allowlist the crawler's user agent, then re-crawl them.",
+    "checkOff": "Off",
+    "cookiesOffHint": "Cookie checks are off because the crawl's cookie policy is \"Reject all\". Choose \"Accept all\" or \"Block third-party\" under Settings → Cookies to analyse Set-Cookie headers."
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",
@@ -130,6 +132,30 @@
     "closeTitle": "Close this agent session (stops its crawl and frees resources)"
   },
   "stats": {
+    "finishingTitle": "Pages are fetched; the crawl is now running its analysis passes. Each step is listed here as it runs.",
+    "phase": {
+      "externalLinks": "Checking external links",
+      "sitemapOrphans": "Sitemap orphans",
+      "login": "Logging in",
+      "optimize": "Optimising database",
+      "inlinks": "Counting inlinks",
+      "linkScore": "Link scores",
+      "redirectChains": "Redirect chains",
+      "hreflang": "Hreflang analysis",
+      "duplicates": "Clustering duplicates",
+      "boilerplate": "Detecting boilerplate",
+      "pagination": "Pagination sequences",
+      "imageProbes": "Measuring images",
+      "tlsProbes": "TLS certificates",
+      "manifestProbes": "Web manifests",
+      "socialImages": "Social images",
+      "mobileParity": "Mobile parity",
+      "pdfProbes": "PDF files",
+      "soft404": "Soft 404 probe",
+      "performanceBudget": "Performance budget",
+      "issues": "Computing issues",
+      "checkpoint": "Flushing database"
+    },
     "discovered": "Discovered",
     "crawled": "Crawled",
     "pending": "Pending",

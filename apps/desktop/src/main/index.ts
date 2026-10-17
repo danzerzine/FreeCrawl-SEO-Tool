@@ -7843,6 +7843,12 @@ function registerIpc(): void {
       /* never fatal */
     }
     sess.lastCrawlConfig = config;
+    // The crawl is about to rewrite the working copy, and nothing on the
+    // crawler's write path goes through `fireDataChanged`. Without this the
+    // project never read as unsaved: closing after a crawl showed no
+    // prompt, and the next launch wiped the scratch database with the
+    // crawl in it.
+    markDirty(sess);
 
     // V2 Faz 1 — Spin up the Playwright browser pool when JS rendering
     // is enabled. Pool start is lazy (Chromium launches on first

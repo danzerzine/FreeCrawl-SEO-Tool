@@ -535,8 +535,12 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     "将 Crawl-delay 指令作为全局速率限制（每 N 秒一个请求）遵守。Crawl-delay 不属于 RFC 9309——Google 忽略它，Screaming Frog 也未实现——且发布的值往往过时：'Crawl-delay: 30' 会让 500 个 URL 的抓取耗时数小时。默认忽略；发现该指令时仍会在日志中报告。",
   ['Off (default) for normal audits. On when an ops policy requires it — expect the crawl to take Crawl-delay seconds per URL.']:
     '常规审计关闭（默认）。运维策略要求时开启——预期每个 URL 耗时 Crawl-delay 秒。',
-  ['Crawl fetches internal <img> targets (incl. srcset / <picture> sources) so each appears in the Internal tab with status, content type, and size — every one counts toward Max URLs. Store keeps the <img> declarations in the Images tab, which works even with Crawl off: you get the full image inventory with alt text for the cost of zero extra requests.']:
-    '“抓取”获取内部 <img> 目标（含 srcset / <picture> 源），使每个都带状态、内容类型和大小出现在“内部”标签页中——每个都计入最大 URL 数。“存储”将 <img> 声明保留在“图片”标签页中，即使“抓取”关闭也有效：零额外请求即可获得带 alt 文本的完整图片清单。',
+  ['Crawl fetches internal <img> targets so each appears in the Internal tab with status, content type, and size — every one counts toward Max URLs. Store keeps the <img> declarations in the Images tab, which works even with Crawl off: you get the full image inventory with alt text for the cost of zero extra requests.']:
+    '“抓取”获取内部 <img> 目标，使每个都带状态、内容类型和大小出现在“内部”标签页中——每个都计入最大 URL 数。“存储”将 <img> 声明保留在“图片”标签页中，即使“抓取”关闭也有效：零额外请求即可获得带 alt 文本的完整图片清单。',
+  ["Also fetch the extra sizes an <img> lists in srcset / <picture> — the 300×169, 768×432… copies WordPress and most CDNs generate. Off: only the image's own src is requested and measured; the variants are still listed in the Images tab. One blog went from 2,300 to 41,600 image requests with this on."]:
+    "同时获取 <img> 在 srcset / <picture> 中列出的其他尺寸——WordPress 和多数 CDN 生成的 300×169、768×432… 副本。关闭时只请求并测量图片自身的 src；变体仍会列在“图片”标签页中。某博客开启后图片请求从 2,300 增至 41,600。",
+  ["Leave off unless you audit responsive image sets for broken or oversized sizes."]:
+    "除非要审核响应式图片集中损坏或过大的尺寸，否则保持关闭。",
   ['Store on, Crawl off is the cheap alt-text audit. Both on for a full image health check.']:
     '“存储”开、“抓取”关是低成本的 alt 文本审计。两者都开则进行完整的图片健康检查。',
   ['<video> / <audio> and the <source> children they own. Off by default — media files are large and rarely what an SEO crawl is looking for.']:

@@ -675,6 +675,7 @@ export const KO_LABELS: Record<string, string> = {
 
   // Spider → Crawl matrix row labels
   Media: '미디어',
+  'srcset Variants': 'srcset 변형',
   'Internal Hyperlinks': '내부 하이퍼링크',
   'External Links': '외부 링크',
   'Pagination (Rel Next/Prev)': '페이지네이션(rel next/prev)',

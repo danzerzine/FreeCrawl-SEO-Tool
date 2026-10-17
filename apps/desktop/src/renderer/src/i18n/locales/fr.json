@@ -6,7 +6,9 @@
     "siteSoft404": "Les pages inexistantes renvoient {{status}} (soft 404)",
     "siteSoft404Hint": "Une requête vers une page qui n'existe pas a reçu {{status}} au lieu de 404 : les liens cassés de ce site ressemblent donc à des pages valides pour les moteurs de recherche.",
     "siteBotBlocked": "La protection anti-bots a bloqué une partie de l'exploration",
-    "siteBotBlockedHint": "La protection anti-bots du site a répondu par une vérification au lieu de ces pages. Elles n'ont pas été explorées et sont exclues des contrôles de liens cassés et de sitemap. Réduisez la vitesse d'exploration ou autorisez le user agent du robot, puis explorez-les à nouveau."
+    "siteBotBlockedHint": "La protection anti-bots du site a répondu par une vérification au lieu de ces pages. Elles n'ont pas été explorées et sont exclues des contrôles de liens cassés et de sitemap. Réduisez la vitesse d'exploration ou autorisez le user agent du robot, puis explorez-les à nouveau.",
+    "checkOff": "Désactivé",
+    "cookiesOffHint": "Les contrôles des cookies sont désactivés car la politique de cookies de l'exploration est « Tout refuser ». Choisissez « Tout accepter » ou « Bloquer les tiers » dans Paramètres → Cookies pour analyser les en-têtes Set-Cookie."
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",
@@ -132,6 +134,30 @@
     "closeTitle": "Fermer cette session d'agent (arrête son exploration et libère les ressources)"
   },
   "stats": {
+    "finishingTitle": "Les pages sont récupérées ; l'exploration exécute maintenant ses passes d'analyse. Chaque étape s'affiche ici pendant son exécution.",
+    "phase": {
+      "externalLinks": "Vérification des liens externes",
+      "sitemapOrphans": "Orphelines du sitemap",
+      "login": "Connexion",
+      "optimize": "Optimisation de la base de données",
+      "inlinks": "Comptage des liens entrants",
+      "linkScore": "Scores de liens",
+      "redirectChains": "Chaînes de redirection",
+      "hreflang": "Analyse hreflang",
+      "duplicates": "Regroupement des doublons",
+      "boilerplate": "Détection du contenu récurrent",
+      "pagination": "Séquences de pagination",
+      "imageProbes": "Mesure des images",
+      "tlsProbes": "Certificats TLS",
+      "manifestProbes": "Manifestes web",
+      "socialImages": "Images sociales",
+      "mobileParity": "Parité mobile",
+      "pdfProbes": "Fichiers PDF",
+      "soft404": "Sonde soft 404",
+      "performanceBudget": "Budget de performance",
+      "issues": "Calcul des problèmes",
+      "checkpoint": "Écriture de la base de données"
+    },
     "discovered": "Découvertes",
     "crawled": "Explorées",
     "pending": "En attente",

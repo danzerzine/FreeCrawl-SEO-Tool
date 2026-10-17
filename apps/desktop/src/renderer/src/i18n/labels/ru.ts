@@ -682,6 +682,7 @@ export const RU_LABELS: Record<string, string> = {
 
   // Spider → Crawl matrix row labels
   Media: 'Медиа',
+  'srcset Variants': 'Варианты srcset',
   'Internal Hyperlinks': 'Внутренние гиперссылки',
   'External Links': 'Внешние ссылки',
   'Pagination (Rel Next/Prev)': 'Пагинация (rel next/prev)',

@@ -674,6 +674,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
 
   // Spider → Crawl matrix row labels
   Media: '媒体',
+  'srcset Variants': 'srcset 变体',
   'Internal Hyperlinks': '内部超链接',
   'External Links': '外部链接',
   'Pagination (Rel Next/Prev)': '分页（rel next/prev）',

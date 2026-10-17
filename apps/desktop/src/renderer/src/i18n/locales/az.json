@@ -6,7 +6,9 @@
     "siteSoft404": "Mövcud olmayan səhifələr {{status}} qaytarır (soft 404)",
     "siteSoft404Hint": "Mövcud olmayan səhifəyə edilən sorğuya 404 əvəzinə {{status}} cavabı verildi, buna görə də bu saytdakı qırıq keçidlər axtarış sistemlərinə işləyən səhifələr kimi görünür.",
     "siteBotBlocked": "Bot qorunması taramanın bir hissəsini blokladı",
-    "siteBotBlockedHint": "Saytın bot qorunması bu səhifələrin əvəzinə yoxlama səhifəsi ilə cavab verdi. Onlar taranmadı və qırıq keçid və sitemap yoxlamalarından kənarda saxlanılır. Tarama sürətini azaldın və ya tarayıcının user agent-ini icazə siyahısına əlavə edin, sonra onları yenidən tarayın."
+    "siteBotBlockedHint": "Saytın bot qorunması bu səhifələrin əvəzinə yoxlama səhifəsi ilə cavab verdi. Onlar taranmadı və qırıq keçid və sitemap yoxlamalarından kənarda saxlanılır. Tarama sürətini azaldın və ya tarayıcının user agent-ini icazə siyahısına əlavə edin, sonra onları yenidən tarayın.",
+    "checkOff": "Bağlı",
+    "cookiesOffHint": "Taramanın kuki siyasəti \"Hamısını rədd et\" olduğu üçün kuki yoxlamaları bağlıdır. Set-Cookie başlıqlarını təhlil etmək üçün Parametrlər → Kukilər bölməsində \"Hamısını qəbul et\" və ya \"Üçüncü tərəfləri blokla\" seçin."
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",
@@ -130,6 +132,30 @@
     "closeTitle": "Bu agent sessiyasını bağla (onun taramasını dayandırır və resursları boşaldır)"
   },
   "stats": {
+    "finishingTitle": "Səhifələr yükləndi; tarama indi analiz keçidlərini icra edir. Hər addım icra olunarkən burada göstərilir.",
+    "phase": {
+      "externalLinks": "Xarici keçidlər yoxlanılır",
+      "sitemapOrphans": "Sitemap yetimləri",
+      "login": "Daxil olunur",
+      "optimize": "Verilənlər bazası optimallaşdırılır",
+      "inlinks": "Daxil olan keçidlər sayılır",
+      "linkScore": "Keçid balları",
+      "redirectChains": "Yönləndirmə zəncirləri",
+      "hreflang": "Hreflang analizi",
+      "duplicates": "Dublikatlar qruplaşdırılır",
+      "boilerplate": "Şablon məzmun aşkarlanır",
+      "pagination": "Səhifələmə ardıcıllıqları",
+      "imageProbes": "Şəkillər ölçülür",
+      "tlsProbes": "TLS sertifikatları",
+      "manifestProbes": "Veb manifestlər",
+      "socialImages": "Sosial şəkillər",
+      "mobileParity": "Mobil bərabərlik",
+      "pdfProbes": "PDF faylları",
+      "soft404": "Soft 404 yoxlaması",
+      "performanceBudget": "Performans büdcəsi",
+      "issues": "Problemlər hesablanır",
+      "checkpoint": "Verilənlər bazası yazılır"
+    },
     "discovered": "Tapıldı",
     "crawled": "Tarandı",
     "pending": "Gözləyir",

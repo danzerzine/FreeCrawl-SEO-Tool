@@ -687,6 +687,7 @@ export const AZ_LABELS: Record<string, string> = {
 
   // Spider → Crawl matrix row labels
   Media: 'Media',
+  'srcset Variants': 'srcset variantları',
   'Internal Hyperlinks': 'Daxili hiperkeçidlər',
   'External Links': 'Xarici keçidlər',
   'Pagination (Rel Next/Prev)': 'Səhifələmə (rel next/prev)',

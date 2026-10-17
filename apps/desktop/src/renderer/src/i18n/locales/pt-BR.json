@@ -6,7 +6,9 @@
     "siteSoft404": "Páginas inexistentes retornam {{status}} (soft 404)",
     "siteSoft404Hint": "Uma solicitação para uma página que não existe recebeu {{status}} em vez de 404, então os links quebrados deste site parecem páginas válidas para os buscadores.",
     "siteBotBlocked": "A proteção contra bots bloqueou parte do rastreamento",
-    "siteBotBlockedHint": "A proteção contra bots do site respondeu com um desafio no lugar destas páginas. Elas não foram rastreadas e ficam fora das verificações de links quebrados e de sitemap. Reduza a velocidade de rastreamento ou libere o user agent do rastreador e rastreie-as novamente."
+    "siteBotBlockedHint": "A proteção contra bots do site respondeu com um desafio no lugar destas páginas. Elas não foram rastreadas e ficam fora das verificações de links quebrados e de sitemap. Reduza a velocidade de rastreamento ou libere o user agent do rastreador e rastreie-as novamente.",
+    "checkOff": "Desativado",
+    "cookiesOffHint": "As verificações de cookies estão desativadas porque a política de cookies do rastreamento é \"Rejeitar tudo\". Escolha \"Aceitar tudo\" ou \"Bloquear terceiros\" em Configurações → Cookies para analisar os cabeçalhos Set-Cookie."
   },
   "integrations": {
     "intro": "Conecte serviços externos com suas próprias credenciais. As chaves de API e os segredos são criptografados em repouso pelo armazenamento seguro do seu sistema operacional e nunca saem desta máquina.",
@@ -132,6 +134,30 @@
     "closeTitle": "Fechar esta sessão de agente (interrompe o rastreamento dela e libera recursos)"
   },
   "stats": {
+    "finishingTitle": "As páginas foram buscadas; o rastreamento agora executa suas passagens de análise. Cada etapa aparece aqui enquanto roda.",
+    "phase": {
+      "externalLinks": "Verificando links externos",
+      "sitemapOrphans": "Órfãs do sitemap",
+      "login": "Fazendo login",
+      "optimize": "Otimizando o banco de dados",
+      "inlinks": "Contando links de entrada",
+      "linkScore": "Pontuações de links",
+      "redirectChains": "Cadeias de redirecionamento",
+      "hreflang": "Análise de hreflang",
+      "duplicates": "Agrupando duplicados",
+      "boilerplate": "Detectando conteúdo repetido",
+      "pagination": "Sequências de paginação",
+      "imageProbes": "Medindo imagens",
+      "tlsProbes": "Certificados TLS",
+      "manifestProbes": "Manifestos web",
+      "socialImages": "Imagens sociais",
+      "mobileParity": "Paridade móvel",
+      "pdfProbes": "Arquivos PDF",
+      "soft404": "Sondagem de soft 404",
+      "performanceBudget": "Orçamento de desempenho",
+      "issues": "Calculando problemas",
+      "checkpoint": "Gravando o banco de dados"
+    },
     "discovered": "Descobertas",
     "crawled": "Rastreadas",
     "pending": "Pendentes",

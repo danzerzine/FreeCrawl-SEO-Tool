@@ -6,7 +6,9 @@
     "siteSoft404": "不存在的页面返回 {{status}}（soft 404）",
     "siteSoft404Hint": "请求一个不存在的页面时得到的是 {{status}} 而不是 404，因此该站点上的失效链接在搜索引擎看来就像正常页面。",
     "siteBotBlocked": "机器人防护拦截了部分抓取",
-    "siteBotBlockedHint": "站点的机器人防护以验证页面代替了这些页面的响应。它们未被抓取，也不计入失效链接和站点地图检查。请降低抓取速度或将抓取器的 User-Agent 加入白名单，然后重新抓取。"
+    "siteBotBlockedHint": "站点的机器人防护以验证页面代替了这些页面的响应。它们未被抓取，也不计入失效链接和站点地图检查。请降低抓取速度或将抓取器的 User-Agent 加入白名单，然后重新抓取。",
+    "checkOff": "已关闭",
+    "cookiesOffHint": "由于抓取的 Cookie 策略为“全部拒绝”，Cookie 检查已关闭。请在 设置 → Cookie 中选择“全部接受”或“拦截第三方”以分析 Set-Cookie 标头。"
   },
   "integrations": {
     "intro": "使用你自己的凭据连接外部服务。API 密钥和机密会通过操作系统的安全存储在本地加密保存，绝不会离开这台机器。",
@@ -128,6 +130,30 @@
     "closeTitle": "关闭此代理会话（停止其抓取并释放资源）"
   },
   "stats": {
+    "finishingTitle": "页面已抓取完成；抓取正在运行分析步骤。每个步骤运行时都会显示在这里。",
+    "phase": {
+      "externalLinks": "正在检查外部链接",
+      "sitemapOrphans": "站点地图孤立页",
+      "login": "正在登录",
+      "optimize": "正在优化数据库",
+      "inlinks": "正在统计入链",
+      "linkScore": "链接评分",
+      "redirectChains": "重定向链",
+      "hreflang": "Hreflang 分析",
+      "duplicates": "正在聚类重复页",
+      "boilerplate": "正在检测模板内容",
+      "pagination": "分页序列",
+      "imageProbes": "正在测量图片",
+      "tlsProbes": "TLS 证书",
+      "manifestProbes": "Web 清单",
+      "socialImages": "社交图片",
+      "mobileParity": "移动端一致性",
+      "pdfProbes": "PDF 文件",
+      "soft404": "Soft 404 探测",
+      "performanceBudget": "性能预算",
+      "issues": "正在计算问题",
+      "checkpoint": "正在写入数据库"
+    },
     "discovered": "已发现",
     "crawled": "已抓取",
     "pending": "待处理",

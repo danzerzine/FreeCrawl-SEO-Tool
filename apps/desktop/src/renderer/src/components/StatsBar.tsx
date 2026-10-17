@@ -103,9 +103,45 @@ function lagClass(lagMs: number): string {
   return 'text-red-300';
 }
 
+/**
+ * Post-crawl operation names (the crawler's `setOp` labels) → status-bar
+ * step. `stats.phase.<key>` carries the translation; the English here is
+ * the fallback.
+ */
+const PHASES: Record<string, { key: string; en: string }> = {
+  'post-crawl:drain-pending-stubs': { key: 'externalLinks', en: 'Checking external links' },
+  'crawl:sitemap-orphans': { key: 'sitemapOrphans', en: 'Sitemap orphans' },
+  'crawl:login': { key: 'login', en: 'Logging in' },
+  'post-crawl:optimize': { key: 'optimize', en: 'Optimising database' },
+  'post-crawl:recompute-inlinks': { key: 'inlinks', en: 'Counting inlinks' },
+  'post-crawl:link-score': { key: 'linkScore', en: 'Link scores' },
+  'post-crawl:recompute-redirect-chains': { key: 'redirectChains', en: 'Redirect chains' },
+  'post-crawl:recompute-hreflang': { key: 'hreflang', en: 'Hreflang analysis' },
+  'post-crawl:recompute-hreflang-inconsistent': { key: 'hreflang', en: 'Hreflang analysis' },
+  'post-crawl:cluster-duplicates': { key: 'duplicates', en: 'Clustering duplicates' },
+  'post-crawl:boilerplate-coverage': { key: 'boilerplate', en: 'Detecting boilerplate' },
+  'post-crawl:pagination-sequence': { key: 'pagination', en: 'Pagination sequences' },
+  'post-crawl:image-probes': { key: 'imageProbes', en: 'Measuring images' },
+  'post-crawl:tls-probes': { key: 'tlsProbes', en: 'TLS certificates' },
+  'post-crawl:manifest-probes': { key: 'manifestProbes', en: 'Web manifests' },
+  'post-crawl:social-image-probes': { key: 'socialImages', en: 'Social images' },
+  'post-crawl:mobile-parity': { key: 'mobileParity', en: 'Mobile parity' },
+  'post-crawl:pdf-probes': { key: 'pdfProbes', en: 'PDF files' },
+  'post-crawl:soft-404-probe': { key: 'soft404', en: 'Soft 404 probe' },
+  'post-crawl:performance-budget': { key: 'performanceBudget', en: 'Performance budget' },
+  'post-crawl:materialise-issues': { key: 'issues', en: 'Computing issues' },
+  'post-crawl:wal-checkpoint': { key: 'checkpoint', en: 'Flushing database' },
+};
+
 export function StatsBar() {
   const { t } = useTranslation();
   const progress = useAppStore((s) => s.progress);
+  const phase = progress?.phase ? PHASES[progress.phase] : undefined;
+  const phaseLabel = phase ? t(`stats.phase.${phase.key}`, { defaultValue: phase.en }) : null;
+  const phaseText =
+    phaseLabel && progress?.phaseTotal
+      ? `${phaseLabel} ${(progress.phaseDone ?? 0).toLocaleString()} / ${progress.phaseTotal.toLocaleString()}`
+      : phaseLabel;
   const error = useAppStore((s) => s.error);
   const setError = useAppStore((s) => s.setError);
   const perf = usePerfMeter();
@@ -260,7 +296,25 @@ export function StatsBar() {
             })}
           </button>
         )}
-        {progress?.running ? (
+        {progress?.finishing ? (
+          // The fetch loop is over and the post-crawl passes are running;
+          // `running` is still true here, so this branch comes first —
+          // otherwise a 20-minute image probe reads as "Running" with
+          // Pending 0 and nothing to explain it.
+          <span
+            className="inline-flex items-center gap-1.5"
+            title={t('stats.finishingTitle', {
+              defaultValue:
+                'Pages are fetched; the crawl is now running its analysis passes. Each step is listed here as it runs.',
+            })}
+          >
+            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+            <span className="text-amber-400">
+              {t('stats.finishing', { defaultValue: 'Finishing…' })}
+              {phaseText ? ` · ${phaseText}` : ''}
+            </span>
+          </span>
+        ) : progress?.running ? (
           progress.paused ? (
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-amber-500" />
@@ -272,13 +326,6 @@ export function StatsBar() {
               <span className="text-emerald-400">{t('stats.running')}</span>
             </span>
           )
-        ) : progress?.finishing ? (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
-            <span className="text-amber-400">
-              {t('stats.finishing', { defaultValue: 'Finishing…' })}
-            </span>
-          </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-surface-600" />
