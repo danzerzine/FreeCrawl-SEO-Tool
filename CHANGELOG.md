@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.1.0] — 2026-10-18
+
+### Added
+- Adaptive speed (off by default) slows the crawl automatically on 429 / 503 / Retry-After responses and recovers once the server answers cleanly again.
+- Bot-protection detection marks pages blocked by Cloudflare, AWS WAF, Vercel, Sucuri or DataDome as "Blocked" instead of reporting them as broken links or 4xx errors.
+- A site-level soft-404 probe warns when missing pages return 200, and a Soft 404 issue flags "not found" pages served with a 2xx status.
+- New benchmark-driven checks (hreflang outside head, HTTP/2, page size, dead external domains, CORS and more) bring the catalogue to 181 checks (thanks @alvinycheung).
+- The status bar shows every post-crawl phase, such as measuring images or running checks, with live counts.
+- srcset and picture image variants are listed without being fetched unless the new Spider setting or the CLI --image-variants flag turns them on.
+- Images and other resources now show their Inlinks in URL Details.
+- CLI: --adaptive-speed and --image-variants flags, Yandex Metrica commands (metrica-counters, metrica-fetch) and support for desktop-saved projects.
+
+### Changed
+- Stored page bodies are zstd-compressed with a per-project dictionary, shrinking working project files several times over on template-heavy sites.
+- The Linux AppImage now starts on Ubuntu 24.04+ by disabling Chromium's sandbox only where the kernel denies unprivileged user namespaces; the .deb and .rpm keep the sandbox.
+- README and the update dialog explain the macOS 15 Sequoia Gatekeeper flow (Open Anyway); the CLI now requires Node 22.13 or newer.
+- README refreshed with the current feature set, counts and a new live-crawl demo GIF.
+
+### Fixed
+- Lazy-loaded images, tracking pixels, aria-labelled links, duplicate alt text and title/meta lengths measured in code points no longer produce false alarms.
+- External links are re-checked with GET and a browser User-Agent before being reported broken.
+- Sentence counting no longer stalls on long unpunctuated pages (thanks @alvinycheung).
+- Cookie checks show "Off" instead of 0 when all cookies are rejected, crawls mark the project as unsaved, and keyboard hints show the Command key on macOS.
+
 ## [1.0.1] — 2026-10-13
 
 ### Added
