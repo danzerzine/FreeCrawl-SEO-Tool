@@ -7783,7 +7783,10 @@ export class ProjectDb {
     return this.getOverviewCounts();
   }
 
-  private countBrokenLinks(kind: 'internal' | 'external' | 'all', unit: 'targets' | 'links'): number {
+  private countBrokenLinks(
+    kind: 'internal' | 'external' | 'all',
+    unit: 'targets' | 'links' | 'pages',
+  ): number {
     const scope =
       kind === 'internal'
         ? 'AND l.is_internal = 1'
@@ -7794,15 +7797,37 @@ export class ProjectDb {
     // their inbound links through idx_links_to. Joining from `links`
     // walked every stored link on each sidebar tick. The issue total is
     // linked targets (one dead menu link is one problem, not one per page);
-    // the link count is what the Broken Links tab lists.
+    // the link count is what the Broken Links tab lists; pages are the
+    // distinct pages carrying such a link.
+    const count =
+      unit === 'targets'
+        ? 'COUNT(DISTINCT l.to_url)'
+        : unit === 'pages'
+          ? 'COUNT(DISTINCT l.from_url_id)'
+          : 'COUNT(*)';
     return this.scalarCount(
-      `SELECT ${unit === 'targets' ? 'COUNT(DISTINCT l.to_url)' : 'COUNT(*)'} AS c FROM links l
+      `SELECT ${count} AS c FROM links l
          WHERE l.to_url IN (
            SELECT url FROM urls WHERE status_code >= 400 AND status_code < 600
            UNION
            SELECT url FROM urls WHERE indexability = 'non-indexable:no-response'
          ) ${scope}`,
     );
+  }
+
+  /**
+   * Distinct pages an issue check flags: the rows its filter opens, or for
+   * the broken-link checks (whose list is the Broken Links tab) the pages
+   * carrying a broken link. The sidebar counter of a check counted per
+   * image or per link target is not a page count; the issues summary
+   * reports both.
+   */
+  countIssuePages(category: UrlCategory): number {
+    if (category === 'issues:broken-links-internal') return this.countBrokenLinks('internal', 'pages');
+    if (category === 'issues:broken-links-external') return this.countBrokenLinks('external', 'pages');
+    if (category === 'issues:broken-links-all') return this.countBrokenLinks('all', 'pages');
+    const where = categoryWhereClause(category, this.getDisabledIssues());
+    return this.scalarCount(`SELECT COUNT(*) AS c FROM urls WHERE ${where ?? '1 = 1'}`);
   }
 
   getSummary(): CrawlSummary {

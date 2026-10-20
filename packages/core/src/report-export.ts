@@ -91,9 +91,11 @@ export async function exportLinkTargetReport(
 
 /**
  * One row per issue check of the Overview sidebar: its key, label, group,
- * severity and the URL count the sidebar shows (empty when the crawl has
- * not computed that check). Checks turned off in Settings → Issues are
- * left out, as everywhere else.
+ * severity and the distinct pages it flags (empty when the crawl has not
+ * computed that check). Checks the sidebar counts per image or per link
+ * target also get that count as Items, so «URLs» means pages on every
+ * row. Checks turned off in Settings → Issues are left out, as everywhere
+ * else.
  */
 export async function exportIssuesSummary(
   db: ProjectDb,
@@ -105,13 +107,18 @@ export async function exportIssuesSummary(
   const rows = ISSUE_GROUPS.flatMap((g) =>
     g.items
       .filter((i) => !disabled.has(i.category))
-      .map((i) => [i.category, i.label, g.label, ISSUE_SEVERITY[i.category] ?? '', issueCount(issues, i)]),
+      .map((i) => {
+        const count = issueCount(issues, i);
+        const perItem = i.percentBase === 'images' || i.byTarget !== undefined;
+        const urls = count === null || !perItem ? count : db.countIssuePages(i.category);
+        return [i.category, i.label, g.label, ISSUE_SEVERITY[i.category] ?? '', urls, perItem ? count : null];
+      }),
   );
   return writeExportFile(filePath, async (partPath) => {
     const head =
       options.headers === 'keys'
-        ? ['check', 'label', 'group', 'severity', 'urls']
-        : ['Check', 'Label', 'Group', 'Severity', 'URLs'];
+        ? ['check', 'label', 'group', 'severity', 'urls', 'items']
+        : ['Check', 'Label', 'Group', 'Severity', 'URLs', 'Items'];
     await writeFile(partPath, csv([head, ...rows], options.headers), 'utf8');
     return { rowsWritten: rows.length };
   });
