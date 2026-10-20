@@ -179,6 +179,8 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'statusCode', header: 'Status' },
     { key: 'contentType', header: 'Content Type' },
     { key: 'html', header: 'HTML' },
+    // The JavaScript-rendered DOM, when the crawl rendered the page.
+    { key: 'renderedHtml', header: 'Rendered HTML' },
   ],
   'page-text': [
     { key: 'url', header: 'URL' },
