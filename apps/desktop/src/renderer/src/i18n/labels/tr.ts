@@ -288,6 +288,7 @@ export const TR_LABELS: Record<string, string> = {
   'Target Issues': 'Hedef Sorunları',
   'Unlinked Targets': 'Bağlantısız Hedefler',
   'Orphan Pages (No Inlinks)': 'Yetim Sayfalar (Inlink Yok)',
+  'Inlinks Nofollow Only': 'Yalnızca nofollow gelen bağlantılar',
 
   // Pagination
   'Broken Next/Prev Target': 'Bozuk Next/Prev Hedefi',

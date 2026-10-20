@@ -289,6 +289,7 @@ export const PT_BR_LABELS: Record<string, string> = {
   'Target Issues': 'Problemas no destino',
   'Unlinked Targets': 'Destinos sem links',
   'Orphan Pages (No Inlinks)': 'Páginas órfãs (sem inlinks)',
+  'Inlinks Nofollow Only': 'Apenas links de entrada nofollow',
 
   // Pagination
   'Broken Next/Prev Target': 'Destino next/prev quebrado',

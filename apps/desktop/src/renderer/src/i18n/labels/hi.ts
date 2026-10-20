@@ -289,6 +289,7 @@ export const HI_LABELS: Record<string, string> = {
   'Target Issues': 'लक्ष्य में समस्याएँ',
   'Unlinked Targets': 'अनलिंक्ड लक्ष्य',
   'Orphan Pages (No Inlinks)': 'अनाथ पृष्ठ (कोई इनलिंक नहीं)',
+  'Inlinks Nofollow Only': 'केवल nofollow इनलिंक',
 
   // Pagination
   'Broken Next/Prev Target': 'next/prev लक्ष्य टूटा',

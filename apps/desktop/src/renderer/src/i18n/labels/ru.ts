@@ -289,6 +289,7 @@ export const RU_LABELS: Record<string, string> = {
   'Target Issues': 'Проблемы цели',
   'Unlinked Targets': 'Цели без ссылок',
   'Orphan Pages (No Inlinks)': 'Страницы-сироты (нет входящих ссылок)',
+  'Inlinks Nofollow Only': 'Только входящие ссылки nofollow',
 
   // Pagination
   'Broken Next/Prev Target': 'Битая цель next/prev',

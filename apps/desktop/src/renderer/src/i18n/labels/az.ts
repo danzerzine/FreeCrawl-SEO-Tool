@@ -297,6 +297,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Target Issues': 'Hədəf problemləri',
   'Unlinked Targets': 'Keçidsiz hədəflər',
   'Orphan Pages (No Inlinks)': 'Yetim səhifələr (daxil keçid yoxdur)',
+  'Inlinks Nofollow Only': 'Yalnız nofollow daxil olan keçidlər',
 
   // Pagination
   'Broken Next/Prev Target': 'Qırıq next/prev hədəfi',

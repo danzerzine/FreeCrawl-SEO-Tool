@@ -289,6 +289,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Target Issues': '目标页面存在问题',
   'Unlinked Targets': '无链接指向的目标',
   'Orphan Pages (No Inlinks)': '孤立页面（无内链）',
+  'Inlinks Nofollow Only': '仅 nofollow 入链',
 
   // Pagination
   'Broken Next/Prev Target': 'next/prev 目标失效',

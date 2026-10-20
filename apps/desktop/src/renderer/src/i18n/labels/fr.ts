@@ -289,6 +289,7 @@ export const FR_LABELS: Record<string, string> = {
   'Target Issues': 'Problèmes sur la cible',
   'Unlinked Targets': 'Cibles non liées',
   'Orphan Pages (No Inlinks)': 'Pages orphelines (aucun lien entrant)',
+  'Inlinks Nofollow Only': 'Liens entrants nofollow uniquement',
 
   // Pagination
   'Broken Next/Prev Target': 'Cible next/prev cassée',

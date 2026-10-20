@@ -289,6 +289,7 @@ export const KO_LABELS: Record<string, string> = {
   'Target Issues': '대상 페이지 문제',
   'Unlinked Targets': '링크되지 않은 대상',
   'Orphan Pages (No Inlinks)': '고아 페이지 (인링크 없음)',
+  'Inlinks Nofollow Only': 'nofollow 인바운드 링크만',
 
   // Pagination
   'Broken Next/Prev Target': 'next/prev 대상 끊어짐',
