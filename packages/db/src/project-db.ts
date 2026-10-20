@@ -4464,8 +4464,8 @@ export class ProjectDb {
   }
 
   /**
-   * Indexability distribution across internal URLs. `indexable` + the
-   * `non-indexable:…` reasons — give the user a
+   * Indexability distribution across internal URLs. `indexable` plus one
+   * bucket per `non-indexable:…` reason gives the user a
    * one-glance breakdown of why pages are or aren't reaching Google.
    * Ordered by `count DESC` so the dominant bucket sits at the top.
    */
