@@ -1741,8 +1741,14 @@ export function parseHtml(
       // the same target is also linked with a fine one (a product card's
       // "Read more" next to its title link). Keep the offending text on the
       // one record this target gets, otherwise Outlinks shows nothing that
-      // explains the flag and the user cannot find the link to fix.
-      if ((anchorTooLong || anchorGeneric) && anchor) {
+      // explains the flag and the user cannot find the link to fix. A
+      // nofollow occurrence never overwrites a followed record's anchor.
+      const followedRecord = !existing.rel?.includes('nofollow');
+      if (
+        (anchorTooLong || anchorGeneric) &&
+        anchor &&
+        !(followedRecord && rel?.includes('nofollow'))
+      ) {
         const ex = existing.anchor;
         const exFlagged =
           !!ex && ([...ex].length > 100 || GENERIC_ANCHORS.has(ex.trim().toLowerCase()));

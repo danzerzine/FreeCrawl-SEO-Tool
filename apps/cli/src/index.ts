@@ -69,7 +69,8 @@ Options:
                         (one request every N seconds). Off by default — the directive is
                         not part of RFC 9309 and published values are often crippling.
   --external          Crawl external pages too (follow their links onward)
-  --no-check-external Do not status-check external link targets (sends no request to external hosts;
+  --no-check-external Do not status-check external link targets (sends no request to hosts outside
+                        the crawl scope; CDN hosts and subdomains in scope still count as the site;
                         the links are still stored, just without a status)
   --image-variants    Also fetch and measure srcset / <picture> image variants (off by default;
                         a WordPress blog can go from ~2k to ~40k image requests with this on)
