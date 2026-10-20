@@ -23,21 +23,27 @@ export const LINK_TARGET_EXPORTS: readonly { report: LinkTargetReportKind; label
   { report: 'redirect-inlinks', label: 'Internal Links — To Redirects' },
 ];
 
-const LINK_TARGET_HEADER = [
-  'Target URL',
-  'Status Code',
-  'Indexability',
-  'Final URL',
-  'Final Status Code',
-  'Final Indexability',
-  'Source Pages',
-  'Template Link',
-  'Top Position',
-  'Sample Source URL',
+/** By-target report columns: header label and the `LinkTargetRow` key `headers: 'keys'` writes. */
+const LINK_TARGET_COLUMNS: readonly { key: string; label: string }[] = [
+  { key: 'targetUrl', label: 'Target URL' },
+  { key: 'statusCode', label: 'Status Code' },
+  { key: 'indexability', label: 'Indexability' },
+  { key: 'finalUrl', label: 'Final URL' },
+  { key: 'finalStatusCode', label: 'Final Status Code' },
+  { key: 'finalIndexability', label: 'Final Indexability' },
+  { key: 'sourcePages', label: 'Source Pages' },
+  { key: 'isTemplate', label: 'Template Link' },
+  { key: 'topPosition', label: 'Top Position' },
+  { key: 'sampleSourceUrl', label: 'Sample Source URL' },
 ];
 
-function csv(rows: readonly (readonly unknown[])[]): string {
-  return '﻿' + rows.map((r) => r.map((c) => escapeCsv(c)).join(',')).join('\n') + '\n';
+/** Header row of a report file: the labels, or the keys for scripts. */
+type ReportHeaders = 'labels' | 'keys';
+
+/** CSV with a BOM; `'keys'` mode is machine mode, without the formula guard. */
+function csv(rows: readonly (readonly unknown[])[], headers?: ReportHeaders): string {
+  const cell = { formulaGuard: headers !== 'keys' };
+  return '\ufeff' + rows.map((r) => r.map((c) => escapeCsv(c, cell)).join(',')).join('\n') + '\n';
 }
 
 /**
@@ -50,6 +56,7 @@ export async function exportLinkTargetReport(
   db: ProjectDb,
   filePath: string,
   report: LinkTargetReportKind,
+  options: { headers?: ReportHeaders } = {},
 ): Promise<{ rowsWritten: number } | null> {
   // One row per target, not per link, so the whole list fits in memory.
   const rows = db.linkTargetReport({ report, limit: Number.MAX_SAFE_INTEGER });
@@ -60,7 +67,7 @@ export async function exportLinkTargetReport(
       await writeFile(
         partPath,
         csv([
-          LINK_TARGET_HEADER,
+          LINK_TARGET_COLUMNS.map((c) => (options.headers === 'keys' ? c.key : c.label)),
           ...rows.map((r) => [
             r.targetUrl,
             r.statusCode,
@@ -73,7 +80,7 @@ export async function exportLinkTargetReport(
             r.topPosition,
             r.sampleSourceUrl,
           ]),
-        ]),
+        ], options.headers),
         'utf8',
       );
       return { rowsWritten: rows.length };
@@ -91,6 +98,7 @@ export async function exportLinkTargetReport(
 export async function exportIssuesSummary(
   db: ProjectDb,
   filePath: string,
+  options: { headers?: ReportHeaders } = {},
 ): Promise<{ rowsWritten: number }> {
   const disabled = db.getDisabledIssues();
   const issues = db.getOverviewCounts().issues;
@@ -100,7 +108,11 @@ export async function exportIssuesSummary(
       .map((i) => [i.category, i.label, g.label, ISSUE_SEVERITY[i.category] ?? '', issueCount(issues, i)]),
   );
   return writeExportFile(filePath, async (partPath) => {
-    await writeFile(partPath, csv([['Check', 'Label', 'Group', 'Severity', 'URLs'], ...rows]), 'utf8');
+    const head =
+      options.headers === 'keys'
+        ? ['check', 'label', 'group', 'severity', 'urls']
+        : ['Check', 'Label', 'Group', 'Severity', 'URLs'];
+    await writeFile(partPath, csv([head, ...rows], options.headers), 'utf8');
     return { rowsWritten: rows.length };
   });
 }

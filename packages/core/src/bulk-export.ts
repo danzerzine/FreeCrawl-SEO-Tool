@@ -296,7 +296,7 @@ export async function runBulkExport(
     try {
       const { rowsWritten } = await writeExportFile(
         filePath,
-        (partPath) => exportLinksToCsv(db, partPath, { scope }),
+        (partPath) => exportLinksToCsv(db, partPath, { scope, headers: options.headers }),
         hasRows,
       );
       if (rowsWritten === 0) continue;

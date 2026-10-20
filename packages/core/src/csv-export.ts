@@ -108,18 +108,19 @@ const IMAGES_CSV_HEADER = [
  * user is currently looking at. Streamed row-by-row so a 100K-image
  * crawl never builds a giant string in memory.
  */
-const LINKS_CSV_HEADER = [
-  'From URL',
-  'To URL',
-  'Target Status',
-  'Anchor',
-  'Rel',
-  'Type',
-  'Target',
-  'Alt Text',
-  'Position',
-  'Path',
-  'Origin',
+/** Links CSV columns: header label and the key `headers: 'keys'` writes. */
+const LINKS_CSV_COLUMNS: readonly { key: string; label: string }[] = [
+  { key: 'fromUrl', label: 'From URL' },
+  { key: 'toUrl', label: 'To URL' },
+  { key: 'toStatusCode', label: 'Target Status' },
+  { key: 'anchor', label: 'Anchor' },
+  { key: 'rel', label: 'Rel' },
+  { key: 'type', label: 'Type' },
+  { key: 'target', label: 'Target' },
+  { key: 'altText', label: 'Alt Text' },
+  { key: 'linkPosition', label: 'Position' },
+  { key: 'linkPath', label: 'Path' },
+  { key: 'linkOrigin', label: 'Origin' },
 ];
 
 /**
@@ -130,10 +131,17 @@ const LINKS_CSV_HEADER = [
 export async function exportLinksToCsv(
   db: ProjectDb,
   filePath: string,
-  options: { scope: 'internal' | 'external' },
+  options: {
+    scope: 'internal' | 'external';
+    /** Header row: labels (default) or keys; `'keys'` also turns the
+     *  formula guard off, like {@link exportUrlsToCsv}. */
+    headers?: 'labels' | 'keys';
+  },
 ): Promise<{ rowsWritten: number }> {
   let rowsWritten = 0;
-  const header = LINKS_CSV_HEADER.join(',') + '\n';
+  const cell = { formulaGuard: options.headers !== 'keys' };
+  const header =
+    LINKS_CSV_COLUMNS.map((c) => (options.headers === 'keys' ? c.key : c.label)).join(',') + '\n';
   const generator = async function* (): AsyncGenerator<string> {
     yield '\ufeff' + header;
     for (const l of db.iterateLinks(options.scope)) {
@@ -151,7 +159,7 @@ export async function exportLinksToCsv(
         l.link_origin,
       ];
       rowsWritten++;
-      yield cells.map((c) => escapeCsv(c)).join(',') + '\n';
+      yield cells.map((c) => escapeCsv(c, cell)).join(',') + '\n';
     }
   };
   await writeExportFile(filePath, (partPath) =>
