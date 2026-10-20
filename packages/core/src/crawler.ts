@@ -16,6 +16,7 @@ import {
   type ProbeWrite,
   EXPENSIVE_ISSUE_DEFINITIONS,
   SOFT404_PROBE_META_KEY,
+  COUNT_NOFOLLOW_META_KEY,
 } from '@freecrawl/db';
 import {
   normalizeUrl,
@@ -1124,9 +1125,11 @@ export class Crawler extends EventEmitter {
 
     this.setOp(`crawl:start:${this.config.startUrl}`);
 
-    // New pages arrive with inlinks = 0 until the end-of-crawl pass runs, so
-    // the orphan count is meaningless from here on (also for respider runs).
+    // New pages arrive with inlinks = 0 and redirects without a final target
+    // until the end-of-crawl passes run, so orphans and the redirect reports
+    // are meaningless from here on (also for respider runs).
     await this.runDbPass('markInlinksStale');
+    await this.runDbPass('markRedirectChainsStale');
 
     // Fire an immediate progress event so the UI can flip to "Running"
     // before we block on resolveStartUrl (which can spend several seconds
@@ -1234,6 +1237,9 @@ export class Crawler extends EventEmitter {
     // The missing-page probe describes the crawl that is starting; it is
     // re-run at the end (a stopped crawl simply has no verdict).
     if (!isRespider) this.db.setMeta(SOFT404_PROBE_META_KEY, '');
+    // The post-crawl inlinks and link-score passes read this to decide
+    // whether nofollow links count (they are stored either way).
+    this.db.setMeta(COUNT_NOFOLLOW_META_KEY, this.config.storeNofollowLinks ? '1' : '0');
     const isRefresh = isSameSite && !isRespider && !this.resumeOnly;
     // Change markers describe the run that is starting now, so anything
     // a previous refresh flagged is cleared first. A wiped project has
@@ -1826,7 +1832,13 @@ export class Crawler extends EventEmitter {
     if (this.stopped) return;
     let unprobed: { id: number; src: string }[] = [];
     try {
-      unprobed = this.db.unprobedImages(20_000, this.config.crawlImageVariants);
+      // "Check external links" off promises no request to any external
+      // host, image hosts included.
+      unprobed = this.db.unprobedImages(
+        20_000,
+        this.config.crawlImageVariants,
+        this.config.checkExternalLinks,
+      );
     } catch (err) {
       this.emit(
         'info',
@@ -2112,6 +2124,15 @@ export class Crawler extends EventEmitter {
     let urls: string[] = [];
     try {
       urls = this.db.unprobedSocialImageUrls(5_000);
+      // "Check external links" off promises no request to any external
+      // host, social-image hosts included.
+      if (!this.config.checkExternalLinks) {
+        const opts = {
+          includeSubdomains: this.config.scope === 'all-subdomains',
+          cdnHosts: this.config.cdnHosts,
+        };
+        urls = urls.filter((u) => isSameHost(this.config.startUrl, u, opts));
+      }
     } catch (err) {
       this.emit(
         'info',
@@ -3043,6 +3064,7 @@ export class Crawler extends EventEmitter {
           statusCode: null,
           statusText: 'Skipped: private/internal address (SSRF guard)',
           responseTimeMs: 0,
+          notRequested: true,
         },
       ]);
       return;
@@ -4676,12 +4698,13 @@ export class Crawler extends EventEmitter {
       }
 
       // Respect-Nofollow default (Screaming-Frog style): `rel="nofollow"`
-      // links are not part of the crawl graph — not followed, not probed
-      // as externals, not counted in `outlinks`. Opt-in via
-      // `storeNofollowLinks` to treat them like any other link there.
-      // They are still recorded in the `links` table either way (below),
-      // so Inlinks / Outlinks show them and "nofollow-only inlinks" can
-      // be answered.
+      // links are not followed, not probed as externals and not counted in
+      // `outlinks` (nor, after the crawl, in inlinks and link score).
+      // `storeNofollowLinks` counts and probes them; the follow loop below
+      // walks `storableLinks` and still needs `followNofollow` /
+      // `followExternalNofollow` to enqueue one. They are recorded in the
+      // `links` table either way (below), so Inlinks / Outlinks show them
+      // and "nofollow-only inlinks" can be answered.
       const storableLinks = this.config.storeNofollowLinks
         ? parsed.links
         : parsed.links.filter((l) => !l.rel?.includes('nofollow'));

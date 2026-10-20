@@ -299,6 +299,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Unlinked Targets': 'Keçidsiz hədəflər',
   'Orphan Pages (No Inlinks)': 'Yetim səhifələr (daxil keçid yoxdur)',
   'Inlinks Nofollow Only': 'Yalnız nofollow daxil olan keçidlər',
+  'Inlinks Only From Non-Indexable Pages': 'Yalnız indekslənə bilməyən səhifələrdən daxil olan keçidlər',
 
   // Pagination
   'Broken Next/Prev Target': 'Qırıq next/prev hədəfi',
@@ -414,7 +415,6 @@ export const AZ_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'JSON-LD blokları',
   'Schema Types': 'Schema tipləri',
   'Empty Anchors': 'Boş ankorlar',
-  'JS-Only Links': 'Yalnız JS keçidləri',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': 'Sıra qırılması',

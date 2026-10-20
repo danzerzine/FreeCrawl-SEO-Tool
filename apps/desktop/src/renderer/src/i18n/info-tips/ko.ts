@@ -6,8 +6,8 @@
 export const KO_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → 끊어진 그룹의 모든 구성원에 '시퀀스 단절'을 표시합니다.",
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    '크롤러가 따라갈 수 없는 링크 형태의 요소(href 없이 onclick만 있음, `href="javascript:…"`, onclick이 붙은 `href="#"`, onclick 이동, href 또는 data-href가 있는 `<span>` / `<div>` / `<button>`). 각각 아웃바운드 링크에 표시됩니다.',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    '크롤할 수 없는 링크 수: 크롤러가 따라갈 수 없는 링크 형태의 요소(href 없이 onclick만 있음, `href="javascript:…"`, onclick이 붙은 `href="#"`, onclick 이동, href 또는 data-href가 있는 `<span>` / `<div>` / `<button>`). 각각 아웃바운드 링크에 표시됩니다.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` 값 — 이 페이지의 AMP 버전. 페이지가 AMP 대체 버전을 선언하지 않으면 비어 있습니다.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -335,8 +335,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '패턴: ^https://m\\.(.+) · 치환: https://www.$1 · 플래그: i  (모바일 서브도메인을 www로 병합)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "요청당 중단 임계값. 이보다 오래 걸리는 페이지는 네트워크 오류로 기록됩니다. Screaming Frog: 'Response Timeout (secs)'(Configuration → Spider → Advanced) — 그쪽은 초 단위, 여기는 밀리초 단위입니다.",
-  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
-    "nofollow 링크는 항상 링크 그래프에 기록되므로 Inlinks와 Outlinks에 표시됩니다. 켜면 아웃링크로 집계되고 외부 링크는 검사됩니다. 끄면(기본값) 표시만 되고 집계나 검사는 하지 않습니다. 내부 nofollow 링크를 크롤할지는 별도 설정입니다.",
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward inlinks, outlinks and link score, and external ones are probed. When off (default), they are shown but not counted or probed, so a page linked only with nofollow is an orphan and is also listed under Inlinks Nofollow Only, which tells why. Whether internal nofollow links are crawled is a separate setting."]:
+    "nofollow 링크는 항상 링크 그래프에 기록되므로 Inlinks와 Outlinks에 표시됩니다. 켜면 인바운드 링크, 아웃바운드 링크와 링크 점수에도 포함되고 외부 링크는 검사됩니다. 끄면(기본값) 표시되지만 집계되거나 검사되지 않습니다. 이때 nofollow 링크만 받는 페이지는 고립 페이지가 되며, 그 이유를 보여 주는 \"nofollow 인바운드 링크만\"에도 나열됩니다. 내부 nofollow 링크를 크롤할지는 별도 설정입니다.",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     '프리셋을 선택하면 아래 User-Agent 필드가 채워집니다 — 이후 직접 수정할 수 있습니다. Googlebot Smartphone / Desktop을 전환해 사이트가 모바일과 데스크톱 크롤러에 어떻게 응답하는지 비교하세요.',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

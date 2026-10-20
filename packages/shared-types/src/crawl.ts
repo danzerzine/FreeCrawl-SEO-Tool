@@ -141,6 +141,7 @@ export type UrlCategory =
   | 'issues:hreflang-unlinked'
   | 'issues:orphan-page'
   | 'issues:inlinks-nofollow-only'
+  | 'issues:inlinks-non-indexable-only'
   | 'issues:crawled-not-in-sitemap'
   | 'issues:redirect-in-sitemap'
   | 'issues:h1-empty'
@@ -915,10 +916,11 @@ export interface CrawlConfig {
   retryInitialDelayMs: number;
   /**
    * Treat `rel="nofollow"` links as part of the crawl graph: probe
-   * external ones and count them toward `urls.outlinks`.
+   * external ones and count them toward `urls.outlinks`, `urls.inlinks`
+   * (so orphans) and link score.
    * Default `false` — Screaming-Frog style "Respect Nofollow": they are
    * still stored in the `links` table (with their `rel`) so Inlinks /
-   * Outlinks show them, but are not probed and don't count as outlinks.
+   * Outlinks show them, but are not probed and don't count.
    * Following internal ones is `followNofollow`.
    */
   storeNofollowLinks: boolean;
@@ -1294,7 +1296,8 @@ export interface CrawlConfig {
    * Follow `<a rel="nofollow">` links (still respecting all other
    * filters). Default `false` — Screaming Frog "Respect Nofollow"
    * default. Nofollow links are stored either way; `storeNofollowLinks`
-   * only decides whether they count as outlinks and get probed.
+   * only decides whether they count (outlinks, inlinks, link score) and
+   * get probed.
    */
   followNofollow: boolean;
   /**
@@ -1990,8 +1993,10 @@ export interface OverviewCounts {
      * inlinks were never computed, so the count would be meaningless.
      */
     orphanPage: number | null;
-    /** Internal 2xx HTML pages whose every internal inlink is nofollow. */
+    /** Internal 2xx HTML pages with nofollow internal inlinks and no followed one. */
     inlinksNofollowOnly: number;
+    /** Internal 2xx HTML pages whose every followed internal inlink is from a non-indexable page. */
+    inlinksNonIndexableOnly: number;
     crawledNotInSitemap: number;
     redirectInSitemap: number;
     /** Sitemap URL count that the crawl never reached (in sitemap_urls but not in urls). */

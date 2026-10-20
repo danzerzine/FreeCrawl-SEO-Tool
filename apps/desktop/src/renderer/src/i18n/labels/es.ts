@@ -291,6 +291,7 @@ export const ES_LABELS: Record<string, string> = {
   'Unlinked Targets': 'Destinos sin enlaces',
   'Orphan Pages (No Inlinks)': 'Páginas huérfanas (sin enlaces entrantes)',
   'Inlinks Nofollow Only': 'Solo enlaces entrantes nofollow',
+  'Inlinks Only From Non-Indexable Pages': 'Enlaces entrantes solo desde páginas no indexables',
 
   // Pagination
   'Broken Next/Prev Target': 'Destino next/prev roto',
@@ -406,7 +407,6 @@ export const ES_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'Bloques JSON-LD',
   'Schema Types': 'Tipos de schema',
   'Empty Anchors': 'Anclas vacías',
-  'JS-Only Links': 'Enlaces solo por JS',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': 'Rotura de secuencia',

@@ -92,6 +92,14 @@ export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
 export const SOFT404_PROBE_META_KEY = 'soft404Probe';
 /** `project_meta` key set by `recomputeInlinks`; orphans mean nothing before it. */
 export const INLINKS_COMPUTED_META_KEY = 'inlinksComputed';
+/** `project_meta` key set by `recomputeRedirectChains`; redirect ends mean nothing before it. */
+export const REDIRECT_CHAINS_COMPUTED_META_KEY = 'redirectChainsComputed';
+/**
+ * `project_meta` mirror of `CrawlConfig.storeNofollowLinks` ('1' / '0'),
+ * written at crawl start. Off or missing: inlinks, orphans and link score
+ * count followed links only, as before nofollow links were always stored.
+ */
+export const COUNT_NOFOLLOW_META_KEY = 'countNofollowLinks';
 /** `project_meta` key holding the JSON list of path patterns the cross-source orphan report hides. */
 export const ORPHAN_EXCLUDE_META_KEY = 'orphanExcludePatterns';
 const ORPHAN_EXCLUDE_MAX_LENGTH = 200;
@@ -136,23 +144,54 @@ const ORPHAN_PAGE_SQL = `is_external = 0 AND content_kind = 'html'
   AND status_code >= 200 AND status_code < 300 AND inlinks = 0
   AND url != COALESCE((SELECT value FROM project_meta WHERE key = 'lastStartUrl'), '')
   AND EXISTS (SELECT 1 FROM project_meta WHERE key = '${INLINKS_COMPUTED_META_KEY}')`;
+/** A `links` row (unaliased) that is not rel="nofollow". */
+const FOLLOWED_LINK_SQL = `(rel IS NULL OR rel NOT LIKE '%nofollow%')`;
 /**
- * Internal 2xx HTML page that has inlinks, none of them followable: every
- * internal link in (self-links aside) carries rel="nofollow". Crawled only
- * through another route (sitemap, redirect, list mode), since nofollow
- * links are not followed. A single followed inlink clears it.
+ * Targets of internal links `l` (joined source page: `s`) that are not
+ * self-links and match `where`. Uncorrelated: SQLite builds it once per
+ * statement, so `url IN (…)` is one pass over `links`.
+ */
+const internalInlinkTargetsSql = (where: string): string => `SELECT l.to_url FROM links l
+    JOIN urls s ON s.id = l.from_url_id
+    WHERE l.is_internal = 1
+      AND l.from_url_id != COALESCE((SELECT id FROM urls t WHERE t.url = l.to_url), -1)
+      AND ${where}`;
+const L_FOLLOWED_SQL = `(l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')`;
+/**
+ * Internal 2xx HTML page with nofollow internal inlinks and no followed one
+ * (self-links aside). Crawled only through another route (sitemap,
+ * redirect, list mode), since nofollow links are not followed. A single
+ * followed inlink clears it. Materialised in EXPENSIVE_ISSUE_DEFINITIONS.
  */
 const INLINKS_NOFOLLOW_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
-  AND status_code >= 200 AND status_code < 300 AND inlinks > 0
-  AND NOT EXISTS (
-    SELECT 1 FROM links l
-    WHERE l.to_url = urls.url AND l.is_internal = 1 AND l.from_url_id != urls.id
-      AND (l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')
-  )`;
-/** Pages with a link-like element a crawler cannot follow, aimed at the site. */
+  AND status_code >= 200 AND status_code < 300
+  AND url IN (${internalInlinkTargetsSql(`l.rel LIKE '%nofollow%'`)})
+  AND url NOT IN (${internalInlinkTargetsSql(L_FOLLOWED_SQL)})`;
+/**
+ * Internal 2xx HTML page with followed internal inlinks, every one from a
+ * non-indexable page (noindex, canonicalised away, an error): search
+ * engines reach it only through pages they keep out of the index. Self-links
+ * aside. Materialised in EXPENSIVE_ISSUE_DEFINITIONS.
+ */
+const INLINKS_NON_INDEXABLE_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
+  AND status_code >= 200 AND status_code < 300
+  AND url IN (${internalInlinkTargetsSql(L_FOLLOWED_SQL)})
+  AND url NOT IN (${internalInlinkTargetsSql(`${L_FOLLOWED_SQL} AND s.indexability = 'indexable'`)})`;
+/**
+ * Pages with a link-like element a crawler cannot follow, aimed at the site.
+ * A page with no stored rows falls back to its per-page count: projects
+ * crawled before the rows existed have only the count, and it cannot tell
+ * internal from external, so it counts as before.
+ */
 const UNCRAWLABLE_INTERNAL_OUTLINKS_SQL = `is_external = 0 AND content_kind = 'html'
-  AND EXISTS (
-    SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id AND u.is_internal = 1
+  AND (
+    EXISTS (
+      SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id AND u.is_internal = 1
+    )
+    OR (
+      js_only_links_count > 0
+      AND NOT EXISTS (SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id)
+    )
   )`;
 const EMPTY_DISABLED: ReadonlySet<UrlCategory> = new Set();
 
@@ -1412,12 +1451,14 @@ export class ProjectDb {
     // here only via compileOrphanExcludePatterns.
     const regexCache = new Map<string, RegExp>();
     this.db.function('fc_regexp', { deterministic: true }, (pattern, value) => {
-      let re = regexCache.get(pattern as string);
+      // A NULL url or a non-text pattern matches nothing.
+      if (typeof pattern !== 'string' || typeof value !== 'string') return 0;
+      let re = regexCache.get(pattern);
       if (!re) {
-        re = new RegExp(pattern as string);
-        regexCache.set(pattern as string, re);
+        re = new RegExp(pattern);
+        regexCache.set(pattern, re);
       }
-      return re.test(String(value)) ? 1 : 0;
+      return re.test(value) ? 1 : 0;
     });
     if (!readOnly) {
       this.db.exec('PRAGMA journal_mode = WAL');
@@ -2395,6 +2436,13 @@ export class ProjectDb {
       redirectTarget?: string | null;
       /** Bot protection answered instead of the page — e.g. "Cloudflare challenge (HTTP 403)". */
       botBlocked?: string | null;
+      /**
+       * The URL was deliberately never requested (SSRF guard). There is no
+       * answer to judge, so the stub keeps its indexability like an
+       * unprobed one and no broken-link check reports it; `statusText`
+       * says why.
+       */
+      notRequested?: boolean;
     },
   ): void {
     // Re-classify the external stub's content_kind from the probed
@@ -2408,9 +2456,13 @@ export class ProjectDb {
     // 404s, is bot-blocked, or never responded would stay reported as
     // "indexable" (misleading, and inflates the Indexable count).
     const status = patch.botBlocked ? null : patch.statusCode;
-    let indexability: string;
+    // null = keep the stored value (see `notRequested`).
+    let indexability: string | null;
     let indexabilityReason: string | null;
-    if (patch.botBlocked) {
+    if (patch.notRequested) {
+      indexability = null;
+      indexabilityReason = null;
+    } else if (patch.botBlocked) {
       // A challenge page is the CDN's answer, not the link target's — it
       // says nothing about whether the link works, so it is no "broken
       // external link".
@@ -2441,8 +2493,9 @@ export class ProjectDb {
            content_kind = COALESCE(:content_kind, content_kind),
            content_length = :content_length,
            response_time_ms = :response_time_ms,
-           indexability = :indexability,
-           indexability_reason = :indexability_reason,
+           indexability = COALESCE(:indexability, indexability),
+           indexability_reason = CASE WHEN :indexability IS NULL
+                                      THEN indexability_reason ELSE :indexability_reason END,
            redirect_target = COALESCE(:redirect_target, redirect_target)
          WHERE url = :url AND is_external = 1`,
       )
@@ -3116,9 +3169,25 @@ export class ProjectDb {
     });
   }
 
+  /**
+   * Links that count toward inlinks and link score: every link when the
+   * crawl counted nofollow links (`COUNT_NOFOLLOW_META_KEY`), else only
+   * followed ones. Nofollow links are stored either way.
+   */
+  private countedLinkSql(): string {
+    return this.getMeta(COUNT_NOFOLLOW_META_KEY) === '1' ? '1 = 1' : FOLLOWED_LINK_SQL;
+  }
+
   /** A crawl is about to add pages: stored inlinks no longer cover them. */
   markInlinksStale(): void {
     this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(INLINKS_COMPUTED_META_KEY);
+  }
+
+  /** A crawl is about to add redirects: their final targets are not walked yet. */
+  markRedirectChainsStale(): void {
+    this.db
+      .prepare('DELETE FROM project_meta WHERE key = ?')
+      .run(REDIRECT_CHAINS_COMPUTED_META_KEY);
   }
 
   recomputeInlinks(): void {
@@ -3133,6 +3202,7 @@ export class ProjectDb {
           SELECT to_url AS url, COUNT(*) AS c
           FROM links
           WHERE is_internal = 1
+            AND ${this.countedLinkSql()}
             -- A page linking to itself (a skip link, a logo on the home page)
             -- is not an inlink: it must not hide an orphan. The row stays in
             -- the links table so the Inlinks tab can still show it.
@@ -3239,6 +3309,7 @@ export class ProjectDb {
         }
         upd.run(chain, finalUrl, loop, row.id);
       }
+      this.setMeta(REDIRECT_CHAINS_COMPUTED_META_KEY, '1');
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -3381,7 +3452,8 @@ export class ProjectDb {
     // dedup in its own (disk-backed) temp B-tree.
     const edgeRows = this.db
       .prepare(
-        'SELECT DISTINCT from_url_id AS source, to_url FROM links WHERE is_internal = 1',
+        `SELECT DISTINCT from_url_id AS source, to_url FROM links
+          WHERE is_internal = 1 AND ${this.countedLinkSql()}`,
       )
       .iterate() as Iterable<{ source: number; to_url: string }>;
     for (const e of edgeRows) {
@@ -4896,7 +4968,16 @@ export class ProjectDb {
    * leaves external ones out, and the test would steer the planner to
    * `idx_urls_is_external`, a walk over every internal URL.
    */
-  linkTargetReport(params: LinkTargetReportInput): LinkTargetRow[] {
+  linkTargetReport(params: LinkTargetReportInput): LinkTargetRow[] | null {
+    // The redirect reports read each target's chain end, written only by
+    // the post-crawl redirect-chain pass: before it they would be empty or
+    // lack the final target, so they say "not computed" (null) instead.
+    if (
+      (params.report === 'redirects-to-error' || params.report === 'redirect-inlinks') &&
+      this.getMeta(REDIRECT_CHAINS_COMPUTED_META_KEY) === null
+    ) {
+      return null;
+    }
     const template = params.templateLinks ?? 'include';
     const isTemplate = `(base.n > 0 AND p.source_pages >= base.n * ${TEMPLATE_LINK_SHARE})`;
     const templateWhere =
@@ -7299,7 +7380,8 @@ export class ProjectDb {
         this.getMeta(INLINKS_COMPUTED_META_KEY) === null
           ? null
           : countWhere(ORPHAN_PAGE_SQL),
-      inlinksNofollowOnly: countWhere(INLINKS_NOFOLLOW_ONLY_SQL),
+      inlinksNofollowOnly: issueCount('issues:inlinks-nofollow-only'),
+      inlinksNonIndexableOnly: issueCount('issues:inlinks-non-indexable-only'),
       crawledNotInSitemap: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND indexability = 'indexable'
@@ -10002,17 +10084,26 @@ export class ProjectDb {
    * sizes are left out unless `includeVariants` — they are stored for the
    * Images tab but, like the crawl itself, only requested on demand.
    */
-  unprobedImages(limit = 20_000, includeVariants = false): { id: number; src: string }[] {
+  unprobedImages(
+    limit = 20_000,
+    includeVariants = false,
+    /** False when "check external links" is off: no request to an external host. */
+    includeExternal = true,
+  ): { id: number; src: string }[] {
     return this.db
       .prepare(
         `SELECT id, src FROM images
           WHERE probe_status IS NULL
             AND src LIKE 'http%'
             AND (? OR is_variant = 0)
+            AND (? OR is_internal = 1)
           ORDER BY id
           LIMIT ?`,
       )
-      .all(includeVariants ? 1 : 0, limit) as { id: number; src: string }[];
+      .all(includeVariants ? 1 : 0, includeExternal ? 1 : 0, limit) as {
+      id: number;
+      src: string;
+    }[];
   }
 
   /**
@@ -10982,7 +11073,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '4';
+export const ISSUE_MATERIALISATION_VERSION = '6';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -11038,6 +11129,18 @@ const DEAD_EXTERNAL_TARGET_SQL = `is_external = 1
  * carrying the menu. The per-page key still drives the URL list.
  */
 const linkTargetsKey = (issueKey: string): string => `targets:${issueKey}`;
+
+/** A `links` row (unaliased) whose anchor is over 100 characters. */
+const LONG_ANCHOR_LINK_SQL = 'anchor IS NOT NULL AND LENGTH(anchor) > 100';
+/** A `links` row (unaliased) whose anchor is a generic phrase ("click here"). */
+const GENERIC_ANCHOR_LINK_SQL = `anchor IS NOT NULL
+  AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})`;
+/** A `links` row (unaliased) opening a new tab without rel=noopener / noreferrer. */
+const TARGET_BLANK_NO_NOOPENER_LINK_SQL = `LOWER(COALESCE(target, '')) = '_blank'
+  AND (
+    rel IS NULL
+    OR (LOWER(rel) NOT LIKE '%noopener%' AND LOWER(rel) NOT LIKE '%noreferrer%')
+  )`;
 
 export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string]> = [
   [
@@ -11095,10 +11198,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     `is_external = 0 AND content_kind = 'html'
      AND (
        anchor_too_long_count > 0
-       OR id IN (
-         SELECT from_url_id FROM links
-          WHERE anchor IS NOT NULL AND LENGTH(anchor) > 100
-       )
+       OR id IN (SELECT from_url_id FROM links WHERE ${LONG_ANCHOR_LINK_SQL})
      )`,
   ],
   [
@@ -11106,7 +11206,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // (page, target), so a target whose stored anchor is the short one of
     // two links on a page is not counted.
     linkTargetsKey('issues:anchor-text-too-long'),
-    `url IN (SELECT to_url FROM links WHERE anchor IS NOT NULL AND LENGTH(anchor) > 100)`,
+    `url IN (SELECT to_url FROM links WHERE ${LONG_ANCHOR_LINK_SQL})`,
   ],
   [
     'issues:anchor-text-generic',
@@ -11114,20 +11214,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     `is_external = 0 AND content_kind = 'html'
      AND (
        generic_anchor_count > 0
-       OR id IN (
-         SELECT from_url_id FROM links
-          WHERE anchor IS NOT NULL
-            AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})
-       )
+       OR id IN (SELECT from_url_id FROM links WHERE ${GENERIC_ANCHOR_LINK_SQL})
      )`,
   ],
   [
     linkTargetsKey('issues:anchor-text-generic'),
-    `url IN (
-       SELECT to_url FROM links
-        WHERE anchor IS NOT NULL
-          AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})
-     )`,
+    `url IN (SELECT to_url FROM links WHERE ${GENERIC_ANCHOR_LINK_SQL})`,
   ],
   [
     'issues:target-blank-no-noopener',
@@ -11135,32 +11227,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     `is_external = 0 AND content_kind = 'html'
      AND (
        target_blank_no_noopener_count > 0
-       OR id IN (
-         SELECT from_url_id FROM links
-          WHERE LOWER(COALESCE(target, '')) = '_blank'
-            AND (
-              rel IS NULL
-              OR (
-                LOWER(rel) NOT LIKE '%noopener%'
-                AND LOWER(rel) NOT LIKE '%noreferrer%'
-              )
-            )
-       )
+       OR id IN (SELECT from_url_id FROM links WHERE ${TARGET_BLANK_NO_NOOPENER_LINK_SQL})
      )`,
   ],
   [
     linkTargetsKey('issues:target-blank-no-noopener'),
-    `url IN (
-       SELECT to_url FROM links
-        WHERE LOWER(COALESCE(target, '')) = '_blank'
-          AND (
-            rel IS NULL
-            OR (
-              LOWER(rel) NOT LIKE '%noopener%'
-              AND LOWER(rel) NOT LIKE '%noreferrer%'
-            )
-          )
-     )`,
+    `url IN (SELECT to_url FROM links WHERE ${TARGET_BLANK_NO_NOOPENER_LINK_SQL})`,
   ],
   [
     'issues:external-links-too-many',
@@ -11191,6 +11263,13 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     `status_code >= 300 AND status_code < 400
      AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 1)`,
   ],
+  [
+    // Two passes over `links` (nofollow targets, followed targets); the
+    // correlated NOT EXISTS it replaces ran per page on every sidebar tick.
+    'issues:inlinks-nofollow-only',
+    INLINKS_NOFOLLOW_ONLY_SQL,
+  ],
+  ['issues:inlinks-non-indexable-only', INLINKS_NON_INDEXABLE_ONLY_SQL],
   [
     'issues:image-broken-src',
     `is_external = 0 AND content_kind = 'html'
@@ -11958,8 +12037,6 @@ export function categoryWhereClause(
       return "is_external = 0 AND content_kind = 'html' AND hreflang_unlinked > 0";
     case 'issues:orphan-page':
       return ORPHAN_PAGE_SQL;
-    case 'issues:inlinks-nofollow-only':
-      return INLINKS_NOFOLLOW_ONLY_SQL;
     case 'issues:hreflang-target-issues':
       // Hreflang target resolves to a non-200 / noindex / canonical-away
       // page. Aggregated: any kind of broken target trips this filter.
@@ -12440,6 +12517,8 @@ export function categoryWhereClause(
     case 'issues:image-too-large':
     case 'issues:og-image-too-large':
     case 'issues:twitter-image-too-large':
+    case 'issues:inlinks-nofollow-only':
+    case 'issues:inlinks-non-indexable-only':
       // These three are materialised into `urls_issues` by the issue
       // recompute (EXPENSIVE_ISSUE_DEFINITIONS, every 30 s mid-crawl and
       // once more post-crawl), and the sidebar count already reads that

@@ -6,8 +6,8 @@
 export const RU_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     '?page=1 / ?page=2 / ?page=4 → помечает «Разрыв последовательности» у каждого члена сломанной группы.',
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    'Элементы, похожие на ссылки, по которым краулер не пройдёт (нет href + onclick, `href="javascript:…"`, `href="#"` с onclick, переход в onclick, `<span>` / `<div>` / `<button>` с href или data-href). Каждый показан в исходящих ссылках.',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Число ссылок, недоступных для обхода: элементы, похожие на ссылки, по которым краулер не пройдёт (нет href + onclick, `href="javascript:…"`, `href="#"` с onclick, переход в onclick, `<span>` / `<div>` / `<button>` с href или data-href). Каждый показан в исходящих ссылках.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     'Значение `<link rel="amphtml" href="…">` — AMP-версия этой страницы. Пусто, если страница не объявляет AMP-альтернативу.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -341,8 +341,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Шаблон: ^https://m\\.(.+) · Замена: https://www.$1 · Флаги: i  (свернуть мобильный поддомен в www)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "Порог прерывания на запрос. Страницы, отвечающие дольше, записываются как сетевые ошибки. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — там в секундах, здесь в миллисекундах.",
-  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
-    "Ссылки nofollow всегда записываются в граф ссылок, поэтому Inlinks и Outlinks их показывают. Если включено, они ещё и считаются в исходящих, а внешние проверяются. Если выключено (по умолчанию), они видны, но не считаются и не проверяются. Идти ли по внутренним nofollow-ссылкам, решает отдельная настройка.",
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward inlinks, outlinks and link score, and external ones are probed. When off (default), they are shown but not counted or probed, so a page linked only with nofollow is an orphan and is also listed under Inlinks Nofollow Only, which tells why. Whether internal nofollow links are crawled is a separate setting."]:
+    "Ссылки nofollow всегда записываются в граф ссылок, поэтому Inlinks и Outlinks их показывают. Если включено, они ещё и считаются во входящих и исходящих ссылках и в оценке ссылок, а внешние проверяются. Если выключено (по умолчанию), они видны, но не считаются и не проверяются: страница, на которую ведут только nofollow-ссылки, становится сиротой и попадает ещё и в «Только входящие ссылки nofollow», где видно почему. Идти ли по внутренним nofollow-ссылкам, решает отдельная настройка.",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     'Выбор пресета заполняет поле User-Agent ниже — потом его всё равно можно править вручную. Переключайтесь между Googlebot Smartphone / Desktop, чтобы сравнить, как сайт отвечает мобильному и десктопному краулеру.',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

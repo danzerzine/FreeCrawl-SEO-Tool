@@ -6,8 +6,8 @@
 export const HI_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → टूटे हुए क्लस्टर के हर सदस्य पर 'अनुक्रम टूटा' चिह्न लगाता है।",
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    'लिंक जैसे तत्व जिन्हें क्रॉलर फ़ॉलो नहीं कर सकता (href नहीं पर onclick है, `href="javascript:…"`, onclick के साथ `href="#"`, onclick से नेविगेशन, href या data-href वाले `<span>` / `<div>` / `<button>`)। हर एक आउटलिंक में दिखता है।',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'क्रॉल न हो सकने वाले लिंक की संख्या: लिंक जैसे तत्व जिन्हें क्रॉलर फ़ॉलो नहीं कर सकता (href नहीं पर onclick है, `href="javascript:…"`, onclick के साथ `href="#"`, onclick से नेविगेशन, href या data-href वाले `<span>` / `<div>` / `<button>`)। हर एक आउटलिंक में दिखता है।',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` का मान — इस पेज का AMP संस्करण। पेज कोई AMP विकल्प घोषित न करे तो खाली।',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -338,8 +338,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     'पैटर्न: ^https://m\\.(.+) · प्रतिस्थापन: https://www.$1 · फ़्लैग: i  (मोबाइल सबडोमेन को www में समेटें)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "प्रति-अनुरोध रद्द करने की सीमा। इससे अधिक समय लेने वाले पेज नेटवर्क त्रुटि के रूप में दर्ज होते हैं। Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — वह सेकंड में है, यह मिलीसेकंड में।",
-  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
-    "nofollow लिंक हमेशा लिंक ग्राफ़ में दर्ज होते हैं, इसलिए Inlinks और Outlinks उन्हें दिखाते हैं। चालू होने पर वे आउटलिंक में भी गिने जाते हैं और बाहरी लिंक जाँचे जाते हैं। बंद (डिफ़ॉल्ट) होने पर वे दिखते हैं, पर न गिने जाते हैं न जाँचे जाते हैं। आंतरिक nofollow लिंक क्रॉल हों या नहीं, यह अलग सेटिंग तय करती है।",
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward inlinks, outlinks and link score, and external ones are probed. When off (default), they are shown but not counted or probed, so a page linked only with nofollow is an orphan and is also listed under Inlinks Nofollow Only, which tells why. Whether internal nofollow links are crawled is a separate setting."]:
+    "nofollow लिंक हमेशा लिंक ग्राफ़ में दर्ज होते हैं, इसलिए Inlinks और Outlinks उन्हें दिखाते हैं। चालू होने पर वे इनलिंक, आउटलिंक और लिंक स्कोर में भी गिने जाते हैं और बाहरी लिंक जाँचे जाते हैं। बंद होने पर (डिफ़ॉल्ट) वे दिखते हैं पर गिने या जाँचे नहीं जाते: केवल nofollow से जुड़ा पृष्ठ अनाथ पृष्ठ बन जाता है और \"केवल nofollow इनलिंक\" में भी दिखता है, जो कारण बताता है। आंतरिक nofollow लिंक क्रॉल हों या नहीं, यह अलग सेटिंग है।",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     'प्रीसेट चुनने से नीचे का User-Agent फ़ील्ड भर जाता है — आप बाद में इसे हाथ से संपादित कर सकते हैं। Googlebot Smartphone / Desktop के बीच बदलकर देखें कि साइट मोबाइल बनाम डेस्कटॉप क्रॉलर को कैसे जवाब देती है।',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

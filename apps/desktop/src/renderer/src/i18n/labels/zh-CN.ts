@@ -291,6 +291,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Unlinked Targets': '无链接指向的目标',
   'Orphan Pages (No Inlinks)': '孤立页面（无内链）',
   'Inlinks Nofollow Only': '仅 nofollow 入链',
+  'Inlinks Only From Non-Indexable Pages': '仅来自不可索引页面的入链',
 
   // Pagination
   'Broken Next/Prev Target': 'next/prev 目标失效',
@@ -406,7 +407,6 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'JSON-LD 区块',
   'Schema Types': 'Schema 类型',
   'Empty Anchors': '空锚文本',
-  'JS-Only Links': '仅靠 JS 的链接',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': '序列中断',

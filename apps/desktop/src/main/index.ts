@@ -5449,8 +5449,8 @@ function registerIpc(): void {
 
   registerHandle(
     IPC.reportsLinkTargets,
-    (_e, input: LinkTargetReportInput): Promise<LinkTargetRow[]> =>
-      callReaderOrFallback<LinkTargetRow[]>('linkTargetReport', [input], () =>
+    (_e, input: LinkTargetReportInput): Promise<LinkTargetRow[] | null> =>
+      callReaderOrFallback<LinkTargetRow[] | null>('linkTargetReport', [input], () =>
         getDb().linkTargetReport(input),
       ),
   );

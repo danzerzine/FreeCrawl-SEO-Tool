@@ -6,8 +6,8 @@
 export const ZH_CN_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     '?page=1 / ?page=2 / ?page=4 → 对断裂分组的每个成员标记“序列断裂”。',
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    '抓取器无法跟踪的类链接元素（无 href 但有 onclick、`href="javascript:…"`、带 onclick 的 `href="#"`、onclick 跳转，以及带 href 或 data-href 的 `<span>` / `<div>` / `<button>`）。每一个都列在出链中。',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    '无法抓取的链接数量：抓取器无法跟踪的类链接元素（无 href 但有 onclick、`href="javascript:…"`、带 onclick 的 `href="#"`、onclick 跳转，以及带 href 或 data-href 的 `<span>` / `<div>` / `<button>`）。每一个都列在出链中。',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` 的值——本页的 AMP 版本。页面未声明 AMP 替代版本时为空。',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -331,8 +331,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '模式：^https://m\\.(.+) · 替换：https://www.$1 · 标志：i（将移动子域折叠为 www）',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "每请求的中止阈值。耗时超过此值的页面记录为网络错误。Screaming Frog：'Response Timeout (secs)'（Configuration → Spider → Advanced）——那边以秒计，这里以毫秒计。",
-  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
-    "nofollow 链接始终会记录到链接图中，因此 Inlinks 和 Outlinks 会显示它们。开启后，它们还会计入出链，外部链接也会被检查。关闭（默认）时，只显示，不计数也不检查。是否抓取内部 nofollow 链接由另一项设置决定。",
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward inlinks, outlinks and link score, and external ones are probed. When off (default), they are shown but not counted or probed, so a page linked only with nofollow is an orphan and is also listed under Inlinks Nofollow Only, which tells why. Whether internal nofollow links are crawled is a separate setting."]:
+    "nofollow 链接始终记录在链接图中，因此 Inlinks 和 Outlinks 会显示它们。开启时，它们也计入入链、出链和链接得分，外部链接会被检查。关闭时（默认），它们会显示，但不计数也不检查：只有 nofollow 链接指向的页面会成为孤立页面，同时也列在“仅 nofollow 入链”中，说明原因。是否抓取内部 nofollow 链接由另一项设置决定。",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     '选择预设会填充下方的 User-Agent 字段——之后仍可手动编辑。在 Googlebot Smartphone / Desktop 之间切换，比较站点对移动端与桌面端抓取器的响应差异。',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

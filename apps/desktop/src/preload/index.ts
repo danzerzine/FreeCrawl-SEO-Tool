@@ -409,7 +409,7 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.reportsAnalyticsCoverage),
   reportsLinkPositions: (): Promise<LinkPositionRow[]> =>
     ipcRenderer.invoke(IPC.reportsLinkPositions),
-  reportsLinkTargets: (input: LinkTargetReportInput): Promise<LinkTargetRow[]> =>
+  reportsLinkTargets: (input: LinkTargetReportInput): Promise<LinkTargetRow[] | null> =>
     ipcRenderer.invoke(IPC.reportsLinkTargets, input),
   reportsImageWeightPerPage: (limit?: number): Promise<ImageWeightRow[]> =>
     ipcRenderer.invoke(IPC.reportsImageWeightPerPage, limit),

@@ -600,11 +600,11 @@ const COL = {
   } as ColumnSpec,
   jsOnlyLinksCount: {
     key: 'jsOnlyLinksCount',
-    header: 'JS-Only Links',
+    header: 'Uncrawlable Links',
     size: 110,
     kind: 'number',
     align: 'right',
-    info: 'Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.',
+    info: 'Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.',
     example: '0',
   } as ColumnSpec,
   canonicalCount: {
