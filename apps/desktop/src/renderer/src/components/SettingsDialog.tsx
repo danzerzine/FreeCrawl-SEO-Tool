@@ -1894,7 +1894,7 @@ function CrawlerPanel({ form, update }: PanelProps) {
           label={t('settingsPanels.crawler.crawlExternal', { defaultValue: 'Crawl External Pages' })}
           checked={form.crawlExternal}
           onChange={(v) => update('crawlExternal', v)}
-          info="Fully crawl pages on other hosts and follow their links onward, not just check their status. Needs «Check external link status» on: with that off, no request goes to other hosts at all. Screaming Frog: 'External Links' (Configuration → Spider → Crawl)."
+          info="Fully crawl pages on other hosts and follow their links onward, not just check their status. Needs «Check external link status» on: with that off, no request goes to hosts outside the crawl scope. Screaming Frog: 'External Links' (Configuration → Spider → Crawl)."
           example="Off (default) for ordinary audits. On only to deliberately spider into linked sites; combine with a max URL limit."
         />
         <Bool
@@ -1903,7 +1903,7 @@ function CrawlerPanel({ form, update }: PanelProps) {
           })}
           checked={form.checkExternalLinks}
           onChange={(v) => update('checkExternalLinks', v)}
-          info="Send one request to each outbound link target so Broken Links can report dead ones. Off sends no request to other hosts at all, so «Crawl External Pages» has no effect either; external links are still stored, just without a status."
+          info="Send one request to each outbound link target so Broken Links can report dead ones. Off sends no request to hosts outside the crawl scope (CDN hosts and subdomains in scope still count as the site), so «Crawl External Pages» has no effect either; external links are still stored, just without a status."
           example="On (default) for outbound link audits; off when the site links to tens of thousands of external pages and only internal links matter."
         />
         <Bool

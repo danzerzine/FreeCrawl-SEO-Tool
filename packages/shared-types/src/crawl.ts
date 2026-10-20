@@ -887,9 +887,10 @@ export interface CrawlConfig {
   crawlExternal: boolean;
   /**
    * Status-check the targets of external links (one request each) so Broken
-   * Links can report dead ones. Independent of `crawlExternal`, which
-   * decides whether external pages are crawled through. Off sends no request
-   * to any external host: the links are still stored, just without a status.
+   * Links can report dead ones. Off sends no request to hosts outside the
+   * crawl scope (CDN hosts and subdomains in scope count as the site), so
+   * `crawlExternal` has no effect either; the links are still stored, just
+   * without a status.
    * On large sites externals can outnumber internal URLs several times over.
    */
   checkExternalLinks: boolean;
