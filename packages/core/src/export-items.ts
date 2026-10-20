@@ -24,10 +24,13 @@ import { exportTabular } from './tabular-export.js';
 /** One `--what` entry of `freecrawl export`. */
 export type ExportItem =
   | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues'; name: string }
-  | { kind: 'tasks'; name: string; tasks: BulkExportTask[] }
+  | { kind: 'category'; name: string; tasks: BulkExportTask[] }
   | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
   | { kind: 'selected'; name: 'selected-links'; urls: string[] }
   | { kind: 'dataset'; name: string; dataset: ExportDatasetKey };
+
+/** Datasets pulled from a linked Google / Yandex account, which the CLI has none of. */
+const ACCOUNT_DATASETS: readonly ExportDatasetKey[] = ['search-console', 'analytics', 'metrica'];
 
 /**
  * Datasets `--what dataset:<key>` can write. Left out: the `selected-*`
@@ -35,7 +38,7 @@ export type ExportItem =
  * Analytics and Metrica pulls (they need a linked account).
  */
 export const CLI_EXPORT_DATASETS = (Object.keys(EXPORT_DATASET_COLUMNS) as ExportDatasetKey[]).filter(
-  (k) => !k.startsWith('selected-') && !['search-console', 'analytics', 'metrica'].includes(k),
+  (k) => !k.startsWith('selected-') && !ACCOUNT_DATASETS.includes(k),
 );
 
 /** Page bodies exceed the 32,767-character cell limit of CSV / Excel: JSON Lines only. */
@@ -69,7 +72,7 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
       if (CLI_EXPORT_DATASETS.includes(key)) return { kind: 'dataset', name, dataset: key };
       const hint = key.startsWith('selected-')
         ? ' (it needs chosen pages: use --urls <file> instead)'
-        : ['search-console', 'analytics', 'metrica'].includes(key)
+        : ACCOUNT_DATASETS.includes(key)
           ? ' (it needs a linked account, which the CLI does not have)'
           : '';
       throw new Error(
@@ -78,7 +81,7 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
     }
     if (name.startsWith('tab:') || name.startsWith('issues:')) {
       const tasks = BULK_EXPORT_TASKS.filter((t) => t.category === name);
-      if (tasks.length > 0) return { kind: 'tasks', name, tasks };
+      if (tasks.length > 0) return { kind: 'category', name, tasks };
       const valid = [
         ...new Set(
           BULK_EXPORT_TASKS.map((t) => t.category).filter(
@@ -143,7 +146,7 @@ export async function runExportItems(
             projectFile: options.projectFile,
           }),
         );
-      } else if (item.kind === 'tasks') {
+      } else if (item.kind === 'category') {
         addBulk(await runBulkExport(db, outDir, { tasks: item.tasks, headers }));
       } else if (item.kind === 'seo-audit') {
         addBulk(await runSeoAuditExport(db, join(outDir, 'seo-audit')));
