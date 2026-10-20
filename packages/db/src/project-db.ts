@@ -99,6 +99,19 @@ const ORPHAN_PAGE_SQL = `is_external = 0 AND content_kind = 'html'
   AND status_code >= 200 AND status_code < 300 AND inlinks = 0
   AND url != COALESCE((SELECT value FROM project_meta WHERE key = 'lastStartUrl'), '')
   AND EXISTS (SELECT 1 FROM project_meta WHERE key = '${INLINKS_COMPUTED_META_KEY}')`;
+/**
+ * Internal 2xx HTML page that has inlinks, none of them followable: every
+ * internal link in (self-links aside) carries rel="nofollow". Crawled only
+ * through another route (sitemap, redirect, list mode), since nofollow
+ * links are not followed. A single followed inlink clears it.
+ */
+const INLINKS_NOFOLLOW_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
+  AND status_code >= 200 AND status_code < 300 AND inlinks > 0
+  AND NOT EXISTS (
+    SELECT 1 FROM links l
+    WHERE l.to_url = urls.url AND l.is_internal = 1 AND l.from_url_id != urls.id
+      AND (l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')
+  )`;
 const EMPTY_DISABLED: ReadonlySet<UrlCategory> = new Set();
 
 const SPELLING_STATUSES: readonly SpellingStatus[] = [
@@ -7069,6 +7082,7 @@ export class ProjectDb {
         this.getMeta(INLINKS_COMPUTED_META_KEY) === null
           ? null
           : countWhere(ORPHAN_PAGE_SQL),
+      inlinksNofollowOnly: countWhere(INLINKS_NOFOLLOW_ONLY_SQL),
       crawledNotInSitemap: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND indexability = 'indexable'
@@ -11612,6 +11626,8 @@ export function categoryWhereClause(
       return "is_external = 0 AND content_kind = 'html' AND hreflang_unlinked > 0";
     case 'issues:orphan-page':
       return ORPHAN_PAGE_SQL;
+    case 'issues:inlinks-nofollow-only':
+      return INLINKS_NOFOLLOW_ONLY_SQL;
     case 'issues:hreflang-target-issues':
       // Hreflang target resolves to a non-200 / noindex / canonical-away
       // page. Aggregated: any kind of broken target trips this filter.

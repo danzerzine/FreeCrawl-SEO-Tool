@@ -307,8 +307,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     "जहाँ 'स्रोत देखें' मायने रखता है उन SEO ऑडिट के लिए चालू; कम डिस्क वाले 1M-URL क्रॉल के लिए बंद।",
   ['ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes).']:
     'SEO ऑडिट के लिए चालू। केवल तब बंद करें जब विशेष रूप से कच्चे-URL टकराव देखने हों (जैसे केस-संवेदनशील फ़ाइल सिस्टम वाले CMS)।',
-  ['On if you need nofollow attribute audits; off keeps the link graph cleaner.']:
-    'nofollow एट्रिब्यूट ऑडिट चाहिए तो चालू; बंद रखने से लिंक ग्राफ़ साफ़ रहता है।',
+  ["Leave off to respect nofollow; on to count and probe them like any other link."]:
+    "nofollow का सम्मान करने के लिए बंद रखें; अन्य लिंक की तरह गिनने और जाँचने के लिए चालू करें।",
   ['On if your CMS serves the same page at mixed casing (/Foo and /foo).']:
     'यदि आपका CMS एक ही पेज मिश्रित केस में परोसता है (/Foo और /foo) तो चालू।',
   ['On if your site canonicalises to non-www but emits www links somewhere.']:
@@ -336,8 +336,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     'पैटर्न: ^https://m\\.(.+) · प्रतिस्थापन: https://www.$1 · फ़्लैग: i  (मोबाइल सबडोमेन को www में समेटें)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "प्रति-अनुरोध रद्द करने की सीमा। इससे अधिक समय लेने वाले पेज नेटवर्क त्रुटि के रूप में दर्ज होते हैं। Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — वह सेकंड में है, यह मिलीसेकंड में।",
-  ['Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".']:
-    'rel="nofollow" लिंक को लिंक ग्राफ़ में रखें। बंद होने पर nofollow लिंक पूरी तरह हटा दिए जाते हैं (आउटलिंक में नहीं गिने जाते, बाहरी के रूप में जाँचे नहीं जाते)। Screaming Frog का उल्टा: इसे चालू करना ≈ "Follow Internal/External Nofollow" अनचेक करना।',
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
+    "nofollow लिंक हमेशा लिंक ग्राफ़ में दर्ज होते हैं, इसलिए Inlinks और Outlinks उन्हें दिखाते हैं। चालू होने पर वे आउटलिंक में भी गिने जाते हैं और बाहरी लिंक जाँचे जाते हैं। बंद (डिफ़ॉल्ट) होने पर वे दिखते हैं, पर न गिने जाते हैं न जाँचे जाते हैं। आंतरिक nofollow लिंक क्रॉल हों या नहीं, यह अलग सेटिंग तय करती है।",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     'प्रीसेट चुनने से नीचे का User-Agent फ़ील्ड भर जाता है — आप बाद में इसे हाथ से संपादित कर सकते हैं। Googlebot Smartphone / Desktop के बीच बदलकर देखें कि साइट मोबाइल बनाम डेस्कटॉप क्रॉलर को कैसे जवाब देती है।',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

@@ -1686,8 +1686,8 @@ export function parseHtml(
     // than the first: a `rel="nofollow"` nav link followed by a plain
     // content link to the same page used to record the target as nofollow,
     // and with `storeNofollowLinks` off (the default) the crawler then
-    // dropped it entirely — so the page lost an inlink and, if that was its
-    // only link, was never crawled and reported as an orphan. If any
+    // did not follow it — so, if that was its only link, the page was
+    // never crawled and reported as an orphan. If any
     // occurrence is followable, the link is followable.
     const existing = linkMap.get(normalized);
     if (existing) {

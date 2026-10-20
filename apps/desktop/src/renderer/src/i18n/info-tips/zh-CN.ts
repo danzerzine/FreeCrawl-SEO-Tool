@@ -300,8 +300,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '“查看源代码”重要的 SEO 审计开启；磁盘紧张的百万级 URL 抓取关闭。',
   ['ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes).']:
     'SEO 审计开启。仅在需要专门检查原始 URL 冲突（例如区分大小写文件系统的 CMS）时关闭。',
-  ['On if you need nofollow attribute audits; off keeps the link graph cleaner.']:
-    '需要审计 nofollow 属性时开启；关闭可让链接图更干净。',
+  ["Leave off to respect nofollow; on to count and probe them like any other link."]:
+    "关闭则遵守 nofollow；开启则像其他链接一样统计并检查。",
   ['On if your CMS serves the same page at mixed casing (/Foo and /foo).']:
     '如果你的 CMS 以混合大小写提供同一页面（/Foo 和 /foo）则开启。',
   ['On if your site canonicalises to non-www but emits www links somewhere.']:
@@ -329,8 +329,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '模式：^https://m\\.(.+) · 替换：https://www.$1 · 标志：i（将移动子域折叠为 www）',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "每请求的中止阈值。耗时超过此值的页面记录为网络错误。Screaming Frog：'Response Timeout (secs)'（Configuration → Spider → Advanced）——那边以秒计，这里以毫秒计。",
-  ['Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".']:
-    '在链接图中保留 rel="nofollow" 链接。关闭时 nofollow 链接会被完全丢弃（不计入出链，不作为外链探测）。Screaming Frog 的反向设置：开启此项 ≈ 取消勾选 "Follow Internal/External Nofollow"。',
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
+    "nofollow 链接始终会记录到链接图中，因此 Inlinks 和 Outlinks 会显示它们。开启后，它们还会计入出链，外部链接也会被检查。关闭（默认）时，只显示，不计数也不检查。是否抓取内部 nofollow 链接由另一项设置决定。",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     '选择预设会填充下方的 User-Agent 字段——之后仍可手动编辑。在 Googlebot Smartphone / Desktop 之间切换，比较站点对移动端与桌面端抓取器的响应差异。',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

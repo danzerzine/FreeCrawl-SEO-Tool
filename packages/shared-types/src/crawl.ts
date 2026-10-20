@@ -140,6 +140,7 @@ export type UrlCategory =
   | 'issues:hreflang-target-issues'
   | 'issues:hreflang-unlinked'
   | 'issues:orphan-page'
+  | 'issues:inlinks-nofollow-only'
   | 'issues:crawled-not-in-sitemap'
   | 'issues:redirect-in-sitemap'
   | 'issues:h1-empty'
@@ -908,11 +909,12 @@ export interface CrawlConfig {
   /** Initial backoff (ms) — doubles on each attempt. */
   retryInitialDelayMs: number;
   /**
-   * Persist `rel="nofollow"` links in the `links` table.
-   * Default `false` — nofollow links are never stored, never probed as
-   * externals, and don't count toward `urls.outlinks`. Screaming-Frog
-   * style "Respect Nofollow" behaviour: nofollow links exist only as
-   * hints to search engines, not as part of the crawl graph.
+   * Treat `rel="nofollow"` links as part of the crawl graph: probe
+   * external ones and count them toward `urls.outlinks`.
+   * Default `false` — Screaming-Frog style "Respect Nofollow": they are
+   * still stored in the `links` table (with their `rel`) so Inlinks /
+   * Outlinks show them, but are not probed and don't count as outlinks.
+   * Following internal ones is `followNofollow`.
    */
   storeNofollowLinks: boolean;
   /**
@@ -1286,7 +1288,8 @@ export interface CrawlConfig {
   /**
    * Follow `<a rel="nofollow">` links (still respecting all other
    * filters). Default `false` — Screaming Frog "Respect Nofollow"
-   * default. Combined with `storeNofollowLinks` for the storage side.
+   * default. Nofollow links are stored either way; `storeNofollowLinks`
+   * only decides whether they count as outlinks and get probed.
    */
   followNofollow: boolean;
   /**
@@ -1975,6 +1978,8 @@ export interface OverviewCounts {
      * inlinks were never computed, so the count would be meaningless.
      */
     orphanPage: number | null;
+    /** Internal 2xx HTML pages whose every internal inlink is nofollow. */
+    inlinksNofollowOnly: number;
     crawledNotInSitemap: number;
     redirectInSitemap: number;
     /** Sitemap URL count that the crawl never reached (in sitemap_urls but not in urls). */

@@ -603,7 +603,7 @@
       "checkImages": "छवियाँ जाँचें",
       "checkCss": "CSS जाँचें",
       "checkJs": "JavaScript जाँचें",
-      "storeNofollow": "nofollow लिंक का अनुसरण / संग्रहण करें",
+      "storeNofollow": "nofollow लिंक गिनें / जाँचें",
       "storeNofollowHint": "डिफ़ॉल्ट रूप से बंद — Screaming Frog का \"Respect Nofollow\" व्यवहार",
       "discoverSitemaps": "XML साइटमैप स्वतः खोजें",
       "discoverSitemapsHint": "क्रॉल शुरू होते ही robots.txt और डिफ़ॉल्ट पथों से sitemap.xml पढ़ता है",

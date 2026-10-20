@@ -1928,12 +1928,12 @@ function CrawlerPanel({ form, update }: PanelProps) {
           example="On (default); off for HTML-only crawls."
         />
         <Bool
-          label={t('settingsPanels.crawler.storeNofollow', { defaultValue: 'Follow / Store Nofollow Links' })}
+          label={t('settingsPanels.crawler.storeNofollow', { defaultValue: 'Count / Probe Nofollow Links' })}
           checked={form.storeNofollowLinks}
           onChange={(v) => update('storeNofollowLinks', v)}
           hint={t('settingsPanels.crawler.storeNofollowHint', { defaultValue: "Default off — Screaming Frog 'Respect Nofollow' behaviour" })}
-          info='Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".'
-          example="On if you need nofollow attribute audits; off keeps the link graph cleaner."
+          info='Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting.'
+          example="Leave off to respect nofollow; on to count and probe them like any other link."
         />
         <Bool
           label={t('settingsPanels.crawler.discoverSitemaps', { defaultValue: 'Auto-Discover XML Sitemaps' })}

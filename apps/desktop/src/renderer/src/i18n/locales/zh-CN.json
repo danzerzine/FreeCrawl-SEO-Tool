@@ -583,7 +583,7 @@
       "checkImages": "检查图片",
       "checkCss": "检查 CSS",
       "checkJs": "检查 JavaScript",
-      "storeNofollow": "跟随 / 存储 nofollow 链接",
+      "storeNofollow": "统计 / 检查 nofollow 链接",
       "storeNofollowHint": "默认关闭——即 Screaming Frog 的“Respect Nofollow”行为",
       "discoverSitemaps": "自动发现 XML 站点地图",
       "discoverSitemapsHint": "抓取开始时从 robots.txt 及默认路径读取 sitemap.xml",

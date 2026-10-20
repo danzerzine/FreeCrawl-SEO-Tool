@@ -311,8 +311,8 @@ export const IT_INFO_TIPS: Record<string, string> = {
     'Attivato per audit SEO in cui conta Visualizza sorgente; disattivato per scansioni da 1M di URL con poco spazio su disco.',
   ['ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes).']:
     'ATTIVATO per audit SEO. DISATTIVA solo quando devi ispezionare specificamente le collisioni di URL grezzi (es. CMS con file system sensibile alle maiuscole).',
-  ['On if you need nofollow attribute audits; off keeps the link graph cleaner.']:
-    "Attivato se devi verificare l'attributo nofollow; disattivato mantiene il grafo dei link più pulito.",
+  ["Leave off to respect nofollow; on to count and probe them like any other link."]:
+    "Disattivo per rispettare nofollow; attivo per contarli e verificarli come qualsiasi altro link.",
   ['On if your CMS serves the same page at mixed casing (/Foo and /foo).']:
     'Attivato se il tuo CMS serve la stessa pagina con maiuscole miste (/Foo e /foo).',
   ['On if your site canonicalises to non-www but emits www links somewhere.']:
@@ -340,8 +340,8 @@ export const IT_INFO_TIPS: Record<string, string> = {
     'Pattern: ^https://m\\.(.+) · Sostituzione: https://www.$1 · Flag: i  (accorpa il sottodominio mobile in www)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "Soglia di interruzione per richiesta. Le pagine che impiegano più tempo vengono registrate come errori di rete. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — quello è in secondi, questo in millisecondi.",
-  ['Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".']:
-    'Conserva i link rel="nofollow" nel grafo dei link. Se disattivato, i link nofollow vengono scartati del tutto (non contati nei link in uscita, non sondati come esterni). Inverso di Screaming Frog: attivare questo ≈ deselezionare "Follow Internal/External Nofollow".',
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
+    "I link nofollow vengono sempre registrati nel grafo dei link, quindi Inlinks e Outlinks li mostrano. Attivo, contano anche tra i link in uscita e quelli esterni vengono verificati. Disattivo (predefinito), sono mostrati ma non contati né verificati. La scansione dei nofollow interni dipende da un'altra impostazione.",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     'Scegliere un preset riempie il campo User-Agent sottostante — puoi comunque modificarlo a mano dopo. Passa tra Googlebot Smartphone / Desktop per confrontare come un sito risponde ai crawler mobile e desktop.',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

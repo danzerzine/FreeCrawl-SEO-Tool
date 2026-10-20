@@ -289,6 +289,7 @@ export const RU_LABELS: Record<string, string> = {
   'Target Issues': 'Проблемы цели',
   'Unlinked Targets': 'Цели без ссылок',
   'Orphan Pages (No Inlinks)': 'Страницы-сироты (нет входящих ссылок)',
+  'Inlinks Nofollow Only': 'Только входящие ссылки nofollow',
 
   // Pagination
   'Broken Next/Prev Target': 'Битая цель next/prev',
@@ -512,7 +513,7 @@ export const RU_LABELS: Record<string, string> = {
   'Crawl Total Limit (Max URLs)': 'Общее ограничение обхода (макс. URL)',
   'Exclude Patterns (regex, one per line)': 'Шаблоны исключения (regex, по одному в строке)',
   'Exclude extensions (comma-separated)': 'Исключить расширения (через запятую)',
-  'Follow / Store Nofollow Links': 'Следовать / сохранять ссылки nofollow',
+  'Count / Probe Nofollow Links': 'Учитывать / проверять ссылки nofollow',
   'Follow JS / meta-refresh redirects': 'Следовать перенаправлениям через JS / meta-refresh',
   'Follow canonical targets': 'Следовать целям canonical',
   'Follow rel=next / rel=prev': 'Следовать rel=next / rel=prev',

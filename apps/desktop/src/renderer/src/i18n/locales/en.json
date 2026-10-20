@@ -603,7 +603,7 @@
       "checkImages": "Check Images",
       "checkCss": "Check CSS",
       "checkJs": "Check JavaScript",
-      "storeNofollow": "Follow / Store Nofollow Links",
+      "storeNofollow": "Count / Probe Nofollow Links",
       "storeNofollowHint": "Default off — Screaming Frog 'Respect Nofollow' behaviour",
       "discoverSitemaps": "Auto-Discover XML Sitemaps",
       "discoverSitemapsHint": "Reads sitemap.xml from robots.txt + default paths at crawl start",

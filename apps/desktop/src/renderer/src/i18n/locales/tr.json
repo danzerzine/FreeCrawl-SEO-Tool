@@ -603,7 +603,7 @@
       "checkImages": "Görselleri Kontrol Et",
       "checkCss": "CSS'i Kontrol Et",
       "checkJs": "JavaScript'i Kontrol Et",
-      "storeNofollow": "Nofollow Linkleri Takip Et / Sakla",
+      "storeNofollow": "Nofollow Linklerini Say / Kontrol Et",
       "storeNofollowHint": "Varsayılan kapalı — Screaming Frog 'Respect Nofollow' davranışı",
       "discoverSitemaps": "XML Sitemap'leri Otomatik Keşfet",
       "discoverSitemapsHint": "Crawl başlangıcında robots.txt + default yollardan sitemap.xml okur",
