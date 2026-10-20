@@ -404,6 +404,8 @@ export function indexabilityStatusLabel(v: CrawlUrlRow['indexability']): string 
       return 'Client Error';
     case 'non-indexable:server-error':
       return 'Server Error';
+    case 'non-indexable:no-response':
+      return 'No Response';
     case 'unknown:bot-blocked':
       return 'Blocked by bot protection';
     default:
