@@ -20,6 +20,10 @@ import type { SeoProvider } from './seo.js';
 export type ExportDatasetKey =
   | 'images'
   | 'broken-links'
+  | 'broken-links-by-target'
+  | 'issues-long'
+  | 'sitemap-urls'
+  | 'crawl-queue'
   | 'pagespeed'
   | 'crux'
   | 'spelling'
@@ -110,6 +114,28 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'anchor', header: 'Anchor' },
     { key: 'rel', header: 'Rel' },
     { key: 'isInternal', header: 'Internal' },
+    { key: 'position', header: 'Position' },
+  ],
+  'broken-links-by-target': [
+    { key: 'toUrl', header: 'Destination' },
+    { key: 'toStatusCode', header: 'Destination Status' },
+    { key: 'linkCount', header: 'Links' },
+    { key: 'linkingPages', header: 'Linking Pages' },
+    { key: 'contentLinks', header: 'Content Links' },
+  ],
+  'issues-long': [
+    { key: 'url', header: 'URL' },
+    { key: 'issueKey', header: 'Issue' },
+  ],
+  'sitemap-urls': [
+    { key: 'url', header: 'URL' },
+    { key: 'lastmod', header: 'Last Modified' },
+    { key: 'sourceSitemap', header: 'Source Sitemap' },
+  ],
+  'crawl-queue': [
+    { key: 'url', header: 'URL' },
+    { key: 'depth', header: 'Depth' },
+    { key: 'seedUrl', header: 'Seed URL' },
   ],
   pagespeed: [
     ...PAGE,

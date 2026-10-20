@@ -54,6 +54,14 @@ export function datasetRows(
       // Streamed: paging re-sorted the whole join and ran a COUNT(*) on
       // every page.
       return asRecords(db.iterateBrokenLinks('all'));
+    case 'broken-links-by-target':
+      return asRecords(db.iterateBrokenLinksByTarget());
+    case 'issues-long':
+      return asRecords(db.iterateIssuesLong());
+    case 'sitemap-urls':
+      return asRecords(db.iterateSitemapUrls());
+    case 'crawl-queue':
+      return asRecords(db.iterateCrawlQueue());
     case 'pagespeed':
       return asRecords(paged((limit, offset) => db.queryPagespeed({ limit, offset })));
     case 'crux':

@@ -2521,6 +2521,39 @@ export interface BrokenLinkRow {
   anchor: string | null;
   rel: string | null;
   isInternal: boolean;
+  /** `links.link_position` of the link (content, header, footer, …); null when not classified. */
+  position: string | null;
+}
+
+/** One row of the `broken-links-by-target` export. */
+export interface BrokenLinkTargetExportRow {
+  toUrl: string;
+  toStatusCode: number | null;
+  linkCount: number;
+  /** Distinct pages that link to the target. */
+  linkingPages: number;
+  /** Links whose position is `content`. */
+  contentLinks: number;
+}
+
+/** One row of the `issues-long` export: a page and one issue found on it. */
+export interface IssueLongRow {
+  url: string;
+  issueKey: string;
+}
+
+/** One row of the `sitemap-urls` export. */
+export interface SitemapUrlExportRow {
+  url: string;
+  lastmod: string | null;
+  sourceSitemap: string;
+}
+
+/** One row of the `crawl-queue` export: a URL discovered but not fetched. */
+export interface CrawlQueueExportRow {
+  url: string;
+  depth: number;
+  seedUrl: string;
 }
 
 /**

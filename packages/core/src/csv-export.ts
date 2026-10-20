@@ -199,6 +199,7 @@ const BROKEN_LINK_CSV_HEADER = [
   'Anchor',
   'Rel',
   'Type',
+  'Position',
 ] as const;
 
 /**
@@ -226,6 +227,7 @@ export async function exportBrokenLinksToCsv(
         row.anchor,
         row.rel,
         row.isInternal ? 'internal' : 'external',
+        row.position,
       ];
       rowsWritten++;
       yield cells.map(escapeCsv).join(',') + '\n';
