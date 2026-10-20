@@ -23,6 +23,8 @@ export interface DatasetExportContext {
   /** Search Console URL-matching options (Settings → Integrations → GSC). */
   gscMatchSlash?: boolean;
   gscMatchCase?: boolean;
+  /** Issue whose inlinks the `issue-inlinks` dataset holds; every issue when unset. */
+  issueKey?: string;
 }
 
 const PAGE_SIZE = 2000;
@@ -58,6 +60,8 @@ export function datasetRows(
       return asRecords(db.iterateBrokenLinksByTarget());
     case 'issues-long':
       return asRecords(db.iterateIssuesLong());
+    case 'issue-inlinks':
+      return asRecords(db.iterateIssueInlinks(ctx.issueKey));
     case 'sitemap-urls':
       return asRecords(db.iterateSitemapUrls());
     case 'crawl-queue':

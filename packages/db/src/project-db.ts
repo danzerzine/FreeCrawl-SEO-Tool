@@ -7,6 +7,7 @@ import type {
   BrokenLinkTargetExportRow,
   CrawlQueueExportRow,
   IssueLongRow,
+  IssueInlinkRow,
   SitemapUrlExportRow,
   ContentKind,
   CrawlSummary,
@@ -8590,6 +8591,81 @@ export class ProjectDb {
     for (const r of rows) {
       if (disabled.has(r.issue_key)) continue;
       yield { url: r.url, issueKey: r.issue_key };
+    }
+  }
+
+  /**
+   * Every link into every page that has an issue, streamed — the rows of
+   * the per-issue "inlinks" export. One issue key, or all of them
+   * (ordered by key) when omitted; silenced checks yield nothing. The
+   * destination columns follow `getInlinks`, including the redirect's
+   * final target. Self-links are kept, as the Inlinks tab keeps them.
+   *
+   * Driven from `urls_issues` through `idx_urls_issues_key`, then each
+   * page's inlinks through `idx_links_to`, so the work grows with the
+   * issue's inlinks, not with the whole links table. The order is the
+   * order those two indexes already return (rowid within a key, link id
+   * within a page): ordering by page id instead made SQLite sort every
+   * issue's rows in a temp B-tree before the first one came out.
+   */
+  *iterateIssueInlinks(issueKey?: string): IterableIterator<IssueInlinkRow> {
+    const disabled = [...(this.getDisabledIssues() as ReadonlySet<string>)];
+    if (issueKey !== undefined && disabled.includes(issueKey)) return;
+    const where: string[] = [];
+    const args: string[] = [];
+    if (issueKey !== undefined) {
+      where.push('ui.issue_key = ?');
+      args.push(issueKey);
+    } else if (disabled.length > 0) {
+      where.push(`ui.issue_key NOT IN (${disabled.map(() => '?').join(',')})`);
+      args.push(...disabled);
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT ui.issue_key, t.url AS to_url, t.status_code AS to_status,
+                t.redirect_final_url AS to_final_url, ft.status_code AS to_final_status,
+                f.url AS from_url, f.status_code AS from_status,
+                l.type, l.anchor, l.alt_text, l.rel, l.link_position, l.is_internal
+           FROM urls_issues ui
+           JOIN urls t ON t.id = ui.url_id
+           JOIN links l ON l.to_url = t.url
+           JOIN urls f ON f.id = l.from_url_id
+           LEFT JOIN urls ft ON ft.url = t.redirect_final_url
+          ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+          ORDER BY ui.issue_key, ui.rowid, l.id`,
+      )
+      .iterate(...args) as unknown as Iterable<{
+      issue_key: string;
+      to_url: string;
+      to_status: number | null;
+      to_final_url: string | null;
+      to_final_status: number | null;
+      from_url: string;
+      from_status: number | null;
+      type: string | null;
+      anchor: string | null;
+      alt_text: string | null;
+      rel: string | null;
+      link_position: string | null;
+      is_internal: number;
+    }>;
+    for (const r of rows) {
+      yield {
+        issueKey: r.issue_key,
+        toUrl: r.to_url,
+        toStatusCode: r.to_status,
+        toFinalUrl: r.to_final_url,
+        toFinalStatusCode: r.to_final_status,
+        fromUrl: r.from_url,
+        fromStatusCode: r.from_status,
+        type: (r.type as IssueInlinkRow['type']) ?? 'hyperlink',
+        anchor: r.anchor,
+        altText: r.alt_text,
+        rel: r.rel,
+        follow: !(r.rel ?? '').toLowerCase().includes('nofollow'),
+        position: (r.link_position as IssueInlinkRow['position']) ?? null,
+        isInternal: r.is_internal === 1,
+      };
     }
   }
 
