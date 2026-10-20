@@ -22,6 +22,7 @@ export type ExportDatasetKey =
   | 'broken-links'
   | 'broken-links-by-target'
   | 'issues-long'
+  | 'issue-inlinks'
   | 'sitemap-urls'
   | 'crawl-queue'
   | 'pagespeed'
@@ -126,6 +127,22 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
   'issues-long': [
     { key: 'url', header: 'URL' },
     { key: 'issueKey', header: 'Issue' },
+  ],
+  'issue-inlinks': [
+    { key: 'issueKey', header: 'Issue' },
+    { key: 'toUrl', header: 'Destination' },
+    { key: 'toStatusCode', header: 'Destination Status' },
+    { key: 'toFinalUrl', header: 'Final Destination' },
+    { key: 'toFinalStatusCode', header: 'Final Destination Status' },
+    { key: 'fromUrl', header: 'Source' },
+    { key: 'fromStatusCode', header: 'Source Status' },
+    { key: 'type', header: 'Type' },
+    { key: 'anchor', header: 'Anchor' },
+    { key: 'altText', header: 'Alt Text' },
+    { key: 'rel', header: 'Rel' },
+    { key: 'follow', header: 'Follow' },
+    { key: 'position', header: 'Position' },
+    { key: 'isInternal', header: 'Internal' },
   ],
   'sitemap-urls': [
     { key: 'url', header: 'URL' },

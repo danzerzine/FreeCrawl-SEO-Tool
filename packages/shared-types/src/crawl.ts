@@ -2544,6 +2544,30 @@ export interface IssueLongRow {
   issueKey: string;
 }
 
+/**
+ * One row of the `issue-inlinks` export: a link into a page that has the
+ * issue (Screaming Frog's Bulk Export → Issues "inlinks" files). The
+ * destination columns follow the Inlinks tab, including where a
+ * redirecting destination ends up.
+ */
+export interface IssueInlinkRow {
+  issueKey: string;
+  toUrl: string;
+  toStatusCode: number | null;
+  toFinalUrl: string | null;
+  toFinalStatusCode: number | null;
+  fromUrl: string;
+  fromStatusCode: number | null;
+  type: LinkType;
+  anchor: string | null;
+  altText: string | null;
+  rel: string | null;
+  /** False when `rel` carries nofollow. */
+  follow: boolean;
+  position: LinkPosition | null;
+  isInternal: boolean;
+}
+
 /** One row of the `sitemap-urls` export. */
 export interface SitemapUrlExportRow {
   url: string;

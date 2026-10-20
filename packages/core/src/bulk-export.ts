@@ -9,7 +9,7 @@
  */
 
 import { join } from 'node:path';
-import { unlink } from 'node:fs/promises';
+import { mkdir, rmdir, unlink } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import { EXPORT_DATASET_COLUMNS } from '@freecrawl/shared-types';
 import type {
@@ -170,6 +170,15 @@ export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
 ];
 
 /**
+ * Subfolder of the per-issue inlinks files (`inlinks-<issue>.csv`). One
+ * file per issue would add ~70 files beside the ~80 category files, and
+ * `inlinks-*` names already belong to two of those (Inlinks Nofollow
+ * Only, Inlinks Only From Non-Indexable Pages); the folder keeps them
+ * apart, like Screaming Frog's Bulk Export → Issues folder.
+ */
+export const ISSUE_INLINKS_SUBDIR = 'issue-inlinks';
+
+/**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
  * `outputDir`. Zero-row categories are written then deleted so the dump
  * folder isn't littered with empty files. Per-task write failures are
@@ -237,6 +246,39 @@ export async function runBulkExport(
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
     }
+  }
+  // Per-issue inlinks: every link into the pages that have the issue,
+  // one file per enabled issue with pages.
+  const issueKeys = [...db.getIssueCounts().keys()]
+    .filter((key) => !disabled.has(key as UrlCategory))
+    .sort();
+  if (issueKeys.length > 0) {
+    const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
+    let written = 0;
+    for (const key of issueKeys) {
+      const name = key.replace(/^issues:/, '');
+      const issueLabel = BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? name;
+      const label = `Issue Inlinks — ${issueLabel}`;
+      const filePath = join(issueDir, `inlinks-${name}.csv`);
+      try {
+        await mkdir(issueDir, { recursive: true });
+        const { rowsWritten } = await exportTabular(db, filePath, {
+          format: 'csv',
+          sections: [{ label, dataset: 'issue-inlinks' }],
+          columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
+          datasetContext: { issueKey: key },
+        });
+        if (rowsWritten === 0) {
+          await unlink(filePath).catch(() => undefined);
+          continue;
+        }
+        written++;
+        files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
+      } catch (err) {
+        errors.push({ label, error: (err as Error).message });
+      }
+    }
+    if (written === 0) await rmdir(issueDir).catch(() => undefined);
   }
   return { outputDir, files, errors };
 }
