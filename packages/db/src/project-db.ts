@@ -2985,6 +2985,11 @@ export class ProjectDb {
           SELECT to_url AS url, COUNT(*) AS c
           FROM links
           WHERE is_internal = 1
+            -- A page linking to itself (a skip link, a logo on the home page)
+            -- is not an inlink: it must not hide an orphan. The row stays in
+            -- the links table so the Inlinks tab can still show it.
+            AND from_url_id != COALESCE(
+              (SELECT id FROM urls WHERE urls.url = links.to_url), -1)
           GROUP BY to_url
       `);
       this.db.exec('CREATE INDEX _inlink_counts_url ON _inlink_counts(url)');
@@ -7514,6 +7519,8 @@ export class ProjectDb {
       from_status_code: number | null;
       to_status_code: number | null;
       to_size: number | null;
+      to_final_url: string | null;
+      to_final_status_code: number | null;
       type: string | null;
       anchor: string | null;
       alt_text: string | null;
@@ -7531,11 +7538,14 @@ export class ProjectDb {
            f.status_code AS from_status_code,
            t.status_code AS to_status_code,
            t.content_length AS to_size,
+           t.redirect_final_url AS to_final_url,
+           ft.status_code AS to_final_status_code,
            l.type, l.anchor, l.alt_text, l.rel, l.target,
            l.path_type, l.link_path, l.link_position, l.link_origin
          FROM links l
          JOIN urls f ON l.from_url_id = f.id
          LEFT JOIN urls t ON l.to_url = t.url
+         LEFT JOIN urls ft ON ft.url = t.redirect_final_url
          WHERE l.to_url = ?
          LIMIT ?`,
       )
@@ -7549,12 +7559,15 @@ export class ProjectDb {
                f.status_code AS from_status_code,
                t.status_code AS to_status_code,
                t.content_length AS to_size,
+           t.redirect_final_url AS to_final_url,
+           ft.status_code AS to_final_status_code,
                'image' AS type, NULL AS anchor, iu.alt AS alt_text, NULL AS rel, NULL AS target,
                NULL AS path_type, NULL AS link_path, NULL AS link_position, 'html' AS link_origin
              FROM image_usages iu
              JOIN images i ON i.id = iu.image_id
              JOIN urls f ON f.id = iu.from_url_id
              LEFT JOIN urls t ON t.url = i.src
+         LEFT JOIN urls ft ON ft.url = t.redirect_final_url
              WHERE i.src = ?
              LIMIT ?`,
           )
@@ -7570,6 +7583,8 @@ export class ProjectDb {
                f.status_code AS from_status_code,
                t.status_code AS to_status_code,
                t.content_length AS to_size,
+           t.redirect_final_url AS to_final_url,
+           ft.status_code AS to_final_status_code,
                CASE r.kind WHEN 'css' THEN 'stylesheet' WHEN 'js' THEN 'script'
                            WHEN 'image' THEN 'image' ELSE 'other' END AS type,
                NULL AS anchor, NULL AS alt_text, NULL AS rel, NULL AS target,
@@ -7578,6 +7593,7 @@ export class ProjectDb {
              JOIN resources r ON r.id = ru.resource_id
              JOIN urls f ON f.id = ru.from_url_id
              LEFT JOIN urls t ON t.url = r.url
+         LEFT JOIN urls ft ON ft.url = t.redirect_final_url
              WHERE r.url = ?
              LIMIT ?`,
           )
@@ -7591,6 +7607,8 @@ export class ProjectDb {
         fromStatusCode: r.from_status_code,
         toStatusCode: r.to_status_code,
         toSize: r.to_size,
+        toFinalUrl: r.to_final_url,
+        toFinalStatusCode: r.to_final_status_code,
         type: (r.type as InlinkRow['type']) ?? 'hyperlink',
         anchor: r.anchor,
         altText: r.alt_text,
@@ -7616,11 +7634,14 @@ export class ProjectDb {
            l.to_url,
            t.status_code AS to_status_code,
            t.content_length AS to_size,
+           t.redirect_final_url AS to_final_url,
+           ft.status_code AS to_final_status_code,
            l.type, l.anchor, l.alt_text, l.rel, l.target,
            l.path_type, l.link_path, l.link_position, l.link_origin,
            l.is_internal
          FROM links l
          LEFT JOIN urls t ON l.to_url = t.url
+         LEFT JOIN urls ft ON ft.url = t.redirect_final_url
          WHERE l.from_url_id = ?
          LIMIT ?`,
       )
@@ -7628,6 +7649,8 @@ export class ProjectDb {
       to_url: string;
       to_status_code: number | null;
       to_size: number | null;
+      to_final_url: string | null;
+      to_final_status_code: number | null;
       type: string | null;
       anchor: string | null;
       alt_text: string | null;
@@ -7645,6 +7668,8 @@ export class ProjectDb {
         toUrl: r.to_url,
         toStatusCode: r.to_status_code,
         toSize: r.to_size,
+        toFinalUrl: r.to_final_url,
+        toFinalStatusCode: r.to_final_status_code,
         type: (r.type as OutlinkRow['type']) ?? 'hyperlink',
         anchor: r.anchor,
         altText: r.alt_text,
