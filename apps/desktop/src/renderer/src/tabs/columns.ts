@@ -1,4 +1,4 @@
-import type { CrawlUrlRow } from '@freecrawl/shared-types';
+import { URL_COLUMN_HEADERS, type CrawlUrlRow } from '@freecrawl/shared-types';
 import type { TabKey } from '../store.js';
 
 export interface ColumnSpec {
@@ -32,7 +32,7 @@ export function columnId(c: ColumnSpec): string {
 const COL = {
   url: {
     key: 'url',
-    header: 'URL',
+    header: URL_COLUMN_HEADERS.url,
     size: 460,
     kind: 'mono',
     info: 'The fully normalised URL of the crawled resource (post URL-rewriting).',
@@ -40,7 +40,7 @@ const COL = {
   } as ColumnSpec,
   status: {
     key: 'statusCode',
-    header: 'Status',
+    header: URL_COLUMN_HEADERS.statusCode,
     size: 72,
     kind: 'status',
     info: 'HTTP response status code. Empty/Failed indicates a network error before any response was received.',
@@ -48,7 +48,7 @@ const COL = {
   } as ColumnSpec,
   contentKind: {
     key: 'contentKind',
-    header: 'Type',
+    header: URL_COLUMN_HEADERS.contentKind,
     size: 72,
     kind: 'text',
     info: 'Coarse content classification derived from URL extension and Content-Type header.',
@@ -56,7 +56,7 @@ const COL = {
   } as ColumnSpec,
   indexability: {
     key: 'indexability',
-    header: 'Indexability',
+    header: URL_COLUMN_HEADERS.indexability,
     size: 130,
     kind: 'indexability',
     info: 'Whether the URL is eligible to appear in search results. Combines status code, robots directives, canonical, and meta-refresh signals.',
@@ -65,7 +65,7 @@ const COL = {
   indexabilityStatus: {
     id: 'indexability-status',
     key: 'indexability',
-    header: 'Indexability Status',
+    header: URL_COLUMN_HEADERS.indexabilityReason,
     size: 200,
     kind: 'indexability-status',
     info: 'Specific reason a URL is non-indexable. For Indexable URLs this column is empty.',
@@ -73,7 +73,7 @@ const COL = {
   } as ColumnSpec,
   title: {
     key: 'title',
-    header: 'Title 1',
+    header: URL_COLUMN_HEADERS.title,
     size: 320,
     kind: 'text',
     info: 'Contents of the first <title> element. Google primarily uses this in SERP titles.',
@@ -81,7 +81,7 @@ const COL = {
   } as ColumnSpec,
   titleLength: {
     key: 'titleLength',
-    header: 'Title 1 Length',
+    header: URL_COLUMN_HEADERS.titleLength,
     size: 96,
     kind: 'number',
     info: 'Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.',
@@ -89,7 +89,7 @@ const COL = {
   } as ColumnSpec,
   metaDescription: {
     key: 'metaDescription',
-    header: 'Meta Description 1',
+    header: URL_COLUMN_HEADERS.metaDescription,
     size: 340,
     kind: 'text',
     info: 'Contents of the first <meta name="description"> tag. May be used as the SERP snippet.',
@@ -97,7 +97,7 @@ const COL = {
   } as ColumnSpec,
   metaDescriptionLength: {
     key: 'metaDescriptionLength',
-    header: 'Meta Description 1 Length',
+    header: URL_COLUMN_HEADERS.metaDescriptionLength,
     size: 140,
     kind: 'number',
     info: 'Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.',
@@ -105,7 +105,7 @@ const COL = {
   } as ColumnSpec,
   h1: {
     key: 'h1',
-    header: 'H1-1',
+    header: URL_COLUMN_HEADERS.h1,
     size: 260,
     kind: 'text',
     info: 'Text of the first <h1> on the page. Should match user intent and ideally complement (not duplicate) the title.',
@@ -113,7 +113,7 @@ const COL = {
   } as ColumnSpec,
   h1Length: {
     key: 'h1Length',
-    header: 'H1-1 Length',
+    header: URL_COLUMN_HEADERS.h1Length,
     size: 96,
     kind: 'number',
     info: 'Character count of the first H1.',
@@ -121,7 +121,7 @@ const COL = {
   } as ColumnSpec,
   h1Count: {
     key: 'h1Count',
-    header: 'H1 Count',
+    header: URL_COLUMN_HEADERS.h1Count,
     size: 80,
     kind: 'number',
     info: 'Total number of <h1> elements on the page. SEO best practice is exactly 1.',
@@ -129,7 +129,7 @@ const COL = {
   } as ColumnSpec,
   h2Count: {
     key: 'h2Count',
-    header: 'H2 Count',
+    header: URL_COLUMN_HEADERS.h2Count,
     size: 80,
     kind: 'number',
     info: 'Total number of <h2> elements on the page.',
@@ -137,7 +137,7 @@ const COL = {
   } as ColumnSpec,
   wordCount: {
     key: 'wordCount',
-    header: 'Word Count',
+    header: URL_COLUMN_HEADERS.wordCount,
     size: 96,
     kind: 'number',
     info: 'Visible body text word count (excludes <script>/<style>). Useful for identifying thin content.',
@@ -145,7 +145,7 @@ const COL = {
   } as ColumnSpec,
   canonical: {
     key: 'canonical',
-    header: 'Canonical Link Element 1',
+    header: URL_COLUMN_HEADERS.canonical,
     size: 360,
     kind: 'mono',
     info: 'URL declared by the first <link rel="canonical"> tag. Tells search engines which version to index when duplicates exist.',
@@ -153,7 +153,7 @@ const COL = {
   } as ColumnSpec,
   metaRobots: {
     key: 'metaRobots',
-    header: 'Meta Robots 1',
+    header: URL_COLUMN_HEADERS.metaRobots,
     size: 180,
     kind: 'text',
     info: 'Contents of the first <meta name="robots"> tag. Controls per-page indexing/following behaviour.',
@@ -161,7 +161,7 @@ const COL = {
   } as ColumnSpec,
   xRobotsTag: {
     key: 'xRobotsTag',
-    header: 'X-Robots-Tag 1',
+    header: URL_COLUMN_HEADERS.xRobotsTag,
     size: 180,
     kind: 'text',
     info: 'Value of the X-Robots-Tag HTTP response header. Same semantics as meta robots but applied at the server.',
@@ -169,7 +169,7 @@ const COL = {
   } as ColumnSpec,
   responseTime: {
     key: 'responseTimeMs',
-    header: 'Response Time',
+    header: URL_COLUMN_HEADERS.responseTimeMs,
     size: 110,
     kind: 'number',
     info: 'Time-to-first-byte in milliseconds (network + server, excluding parse). Lower is better; >2000 ms is slow.',
@@ -177,7 +177,7 @@ const COL = {
   } as ColumnSpec,
   contentType: {
     key: 'contentType',
-    header: 'Content Type',
+    header: URL_COLUMN_HEADERS.contentType,
     size: 170,
     kind: 'text',
     info: 'Raw value of the Content-Type response header (incl. charset).',
@@ -185,7 +185,7 @@ const COL = {
   } as ColumnSpec,
   contentLength: {
     key: 'contentLength',
-    header: 'Size (Bytes)',
+    header: URL_COLUMN_HEADERS.contentLength,
     size: 100,
     kind: 'number',
     info: 'Response body size in bytes (compressed transfer size, post-Content-Encoding).',
@@ -193,7 +193,7 @@ const COL = {
   } as ColumnSpec,
   depth: {
     key: 'depth',
-    header: 'Crawl Depth',
+    header: URL_COLUMN_HEADERS.depth,
     size: 96,
     kind: 'number',
     info: 'BFS click depth from the start URL. Start URL = 0; its outlinks = 1; etc. High depth often correlates with low importance.',
@@ -201,7 +201,7 @@ const COL = {
   } as ColumnSpec,
   inlinks: {
     key: 'inlinks',
-    header: 'Inlinks',
+    header: URL_COLUMN_HEADERS.inlinks,
     size: 80,
     kind: 'number',
     info: 'Number of internal pages that link to this URL. A rough internal-PageRank signal.',
@@ -209,7 +209,7 @@ const COL = {
   } as ColumnSpec,
   outlinks: {
     key: 'outlinks',
-    header: 'Outlinks',
+    header: URL_COLUMN_HEADERS.outlinks,
     size: 84,
     kind: 'number',
     info: 'Number of unique <a> links emitted from this page (internal + external).',
@@ -217,7 +217,7 @@ const COL = {
   } as ColumnSpec,
   linkScore: {
     key: 'linkScore',
-    header: 'Link Score',
+    header: URL_COLUMN_HEADERS.linkScore,
     size: 92,
     kind: 'number',
     info: 'Internal PageRank, 0–100. Computed over the internal link graph (damping 0.85) and normalised so the most-linked page scores 100. Higher = more internal link equity.',
@@ -225,7 +225,7 @@ const COL = {
   } as ColumnSpec,
   imagesCount: {
     key: 'imagesCount',
-    header: 'Images',
+    header: URL_COLUMN_HEADERS.imagesCount,
     size: 80,
     kind: 'number',
     info: 'Number of <img> elements on the page.',
@@ -233,7 +233,7 @@ const COL = {
   } as ColumnSpec,
   imagesMissingAlt: {
     key: 'imagesMissingAlt',
-    header: 'Imgs Missing Alt',
+    header: URL_COLUMN_HEADERS.imagesMissingAlt,
     size: 120,
     kind: 'number',
     info: 'Images on this page that have no alt attribute. WCAG accessibility issue + missed alt-as-anchor SEO opportunity.',
@@ -241,7 +241,7 @@ const COL = {
   } as ColumnSpec,
   redirectTarget: {
     key: 'redirectTarget',
-    header: 'Redirect URL',
+    header: URL_COLUMN_HEADERS.redirectTarget,
     size: 360,
     kind: 'mono',
     info: 'Location header value when status is 3xx. The URL the server points to next; chain length is in the URL Details panel.',
@@ -249,7 +249,7 @@ const COL = {
   } as ColumnSpec,
   redirectChainLength: {
     key: 'redirectChainLength',
-    header: 'Chain Length',
+    header: URL_COLUMN_HEADERS.redirectChainLength,
     size: 96,
     kind: 'number',
     align: 'right',
@@ -258,7 +258,7 @@ const COL = {
   } as ColumnSpec,
   redirectFinalUrl: {
     key: 'redirectFinalUrl',
-    header: 'Final URL',
+    header: URL_COLUMN_HEADERS.redirectFinalUrl,
     size: 360,
     kind: 'mono',
     info: 'Terminal URL the redirect chain resolves to. Empty when this row is itself the terminal (i.e. status is 2xx/4xx/5xx) or when the chain hits a loop.',
@@ -266,7 +266,7 @@ const COL = {
   } as ColumnSpec,
   canonicalChainLength: {
     key: 'canonicalChainLength',
-    header: 'Canonical Chain',
+    header: URL_COLUMN_HEADERS.canonicalChainLength,
     size: 120,
     kind: 'number',
     align: 'right',
@@ -275,7 +275,7 @@ const COL = {
   } as ColumnSpec,
   canonicalFinalUrl: {
     key: 'canonicalFinalUrl',
-    header: 'Final Canonical',
+    header: URL_COLUMN_HEADERS.canonicalFinalUrl,
     size: 360,
     kind: 'mono',
     info: 'Where the canonical chain ends. Empty when the page is its own canonical, or when the chain loops.',
@@ -283,7 +283,7 @@ const COL = {
   } as ColumnSpec,
   redirectLoop: {
     key: 'redirectLoop',
-    header: 'Loop',
+    header: URL_COLUMN_HEADERS.redirectLoop,
     size: 64,
     kind: 'text',
     info: 'Y when the redirect chain originating at this URL contains a cycle (A → B → A) detected by the cycle-safe walker; the chain is otherwise unwalked.',
@@ -291,7 +291,7 @@ const COL = {
   } as ColumnSpec,
   clusterId: {
     key: 'clusterId',
-    header: 'Cluster',
+    header: URL_COLUMN_HEADERS.clusterId,
     size: 72,
     kind: 'number',
     align: 'right',
@@ -300,7 +300,7 @@ const COL = {
   } as ColumnSpec,
   clusterSize: {
     key: 'clusterSize',
-    header: 'Cluster Size',
+    header: URL_COLUMN_HEADERS.clusterSize,
     size: 88,
     kind: 'number',
     align: 'right',
@@ -309,7 +309,7 @@ const COL = {
   } as ColumnSpec,
   contentHash: {
     key: 'contentHash',
-    header: 'Content Hash',
+    header: URL_COLUMN_HEADERS.contentHash,
     size: 144,
     kind: 'mono',
     info: 'FNV-1a 64-bit hash of the normalised body token stream. Two pages sharing this hash are byte-identical post-tokenisation — the basis of the Exact Duplicate filter.',
@@ -358,7 +358,7 @@ const COL = {
   } as ColumnSpec,
   simhash: {
     key: 'simhash',
-    header: 'SimHash',
+    header: URL_COLUMN_HEADERS.simhash,
     size: 144,
     kind: 'mono',
     info: 'Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.',
@@ -366,7 +366,7 @@ const COL = {
   } as ColumnSpec,
   hsts: {
     key: 'hsts',
-    header: 'HSTS',
+    header: URL_COLUMN_HEADERS.hsts,
     size: 220,
     kind: 'mono',
     info: 'Raw `Strict-Transport-Security` header. Empty when missing — for HTTPS pages this is a security regression.',
@@ -374,7 +374,7 @@ const COL = {
   } as ColumnSpec,
   csp: {
     key: 'csp',
-    header: 'CSP',
+    header: URL_COLUMN_HEADERS.csp,
     size: 220,
     kind: 'mono',
     info: 'Raw `Content-Security-Policy` response header. Empty when missing.',
@@ -382,7 +382,7 @@ const COL = {
   } as ColumnSpec,
   xFrameOptions: {
     key: 'xFrameOptions',
-    header: 'X-Frame-Options',
+    header: URL_COLUMN_HEADERS.xFrameOptions,
     size: 140,
     kind: 'mono',
     info: 'Raw `X-Frame-Options` header. SAMEORIGIN / DENY / ALLOW-FROM. Clickjacking defence.',
@@ -390,7 +390,7 @@ const COL = {
   } as ColumnSpec,
   xContentTypeOptions: {
     key: 'xContentTypeOptions',
-    header: 'X-Content-Type-Options',
+    header: URL_COLUMN_HEADERS.xContentTypeOptions,
     size: 160,
     kind: 'mono',
     info: 'Raw `X-Content-Type-Options` header. `nosniff` blocks MIME sniffing — prevents some XSS via content-type confusion.',
@@ -398,7 +398,7 @@ const COL = {
   } as ColumnSpec,
   mixedContentActive: {
     key: 'mixedContentActive',
-    header: 'Mixed Active',
+    header: URL_COLUMN_HEADERS.mixedContentActive,
     size: 100,
     kind: 'number',
     align: 'right',
@@ -407,7 +407,7 @@ const COL = {
   } as ColumnSpec,
   mixedContentPassive: {
     key: 'mixedContentPassive',
-    header: 'Mixed Passive',
+    header: URL_COLUMN_HEADERS.mixedContentPassive,
     size: 100,
     kind: 'number',
     align: 'right',
@@ -416,7 +416,7 @@ const COL = {
   } as ColumnSpec,
   missingSri: {
     key: 'missingSriCount',
-    header: 'Missing SRI',
+    header: URL_COLUMN_HEADERS.missingSriCount,
     size: 90,
     kind: 'number',
     align: 'right',
@@ -425,7 +425,7 @@ const COL = {
   } as ColumnSpec,
   insecureFormAction: {
     key: 'insecureFormActionCount',
-    header: 'Insecure Form Action',
+    header: URL_COLUMN_HEADERS.insecureFormActionCount,
     size: 130,
     kind: 'number',
     align: 'right',
@@ -434,7 +434,7 @@ const COL = {
   } as ColumnSpec,
   paginationNext: {
     key: 'paginationNext',
-    header: 'rel=next',
+    header: URL_COLUMN_HEADERS.paginationNext,
     size: 320,
     kind: 'mono',
     info: '`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.',
@@ -442,7 +442,7 @@ const COL = {
   } as ColumnSpec,
   paginationPrev: {
     key: 'paginationPrev',
-    header: 'rel=prev',
+    header: URL_COLUMN_HEADERS.paginationPrev,
     size: 320,
     kind: 'mono',
     info: '`<link rel="prev" href="…">` value resolved to absolute. Empty when the page is the first in its pagination cluster.',
@@ -450,7 +450,7 @@ const COL = {
   } as ColumnSpec,
   paginationSequenceBreak: {
     key: 'paginationSequenceBreak',
-    header: 'Sequence Break',
+    header: URL_COLUMN_HEADERS.paginationSequenceBreak,
     size: 110,
     kind: 'text',
     info: 'Y when this URL belongs to a paginated cluster whose ordinal sequence has a gap (e.g. ?page=1, 2, 4 — page 3 missing). Set by the post-crawl `recomputePaginationSequence` pass.',
@@ -458,7 +458,7 @@ const COL = {
   } as ColumnSpec,
   hreflangCount: {
     key: 'hreflangCount',
-    header: 'Hreflang Count',
+    header: URL_COLUMN_HEADERS.hreflangCount,
     size: 110,
     kind: 'number',
     align: 'right',
@@ -467,7 +467,7 @@ const COL = {
   } as ColumnSpec,
   hreflangs: {
     key: 'hreflangs',
-    header: 'Hreflang Targets',
+    header: URL_COLUMN_HEADERS.hreflangs,
     size: 360,
     kind: 'mono',
     info: 'JSON-stringified array of `{ lang, href }` pairs. Heavy column — better consumed via the URL Details panel.',
@@ -475,7 +475,7 @@ const COL = {
   } as ColumnSpec,
   hreflangSelfRefMissing: {
     key: 'hreflangSelfRefMissing',
-    header: 'Self-Ref Missing',
+    header: URL_COLUMN_HEADERS.hreflangSelfRefMissing,
     size: 120,
     kind: 'text',
     info: 'Y when the page declares hreflang alternates but no entry whose `href` matches the page URL. Google requires a self-reference.',
@@ -483,7 +483,7 @@ const COL = {
   } as ColumnSpec,
   hreflangTargetIssues: {
     key: 'hreflangTargetIssues',
-    header: 'Target Issues',
+    header: URL_COLUMN_HEADERS.hreflangTargetIssues,
     size: 110,
     kind: 'number',
     align: 'right',
@@ -492,7 +492,7 @@ const COL = {
   } as ColumnSpec,
   amphtml: {
     key: 'amphtml',
-    header: 'AMP HTML',
+    header: URL_COLUMN_HEADERS.amphtml,
     size: 360,
     kind: 'mono',
     info: '`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.',
@@ -500,7 +500,7 @@ const COL = {
   } as ColumnSpec,
   mobileAlternate: {
     key: 'mobileAlternate',
-    header: 'Mobile Alternate',
+    header: URL_COLUMN_HEADERS.mobileAlternate,
     size: 360,
     kind: 'mono',
     info: '`<link rel="alternate" media="only screen and (max-width: …)" href="…">` value — the separate-URL (m-dot) mobile version of this page. Empty on responsive sites, which is most of them. A value here with no reciprocal canonical pointing back is the classic broken m-dot setup.',
@@ -508,7 +508,7 @@ const COL = {
   } as ColumnSpec,
   schemaTypes: {
     key: 'schemaTypes',
-    header: 'Schema Types',
+    header: URL_COLUMN_HEADERS.schemaTypes,
     size: 280,
     kind: 'mono',
     info: 'Comma-joined sorted unique JSON-LD `@type` values declared on the page (Article, BreadcrumbList, Product, …).',
@@ -516,7 +516,7 @@ const COL = {
   } as ColumnSpec,
   schemaBlockCount: {
     key: 'schemaBlockCount',
-    header: 'JSON-LD Blocks',
+    header: URL_COLUMN_HEADERS.schemaBlockCount,
     size: 110,
     kind: 'number',
     align: 'right',
@@ -525,7 +525,7 @@ const COL = {
   } as ColumnSpec,
   schemaInvalidCount: {
     key: 'schemaInvalidCount',
-    header: 'Invalid JSON-LD',
+    header: URL_COLUMN_HEADERS.schemaInvalidCount,
     size: 120,
     kind: 'number',
     align: 'right',
@@ -534,7 +534,7 @@ const COL = {
   } as ColumnSpec,
   schemaDuplicateIds: {
     key: 'schemaDuplicateIds',
-    header: 'Duplicate @id',
+    header: URL_COLUMN_HEADERS.schemaDuplicateIds,
     size: 110,
     kind: 'number',
     align: 'right',
@@ -543,7 +543,7 @@ const COL = {
   } as ColumnSpec,
   metaRefresh: {
     key: 'metaRefresh',
-    header: 'Meta Refresh',
+    header: URL_COLUMN_HEADERS.metaRefresh,
     size: 220,
     kind: 'mono',
     info: 'Raw `content` attribute of `<meta http-equiv="refresh">`, e.g. "5; url=/foo".',
@@ -551,7 +551,7 @@ const COL = {
   } as ColumnSpec,
   metaRefreshUrl: {
     key: 'metaRefreshUrl',
-    header: 'Meta Refresh URL',
+    header: URL_COLUMN_HEADERS.metaRefreshUrl,
     size: 320,
     kind: 'mono',
     info: 'Absolute redirect target parsed from the meta-refresh content. Empty when meta-refresh sets only a delay.',
@@ -559,7 +559,7 @@ const COL = {
   } as ColumnSpec,
   jsRedirectUrl: {
     key: 'jsRedirectUrl',
-    header: 'JS Redirect URL',
+    header: URL_COLUMN_HEADERS.jsRedirectUrl,
     size: 320,
     kind: 'mono',
     info: 'Literal target of a JavaScript redirect found in an inline script (`window.location = "…"`, `location.href = "…"`, `location.replace("…")`). Followed when "Follow JavaScript redirects" is on.',
@@ -567,7 +567,7 @@ const COL = {
   } as ColumnSpec,
   extractionResults: {
     key: 'extractionResults',
-    header: 'Extracted Data',
+    header: URL_COLUMN_HEADERS.extractionResults,
     size: 360,
     kind: 'mono',
     info: 'JSON-stringified custom-extraction results map. Heavy column — render verbatim, easier to read in the URL Details panel.',
@@ -575,7 +575,7 @@ const COL = {
   } as ColumnSpec,
   customSearchHits: {
     key: 'customSearchHits',
-    header: 'Custom Search Hits',
+    header: URL_COLUMN_HEADERS.customSearchHits,
     size: 220,
     kind: 'mono',
     info: 'JSON map of `{ term: count }` literal-substring hits from the configured Custom Search terms.',
@@ -583,7 +583,7 @@ const COL = {
   } as ColumnSpec,
   brokenBookmarks: {
     key: 'brokenBookmarks',
-    header: 'Broken Bookmarks',
+    header: URL_COLUMN_HEADERS.brokenBookmarks,
     size: 120,
     kind: 'number',
     align: 'right',
@@ -591,7 +591,7 @@ const COL = {
   } as ColumnSpec,
   emptyAnchorCount: {
     key: 'emptyAnchorCount',
-    header: 'Empty Anchors',
+    header: URL_COLUMN_HEADERS.emptyAnchorCount,
     size: 110,
     kind: 'number',
     align: 'right',
@@ -600,7 +600,7 @@ const COL = {
   } as ColumnSpec,
   jsOnlyLinksCount: {
     key: 'jsOnlyLinksCount',
-    header: 'Uncrawlable Links',
+    header: URL_COLUMN_HEADERS.jsOnlyLinksCount,
     size: 110,
     kind: 'number',
     align: 'right',
@@ -609,7 +609,7 @@ const COL = {
   } as ColumnSpec,
   canonicalCount: {
     key: 'canonicalCount',
-    header: 'Canonical Count',
+    header: URL_COLUMN_HEADERS.canonicalCount,
     size: 110,
     kind: 'number',
     align: 'right',
