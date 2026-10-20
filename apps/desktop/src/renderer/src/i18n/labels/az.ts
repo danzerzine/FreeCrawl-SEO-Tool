@@ -238,6 +238,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Böyük hərf var',
   'Long Query String (>100 chars)': 'Uzun sorğu sətri (> 100 simvol)',
   'Many Query Params (>5)': 'Çox sorğu parametri (> 5)',
+  'Fragment (#) in URL': 'URL-də fraqment (#)',
   'Spaces in URL': 'URL-də boşluq',
   'Multiple Slashes': 'Təkrarlanan kəsiklər',
   'Non-ASCII Characters': 'ASCII olmayan simvollar',

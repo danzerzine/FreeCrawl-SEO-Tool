@@ -230,6 +230,7 @@ export const KO_LABELS: Record<string, string> = {
   'Contains Uppercase': '대문자 포함',
   'Long Query String (>100 chars)': '쿼리 문자열 긺(100자 초과)',
   'Many Query Params (>5)': '쿼리 매개변수 과다(5개 초과)',
+  'Fragment (#) in URL': 'URL에 프래그먼트(#) 포함',
   'Spaces in URL': 'URL에 공백 포함',
   'Multiple Slashes': '슬래시 중복',
   'Non-ASCII Characters': '비 ASCII 문자 포함',

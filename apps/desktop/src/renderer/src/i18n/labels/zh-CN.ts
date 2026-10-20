@@ -230,6 +230,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Contains Uppercase': '包含大写字母',
   'Long Query String (>100 chars)': '查询字符串过长（>100 个字符）',
   'Many Query Params (>5)': '查询参数过多（>5）',
+  'Fragment (#) in URL': 'URL 中包含片段（#）',
   'Spaces in URL': 'URL 中包含空格',
   'Multiple Slashes': '存在重复斜杠',
   'Non-ASCII Characters': '包含非 ASCII 字符',

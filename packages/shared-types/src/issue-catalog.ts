@@ -161,6 +161,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-url-multiple-slashes', label: 'Multiple Slashes', category: 'issues:url-multiple-slashes', count: 'urlMultipleSlashes' },
       { key: 'issues-url-non-ascii', label: 'Non-ASCII Characters', category: 'issues:url-non-ascii', count: 'urlNonAscii' },
       { key: 'issues-url-many-params', label: 'Many Query Params (>5)', category: 'issues:url-many-params', count: 'urlManyParams' },
+      { key: 'issues-url-fragment', label: 'Fragment (#) in URL', category: 'issues:url-fragment', count: 'urlFragment' },
       { key: 'issues-url-spaces', label: 'Spaces in URL', category: 'issues:url-spaces', count: 'urlSpaces' },
       { key: 'issues-url-malformed', label: 'Malformed URL', category: 'issues:url-malformed', count: 'urlMalformed' },
       { key: 'issues-url-crawl-trap', label: 'Crawl Trap', category: 'issues:crawl-trap', count: 'crawlTrap' },

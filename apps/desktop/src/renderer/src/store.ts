@@ -196,6 +196,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Multiple Slashes', category: 'issues:url-multiple-slashes' },
     { label: 'Non-ASCII Characters', category: 'issues:url-non-ascii' },
     { label: 'Many Query Params (>5)', category: 'issues:url-many-params' },
+    { label: 'Fragment (#) in URL', category: 'issues:url-fragment' },
     { label: 'Spaces in URL', category: 'issues:url-spaces' },
     { label: 'Malformed URL', category: 'issues:url-malformed' },
     { label: 'Crawl Trap', category: 'issues:crawl-trap' },

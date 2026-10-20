@@ -146,6 +146,7 @@ export type UrlCategory =
   | 'issues:h1-empty'
   | 'issues:h1-too-long'
   | 'issues:title-multiple'
+  | 'issues:url-fragment'
   | 'issues:broken-bookmark'
   | 'issues:url-spaces'
   | 'issues:url-malformed'
@@ -1989,6 +1990,7 @@ export interface OverviewCounts {
     h1Empty: number;
     h1TooLong: number;
     titleMultiple: number;
+    urlFragment: number;
     urlSpaces: number;
     /** URLs flagged by `isUrlMalformed` (multiple `?`/`#`, control chars, unescaped reserved chars, double-encoding). */
     urlMalformed: number;

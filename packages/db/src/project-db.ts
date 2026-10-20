@@ -7103,6 +7103,7 @@ export class ProjectDb {
       h1Empty: countWhere(`${html} AND h1_count > 0 AND (h1 IS NULL OR h1 = '')`),
       h1TooLong: countWhere(`${html} AND h1_length > 70`),
       titleMultiple: countWhere(`${html} AND title_count > 1`),
+      urlFragment: countWhere(`${html} AND INSTR(url, '#') > 0`),
       urlSpaces: countWhere(
         `${html} AND (INSTR(url, ' ') > 0 OR INSTR(url, '%20') > 0)`,
       ),
@@ -11666,6 +11667,12 @@ export function categoryWhereClause(
       // More than one <title> tag — spec says exactly one in <head>.
       // Browsers pick the first; SEO tools' behaviour varies.
       return "is_external = 0 AND content_kind = 'html' AND title_count > 1";
+    case 'issues:url-fragment':
+      // A `#` in the URL means the crawler reached a fragment that wasn't
+      // stripped earlier (URL normaliser usually does, but List-mode +
+      // some redirect chains can leave it).
+      // In practice it only fires with keepHashRoutes on (SPA `#/…` URLs).
+      return "is_external = 0 AND content_kind = 'html' AND INSTR(url, '#') > 0";
     case 'issues:url-spaces':
       // Literal space or `%20` in URL — encoding bug, often from CMS that
       // produced filenames with spaces.

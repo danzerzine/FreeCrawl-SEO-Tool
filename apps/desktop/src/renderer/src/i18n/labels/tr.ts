@@ -229,6 +229,7 @@ export const TR_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Büyük Harf İçeriyor',
   'Long Query String (>100 chars)': 'Uzun Sorgu Dizesi (>100 karakter)',
   'Many Query Params (>5)': 'Çok Sorgu Parametresi (>5)',
+  'Fragment (#) in URL': 'URL\'de Fragment (#)',
   'Spaces in URL': 'URL\'de Boşluk',
   'Multiple Slashes': 'Çoklu Eğik Çizgi',
   'Non-ASCII Characters': 'ASCII Dışı Karakterler',

@@ -230,6 +230,7 @@ export const RU_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Содержит заглавные буквы',
   'Long Query String (>100 chars)': 'Длинная строка запроса (>100 символов)',
   'Many Query Params (>5)': 'Много параметров запроса (>5)',
+  'Fragment (#) in URL': 'Фрагмент (#) в URL',
   'Spaces in URL': 'Пробелы в URL',
   'Multiple Slashes': 'Повторяющиеся слэши',
   'Non-ASCII Characters': 'Символы вне ASCII',

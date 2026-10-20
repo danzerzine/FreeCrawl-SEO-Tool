@@ -230,6 +230,7 @@ export const HI_LABELS: Record<string, string> = {
   'Contains Uppercase': 'बड़े अक्षर हैं',
   'Long Query String (>100 chars)': 'लंबी क्वेरी स्ट्रिंग (>100 अक्षर)',
   'Many Query Params (>5)': 'बहुत क्वेरी पैरामीटर (>5)',
+  'Fragment (#) in URL': 'URL में फ़्रैगमेंट (#)',
   'Spaces in URL': 'URL में रिक्त स्थान',
   'Multiple Slashes': 'एक से अधिक स्लैश',
   'Non-ASCII Characters': 'ASCII से बाहर के अक्षर',

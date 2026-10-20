@@ -230,6 +230,7 @@ export const PT_BR_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Contém maiúsculas',
   'Long Query String (>100 chars)': 'Query string longa (>100 caracteres)',
   'Many Query Params (>5)': 'Muitos parâmetros de consulta (>5)',
+  'Fragment (#) in URL': 'Fragmento (#) na URL',
   'Spaces in URL': 'Espaços na URL',
   'Multiple Slashes': 'Barras múltiplas',
   'Non-ASCII Characters': 'Caracteres não ASCII',

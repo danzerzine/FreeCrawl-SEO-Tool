@@ -152,6 +152,7 @@ const ISSUES: IssueDef[] = [
   { key: 'titleMultiple', label: 'Multiple <title> Tags', severity: 'error' },
   { key: 'h1Empty', label: 'H1 Empty', severity: 'error' },
   { key: 'h1TooLong', label: 'H1 Too Long (>70)', severity: 'warn' },
+  { key: 'urlFragment', label: 'Fragment in URL', severity: 'info' },
   { key: 'urlSpaces', label: 'Spaces in URL', severity: 'warn' },
   { key: 'imageEmptyAlt', label: 'Image Empty Alt', severity: 'info' },
   { key: 'imageDuplicateAlt', label: 'Image Duplicate Alt', severity: 'warn' },
