@@ -30,7 +30,11 @@ export interface SheetSpec {
 /**
  * Excel / LibreOffice / Sheets execute cells beginning with `=`, `+`,
  * `-`, `@`, TAB, or CR as formulas (CVE-class). Prepend a `'` to neutralise
- * — the canonical OWASP CSV-injection mitigation.
+ * — the canonical OWASP CSV-injection mitigation. The trigger set is
+ * OWASP's, unchanged: Excel parses a leading `-` as a formula start even
+ * when a space or letter follows (`- foo` becomes `=- foo`, #NAME?), so
+ * «- text» cannot be left alone safely. Numbers never reach this function
+ * (see escapeCsv). Files for scripts opt out via `formulaGuard: false`.
  */
 export function sanitizeFormulaPrefix(str: string): string {
   if (!str) return str;
@@ -48,7 +52,10 @@ export function sanitizeFormulaPrefix(str: string): string {
   return str;
 }
 
-export function escapeCsv(value: unknown): string {
+export function escapeCsv(
+  value: unknown,
+  options: { formulaGuard?: boolean } = {},
+): string {
   if (value === null || value === undefined) return '';
   // Numbers and booleans cannot be formulas, and prefixing them turns real
   // data into text: Excel then skips the column in AVERAGE() and sorts it
@@ -61,7 +68,10 @@ export function escapeCsv(value: unknown): string {
   // NUL is legal in a JS string but not in a CSV consumer: pandas raises
   // `ValueError: embedded null byte` and Excel truncates the cell. It
   // reaches us through numeric HTML entities (`&#0;`) in page titles.
-  const str = sanitizeFormulaPrefix(String(value).replace(/\0/g, ''));
+  const text = String(value).replace(/\0/g, '');
+  // formulaGuard:false is the raw-data mode (B62): the cell is written as is,
+  // quoting still applies. Only for files a script reads, not Excel.
+  const str = options.formulaGuard === false ? text : sanitizeFormulaPrefix(text);
   if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
