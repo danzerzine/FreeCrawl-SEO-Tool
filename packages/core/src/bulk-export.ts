@@ -11,13 +11,16 @@
 import { join } from 'node:path';
 import { unlink } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
+import { EXPORT_DATASET_COLUMNS } from '@freecrawl/shared-types';
 import type {
   BulkExportFile,
   BulkExportResult,
   CrawlUrlRow,
+  ExportDatasetKey,
   UrlCategory,
 } from '@freecrawl/shared-types';
 import { exportLinksToCsv, exportUrlsToCsv } from './csv-export.js';
+import { exportTabular } from './tabular-export.js';
 
 export interface BulkExportTask {
   label: string;
@@ -151,6 +154,21 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
   { label: 'Outlinks Zero', file: 'outlinks-zero.csv', category: 'issues:outlinks-zero' },
 ];
 
+export interface BulkExportDatasetTask {
+  label: string;
+  file: string;
+  dataset: ExportDatasetKey;
+}
+
+/** Link, issue, sitemap and queue tables that are not views over the URL rows. */
+export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
+  { label: 'Broken Links', file: 'broken-links.csv', dataset: 'broken-links' },
+  { label: 'Broken Links — By Target', file: 'broken-links-by-target.csv', dataset: 'broken-links-by-target' },
+  { label: 'Issues — One Row Per URL and Issue', file: 'issues-long.csv', dataset: 'issues-long' },
+  { label: 'Sitemap URLs', file: 'sitemap-urls.csv', dataset: 'sitemap-urls' },
+  { label: 'Crawl Queue (Unfetched)', file: 'crawl-queue.csv', dataset: 'crawl-queue' },
+];
+
 /**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
  * `outputDir`. Zero-row categories are written then deleted so the dump
@@ -201,6 +219,23 @@ export async function runBulkExport(
       });
     } catch (err) {
       errors.push({ label, error: (err as Error).message });
+    }
+  }
+  for (const task of BULK_EXPORT_DATASET_TASKS) {
+    const filePath = join(outputDir, task.file);
+    try {
+      const { rowsWritten } = await exportTabular(db, filePath, {
+        format: 'csv',
+        sections: [{ label: task.label, dataset: task.dataset }],
+        columns: EXPORT_DATASET_COLUMNS[task.dataset].map((c) => c.key),
+      });
+      if (rowsWritten === 0) {
+        await unlink(filePath).catch(() => undefined);
+        continue;
+      }
+      files.push({ filePath, label: task.label, dataset: task.dataset, rowsWritten });
+    } catch (err) {
+      errors.push({ label: task.label, error: (err as Error).message });
     }
   }
   return { outputDir, files, errors };

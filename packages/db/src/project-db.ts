@@ -4,6 +4,10 @@ import type {
   MobileParityDiff,
   AdvancedFilter,
   BrokenLinkRow,
+  BrokenLinkTargetExportRow,
+  CrawlQueueExportRow,
+  IssueLongRow,
+  SitemapUrlExportRow,
   ContentKind,
   CrawlSummary,
   CrawlUrlRow,
@@ -4936,7 +4940,7 @@ export class ProjectDb {
       .prepare(
         `SELECT f.id AS from_url_id, f.url AS from_url, f.status_code AS from_status,
                 l.to_url AS to_url, t.status_code AS to_status,
-                l.anchor, l.rel, l.is_internal
+                l.anchor, l.rel, l.is_internal, l.link_position
          FROM links l
          JOIN urls f ON l.from_url_id = f.id
          JOIN urls t ON l.to_url = t.url
@@ -4953,6 +4957,7 @@ export class ProjectDb {
       anchor: string | null;
       rel: string | null;
       is_internal: number;
+      link_position: string | null;
     }[];
     return {
       total: totalRow.c,
@@ -4966,6 +4971,7 @@ export class ProjectDb {
         anchor: r.anchor,
         rel: r.rel,
         isInternal: r.is_internal === 1,
+        position: r.link_position,
       })),
     };
   }
@@ -8566,6 +8572,83 @@ export class ProjectDb {
     }
   }
 
+  /**
+   * Every materialised (url, issue key) pair, streamed, for the long-form
+   * issues export. Silenced checks (Settings → Issues) are skipped, as the
+   * bulk dump skips their files.
+   */
+  *iterateIssuesLong(): IterableIterator<IssueLongRow> {
+    const disabled = this.getDisabledIssues() as ReadonlySet<string>;
+    const rows = this.db
+      .prepare(
+        `SELECT u.url AS url, ui.issue_key AS issue_key
+           FROM urls_issues ui
+           JOIN urls u ON u.id = ui.url_id
+          ORDER BY u.id, ui.issue_key`,
+      )
+      .iterate() as unknown as Iterable<{ url: string; issue_key: string }>;
+    for (const r of rows) {
+      if (disabled.has(r.issue_key)) continue;
+      yield { url: r.url, issueKey: r.issue_key };
+    }
+  }
+
+  /** Every URL listed in a crawled sitemap, with its lastmod and source sitemap. */
+  *iterateSitemapUrls(): IterableIterator<SitemapUrlExportRow> {
+    const rows = this.db
+      .prepare('SELECT url, lastmod, source_sitemap FROM sitemap_urls ORDER BY id')
+      .iterate() as unknown as Iterable<{
+      url: string;
+      lastmod: string | null;
+      source_sitemap: string;
+    }>;
+    for (const r of rows) yield { url: r.url, lastmod: r.lastmod, sourceSitemap: r.source_sitemap };
+  }
+
+  /** The unfetched queue left by a stopped or crashed crawl. */
+  *iterateCrawlQueue(): IterableIterator<CrawlQueueExportRow> {
+    const rows = this.db
+      .prepare('SELECT url, depth, seed_url FROM crawl_queue ORDER BY rowid')
+      .iterate() as unknown as Iterable<{ url: string; depth: number; seed_url: string }>;
+    for (const r of rows) yield { url: r.url, depth: r.depth, seedUrl: r.seed_url };
+  }
+
+  /**
+   * One row per broken link target (same predicate as the Broken Links
+   * grid, internal and external): link count, distinct linking pages and
+   * how many of the links sit in the page content.
+   */
+  *iterateBrokenLinksByTarget(): IterableIterator<BrokenLinkTargetExportRow> {
+    const rows = this.db
+      .prepare(
+        `SELECT l.to_url AS to_url, t.status_code AS to_status, COUNT(*) AS link_count,
+                COUNT(DISTINCT l.from_url_id) AS linking_pages,
+                COALESCE(SUM(l.link_position = 'content'), 0) AS content_links
+           FROM links l
+           JOIN urls f ON l.from_url_id = f.id
+           JOIN urls t ON l.to_url = t.url
+          WHERE ${BROKEN_TARGET_SQL}
+          GROUP BY l.to_url
+          ORDER BY t.status_code DESC, l.to_url`,
+      )
+      .iterate() as unknown as Iterable<{
+      to_url: string;
+      to_status: number | null;
+      link_count: number;
+      linking_pages: number;
+      content_links: number;
+    }>;
+    for (const r of rows) {
+      yield {
+        toUrl: r.to_url,
+        toStatusCode: r.to_status,
+        linkCount: r.link_count,
+        linkingPages: r.linking_pages,
+        contentLinks: r.content_links,
+      };
+    }
+  }
+
   *iterateBrokenLinks(
     internal: 'all' | 'internal' | 'external' = 'all',
     search?: string,
@@ -8585,7 +8668,7 @@ export class ProjectDb {
       .prepare(
         `SELECT f.id AS from_url_id, f.url AS from_url, f.status_code AS from_status,
                 l.to_url AS to_url, t.status_code AS to_status,
-                l.anchor, l.rel, l.is_internal
+                l.anchor, l.rel, l.is_internal, l.link_position
          FROM links l
          JOIN urls f ON l.from_url_id = f.id
          JOIN urls t ON l.to_url = t.url
@@ -8606,6 +8689,7 @@ export class ProjectDb {
       anchor: string | null;
       rel: string | null;
       is_internal: number;
+      link_position: string | null;
     }>;
     for (const r of rows) {
       yield {
@@ -8617,6 +8701,7 @@ export class ProjectDb {
         anchor: r.anchor,
         rel: r.rel,
         isInternal: r.is_internal === 1,
+        position: r.link_position,
       };
     }
   }

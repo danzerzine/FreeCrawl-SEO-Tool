@@ -45,15 +45,23 @@ export function datasetRows(
   dataset: ExportDatasetKey,
   ctx: DatasetExportContext = {},
 ): Iterable<Record<string, unknown>> {
-  const asRecords = <T>(gen: Generator<T>): Iterable<Record<string, unknown>> =>
+  const asRecords = <T>(gen: Iterable<T>): Iterable<Record<string, unknown>> =>
     gen as Iterable<unknown> as Iterable<Record<string, unknown>>;
   switch (dataset) {
     case 'images':
       return asRecords(paged((limit, offset) => db.queryImages({ limit, offset })));
     case 'broken-links':
-      return asRecords(
-        paged((limit, offset) => db.queryBrokenLinks({ limit, offset, internal: 'all' })),
-      );
+      // Streamed: paging re-sorted the whole join and ran a COUNT(*) on
+      // every page.
+      return asRecords(db.iterateBrokenLinks('all'));
+    case 'broken-links-by-target':
+      return asRecords(db.iterateBrokenLinksByTarget());
+    case 'issues-long':
+      return asRecords(db.iterateIssuesLong());
+    case 'sitemap-urls':
+      return asRecords(db.iterateSitemapUrls());
+    case 'crawl-queue':
+      return asRecords(db.iterateCrawlQueue());
     case 'pagespeed':
       return asRecords(paged((limit, offset) => db.queryPagespeed({ limit, offset })));
     case 'crux':
