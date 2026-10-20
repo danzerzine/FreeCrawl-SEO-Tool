@@ -174,7 +174,7 @@ export options:
                         on stdout, also on errors. skipped: a link report or dataset with no rows in
                         this crawl (no file written; not an error)
   Exit codes: 0 done, 1 some exports failed (the others are written), 2 bad arguments or project,
-  130 interrupted.
+  130 interrupted (--json: ok false, error "interrupted", files: the items finished before Ctrl-C).
 
 Projects:
   compare, analyze-logs, metrica-fetch and export open projects saved by the desktop app as well
@@ -715,13 +715,18 @@ process.on('exit', () => {
 });
 
 /** Ctrl-C for a command with no cancel of its own: exit through
- *  `process.exit`, so the exit hook still removes working copies. */
-function exitOnInterrupt(): void {
+ *  `process.exit`, so the exit hook still removes working copies.
+ *  `report` runs first, e.g. to print a `--json` summary. */
+function exitOnInterrupt(report?: () => void): void {
   // `on`, not `once`: a second Ctrl-C while the exit hook runs must not
   // fall back to the default kill and cut the cleanup short.
   process.on('SIGINT', () => {
     process.stderr.write('\nInterrupted.\n');
-    process.exit(130);
+    try {
+      report?.();
+    } finally {
+      process.exit(130);
+    }
   });
 }
 
@@ -1623,7 +1628,14 @@ async function runExport(opts: {
 
   // Ctrl-C exits at once; the exit hooks drop the half-written `.part`
   // files and the working copy, so no truncated export is left behind.
-  exitOnInterrupt();
+  // Under --json the summary still comes out, with the files done so far
+  // (written synchronously: process.exit would cut an async pipe write).
+  const outcome: ExportOutcome = { files: [], errors: [], skipped: [] };
+  exitOnInterrupt(() => {
+    if (opts.json) {
+      writeSync(1, JSON.stringify({ ok: false, error: 'interrupted', ...outcome }, null, 2) + '\n');
+    }
+  });
   pendingCleanups.add(removePartialExportFiles);
   let project: OpenedProject;
   try {
@@ -1657,11 +1669,12 @@ async function runExport(opts: {
       }
       items.push({ kind: 'selected', name: 'selected-links', urls: known });
     }
-    const outcome = await runExportItems(project.db, outDir, items, {
+    await runExportItems(project.db, outDir, items, {
       rawHeaders,
       projectFile: resolve(opts.projectPath),
       toolVersion: cliVersion(),
       onProgress: progressLine,
+      outcome,
     });
     if (missing.length > 0) {
       const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;

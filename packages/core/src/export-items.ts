@@ -126,6 +126,11 @@ export interface RunExportItemsOptions {
   branding?: HtmlReportOptions['branding'];
   /** One line per step; the CLI sends it to stderr. */
   onProgress?: (line: string) => void;
+  /**
+   * Filled as items finish (and returned), so a caller cut short by
+   * Ctrl-C can still report the files written so far.
+   */
+  outcome?: ExportOutcome;
 }
 
 /**
@@ -140,7 +145,7 @@ export async function runExportItems(
 ): Promise<ExportOutcome> {
   const startedAt = new Date();
   const headers = options.rawHeaders ? ('keys' as const) : undefined;
-  const outcome: ExportOutcome = { files: [], errors: [], skipped: [] };
+  const outcome: ExportOutcome = options.outcome ?? { files: [], errors: [], skipped: [] };
   const progress = options.onProgress ?? (() => {});
   // Issue lists and counts read the materialised urls_issues table; a
   // project last materialised by an older set of checks would export stale
