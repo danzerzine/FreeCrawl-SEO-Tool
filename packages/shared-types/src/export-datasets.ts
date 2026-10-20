@@ -25,6 +25,9 @@ export type ExportDatasetKey =
   | 'issue-inlinks'
   | 'sitemap-urls'
   | 'crawl-queue'
+  | 'response-headers'
+  | 'page-html'
+  | 'page-text'
   | 'pagespeed'
   | 'crux'
   | 'spelling'
@@ -143,6 +146,23 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'follow', header: 'Follow' },
     { key: 'position', header: 'Position' },
     { key: 'isInternal', header: 'Internal' },
+  ],
+  'response-headers': [
+    { key: 'url', header: 'URL' },
+    { key: 'name', header: 'Header' },
+    { key: 'value', header: 'Value' },
+  ],
+  // Page bodies are far over Excel's 32,767-character cell limit: these two
+  // are meant for the JSON Lines writer, not CSV / XLSX.
+  'page-html': [
+    { key: 'url', header: 'URL' },
+    { key: 'statusCode', header: 'Status' },
+    { key: 'contentType', header: 'Content Type' },
+    { key: 'html', header: 'HTML' },
+  ],
+  'page-text': [
+    { key: 'url', header: 'URL' },
+    { key: 'text', header: 'Text' },
   ],
   'sitemap-urls': [
     { key: 'url', header: 'URL' },
