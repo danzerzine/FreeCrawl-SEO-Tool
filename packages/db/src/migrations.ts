@@ -2523,6 +2523,21 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_uncrawlable_links_from ON uncrawlable_links(from_url_id);
     `,
   },
+  {
+    version: 104,
+    name: 'network_failures_to_no_response',
+    // Before `non-indexable:no-response` a timeout, refused connection or
+    // DNS failure (page fetch or external probe) was stored as client-error
+    // with no status, so Broken Links missed it. Every other client-error
+    // row has a status (4xx, size cap); SSRF-guard skips have no status but
+    // were never requested, and their status text starts with "Skipped:".
+    up: `
+      UPDATE urls SET indexability = 'non-indexable:no-response'
+       WHERE status_code IS NULL
+         AND indexability = 'non-indexable:client-error'
+         AND COALESCE(status_text, '') NOT LIKE 'Skipped:%';
+    `,
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {
