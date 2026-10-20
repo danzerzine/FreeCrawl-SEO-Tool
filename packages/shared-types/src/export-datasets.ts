@@ -96,6 +96,32 @@ const AI: ExportDatasetColumn[] = [
   { key: 'ai.fetchedAt', header: 'Fetched At' },
 ];
 
+/**
+ * One link row (`selected-inlinks`, `selected-outlinks`, `issue-inlinks`):
+ * Screaming Frog's Bulk Export → Links columns, in its order, so a file
+ * reads like theirs; then where a redirecting destination ends up, which
+ * the Inlinks tab shows as Final Target.
+ */
+const LINK_COLUMNS: ExportDatasetColumn[] = [
+  { key: 'type', header: 'Type' },
+  { key: 'fromUrl', header: 'Source' },
+  { key: 'toUrl', header: 'Destination' },
+  { key: 'toSize', header: 'Size' },
+  { key: 'altText', header: 'Alt Text' },
+  { key: 'anchor', header: 'Anchor' },
+  { key: 'toStatusCode', header: 'Status Code' },
+  { key: 'toStatus', header: 'Status' },
+  { key: 'follow', header: 'Follow' },
+  { key: 'target', header: 'Target' },
+  { key: 'rel', header: 'Rel' },
+  { key: 'pathType', header: 'Path Type' },
+  { key: 'linkPath', header: 'Link Path' },
+  { key: 'linkPosition', header: 'Link Position' },
+  { key: 'linkOrigin', header: 'Link Origin' },
+  { key: 'toFinalUrl', header: 'Final Destination' },
+  { key: 'toFinalStatusCode', header: 'Final Destination Status Code' },
+];
+
 const SEO_TAIL: ExportDatasetColumn[] = [
   { key: 'seo.status', header: 'Result Status' },
   { key: 'seo.error', header: 'Error' },
@@ -120,7 +146,7 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'anchor', header: 'Anchor' },
     { key: 'rel', header: 'Rel' },
     { key: 'isInternal', header: 'Internal' },
-    { key: 'position', header: 'Position' },
+    { key: 'position', header: 'Link Position' },
   ],
   'broken-links-by-target': [
     { key: 'toUrl', header: 'Destination' },
@@ -133,57 +159,10 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'url', header: 'URL' },
     { key: 'issueKey', header: 'Issue' },
   ],
-  'issue-inlinks': [
-    { key: 'issueKey', header: 'Issue' },
-    { key: 'toUrl', header: 'Destination' },
-    { key: 'toStatusCode', header: 'Destination Status' },
-    { key: 'toFinalUrl', header: 'Final Destination' },
-    { key: 'toFinalStatusCode', header: 'Final Destination Status' },
-    { key: 'fromUrl', header: 'Source' },
-    { key: 'fromStatusCode', header: 'Source Status' },
-    { key: 'type', header: 'Type' },
-    { key: 'anchor', header: 'Anchor' },
-    { key: 'altText', header: 'Alt Text' },
-    { key: 'rel', header: 'Rel' },
-    { key: 'follow', header: 'Follow' },
-    { key: 'position', header: 'Position' },
-    { key: 'isInternal', header: 'Internal' },
-  ],
-  // Chosen pages' links: the Inlinks / Outlinks tab columns, plus the
-  // chosen page itself (Destination for inlinks, Source for outlinks).
-  'selected-inlinks': [
-    { key: 'toUrl', header: 'Destination' },
-    { key: 'toStatusCode', header: 'Destination Status' },
-    { key: 'toFinalUrl', header: 'Final Destination' },
-    { key: 'toFinalStatusCode', header: 'Final Destination Status' },
-    { key: 'fromUrl', header: 'Source' },
-    { key: 'fromStatusCode', header: 'Source Status' },
-    { key: 'type', header: 'Type' },
-    { key: 'anchor', header: 'Anchor' },
-    { key: 'altText', header: 'Alt Text' },
-    { key: 'rel', header: 'Rel' },
-    { key: 'target', header: 'Target' },
-    { key: 'pathType', header: 'Path Type' },
-    { key: 'linkPath', header: 'Link Path' },
-    { key: 'linkPosition', header: 'Position' },
-    { key: 'linkOrigin', header: 'Origin' },
-  ],
+  'issue-inlinks': [{ key: 'issueKey', header: 'Issue' }, ...LINK_COLUMNS],
+  'selected-inlinks': LINK_COLUMNS,
   'selected-outlinks': [
-    { key: 'fromUrl', header: 'Source' },
-    { key: 'toUrl', header: 'Destination' },
-    { key: 'toStatusCode', header: 'Destination Status' },
-    { key: 'toFinalUrl', header: 'Final Destination' },
-    { key: 'toFinalStatusCode', header: 'Final Destination Status' },
-    { key: 'type', header: 'Type' },
-    { key: 'anchor', header: 'Anchor' },
-    { key: 'altText', header: 'Alt Text' },
-    { key: 'rel', header: 'Rel' },
-    { key: 'target', header: 'Target' },
-    { key: 'pathType', header: 'Path Type' },
-    { key: 'linkPath', header: 'Link Path' },
-    { key: 'linkPosition', header: 'Position' },
-    { key: 'linkOrigin', header: 'Origin' },
-    { key: 'isInternal', header: 'Internal' },
+    ...LINK_COLUMNS,
     { key: 'crawlable', header: 'Crawlable' },
     { key: 'uncrawlableTag', header: 'Uncrawlable Tag' },
     { key: 'uncrawlableValue', header: 'Uncrawlable Value' },

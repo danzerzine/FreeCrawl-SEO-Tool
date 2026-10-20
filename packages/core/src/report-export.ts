@@ -33,7 +33,7 @@ const LINK_TARGET_COLUMNS: readonly { key: string; label: string }[] = [
   { key: 'finalIndexability', label: 'Final Indexability' },
   { key: 'sourcePages', label: 'Source Pages' },
   { key: 'isTemplate', label: 'Template Link' },
-  { key: 'topPosition', label: 'Top Position' },
+  { key: 'topPosition', label: 'Top Link Position' },
   { key: 'sampleSourceUrl', label: 'Sample Source URL' },
 ];
 

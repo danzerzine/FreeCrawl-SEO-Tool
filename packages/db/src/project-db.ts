@@ -1,5 +1,6 @@
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import * as zlib from 'node:zlib';
+import { STATUS_CODES } from 'node:http';
 import type {
   MobileParityDiff,
   AdvancedFilter,
@@ -1216,6 +1217,16 @@ class BodyCodec {
  */
 function charLength(text: string): number {
   return Array.from(text).length;
+}
+
+/** HTTP reason phrase of a status code («Not Found»), the links tabs' Status cell. */
+function httpReasonPhrase(code: number | null): string | null {
+  return code === null ? null : (STATUS_CODES[code] ?? null);
+}
+
+/** A link with nofollow in its rel: the links tabs' Follow = False. */
+function isNofollowRel(rel: string | null): boolean {
+  return (rel ?? '').toLowerCase().includes('nofollow');
 }
 
 /**
@@ -8600,17 +8611,16 @@ export class ProjectDb {
 
   /**
    * Every link into every page that has an issue, streamed — the rows of
-   * the per-issue "inlinks" export. One issue key, or all of them
-   * (ordered by key) when omitted; silenced checks yield nothing. The
-   * destination columns follow `getInlinks`, including the redirect's
-   * final target. Self-links are kept, as the Inlinks tab keeps them.
+   * the per-issue "inlinks" export: the `selected-inlinks` rows of the
+   * issue's pages (hyperlinks, images, other embeds) plus the issue key.
+   * One issue key, or all of them (ordered by key) when omitted; silenced
+   * checks yield nothing. Self-links are kept, as the Inlinks tab keeps them.
    *
    * Driven from `urls_issues` through `idx_urls_issues_key`, then each
-   * page's inlinks through `idx_links_to`, so the work grows with the
-   * issue's inlinks, not with the whole links table. The order is the
-   * order those two indexes already return (rowid within a key, link id
-   * within a page): ordering by page id instead made SQLite sort every
-   * issue's rows in a temp B-tree before the first one came out.
+   * page's inlinks through `idx_links_to` (and the image / resource
+   * indexes), so the work grows with the issue's inlinks, not with the
+   * whole links table. Pages come in rowid order within a key: ordering
+   * by page id made SQLite sort every issue's rows in a temp B-tree first.
    */
   *iterateIssueInlinks(issueKey?: string): IterableIterator<IssueInlinkRow> {
     const disabled = [...(this.getDisabledIssues() as ReadonlySet<string>)];
@@ -8624,52 +8634,20 @@ export class ProjectDb {
       where.push(`ui.issue_key NOT IN (${disabled.map(() => '?').join(',')})`);
       args.push(...disabled);
     }
-    const rows = this.db
+    // The issue's pages, then each page's inlinks through the same reader
+    // as `selected-inlinks`: one row shape, embeds included.
+    const pages = this.db
       .prepare(
-        `SELECT ui.issue_key, t.url AS to_url, t.status_code AS to_status,
-                t.redirect_final_url AS to_final_url, ft.status_code AS to_final_status,
-                f.url AS from_url, f.status_code AS from_status,
-                l.type, l.anchor, l.alt_text, l.rel, l.link_position, l.is_internal
+        `SELECT ui.issue_key, t.url
            FROM urls_issues ui
            JOIN urls t ON t.id = ui.url_id
-           JOIN links l ON l.to_url = t.url
-           JOIN urls f ON f.id = l.from_url_id
-           LEFT JOIN urls ft ON ft.url = t.redirect_final_url
           ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
-          ORDER BY ui.issue_key, ui.rowid, l.id`,
+          ORDER BY ui.issue_key, ui.rowid`,
       )
-      .iterate(...args) as unknown as Iterable<{
-      issue_key: string;
-      to_url: string;
-      to_status: number | null;
-      to_final_url: string | null;
-      to_final_status: number | null;
-      from_url: string;
-      from_status: number | null;
-      type: string | null;
-      anchor: string | null;
-      alt_text: string | null;
-      rel: string | null;
-      link_position: string | null;
-      is_internal: number;
-    }>;
-    for (const r of rows) {
-      yield {
-        issueKey: r.issue_key,
-        toUrl: r.to_url,
-        toStatusCode: r.to_status,
-        toFinalUrl: r.to_final_url,
-        toFinalStatusCode: r.to_final_status,
-        fromUrl: r.from_url,
-        fromStatusCode: r.from_status,
-        type: (r.type as IssueInlinkRow['type']) ?? 'hyperlink',
-        anchor: r.anchor,
-        altText: r.alt_text,
-        rel: r.rel,
-        follow: !(r.rel ?? '').toLowerCase().includes('nofollow'),
-        position: (r.link_position as IssueInlinkRow['position']) ?? null,
-        isInternal: r.is_internal === 1,
-      };
+      .iterate(...args) as unknown as Iterable<{ issue_key: string; url: string }>;
+    const inlinksOf = this.inlinksReader();
+    for (const p of pages) {
+      for (const row of inlinksOf(p.url)) yield { issueKey: p.issue_key, ...row };
     }
   }
 
@@ -8682,6 +8660,20 @@ export class ProjectDb {
    * chosen pages' inlinks, not with the links table.
    */
   *iterateSelectedInlinks(urls: readonly string[]): IterableIterator<SelectedInlinkRow> {
+    const inlinksOf = this.inlinksReader();
+    for (const url of urls) {
+      if (this.getUrlIdByUrl(url) === null) continue;
+      yield* inlinksOf(url);
+    }
+  }
+
+  /**
+   * Every inlink of one page as an export row — hyperlinks, then images
+   * and other embedded resources, like the Inlinks tab. The statements are
+   * prepared once per reader, so a caller walking thousands of pages
+   * (`iterateIssueInlinks`) pays the planning cost once.
+   */
+  private inlinksReader(): (url: string) => Generator<SelectedInlinkRow> {
     type Row = {
       from_url: string;
       from_status_code: number | null;
@@ -8737,8 +8729,7 @@ export class ProjectDb {
        LEFT JOIN urls ft ON ft.url = t.redirect_final_url
        WHERE r.url = ?`,
     );
-    for (const url of urls) {
-      if (this.getUrlIdByUrl(url) === null) continue;
+    return function* (url: string): Generator<SelectedInlinkRow> {
       for (const stmt of [hyper, images, resources]) {
         for (const r of stmt.iterate(url) as unknown as Iterable<Row>) {
           yield {
@@ -8746,6 +8737,7 @@ export class ProjectDb {
             fromUrl: r.from_url,
             fromStatusCode: r.from_status_code,
             toStatusCode: r.to_status_code,
+            toStatus: httpReasonPhrase(r.to_status_code),
             toSize: r.to_size,
             toFinalUrl: r.to_final_url,
             toFinalStatusCode: r.to_final_status_code,
@@ -8753,6 +8745,7 @@ export class ProjectDb {
             anchor: r.anchor,
             altText: r.alt_text,
             rel: r.rel,
+            follow: !isNofollowRel(r.rel),
             target: r.target,
             pathType: (r.path_type as SelectedInlinkRow['pathType']) ?? null,
             linkPath: r.link_path,
@@ -8761,7 +8754,7 @@ export class ProjectDb {
           };
         }
       }
-    }
+    };
   }
 
   /**
@@ -8811,6 +8804,7 @@ export class ProjectDb {
           fromUrl: url,
           toUrl: r.to_url,
           toStatusCode: r.to_status_code,
+          toStatus: httpReasonPhrase(r.to_status_code),
           toSize: r.to_size,
           toFinalUrl: r.to_final_url,
           toFinalStatusCode: r.to_final_status_code,
@@ -8818,6 +8812,7 @@ export class ProjectDb {
           anchor: r.anchor,
           altText: r.alt_text,
           rel: r.rel,
+          follow: !isNofollowRel(r.rel),
           target: r.target,
           pathType: (r.path_type as SelectedOutlinkRow['pathType']) ?? null,
           linkPath: r.link_path,
@@ -8840,6 +8835,7 @@ export class ProjectDb {
           fromUrl: url,
           toUrl: u.target ?? u.value,
           toStatusCode: null,
+          toStatus: null,
           toSize: null,
           toFinalUrl: null,
           toFinalStatusCode: null,
@@ -8847,6 +8843,7 @@ export class ProjectDb {
           anchor: null,
           altText: null,
           rel: null,
+          follow: null,
           target: null,
           pathType: null,
           linkPath: null,

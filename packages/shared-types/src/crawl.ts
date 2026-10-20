@@ -2546,35 +2546,26 @@ export interface IssueLongRow {
 
 /**
  * One row of the `issue-inlinks` export: a link into a page that has the
- * issue (Screaming Frog's Bulk Export → Issues "inlinks" files). The
- * destination columns follow the Inlinks tab, including where a
- * redirecting destination ends up.
+ * issue (Screaming Frog's Bulk Export → Issues "inlinks" files). The same
+ * row as `selected-inlinks` over the issue's pages — hyperlinks, images and
+ * other embeds — plus the issue.
  */
-export interface IssueInlinkRow {
+export interface IssueInlinkRow extends SelectedInlinkRow {
   issueKey: string;
-  toUrl: string;
-  toStatusCode: number | null;
-  toFinalUrl: string | null;
-  toFinalStatusCode: number | null;
-  fromUrl: string;
-  fromStatusCode: number | null;
-  type: LinkType;
-  anchor: string | null;
-  altText: string | null;
-  rel: string | null;
-  /** False when `rel` carries nofollow. */
-  follow: boolean;
-  position: LinkPosition | null;
-  isInternal: boolean;
 }
 
 /**
  * One row of the `selected-inlinks` export: an Inlinks-tab row (see
  * {@link InlinkRow}) plus the chosen page it points to, since one file
- * holds the inlinks of several pages.
+ * holds the inlinks of several pages, and the Status / Follow cells the
+ * tab derives on screen.
  */
 export interface SelectedInlinkRow extends InlinkRow {
   toUrl: string;
+  /** HTTP reason phrase of `toStatusCode` («Not Found»); null without a status. */
+  toStatus: string | null;
+  /** False when `rel` carries nofollow. */
+  follow: boolean;
 }
 
 /**
@@ -2583,6 +2574,10 @@ export interface SelectedInlinkRow extends InlinkRow {
  */
 export interface SelectedOutlinkRow extends OutlinkRow {
   fromUrl: string;
+  /** HTTP reason phrase of `toStatusCode`; null without a status. */
+  toStatus: string | null;
+  /** False when `rel` carries nofollow; null for an uncrawlable row (no link to follow). */
+  follow: boolean | null;
 }
 
 /** One row of the `response-headers` export: one stored header of one URL. */

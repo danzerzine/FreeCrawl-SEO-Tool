@@ -108,19 +108,19 @@ const IMAGES_CSV_HEADER = [
  * user is currently looking at. Streamed row-by-row so a 100K-image
  * crawl never builds a giant string in memory.
  */
-/** Links CSV columns: header label and the key `headers: 'keys'` writes. */
+/** Links CSV columns: header label (the link datasets' names) and the key `headers: 'keys'` writes. */
 const LINKS_CSV_COLUMNS: readonly { key: string; label: string }[] = [
-  { key: 'fromUrl', label: 'From URL' },
-  { key: 'toUrl', label: 'To URL' },
-  { key: 'toStatusCode', label: 'Target Status' },
+  { key: 'fromUrl', label: 'Source' },
+  { key: 'toUrl', label: 'Destination' },
+  { key: 'toStatusCode', label: 'Status Code' },
   { key: 'anchor', label: 'Anchor' },
   { key: 'rel', label: 'Rel' },
   { key: 'type', label: 'Type' },
   { key: 'target', label: 'Target' },
   { key: 'altText', label: 'Alt Text' },
-  { key: 'linkPosition', label: 'Position' },
-  { key: 'linkPath', label: 'Path' },
-  { key: 'linkOrigin', label: 'Origin' },
+  { key: 'linkPosition', label: 'Link Position' },
+  { key: 'linkPath', label: 'Link Path' },
+  { key: 'linkOrigin', label: 'Link Origin' },
 ];
 
 /**
@@ -222,7 +222,7 @@ const BROKEN_LINK_CSV_HEADER = [
   'Anchor',
   'Rel',
   'Type',
-  'Position',
+  'Link Position',
 ] as const;
 
 /**
