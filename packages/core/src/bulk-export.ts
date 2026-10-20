@@ -192,13 +192,11 @@ export async function exportIssueInlinks(
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
   const disabled = db.getDisabledIssues();
-  // Issue keys come from the project file: only the checks this build
-  // knows get a file, and the name keeps to `[a-z0-9-]`, so a crafted key
-  // (`issues:../../x`) can never name a path outside the subfolder.
-  const known = new Set<string>(ISSUE_CATEGORIES);
-  const issueKeys = [...db.getIssueCounts().keys()]
-    .filter((key) => known.has(key) && !disabled.has(key as UrlCategory))
-    .sort();
+  // Every enabled check of the catalogue, not only the expensive ones
+  // materialised into `urls_issues`; a check with no pages leaves no file.
+  // Keys never come from the project file, and the name keeps to
+  // `[a-z0-9-]`, so no key can name a path outside the subfolder.
+  const issueKeys = ISSUE_CATEGORIES.filter((key) => !disabled.has(key)).sort();
   const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
   const writtenNames = new Set<string>();
   for (const key of issueKeys) {

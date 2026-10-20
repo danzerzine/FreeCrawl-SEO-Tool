@@ -81,6 +81,7 @@ import type {
 } from '@freecrawl/shared-types';
 import {
   GENERIC_ANCHOR_TEXTS,
+  ISSUE_CATEGORIES,
   ISSUE_COUNT_KEY,
   ISSUE_SOURCES_COUNT_KEY,
   issueCategoriesBySeverity,
@@ -8614,65 +8615,56 @@ export class ProjectDb {
   }
 
   /**
-   * Every materialised (url, issue key) pair, streamed, for the long-form
-   * issues export. Silenced checks (Settings → Issues) are skipped, as the
-   * bulk dump skips their files.
+   * The pages of every enabled issue check, streamed: one (url, check) pair
+   * per page, by check in sidebar order (ISSUE_CATEGORIES), then by URL id.
+   * Each check's pages come from `categoryWhereClause`, the filter behind
+   * its list, its sidebar count and its bulk `issues-*.csv` file, so cheap
+   * checks count too, not only the expensive ones materialised into
+   * `urls_issues`. A check counted per image or per link still lists the
+   * page once. One statement per check, walked in rowid order: no sort of
+   * the whole (url, check) set. One check only when `issueKey` is given;
+   * silenced checks (Settings → Issues) and unknown keys yield nothing.
+   */
+  private *iterateIssuePages(issueKey?: string): IterableIterator<{ issueKey: UrlCategory; url: string }> {
+    const disabled = this.getDisabledIssues();
+    const keys =
+      issueKey === undefined
+        ? ISSUE_CATEGORIES
+        : ISSUE_CATEGORIES.filter((c) => c === issueKey);
+    for (const key of keys) {
+      if (disabled.has(key)) continue;
+      const where = categoryWhereClause(key, disabled) ?? '1 = 1';
+      const rows = this.db
+        .prepare(`SELECT url FROM urls WHERE ${where} ORDER BY id`)
+        .iterate() as unknown as Iterable<{ url: string }>;
+      for (const r of rows) yield { issueKey: key, url: r.url };
+    }
+  }
+
+  /**
+   * Every (url, issue) pair of the enabled checks, streamed, for the
+   * long-form issues export: see {@link iterateIssuePages} for the order.
    */
   *iterateIssuesLong(): IterableIterator<IssueLongRow> {
-    const disabled = this.getDisabledIssues() as ReadonlySet<string>;
-    const rows = this.db
-      .prepare(
-        `SELECT u.url AS url, ui.issue_key AS issue_key
-           FROM urls_issues ui
-           JOIN urls u ON u.id = ui.url_id
-          ORDER BY u.id, ui.issue_key`,
-      )
-      .iterate() as unknown as Iterable<{ url: string; issue_key: string }>;
-    for (const r of rows) {
-      if (disabled.has(r.issue_key)) continue;
-      yield { url: r.url, issueKey: r.issue_key };
-    }
+    yield* this.iterateIssuePages();
   }
 
   /**
    * Every link into every page that has an issue, streamed — the rows of
    * the per-issue "inlinks" export: the `selected-inlinks` rows of the
    * issue's pages (hyperlinks, images, other embeds) plus the issue key.
-   * One issue key, or all of them (ordered by key) when omitted; silenced
-   * checks yield nothing. Self-links are kept, as the Inlinks tab keeps them.
-   *
-   * Driven from `urls_issues` through `idx_urls_issues_key`, then each
-   * page's inlinks through `idx_links_to` (and the image / resource
-   * indexes), so the work grows with the issue's inlinks, not with the
-   * whole links table. Pages come in rowid order within a key: ordering
-   * by page id made SQLite sort every issue's rows in a temp B-tree first.
+   * One issue key, or every enabled check when omitted; the pages are
+   * {@link iterateIssuePages}'s. Self-links are kept, as the Inlinks tab
+   * keeps them. Each page's inlinks come through `idx_links_to` (and the
+   * image / resource indexes), so the work grows with the issue's inlinks,
+   * not with the whole links table.
    */
   *iterateIssueInlinks(issueKey?: string): IterableIterator<IssueInlinkRow> {
-    const disabled = [...(this.getDisabledIssues() as ReadonlySet<string>)];
-    if (issueKey !== undefined && disabled.includes(issueKey)) return;
-    const where: string[] = [];
-    const args: string[] = [];
-    if (issueKey !== undefined) {
-      where.push('ui.issue_key = ?');
-      args.push(issueKey);
-    } else if (disabled.length > 0) {
-      where.push(`ui.issue_key NOT IN (${disabled.map(() => '?').join(',')})`);
-      args.push(...disabled);
-    }
     // The issue's pages, then each page's inlinks through the same reader
     // as `selected-inlinks`: one row shape, embeds included.
-    const pages = this.db
-      .prepare(
-        `SELECT ui.issue_key, t.url
-           FROM urls_issues ui
-           JOIN urls t ON t.id = ui.url_id
-          ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
-          ORDER BY ui.issue_key, ui.rowid`,
-      )
-      .iterate(...args) as unknown as Iterable<{ issue_key: string; url: string }>;
     const inlinksOf = this.inlinksReader();
-    for (const p of pages) {
-      for (const row of inlinksOf(p.url)) yield { issueKey: p.issue_key, ...row };
+    for (const p of this.iterateIssuePages(issueKey)) {
+      for (const row of inlinksOf(p.url)) yield { issueKey: p.issueKey, ...row };
     }
   }
 
