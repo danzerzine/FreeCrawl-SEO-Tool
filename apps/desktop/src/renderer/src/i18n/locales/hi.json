@@ -598,7 +598,7 @@
       "followRedirects": "हमेशा रीडायरेक्ट का अनुसरण करें",
       "respectRobotsTxt": "robots.txt का पालन करें",
       "respectCrawlDelay": "robots.txt के Crawl-delay का पालन करें",
-      "crawlExternal": "बाहरी लिंक जाँचें",
+      "crawlExternal": "बाहरी पृष्ठ क्रॉल करें",
       "checkExternalLinks": "बाहरी लिंक की स्थिति जाँचें",
       "checkImages": "छवियाँ जाँचें",
       "checkCss": "CSS जाँचें",

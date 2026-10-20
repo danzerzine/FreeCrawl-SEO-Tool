@@ -68,7 +68,7 @@ Options:
                       Honour a robots.txt Crawl-delay directive as a global rate limit
                         (one request every N seconds). Off by default — the directive is
                         not part of RFC 9309 and published values are often crippling.
-  --external          Follow external links
+  --external          Crawl external pages too (follow their links onward)
   --no-check-external Do not status-check external link targets (sends no request to external hosts;
                         the links are still stored, just without a status)
   --image-variants    Also fetch and measure srcset / <picture> image variants (off by default;

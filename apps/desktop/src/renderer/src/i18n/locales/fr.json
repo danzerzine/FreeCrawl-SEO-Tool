@@ -618,7 +618,7 @@
       "followRedirects": "Toujours suivre les redirections",
       "respectRobotsTxt": "Respecter robots.txt",
       "respectCrawlDelay": "Respecter le Crawl-delay de robots.txt",
-      "crawlExternal": "Vérifier les liens externes",
+      "crawlExternal": "Explorer les pages externes",
       "checkExternalLinks": "Vérifier le statut des liens externes",
       "checkImages": "Vérifier les images",
       "checkCss": "Vérifier le CSS",

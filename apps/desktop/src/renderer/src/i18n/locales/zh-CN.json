@@ -578,7 +578,7 @@
       "followRedirects": "总是跟随重定向",
       "respectRobotsTxt": "遵守 robots.txt",
       "respectCrawlDelay": "遵守 robots.txt 的 Crawl-delay",
-      "crawlExternal": "检查外部链接",
+      "crawlExternal": "抓取外部页面",
       "checkExternalLinks": "检查外部链接状态",
       "checkImages": "检查图片",
       "checkCss": "检查 CSS",
