@@ -465,6 +465,7 @@
       "redirect": "İndekslənə bilməyən — yönləndirmə",
       "clientError": "İndekslənə bilməyən — 4xx",
       "serverError": "İndekslənə bilməyən — 5xx",
+      "noResponse": "İndekslənə bilməyən — Cavab yoxdur",
       "botBlocked": "Naməlum — bot qorunması tərəfindən bloklanıb"
     },
     "kind": {

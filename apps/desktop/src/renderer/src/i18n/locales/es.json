@@ -481,6 +481,7 @@
       "redirect": "No indexable — redirección",
       "clientError": "No indexable — 4xx",
       "serverError": "No indexable — 5xx",
+      "noResponse": "No indexable — sin respuesta",
       "botBlocked": "Desconocido — bloqueada por protección antibots"
     },
     "kind": {

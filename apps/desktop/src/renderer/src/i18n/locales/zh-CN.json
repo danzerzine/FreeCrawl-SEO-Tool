@@ -449,6 +449,7 @@
       "redirect": "不可索引——重定向",
       "clientError": "不可索引——4xx",
       "serverError": "不可索引——5xx",
+      "noResponse": "不可索引——无响应",
       "botBlocked": "未知——被机器人防护拦截"
     },
     "kind": {
