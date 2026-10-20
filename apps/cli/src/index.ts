@@ -135,6 +135,8 @@ export options:
   --out <dir>         Output directory; created if missing. Files of the same name are overwritten,
                         nothing else in it is touched. Each file is written as <name>.part and renamed
                         when complete, so Ctrl-C (exit 130) leaves no half-written file.
+                        Written last: manifest.json, every file of the run (path, label, rows), what was
+                        asked, start and end time, tool version, project.
   --what <list>       Comma-separated (default: bulk):
                         bulk        one CSV per tab / issue check with rows, plus links-internal/external.csv
                         seo-audit   Screaming Frog-style SEO Audit files in <dir>/seo-audit

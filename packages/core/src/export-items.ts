@@ -5,7 +5,8 @@
  * files whichever of them runs it.
  */
 
-import { join } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
 import { EXPENSIVE_ISSUE_DEFINITIONS, type ProjectDb } from '@freecrawl/db';
 import {
   EXPORT_DATASET_COLUMNS,
@@ -118,7 +119,7 @@ function readsIssueData(item: ExportItem): boolean {
 export interface RunExportItemsOptions {
   /** Write the internal column keys instead of the grid labels. */
   rawHeaders?: boolean;
-  /** Recorded in the bulk export's manifest. */
+  /** Recorded in the run's manifest.json. */
   projectFile?: string;
   toolVersion?: string;
   /** White-label header of the `html` report. */
@@ -137,6 +138,7 @@ export async function runExportItems(
   items: readonly ExportItem[],
   options: RunExportItemsOptions = {},
 ): Promise<ExportOutcome> {
+  const startedAt = new Date();
   const headers = options.rawHeaders ? ('keys' as const) : undefined;
   const outcome: ExportOutcome = { files: [], errors: [], skipped: [] };
   const progress = options.onProgress ?? (() => {});
@@ -254,7 +256,46 @@ export async function runExportItems(
       outcome.errors.push({ label: item.name, error: (err as Error).message });
     }
   }
+  await writeRunManifest(outDir, items, outcome, startedAt, options);
   return outcome;
+}
+
+/**
+ * `manifest.json` in `outDir`: every file this run wrote (relative path,
+ * label, rows), what was asked, when, by which tool version, from which
+ * project. Written last, so its presence means the run reached the end;
+ * it replaces the manifest a `bulk` item wrote for its own files. A
+ * failed manifest is an error entry, not an abort.
+ */
+async function writeRunManifest(
+  outDir: string,
+  items: readonly ExportItem[],
+  outcome: ExportOutcome,
+  startedAt: Date,
+  options: RunExportItemsOptions,
+): Promise<void> {
+  try {
+    const manifest = {
+      tool: 'FreeCrawl SEO Tool',
+      toolVersion: options.toolVersion ?? null,
+      projectFile: options.projectFile ?? null,
+      what: items.map((i) => i.name),
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      files: outcome.files.map((f) => ({
+        path: relative(outDir, f.path).split(sep).join('/'),
+        label: f.label,
+        rows: f.rows,
+      })),
+      errors: outcome.errors,
+      skipped: outcome.skipped,
+    };
+    await writeExportFile(join(outDir, 'manifest.json'), (partPath) =>
+      writeFile(partPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8'),
+    );
+  } catch (err) {
+    outcome.errors.push({ label: 'Manifest', error: (err as Error).message });
+  }
 }
 
 /** `project_meta` key: JSON array of {@link ExportSet}. */
