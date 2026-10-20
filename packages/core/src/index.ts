@@ -126,6 +126,12 @@ export {
   BULK_EXPORT_TASKS,
   type BulkExportTask,
 } from './bulk-export.js';
+export { writeExportFile, removePartialExportFiles } from './export-file.js';
+export {
+  exportLinkTargetReport,
+  exportIssuesSummary,
+  LINK_TARGET_EXPORTS,
+} from './report-export.js';
 export {
   createLogParser,
   detectLogFormat,

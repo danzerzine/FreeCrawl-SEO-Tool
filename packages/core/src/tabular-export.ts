@@ -680,9 +680,12 @@ export async function exportTabular(
   // user-typed "report.txt" with format=json doesn't silently write JSON
   // into the wrong extension. Only applies to the single-file branch
   // (folder mode always names its own files).
-  const resolvedOutputPath = singleFlat
-    ? outputPath.replace(/\.[a-z0-9]+$/i, `.${ext}`)
-    : outputPath;
+  // A `<name>.part` temp file (writeExportFile) is written as named: its
+  // caller renames it to the real name once complete.
+  const resolvedOutputPath =
+    singleFlat && !outputPath.endsWith('.part')
+      ? outputPath.replace(/\.[a-z0-9]+$/i, `.${ext}`)
+      : outputPath;
 
   const writeOne = async (filePath: string, section: TabularSection): Promise<number> => {
     const source = sourceFor(section);
