@@ -1678,6 +1678,12 @@ async function runExport(opts: {
       onProgress: progressLine,
       outcome,
     };
+    // Before the run, so the folder's manifest.json lists it too.
+    if (missing.length > 0) {
+      const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;
+      if (opts.json) process.stderr.write(`${error}\n`);
+      outcome.errors.push({ label: 'URLs not in the project', error });
+    }
     if (set) {
       try {
         // `items` holds only the --urls links here; the set brings the rest.
@@ -1688,11 +1694,6 @@ async function runExport(opts: {
       }
     } else {
       await runExportItems(project.db, outDir, items, runOptions);
-    }
-    if (missing.length > 0) {
-      const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;
-      if (opts.json) process.stderr.write(`${error}\n`);
-      outcome.errors.push({ label: 'URLs not in the project', error });
     }
     print(outcome, null);
     return outcome.errors.length === 0 ? 0 : 1;
