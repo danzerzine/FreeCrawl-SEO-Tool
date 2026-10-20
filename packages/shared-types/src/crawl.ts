@@ -212,7 +212,8 @@ export type UrlCategory =
   | 'issues:canonical-chain-multi-hop'
   | 'issues:image-slow-loading'
   | 'issues:description-equals-h1'
-  | 'issues:uncrawlable-internal-outlinks'
+  // Pages With Uncrawlable Internal Outlinks; id kept from "JS-Only Navigation" for compatibility.
+  | 'issues:js-only-navigation'
   | 'issues:text-code-ratio-low'
   | 'issues:flesch-very-difficult'
   | 'issues:gunning-fog-very-high'
@@ -2158,9 +2159,10 @@ export interface OverviewCounts {
     /**
      * Pages with at least one internal link-like element a crawler cannot
      * follow ({@link UncrawlableLink}). Search-engine bots can't follow
-     * these — any navigation that depends on them is invisible.
+     * these — any navigation that depends on them is invisible. Key kept
+     * from the old "JS-Only Navigation" check for compatibility.
      */
-    uncrawlableInternalOutlinks: number;
+    jsOnlyNavigation: number;
     /**
      * Pages whose visible-text-to-HTML byte ratio is < 10% — heavy
      * JavaScript / template scaffolding with little crawlable content.

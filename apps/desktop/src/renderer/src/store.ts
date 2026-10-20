@@ -349,7 +349,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'No Outlinks (Dead-End)', category: 'issues:outlinks-zero' },
     { label: 'Internal Link → Redirect', category: 'issues:internal-link-to-redirect' },
     { label: 'Dead External Domain', category: 'issues:dead-external-domain' },
-    { label: 'Pages With Uncrawlable Internal Outlinks', category: 'issues:uncrawlable-internal-outlinks' },
+    { label: 'Pages With Uncrawlable Internal Outlinks', category: 'issues:js-only-navigation' },
   ],
 
   // ─── Analytics tab ──────────────────────────────────────────────────────
@@ -952,7 +952,7 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
     cat === 'issues:outlinks-zero' ||
     cat === 'issues:internal-link-to-redirect' ||
     cat === 'issues:dead-external-domain' ||
-    cat === 'issues:uncrawlable-internal-outlinks' ||
+    cat === 'issues:js-only-navigation' ||
     // Empty-anchor is a link-level issue whose count is page-level; it was
     // routed to the Broken Links tab, which runs `queryBrokenLinks` (4xx/5xx
     // targets only) and never applied the empty-anchor clause — so the

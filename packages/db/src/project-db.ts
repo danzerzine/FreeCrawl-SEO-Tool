@@ -7573,7 +7573,7 @@ export class ProjectDb {
          AND h1 IS NOT NULL AND h1 != ''
          AND TRIM(LOWER(meta_description)) = TRIM(LOWER(h1))`,
       ),
-      uncrawlableInternalOutlinks: countWhere(UNCRAWLABLE_INTERNAL_OUTLINKS_SQL),
+      jsOnlyNavigation: countWhere(UNCRAWLABLE_INTERNAL_OUTLINKS_SQL),
       textCodeRatioLow: countWhere(
         `${html} AND text_code_ratio IS NOT NULL AND text_code_ratio < 10`,
       ),
@@ -12460,7 +12460,7 @@ export function categoryWhereClause(
               AND meta_description IS NOT NULL AND meta_description != ''
               AND h1 IS NOT NULL AND h1 != ''
               AND TRIM(LOWER(meta_description)) = TRIM(LOWER(h1))`;
-    case 'issues:uncrawlable-internal-outlinks':
+    case 'issues:js-only-navigation':
       // Page has ≥1 link-like element a bot can't follow (`<a onclick>`,
       // `href="javascript:…"`, `<span href>`, onclick navigation) pointing
       // into the site or nowhere in particular; recorded at parse time.
