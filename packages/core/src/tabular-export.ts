@@ -718,6 +718,19 @@ export async function exportTabular(
         };
       }),
     ));
+    // Like the other formats: a workbook whose every sheet is an empty
+    // size-dependent dataset is not left behind (it would read as "the
+    // site has none"); a workbook with any other sheet keeps them all.
+    const reasons = sections.map((s) => (s.dataset ? EMPTY_DATASET_REASONS[s.dataset] : undefined));
+    if (rowsWritten === 0 && reasons.every((r) => r !== undefined)) {
+      await unlink(outputPath).catch(() => undefined);
+      return {
+        filePath: outputPath,
+        files: [],
+        rowsWritten: 0,
+        skipped: sections.map((s, i) => ({ label: s.label, reason: reasons[i]! })),
+      };
+    }
     return { filePath: outputPath, files: [outputPath], rowsWritten };
   }
 

@@ -18,6 +18,7 @@ import {
   DEFAULT_CRAWL_CONFIG,
   EXPORT_DATASET_COLUMNS,
   type BulkExportResult,
+  type ExportDatasetKey,
   type CrawlConfig,
   type LinkTargetReportKind,
   type LogIngestInput,
@@ -41,6 +42,7 @@ import {
   BULK_EXPORT_TASKS,
   LINK_TARGET_EXPORTS,
   runBulkExport,
+  exportIssueInlinks,
   runSeoAuditExport,
   exportHtmlReport,
   exportIssuesSummary,
@@ -50,7 +52,6 @@ import {
   removePartialExportFiles,
   type BulkExportTask,
   type LogAnalysisResult,
-  type SeoAuditExportResult,
 } from '@freecrawl/core';
 import {
   ProjectDb,
@@ -148,6 +149,15 @@ export options:
                         issues      issues-summary.csv: check key, label, group, severity, URL count
                         tab:<key> / issues:<key>
                                     one category CSV, e.g. tab:redirects, issues:title-missing
+                        dataset:<key>
+                                    one table as a file named after the key: issues-long, sitemap-urls,
+                                    crawl-queue, broken-links, broken-links-by-target, response-headers,
+                                    images, pagespeed, crux, spelling, ai:<provider>, seo:<provider>
+                                    (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies
+                                    exceed the CSV cell limit). issue-inlinks writes every issue into
+                                    the issue-inlinks/ subfolder. Nothing stored: no file, reason in
+                                    errors and on stderr (exit 1). Not offered: selected-* (use
+                                    --urls) and search-console, analytics, metrica (need an account).
                         redirects-to-error, error-inlinks, non-indexable-inlinks, redirect-inlinks
                                     the Internal Links reports, one row per link target; the redirect
                                     reports need the redirect-chain pass of the crawl ("not computed" else)
@@ -1492,7 +1502,20 @@ type ExportItem =
   | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues'; name: string }
   | { kind: 'tasks'; name: string; tasks: BulkExportTask[] }
   | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
-  | { kind: 'selected'; name: 'selected-links'; urls: string[] };
+  | { kind: 'selected'; name: 'selected-links'; urls: string[] }
+  | { kind: 'dataset'; name: string; dataset: ExportDatasetKey };
+
+/**
+ * Datasets `--what dataset:<key>` can write. Left out: the `selected-*`
+ * ones (they need chosen pages: `--urls`) and the Search Console,
+ * Analytics and Metrica pulls (they need a linked account).
+ */
+const CLI_EXPORT_DATASETS = (Object.keys(EXPORT_DATASET_COLUMNS) as ExportDatasetKey[]).filter(
+  (k) => !k.startsWith('selected-') && !['search-console', 'analytics', 'metrica'].includes(k),
+);
+
+/** Page bodies exceed the 32,767-character cell limit of CSV / Excel: JSON Lines only. */
+const JSONL_DATASETS: readonly ExportDatasetKey[] = ['page-html', 'page-text'];
 
 interface ExportOutcome {
   files: { path: string; label: string; rows: number | null }[];
@@ -1500,7 +1523,7 @@ interface ExportOutcome {
 }
 
 const EXPORT_WHAT_HELP =
-  'bulk, seo-audit, html, issues, tab:<key>, issues:<key>, ' +
+  'bulk, seo-audit, html, issues, tab:<key>, issues:<key>, dataset:<key>, ' +
   LINK_TARGET_EXPORTS.map((r) => r.report).join(', ');
 
 /**
@@ -1517,6 +1540,18 @@ function parseExportWhat(what: string | undefined): ExportItem[] {
     }
     const link = LINK_TARGET_EXPORTS.find((r) => r.report === name);
     if (link) return { kind: 'link', name, report: link.report, label: link.label };
+    if (name.startsWith('dataset:')) {
+      const key = name.slice('dataset:'.length) as ExportDatasetKey;
+      if (CLI_EXPORT_DATASETS.includes(key)) return { kind: 'dataset', name, dataset: key };
+      const hint = key.startsWith('selected-')
+        ? ' (it needs chosen pages: use --urls <file> instead)'
+        : ['search-console', 'analytics', 'metrica'].includes(key)
+          ? ' (it needs a linked account, which the CLI does not have)'
+          : '';
+      throw new Error(
+        `Unknown dataset in --what: ${name}${hint}. Valid keys: ${CLI_EXPORT_DATASETS.join(', ')}`,
+      );
+    }
     if (name.startsWith('tab:') || name.startsWith('issues:')) {
       const tasks = BULK_EXPORT_TASKS.filter((t) => t.category === name);
       if (tasks.length > 0) return { kind: 'tasks', name, tasks };
@@ -1566,7 +1601,7 @@ async function runExportItems(
       outcome.errors.push({ label: 'Issue lists recompute', error: (err as Error).message });
     }
   }
-  const addBulk = (r: BulkExportResult | SeoAuditExportResult): void => {
+  const addBulk = (r: Pick<BulkExportResult, 'files' | 'errors'>): void => {
     outcome.files.push(...r.files.map((f) => ({ path: f.filePath, label: f.label, rows: f.rowsWritten })));
     outcome.errors.push(...r.errors);
   };
@@ -1593,6 +1628,34 @@ async function runExportItems(
         const path = join(outDir, 'issues-summary.csv');
         const { rowsWritten } = await exportIssuesSummary(db, path);
         outcome.files.push({ path, label: 'Issues Summary', rows: rowsWritten });
+      } else if (item.kind === 'dataset') {
+        if (item.dataset === 'issue-inlinks') {
+          // Every issue, one file each in the issue-inlinks/ subfolder.
+          addBulk(await exportIssueInlinks(db, outDir, { headers }));
+        } else {
+          const label = item.name;
+          const jsonl = JSONL_DATASETS.includes(item.dataset);
+          const path = join(outDir, `${item.dataset.replace(':', '-')}.${jsonl ? 'jsonl' : 'csv'}`);
+          const { rowsWritten, skipped } = await writeExportFile(
+            path,
+            (partPath) =>
+              exportTabular(db, partPath, {
+                format: jsonl ? 'jsonl' : 'csv',
+                sections: [{ label, dataset: item.dataset }],
+                columns: EXPORT_DATASET_COLUMNS[item.dataset].map((c) => c.key),
+                headers,
+              }),
+            (r) => r.rowsWritten > 0,
+          );
+          if (skipped) {
+            for (const sk of skipped) {
+              progress(`${sk.label}: ${sk.reason}`);
+              outcome.errors.push({ label: sk.label, error: sk.reason });
+            }
+          } else {
+            outcome.files.push({ path, label, rows: rowsWritten });
+          }
+        }
       } else if (item.kind === 'selected') {
         for (const dataset of ['selected-inlinks', 'selected-outlinks'] as const) {
           const label = dataset === 'selected-inlinks' ? 'Selected Inlinks' : 'Selected Outlinks';

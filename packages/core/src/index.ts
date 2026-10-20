@@ -123,6 +123,7 @@ export {
 } from './sitemap.js';
 export {
   runBulkExport,
+  exportIssueInlinks,
   BULK_EXPORT_TASKS,
   type BulkExportTask,
 } from './bulk-export.js';

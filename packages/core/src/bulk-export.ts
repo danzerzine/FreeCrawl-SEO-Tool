@@ -180,6 +180,56 @@ export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
 export const ISSUE_INLINKS_SUBDIR = 'issue-inlinks';
 
 /**
+ * Per-issue inlinks: every link into the pages that have the issue, one
+ * file per enabled issue with pages, under `<outputDir>/issue-inlinks/`.
+ * Shared by the bulk dump and the CLI's `--what dataset:issue-inlinks`.
+ */
+export async function exportIssueInlinks(
+  db: ProjectDb,
+  outputDir: string,
+  options: { headers?: 'labels' | 'keys' } = {},
+): Promise<{ files: BulkExportFile[]; errors: { label: string; error: string }[] }> {
+  const files: BulkExportFile[] = [];
+  const errors: { label: string; error: string }[] = [];
+  const hasRows = (r: { rowsWritten: number }): boolean => r.rowsWritten > 0;
+  const disabled = db.getDisabledIssues();
+  const issueKeys = [...db.getIssueCounts().keys()]
+    .filter((key) => !disabled.has(key as UrlCategory))
+    .sort();
+  if (issueKeys.length > 0) {
+    const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
+    let written = 0;
+    for (const key of issueKeys) {
+      const name = key.replace(/^issues:/, '');
+      const issueLabel = BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? name;
+      const label = `Issue Inlinks — ${issueLabel}`;
+      const filePath = join(issueDir, `inlinks-${name}.csv`);
+      try {
+        const { rowsWritten } = await writeExportFile(
+          filePath,
+          (partPath) =>
+            exportTabular(db, partPath, {
+              format: 'csv',
+              headers: options.headers,
+              sections: [{ label, dataset: 'issue-inlinks' }],
+              columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
+              datasetContext: { issueKey: key },
+            }),
+          hasRows,
+        );
+        if (rowsWritten === 0) continue;
+        written++;
+        files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
+      } catch (err) {
+        errors.push({ label, error: (err as Error).message });
+      }
+    }
+    if (written === 0) await rmdir(issueDir).catch(() => undefined);
+  }
+  return { files, errors };
+}
+
+/**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
  * `outputDir` (created when missing). Each file goes through
  * `<name>.part` + rename; zero-row categories leave no file, so the dump
@@ -268,41 +318,9 @@ export async function runBulkExport(
       errors.push({ label: task.label, error: (err as Error).message });
     }
   }
-  // Per-issue inlinks: every link into the pages that have the issue,
-  // one file per enabled issue with pages.
-  const issueKeys = [...db.getIssueCounts().keys()]
-    .filter((key) => !disabled.has(key as UrlCategory))
-    .sort();
-  if (issueKeys.length > 0) {
-    const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
-    let written = 0;
-    for (const key of issueKeys) {
-      const name = key.replace(/^issues:/, '');
-      const issueLabel = BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? name;
-      const label = `Issue Inlinks — ${issueLabel}`;
-      const filePath = join(issueDir, `inlinks-${name}.csv`);
-      try {
-        const { rowsWritten } = await writeExportFile(
-          filePath,
-          (partPath) =>
-            exportTabular(db, partPath, {
-              format: 'csv',
-              headers: options.headers,
-              sections: [{ label, dataset: 'issue-inlinks' }],
-              columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
-              datasetContext: { issueKey: key },
-            }),
-          hasRows,
-        );
-        if (rowsWritten === 0) continue;
-        written++;
-        files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
-      } catch (err) {
-        errors.push({ label, error: (err as Error).message });
-      }
-    }
-    if (written === 0) await rmdir(issueDir).catch(() => undefined);
-  }
+  const inlinks = await exportIssueInlinks(db, outputDir, { headers: options.headers });
+  files.push(...inlinks.files);
+  errors.push(...inlinks.errors);
   const result: BulkExportResult = { outputDir, files, errors };
   await writeBulkManifest(result, startedAt, options);
   return result;
