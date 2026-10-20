@@ -10063,17 +10063,26 @@ export class ProjectDb {
    * sizes are left out unless `includeVariants` — they are stored for the
    * Images tab but, like the crawl itself, only requested on demand.
    */
-  unprobedImages(limit = 20_000, includeVariants = false): { id: number; src: string }[] {
+  unprobedImages(
+    limit = 20_000,
+    includeVariants = false,
+    /** False when "check external links" is off: no request to an external host. */
+    includeExternal = true,
+  ): { id: number; src: string }[] {
     return this.db
       .prepare(
         `SELECT id, src FROM images
           WHERE probe_status IS NULL
             AND src LIKE 'http%'
             AND (? OR is_variant = 0)
+            AND (? OR is_internal = 1)
           ORDER BY id
           LIMIT ?`,
       )
-      .all(includeVariants ? 1 : 0, limit) as { id: number; src: string }[];
+      .all(includeVariants ? 1 : 0, includeExternal ? 1 : 0, limit) as {
+      id: number;
+      src: string;
+    }[];
   }
 
   /**

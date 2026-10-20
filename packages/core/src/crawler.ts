@@ -1830,7 +1830,13 @@ export class Crawler extends EventEmitter {
     if (this.stopped) return;
     let unprobed: { id: number; src: string }[] = [];
     try {
-      unprobed = this.db.unprobedImages(20_000, this.config.crawlImageVariants);
+      // "Check external links" off promises no request to any external
+      // host, image hosts included.
+      unprobed = this.db.unprobedImages(
+        20_000,
+        this.config.crawlImageVariants,
+        this.config.checkExternalLinks,
+      );
     } catch (err) {
       this.emit(
         'info',
