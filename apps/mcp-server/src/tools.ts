@@ -365,8 +365,11 @@ export function buildTools(): Tool[] {
               respectCrawlDelay: { type: 'boolean' },
               followRedirects: { type: 'boolean' },
               crawlExternal: { type: 'boolean' },
-              // false = no request to hosts outside the crawl scope (also stops crawlExternal)
-              checkExternalLinks: { type: 'boolean' },
+              checkExternalLinks: {
+                type: 'boolean',
+                description:
+                  'false = no request to hosts outside the crawl scope (CDN hosts and subdomains in scope count as the site); also stops crawlExternal. External links are still stored, without a status.',
+              },
               userAgent: { type: 'string' },
               includePatterns: { type: 'array', items: { type: 'string' } },
               excludePatterns: { type: 'array', items: { type: 'string' } },
