@@ -4958,6 +4958,7 @@ export class Crawler extends EventEmitter {
         // Lets a script / stylesheet / font row list the pages that embed
         // it under Inlinks.
         resources: parsed.resources,
+        uncrawlableLinks: this.config.storeUncrawlableLinks ? parsed.uncrawlableLinks : undefined,
         fromDepth: item.depth,
       });
       // V2 Faz 1 — Persist render artefacts inline so they finish before

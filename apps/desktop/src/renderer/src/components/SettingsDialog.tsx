@@ -2255,8 +2255,8 @@ function SpiderCrawlPanel({ form, update }: PanelProps) {
             />
             <CrawlRow
               label="Uncrawlable Links"
-              info={'Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.'}
-              example="On — it is a count, so it costs nothing."
+              info={'Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.'}
+              example="On — a few short rows per page."
               crawl={null}
               store={{
                 checked: form.storeUncrawlableLinks,

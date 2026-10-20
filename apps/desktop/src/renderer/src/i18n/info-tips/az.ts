@@ -6,8 +6,8 @@
 export const AZ_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → qırıq qrupun hər üzvünə 'Ardıcıllıq qırılması' işarəsi qoyur.",
-  ['`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).']:
-    'Kliklənə bilən görünən, amma taranmayan `<a>` elementləri (href yox + onclick var, `href="javascript:…"`, ya da onclick ilə birlikdə `href="#"`).',
+  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Tarayıcının izləyə bilmədiyi keçidəbənzər elementlər (href yox + onclick var, `href="javascript:…"`, onclick ilə birlikdə `href="#"`, onclick ilə yönləndirmə, href və ya data-href olan `<span>` / `<div>` / `<button>`). Hər biri çıxan keçidlərdə göstərilir.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` dəyəri — bu səhifənin AMP versiyası. Səhifə AMP alternativi bəyan etmirsə boşdur.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -604,10 +604,10 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     'Ayrı URL-li (m-dot) mobil versiya: <link rel="alternate" media="only screen and (max-width: …)">. Responsiv saytlarda null-dır, ki onlar əksəriyyətdir — burada dəyər olub geriyə qarşılıqlı kanonik yoxdursa, bu klassik qırıq m-dot qurulumudur.',
   ['Crawl on only when the site really does serve a separate mobile host.']:
     'Yalnız sayt həqiqətən ayrı mobil host verirsə Tara aktiv.',
-  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.']:
-    'Axtarış sisteminin izləyə bilmədiyi keçidlər: href-siz amma onclick-li <a>, href="javascript:…" və işləyiciyə bağlı href="#" yer tutucuları. Yalnız Saxla — taranmayan keçid tərifə görə heç vaxt yüklənmir. Yalnız JS naviqasiyası problem filtrini doldurur.',
-  ['On — it is a count, so it costs nothing.']:
-    'Aktiv — bu bir saydır, ona görə heç nəyə başa gəlmir.',
+  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.']:
+    'Axtarış sisteminin izləyə bilmədiyi keçidlər: href-siz amma onclick-li <a>, href="javascript:…", işləyiciyə bağlı href="#" yer tutucuları, onclick ilə yönləndirmə və href və ya data-href olan <span> / <div> / <button>. Yalnız Saxla — taranıla bilməyən keçid tərifə görə heç vaxt yüklənmir. Hər biri çıxan keçidlərdə göstərilir və «Taranıla bilməyən daxili çıxan keçidləri olan səhifələr» yoxlamasında sayılır.',
+  ['On — a few short rows per page.']:
+    'Aktiv — səhifə başına bir neçə qısa sətir.',
   ['With a Subfolder-scoped crawl, links pointing outside the start folder are fetched once so their status code is known, then stopped — they are checked, not crawled through. Off leaves them undiscovered entirely.']:
     'Alt-qovluq əhatəli taramada başlanğıc qovluğundan kənarı göstərən keçidlər status kodları məlum olsun deyə bir dəfə yüklənir, sonra dayandırılır — yoxlanılır, dərinə taranmır. Söndürülü onları tamamilə kəşf edilməmiş qoyur.',
   ['On — knowing a link out of /blog/ is a 404 costs one request.']:

@@ -6,8 +6,8 @@
 export const KO_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → 끊어진 그룹의 모든 구성원에 '시퀀스 단절'을 표시합니다.",
-  ['`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).']:
-    '클릭 가능해 보이지만 크롤링할 수 없는 `<a>` 요소(href 없이 onclick만 있음, `href="javascript:…"`, 또는 onclick이 붙은 `href="#"`).',
+  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    '크롤러가 따라갈 수 없는 링크 형태의 요소(href 없이 onclick만 있음, `href="javascript:…"`, onclick이 붙은 `href="#"`, onclick 이동, href 또는 data-href가 있는 `<span>` / `<div>` / `<button>`). 각각 아웃바운드 링크에 표시됩니다.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` 값 — 이 페이지의 AMP 버전. 페이지가 AMP 대체 버전을 선언하지 않으면 비어 있습니다.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -597,9 +597,10 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '별도 URL(m-dot) 모바일 버전: <link rel="alternate" media="only screen and (max-width: …)">. 반응형 사이트(대부분)에서는 null입니다 — 여기 값이 있는데 되돌아오는 상호 canonical이 없으면 전형적인 깨진 m-dot 설정입니다.',
   ['Crawl on only when the site really does serve a separate mobile host.']:
     '사이트가 실제로 별도의 모바일 호스트를 제공할 때만 크롤링 켬.',
-  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.']:
-    '검색 엔진이 따라갈 수 없는 링크: href 없이 onclick만 있는 <a>, href="javascript:…", 핸들러에 연결된 href="#" 자리표시자. 저장 전용 — 크롤링할 수 없는 링크는 정의상 절대 가져오지 않습니다. JS 전용 탐색 문제 필터에 데이터를 제공합니다.',
-  ['On — it is a count, so it costs nothing.']: '켬 — 카운트일 뿐이라 비용이 없습니다.',
+  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.']:
+    '검색 엔진이 따라갈 수 없는 링크: href 없이 onclick만 있는 <a>, href="javascript:…", 핸들러에 연결된 href="#" 자리표시자, onclick 이동, href 또는 data-href가 있는 <span> / <div> / <button>. 저장 전용 — 크롤할 수 없는 링크는 정의상 절대 가져오지 않습니다. 각각 아웃바운드 링크에 표시되고 "크롤할 수 없는 내부 아웃바운드 링크가 있는 페이지" 검사에서 집계됩니다.',
+  ['On — a few short rows per page.']:
+    '켬 — 페이지당 짧은 행 몇 개뿐입니다.',
   ['With a Subfolder-scoped crawl, links pointing outside the start folder are fetched once so their status code is known, then stopped — they are checked, not crawled through. Off leaves them undiscovered entirely.']:
     '하위 폴더 범위 크롤링에서 시작 폴더 밖을 가리키는 링크는 상태 코드를 알기 위해 한 번 가져온 뒤 멈춥니다 — 검사만 하고 크롤링하지 않습니다. 끄면 전혀 발견하지 않습니다.',
   ['On — knowing a link out of /blog/ is a 404 costs one request.']:

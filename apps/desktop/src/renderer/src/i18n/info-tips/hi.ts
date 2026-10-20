@@ -6,8 +6,8 @@
 export const HI_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → टूटे हुए क्लस्टर के हर सदस्य पर 'अनुक्रम टूटा' चिह्न लगाता है।",
-  ['`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).']:
-    'ऐसे `<a>` तत्व जो क्लिक करने योग्य दिखते हैं पर क्रॉल नहीं किए जा सकते (href नहीं पर onclick है, `href="javascript:…"`, या onclick के साथ `href="#"`)।',
+  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'लिंक जैसे तत्व जिन्हें क्रॉलर फ़ॉलो नहीं कर सकता (href नहीं पर onclick है, `href="javascript:…"`, onclick के साथ `href="#"`, onclick से नेविगेशन, href या data-href वाले `<span>` / `<div>` / `<button>`)। हर एक आउटलिंक में दिखता है।',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` का मान — इस पेज का AMP संस्करण। पेज कोई AMP विकल्प घोषित न करे तो खाली।',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -602,9 +602,10 @@ export const HI_INFO_TIPS: Record<string, string> = {
     'अलग-URL (m-dot) मोबाइल संस्करण: <link rel="alternate" media="only screen and (max-width: …)">। रिस्पॉन्सिव साइटों पर null, जो अधिकांश हैं — यहाँ मान हो पर वापस कोई पारस्परिक कैनोनिकल न हो तो यह क्लासिक टूटा m-dot सेटअप है।',
   ['Crawl on only when the site really does serve a separate mobile host.']:
     'क्रॉल केवल तब चालू करें जब साइट वास्तव में अलग मोबाइल होस्ट परोसती हो।',
-  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.']:
-    'ऐसे लिंक जिन्हें सर्च इंजन फ़ॉलो नहीं कर सकता: बिना href पर onclick वाला <a>, href="javascript:…", और हैंडलर से जुड़े href="#" प्लेसहोल्डर। केवल-संग्रह — गैर-क्रॉल योग्य लिंक परिभाषा से कभी फ़ेच नहीं होता। केवल-JS नेविगेशन समस्या फ़िल्टर को डेटा देता है।',
-  ['On — it is a count, so it costs nothing.']: 'चालू — यह एक गिनती है, इसलिए इसका कोई खर्च नहीं।',
+  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.']:
+    'ऐसे लिंक जिन्हें सर्च इंजन फ़ॉलो नहीं कर सकता: बिना href पर onclick वाला <a>, href="javascript:…", हैंडलर से जुड़े href="#" प्लेसहोल्डर, onclick से नेविगेशन, और href या data-href वाले <span> / <div> / <button>। केवल-संग्रह — क्रॉल न हो सकने वाला लिंक परिभाषा से कभी फ़ेच नहीं होता। हर एक आउटलिंक में दिखता है और "क्रॉल न हो सकने वाले आंतरिक आउटलिंक वाले पृष्ठ" जाँच में गिना जाता है।',
+  ['On — a few short rows per page.']:
+    'चालू — प्रति पृष्ठ बस कुछ छोटी पंक्तियाँ।',
   ['With a Subfolder-scoped crawl, links pointing outside the start folder are fetched once so their status code is known, then stopped — they are checked, not crawled through. Off leaves them undiscovered entirely.']:
     'सबफ़ोल्डर-दायरे वाले क्रॉल में शुरुआती फ़ोल्डर के बाहर के लिंक एक बार फ़ेच होते हैं ताकि उनका स्टेटस कोड पता चले, फिर रुक जाते हैं — जाँचे जाते हैं, क्रॉल नहीं किए जाते। बंद उन्हें पूरी तरह अनखोजा छोड़ देता है।',
   ['On — knowing a link out of /blog/ is a 404 costs one request.']:

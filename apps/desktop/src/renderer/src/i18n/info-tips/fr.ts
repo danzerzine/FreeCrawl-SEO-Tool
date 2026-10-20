@@ -6,8 +6,8 @@
 export const FR_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     '?page=1 / ?page=2 / ?page=4 → signale « Rupture de séquence » sur chaque membre du groupe cassé.',
-  ['`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).']:
-    'Éléments `<a>` qui semblent cliquables mais ne sont pas explorables (pas de href + onclick, `href="javascript:…"`, ou `href="#"` avec onclick).',
+  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Éléments semblables à des liens qu\'un robot d\'exploration ne peut pas suivre (pas de href + onclick, `href="javascript:…"`, `href="#"` avec onclick, navigation par onclick, `<span>` / `<div>` / `<button>` avec href ou data-href). Chacun figure dans les liens sortants.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     'Valeur de `<link rel="amphtml" href="…">` — la version AMP de cette page. Vide lorsque la page ne déclare pas d\'alternative AMP.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -607,10 +607,10 @@ export const FR_INFO_TIPS: Record<string, string> = {
     'La version mobile à URL distincte (m-dot) : <link rel="alternate" media="only screen and (max-width: …)">. Nul sur les sites responsive, soit la plupart — une valeur ici sans canonique réciproque en retour est la configuration m-dot cassée classique.',
   ['Crawl on only when the site really does serve a separate mobile host.']:
     'Explorer activé uniquement lorsque le site sert réellement un hôte mobile distinct.',
-  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.']:
-    'Liens qu\'un moteur de recherche ne peut pas suivre : <a> sans href mais avec onclick, href="javascript:…" et espaces réservés href="#" branchés à un gestionnaire. Stocker uniquement — un lien non explorable n\'est par définition jamais récupéré. Alimente le filtre de problèmes Navigation JS uniquement.',
-  ['On — it is a count, so it costs nothing.']:
-    "Activé — c'est un décompte, donc ça ne coûte rien.",
+  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.']:
+    'Liens qu\'un moteur de recherche ne peut pas suivre : <a> sans href mais avec onclick, href="javascript:…", espaces réservés href="#" branchés à un gestionnaire, navigation par onclick et <span> / <div> / <button> avec href ou data-href. Stocker uniquement — un lien non explorable n\'est par définition jamais récupéré. Chacun figure dans les liens sortants et est compté par le contrôle Pages avec des liens sortants internes non explorables.',
+  ['On — a few short rows per page.']:
+    'Activé — quelques lignes courtes par page.',
   ['With a Subfolder-scoped crawl, links pointing outside the start folder are fetched once so their status code is known, then stopped — they are checked, not crawled through. Off leaves them undiscovered entirely.']:
     "Avec une exploration de portée Sous-dossier, les liens pointant hors du dossier de départ sont récupérés une fois pour connaître leur code d'état, puis arrêtés — ils sont vérifiés, pas explorés en profondeur. Désactivé les laisse totalement non découverts.",
   ['On — knowing a link out of /blog/ is a 404 costs one request.']:

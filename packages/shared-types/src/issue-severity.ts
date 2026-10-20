@@ -149,7 +149,7 @@ const WARNING: UrlCategory[] = [
   'issues:dead-external-domain',
   'issues:canonical-chain-multi-hop',
   'issues:image-slow-loading',
-  'issues:js-only-navigation',
+  'issues:uncrawlable-internal-outlinks',
   'issues:mixed-content-passive',
   'issues:render-blocking-critical',
   'issues:og-image-too-large',

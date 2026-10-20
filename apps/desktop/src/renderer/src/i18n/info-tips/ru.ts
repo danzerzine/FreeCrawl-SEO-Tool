@@ -6,8 +6,8 @@
 export const RU_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     '?page=1 / ?page=2 / ?page=4 → помечает «Разрыв последовательности» у каждого члена сломанной группы.',
-  ['`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).']:
-    'Элементы `<a>`, которые выглядят кликабельными, но не сканируются (нет href + onclick, `href="javascript:…"` или `href="#"` с onclick).',
+  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Элементы, похожие на ссылки, по которым краулер не пройдёт (нет href + onclick, `href="javascript:…"`, `href="#"` с onclick, переход в onclick, `<span>` / `<div>` / `<button>` с href или data-href). Каждый показан в исходящих ссылках.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     'Значение `<link rel="amphtml" href="…">` — AMP-версия этой страницы. Пусто, если страница не объявляет AMP-альтернативу.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -606,9 +606,10 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Мобильная версия на отдельном URL (m-dot): <link rel="alternate" media="only screen and (max-width: …)">. Null на адаптивных сайтах, а таких большинство — значение здесь без ответного canonical назад — классическая сломанная m-dot-настройка.',
   ['Crawl on only when the site really does serve a separate mobile host.']:
     '«Сканировать» вкл. только когда сайт действительно отдаёт отдельный мобильный хост.',
-  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.']:
-    'Ссылки, по которым поисковик не может перейти: <a> без href, но с onclick, href="javascript:…" и заглушки href="#" с обработчиком. Только «Сохранять» — несканируемая ссылка по определению никогда не загружается. Питает фильтр проблем «Навигация только через JS».',
-  ['On — it is a count, so it costs nothing.']: 'Вкл. — это счётчик, поэтому он ничего не стоит.',
+  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.']:
+    'Ссылки, по которым поисковик не может перейти: <a> без href, но с onclick, href="javascript:…", заглушки href="#" с обработчиком, переход в onclick и <span> / <div> / <button> с href или data-href. Только «Сохранять» — такая ссылка по определению никогда не загружается. Каждая показана в исходящих ссылках и считается проверкой «Страницы с внутренними ссылками, недоступными для обхода».',
+  ['On — a few short rows per page.']:
+    'Вкл. — несколько коротких строк на страницу.',
   ['With a Subfolder-scoped crawl, links pointing outside the start folder are fetched once so their status code is known, then stopped — they are checked, not crawled through. Off leaves them undiscovered entirely.']:
     'При сканировании в области «Подпапка» ссылки, ведущие за пределы стартовой папки, загружаются один раз ради кода состояния и на этом останавливаются — они проверяются, а не сканируются насквозь. Выкл. оставляет их вовсе необнаруженными.',
   ['On — knowing a link out of /blog/ is a 404 costs one request.']:

@@ -604,7 +604,7 @@ const COL = {
     size: 110,
     kind: 'number',
     align: 'right',
-    info: '`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).',
+    info: 'Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.',
     example: '0',
   } as ColumnSpec,
   canonicalCount: {

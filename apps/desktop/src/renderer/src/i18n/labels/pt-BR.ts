@@ -247,7 +247,7 @@ export const PT_BR_LABELS: Record<string, string> = {
   'Total Links per Page > 100': 'Total de links por página > 100',
   'External Links > 100': 'Links externos > 100',
   'No Outlinks (Dead-End)': 'Sem links de saída (sem saída)',
-  'JS-Only Navigation': 'Navegação só por JS',
+  'Pages With Uncrawlable Internal Outlinks': 'Páginas com links de saída internos não rastreáveis',
   'Internal Link → Redirect': 'Link interno → redirecionamento',
   'Broken (All)': 'Quebrados (todos)',
   'Broken Internal': 'Internos quebrados',
@@ -677,6 +677,7 @@ export const PT_BR_LABELS: Record<string, string> = {
   'Link Position': 'Posição do link',
   'Final Target': 'Destino final',
   'Link Origin': 'Origem do link',
+  'Crawlable': 'Rastreável',
   Transferred: 'Transferido',
 
   // Settings dialog sidebar sections

@@ -8,6 +8,7 @@ import type {
   LinkPathType,
   LinkPosition,
   SchemaFinding,
+  UncrawlableLink,
 } from '@freecrawl/shared-types';
 import { GENERIC_ANCHOR_TEXTS } from '@freecrawl/shared-types';
 import {
@@ -219,9 +220,12 @@ export interface ParsedPage {
    * Excludes `href="#"` without `onclick` (legitimate scroll anchors)
    * and `href="#section-id"` (in-page jumps — crawlable as the same URL).
    * Also counts non-`<a>` elements whose `onclick` navigates
-   * (`location.href = …`, `location.assign(…)`, `window.open(…)`).
+   * (`location.href = …`, `location.assign(…)`, `window.open(…)`), and
+   * `<span>` / `<div>` / `<button>` carrying `href` / `data-href`.
    */
   jsOnlyLinksCount: number;
+  /** Those elements one by one (the first 200), never followed. */
+  uncrawlableLinks: UncrawlableLink[];
   /**
    * Visible-text bytes divided by total HTML bytes, expressed as an
    * integer percent (0–100). Low ratio (typically <10%) suggests heavy
@@ -539,6 +543,8 @@ function isTrackingPixel(
 /** An `onclick` body that navigates somewhere rather than acting in place. */
 const JS_NAVIGATION_RE =
   /(?:^|[^\w$.])(?:window\.|document\.|top\.|self\.)?location(?:\.href)?\s*=(?!=)|location\.(?:assign|replace)\s*\(|window\.open\s*\(/;
+/** First quoted literal in script text that reads as a URL (`'/y'`, `"https://…"`). */
+const JS_URL_LITERAL_RE = /(["'`])((?:https?:\/\/|\.{0,2}\/)[^"'`\s\\$]*)\1/i;
 
 /** `document.title = …` — an assignment, never a read or a comparison. */
 const JS_TITLE_ASSIGN_RE =
@@ -1581,35 +1587,62 @@ export function parseHtml(
   //   3. `<a href="#" onclick="…">`      (placeholder href + JS handler)
   // We scan ALL `<a>` (not just `a[href]`) because pattern 1 has no href.
   let jsOnlyLinksCount = 0;
+  // Each one is also recorded (capped like `invalidLinks`) with where it
+  // would go: the URL itself for `href` / `data-href`, else the first quoted
+  // URL literal in the script. Script is never run.
+  const uncrawlableLinks: UncrawlableLink[] = [];
+  const uncrawlable = (el: unknown, tag: string, value: string, isUrl: boolean): void => {
+    jsOnlyLinksCount++;
+    if (uncrawlableLinks.length >= 200) return;
+    const raw = isUrl && !/^javascript:/i.test(value) ? value : JS_URL_LITERAL_RE.exec(value)?.[2];
+    const resolved = raw ? normalizeUrl(raw, baseUrl, opts.urlRewrites) : null;
+    const target = resolved && /^https?:/.test(resolved) ? resolved : null;
+    uncrawlableLinks.push({
+      tag,
+      value: value.slice(0, 500),
+      target,
+      linkPosition: detectLinkPosition(el),
+      isInternal: target ? isSameHost(pageUrl, target, opts) : true,
+    });
+  };
   $('a').each((_, el) => {
     const $el = $(el);
     const rawHref = $el.attr('href');
     const onclick = $el.attr('onclick');
     if (rawHref === undefined) {
-      if (onclick && onclick.trim() !== '') jsOnlyLinksCount++;
+      if (onclick && onclick.trim() !== '') uncrawlable(el, 'a', onclick.trim(), false);
       return;
     }
     const href = rawHref.trim();
     // RFC 3986 — `javascript:` scheme is the canonical JS-only marker.
     // Lowercased before match to handle `JavaScript:` casing in the wild.
     if (/^javascript:/i.test(href)) {
-      jsOnlyLinksCount++;
+      uncrawlable(el, 'a', href, false);
       return;
     }
     // `#` exactly = placeholder; only counts when an onclick is wired.
     // `#section-id` (length > 1) is a legitimate in-page jump — skip.
     if (href === '#' && onclick && onclick.trim() !== '') {
-      jsOnlyLinksCount++;
+      uncrawlable(el, 'a', onclick.trim(), false);
     }
   });
   // Clickable non-link elements that navigate in script — `<span onclick=
   // "location.href='/x'">`, `<button onclick="window.open(…)">`. There is
   // no URL in the markup at all, so the target is reachable only by a
   // visitor running JavaScript. Handlers that don't navigate (add to cart,
-  // toggle a menu) are left alone.
-  $('[onclick]').each((_, el) => {
-    if ((el as { name?: string }).name?.toLowerCase() === 'a') return;
-    if (JS_NAVIGATION_RE.test($(el).attr('onclick') ?? '')) jsOnlyLinksCount++;
+  // toggle a menu) are left alone. A `<span>` / `<div>` / `<button>` with an
+  // `href` or `data-href` holds a URL no crawler treats as a link.
+  $('[onclick], :is(span, div, button):is([href], [data-href])').each((_, el) => {
+    const tag = (el as { name?: string }).name?.toLowerCase() ?? '';
+    if (tag === 'a') return;
+    const $el = $(el);
+    const url =
+      tag === 'span' || tag === 'div' || tag === 'button'
+        ? ($el.attr('href') ?? $el.attr('data-href'))?.trim()
+        : undefined;
+    const onclick = $el.attr('onclick') ?? '';
+    if (url && !url.startsWith('#')) uncrawlable(el, tag, url, true);
+    else if (JS_NAVIGATION_RE.test(onclick)) uncrawlable(el, tag, onclick.trim(), false);
   });
 
   // Hrefs that survive being an `<a href>` but not being a URL: doubled
@@ -2152,6 +2185,7 @@ export function parseHtml(
     genericAnchorCount,
     targetBlankNoNoopenerCount,
     jsOnlyLinksCount,
+    uncrawlableLinks,
     textCodeRatio,
     fleschReadingEase: readability.fleschReadingEase,
     fleschKincaidGrade: readability.fleschKincaidGrade,

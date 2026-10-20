@@ -247,7 +247,7 @@ export const KO_LABELS: Record<string, string> = {
   'Total Links per Page > 100': '페이지당 전체 링크 100개 초과',
   'External Links > 100': '외부 링크 100개 초과',
   'No Outlinks (Dead-End)': '아웃바운드 링크 없음(막힌 페이지)',
-  'JS-Only Navigation': 'JS만으로 된 내비게이션',
+  'Pages With Uncrawlable Internal Outlinks': '크롤할 수 없는 내부 아웃바운드 링크가 있는 페이지',
   'Internal Link → Redirect': '내부 링크 → 리다이렉트',
   'Broken (All)': '끊어짐(전체)',
   'Broken Internal': '끊어진 내부 링크',
@@ -667,6 +667,7 @@ export const KO_LABELS: Record<string, string> = {
   'Link Position': '링크 위치',
   'Final Target': '최종 대상',
   'Link Origin': '링크 출처',
+  'Crawlable': '크롤 가능',
   Transferred: '전송됨',
 
   // Settings dialog sidebar sections

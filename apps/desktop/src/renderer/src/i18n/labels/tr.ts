@@ -246,7 +246,7 @@ export const TR_LABELS: Record<string, string> = {
   'Total Links per Page > 100': 'Sayfa Başına Toplam Link > 100',
   'External Links > 100': 'Harici Link > 100',
   'No Outlinks (Dead-End)': 'Dış Link Yok (Çıkmaz Sokak)',
-  'JS-Only Navigation': 'Yalnızca JS Navigasyonu',
+  'Pages With Uncrawlable Internal Outlinks': 'Taranamayan Dahili Giden Bağlantıları Olan Sayfalar',
   'Internal Link → Redirect': 'Dahili Link → Yönlendirme',
   'Broken (All)': 'Kırık (Tümü)',
   'Broken Internal': 'Kırık Dahili',
@@ -662,6 +662,7 @@ export const TR_LABELS: Record<string, string> = {
   'Link Position': 'Link Konumu',
   'Final Target': 'Son Hedef',
   'Link Origin': 'Link Kaynağı',
+  'Crawlable': 'Taranabilir',
   Transferred: 'Aktarılan',
 
   // Settings dialog sidebar sections

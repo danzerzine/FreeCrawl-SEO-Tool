@@ -361,7 +361,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-outlinks-zero', label: 'No Outlinks (Dead-End)', category: 'issues:outlinks-zero', count: 'outlinksZero' },
       { key: 'issues-internal-link-to-redirect', label: 'Internal Link → Redirect', category: 'issues:internal-link-to-redirect', count: 'internalLinkToRedirect' },
       { key: 'issues-dead-external-domain', label: 'Dead External Domain', category: 'issues:dead-external-domain', count: 'deadExternalDomain' },
-      { key: 'issues-js-only-navigation', label: 'JS-Only Navigation', category: 'issues:js-only-navigation', count: 'jsOnlyNavigation' },
+      { key: 'issues-uncrawlable-internal-outlinks', label: 'Pages With Uncrawlable Internal Outlinks', category: 'issues:uncrawlable-internal-outlinks', count: 'uncrawlableInternalOutlinks' },
     ],
   },
   {

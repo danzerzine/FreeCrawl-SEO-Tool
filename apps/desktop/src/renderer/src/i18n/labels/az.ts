@@ -255,7 +255,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Total Links per Page > 100': 'Səhifə başına ümumi keçid > 100',
   'External Links > 100': 'Xarici keçidlər > 100',
   'No Outlinks (Dead-End)': 'Çıxan keçid yoxdur (dalan)',
-  'JS-Only Navigation': 'Yalnız JS ilə gəzinti',
+  'Pages With Uncrawlable Internal Outlinks': 'Taranıla bilməyən daxili çıxan keçidləri olan səhifələr',
   'Internal Link → Redirect': 'Daxili keçid → yönləndirmə',
   'Broken (All)': 'Qırıq (hamısı)',
   'Broken Internal': 'Qırıq daxili',
@@ -679,6 +679,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Link Position': 'Keçidin mövqeyi',
   'Final Target': 'Son hədəf',
   'Link Origin': 'Keçidin mənbəyi',
+  'Crawlable': 'Taranıla bilən',
   Transferred: 'Ötürülmüş',
 
   // Settings dialog sidebar sections
