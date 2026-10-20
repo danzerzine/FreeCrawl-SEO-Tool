@@ -19,3 +19,4 @@ export * from './seo.js';
 export * from './loganalyzer.js';
 export * from './export-datasets.js';
 export * from './theme.js';
+export * from './url-columns.js';

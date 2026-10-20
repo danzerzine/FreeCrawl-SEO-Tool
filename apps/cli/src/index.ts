@@ -16,7 +16,9 @@ import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   DEFAULT_CRAWL_CONFIG,
+  type BulkExportResult,
   type CrawlConfig,
+  type LinkTargetReportKind,
   type LogIngestInput,
   type MetricaFetchMeta,
 } from '@freecrawl/shared-types';
@@ -35,9 +37,25 @@ import {
   fetchMetricaPageMetrics,
   MetricaError,
   MetricaCancelledError,
+  BULK_EXPORT_TASKS,
+  LINK_TARGET_EXPORTS,
+  runBulkExport,
+  runSeoAuditExport,
+  exportHtmlReport,
+  exportIssuesSummary,
+  exportLinkTargetReport,
+  removePartialExportFiles,
+  type BulkExportTask,
   type LogAnalysisResult,
+  type SeoAuditExportResult,
 } from '@freecrawl/core';
-import { ProjectDb, detectProjectFormat, packProject, unpackProject } from '@freecrawl/db';
+import {
+  ProjectDb,
+  EXPENSIVE_ISSUE_DEFINITIONS,
+  detectProjectFormat,
+  packProject,
+  unpackProject,
+} from '@freecrawl/db';
 
 function help(): void {
   console.log(`freecrawl — headless SEO crawler
@@ -56,6 +74,8 @@ Usage:
   freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file]
                                                   Pull per-page Yandex Metrica data (pageviews, visits, users,
                                                   search visits) into a project, as the desktop app does
+  freecrawl export --project <file> --out <dir> [--what <list>] [--json]
+                                                  Write reports and bulk exports of a project without the desktop app
 
 Options:
   --depth <n>         Max crawl depth (default: ${DEFAULT_CRAWL_CONFIG.maxDepth})
@@ -86,9 +106,12 @@ Options:
   --db <file>         SQLite project file (default: ./crawl.seoproject)
   --out <file>        Export results after crawl. Format auto-detected by extension:
                         *.json → full JSON dump (every captured field)
-                        any other → CSV (subset of common columns)
+                        any other → CSV (subset of common columns, with the grid's column names)
+  --raw-headers       With --out CSV: write the internal keys (statusCode, …) as the header row.
   --json              Print a machine-readable JSON summary to stdout (instead of human progress).
                         Useful for CI/CD pipelines.
+  --export-dir <dir>  After the crawl, write the exports named by --export into <dir> (see export)
+  --export <list>     What --export-dir writes; same list as export --what (default: bulk)
 
 analyze-logs options:
   --project <file>    Project to merge log aggregates into (default: ./crawl.seoproject)
@@ -109,10 +132,31 @@ metrica-counters / metrica-fetch options:
                         --config file it used)
   --json              Print the result, or the error, as JSON on stdout
 
+export options:
+  --project <file>    Project to export (default: ./crawl.seoproject)
+  --out <dir>         Output directory; created if missing. Files of the same name are overwritten,
+                        nothing else in it is touched. Each file is written as <name>.part and renamed
+                        when complete, so Ctrl-C (exit 130) leaves no half-written file.
+  --what <list>       Comma-separated (default: bulk):
+                        bulk        one CSV per tab / issue check with rows, plus links-internal/external.csv
+                        seo-audit   Screaming Frog-style SEO Audit files in <dir>/seo-audit
+                        html        single-file HTML report (report.html)
+                        issues      issues-summary.csv: check key, label, group, severity, URL count
+                        tab:<key> / issues:<key>
+                                    one category CSV, e.g. tab:redirects, issues:title-missing
+                        redirects-to-error, error-inlinks, non-indexable-inlinks, redirect-inlinks
+                                    the Internal Links reports, one row per link target; the redirect
+                                    reports need the redirect-chain pass of the crawl ("not computed" else)
+                      Checks turned off in Settings → Issues are skipped, as in the desktop app.
+  --json              Print {ok, files: [{path, label, rows}], errors: [...]} on stdout, also on errors
+  Exit codes: 0 done, 1 some exports failed (the others are written), 2 bad arguments or project,
+  130 interrupted.
+
 Projects:
-  compare, analyze-logs and metrica-fetch open projects saved by the desktop app as well as
-  CLI crawl databases. While analyze-logs or metrica-fetch writes to a desktop-saved project,
-  it holds <project>.lock, and a second such command on the same file is refused. The desktop
+  compare, analyze-logs, metrica-fetch and export open projects saved by the desktop app as well
+  as CLI crawl databases. While analyze-logs or metrica-fetch writes to a desktop-saved project,
+  it holds <project>.lock, and a second such command on the same file is refused (export
+  takes the lock too, so it never reads a project another command is updating). The desktop
   app does not check that lock: if it has the same project open, its next Save overwrites what
   the CLI wrote (the app works on its own copy of the file).
 `);
@@ -140,6 +184,7 @@ async function main(): Promise<void> {
       config: { type: 'string' },
       db: { type: 'string' },
       out: { type: 'string' },
+      'raw-headers': { type: 'boolean' },
       json: { type: 'boolean' },
       project: { type: 'string' },
       format: { type: 'string' },
@@ -147,6 +192,9 @@ async function main(): Promise<void> {
       'verify-bots': { type: 'boolean' },
       counter: { type: 'string' },
       days: { type: 'string' },
+      what: { type: 'string' },
+      'export-dir': { type: 'string' },
+      export: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -217,6 +265,15 @@ async function main(): Promise<void> {
       days: values.days,
       projectPath: resolve(values.project ?? values.db ?? 'crawl.seoproject'),
       configPath: values.config,
+      json: Boolean(values.json),
+    });
+    process.exit(exitCode);
+  }
+  if (positionals[0] === 'export') {
+    const exitCode = await runExport({
+      projectPath: resolve(values.project ?? values.db ?? 'crawl.seoproject'),
+      out: values.out,
+      what: values.what,
       json: Boolean(values.json),
     });
     process.exit(exitCode);
@@ -304,6 +361,23 @@ async function main(): Promise<void> {
     ...(values.exclude !== undefined ? { excludePatterns: values.exclude } : {}),
   };
 
+  // `--export-dir` exports right after the crawl; checked up front so a
+  // typo fails before a long crawl instead of after it.
+  let postCrawlExport: { dir: string; items: ExportItem[] } | null = null;
+  if (values['export-dir'] !== undefined) {
+    try {
+      const dir = resolve(values['export-dir']);
+      checkExportDir(dir);
+      postCrawlExport = { dir, items: parseExportWhat(values.export) };
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(2);
+    }
+  } else if (values.export !== undefined) {
+    console.error('--export needs --export-dir <dir>.');
+    process.exit(2);
+  }
+
   // Opened only after every flag validated, so a bad argument leaves no
   // empty project file behind.
   const db = new ProjectDb(dbPath);
@@ -340,9 +414,20 @@ async function main(): Promise<void> {
     const isJson = outPath.toLowerCase().endsWith('.json');
     const r = isJson
       ? await exportUrlsToJson(db, outPath, { pretty: true })
-      : await exportUrlsToCsv(db, outPath);
+      : await exportUrlsToCsv(db, outPath, {
+          headers: values['raw-headers'] ? 'keys' : 'labels',
+        });
     rowsWritten = r.rowsWritten;
     exportedTo = outPath;
+  }
+
+  let exported: ExportOutcome | null = null;
+  if (postCrawlExport) {
+    // Ctrl-C from here on exits at once; the exit hook drops any
+    // half-written `.part` file.
+    exitOnInterrupt();
+    pendingCleanups.add(removePartialExportFiles);
+    exported = await runExportItems(db, postCrawlExport.dir, postCrawlExport.items);
   }
 
   const overview = db.getOverviewCounts();
@@ -372,6 +457,7 @@ async function main(): Promise<void> {
           site: { soft404Probe, botBlocked },
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
+          ...(exported ? { exports: { ok: exported.errors.length === 0, ...exported } } : {}),
         },
         null,
         2,
@@ -383,6 +469,10 @@ async function main(): Promise<void> {
     );
     if (exportedTo) {
       console.log(`Wrote ${rowsWritten} rows -> ${exportedTo}`);
+    }
+    if (exported) {
+      console.log(`Exported ${exported.files.length} file(s) -> ${postCrawlExport!.dir}`);
+      for (const e of exported.errors) console.error(`Export failed: ${e.label}: ${e.error}`);
     }
     if (botBlocked) {
       console.log(
@@ -400,7 +490,7 @@ async function main(): Promise<void> {
   }
 
   db.close();
-  process.exit(hasErrors ? 1 : 0);
+  process.exit(hasErrors || (exported !== null && exported.errors.length > 0) ? 1 : 0);
 }
 
 /**
@@ -1367,6 +1457,189 @@ async function runMetricaFetch(opts: {
     // and would leave the working copy behind.
     project.dispose();
     process.off('SIGINT', onSigint);
+  }
+}
+
+/** One `--what` entry of `freecrawl export`. */
+type ExportItem =
+  | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues'; name: string }
+  | { kind: 'tasks'; name: string; tasks: BulkExportTask[] }
+  | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string };
+
+interface ExportOutcome {
+  files: { path: string; label: string; rows: number | null }[];
+  errors: { label: string; error: string }[];
+}
+
+const EXPORT_WHAT_HELP =
+  'bulk, seo-audit, html, issues, tab:<key>, issues:<key>, ' +
+  LINK_TARGET_EXPORTS.map((r) => r.report).join(', ');
+
+/**
+ * Parse a `--what` list (default `bulk`). Category keys are the bulk-export
+ * task categories (`tab:redirects`, `issues:title-missing`); a bad entry
+ * throws a message that lists the valid ones.
+ */
+function parseExportWhat(what: string | undefined): ExportItem[] {
+  const names = [...new Set((what ?? 'bulk').split(',').map((s) => s.trim()).filter(Boolean))];
+  if (names.length === 0) throw new Error(`--what is empty (expected: ${EXPORT_WHAT_HELP}).`);
+  return names.map((name): ExportItem => {
+    if (name === 'bulk' || name === 'seo-audit' || name === 'html' || name === 'issues') {
+      return { kind: name, name };
+    }
+    const link = LINK_TARGET_EXPORTS.find((r) => r.report === name);
+    if (link) return { kind: 'link', name, report: link.report, label: link.label };
+    if (name.startsWith('tab:') || name.startsWith('issues:')) {
+      const tasks = BULK_EXPORT_TASKS.filter((t) => t.category === name);
+      if (tasks.length > 0) return { kind: 'tasks', name, tasks };
+      const valid = [
+        ...new Set(
+          BULK_EXPORT_TASKS.map((t) => t.category).filter(
+            (c) => c.startsWith('tab:') || c.startsWith('issues:'),
+          ),
+        ),
+      ];
+      throw new Error(`Unknown category in --what: ${name}. Valid keys: ${valid.join(', ')}`);
+    }
+    throw new Error(`Unknown --what entry: ${name} (expected: ${EXPORT_WHAT_HELP}).`);
+  });
+}
+
+/** `--out` must be a directory or not exist yet (it is created). */
+function checkExportDir(out: string): void {
+  if (existsSync(out) && !statSync(out).isDirectory()) {
+    throw new Error(`--out ${out} exists and is not a directory.`);
+  }
+}
+
+/**
+ * Write each requested export into `outDir`. Failures are collected per
+ * export, never abort the others. Progress goes to stderr.
+ */
+async function runExportItems(
+  db: ProjectDb,
+  outDir: string,
+  items: readonly ExportItem[],
+): Promise<ExportOutcome> {
+  const outcome: ExportOutcome = { files: [], errors: [] };
+  const progress = (line: string): void => {
+    process.stderr.write(`${line}\n`);
+  };
+  // `issues:*` files read the materialised urls_issues table; a project
+  // last materialised by an older set of checks would export stale lists.
+  // A desktop-saved project is only changed in its working copy.
+  if (db.issueMaterialisationStale()) {
+    progress('Issue lists predate the current checks: recomputing them…');
+    try {
+      db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+    } catch (err) {
+      outcome.errors.push({ label: 'Issue lists recompute', error: (err as Error).message });
+    }
+  }
+  const addBulk = (r: BulkExportResult | SeoAuditExportResult): void => {
+    outcome.files.push(...r.files.map((f) => ({ path: f.filePath, label: f.label, rows: f.rowsWritten })));
+    outcome.errors.push(...r.errors);
+  };
+  for (const item of items) {
+    progress(`Exporting ${item.name}…`);
+    try {
+      if (item.kind === 'bulk') {
+        addBulk(await runBulkExport(db, outDir));
+      } else if (item.kind === 'tasks') {
+        addBulk(await runBulkExport(db, outDir, { tasks: item.tasks }));
+      } else if (item.kind === 'seo-audit') {
+        addBulk(await runSeoAuditExport(db, join(outDir, 'seo-audit')));
+      } else if (item.kind === 'html') {
+        const path = join(outDir, 'report.html');
+        await exportHtmlReport(db, path, { startUrl: db.getMeta('lastStartUrl') ?? '' });
+        outcome.files.push({ path, label: 'HTML Report', rows: null });
+      } else if (item.kind === 'issues') {
+        const path = join(outDir, 'issues-summary.csv');
+        const { rowsWritten } = await exportIssuesSummary(db, path);
+        outcome.files.push({ path, label: 'Issues Summary', rows: rowsWritten });
+      } else if (item.kind === 'link') {
+        const path = join(outDir, `${item.report}.csv`);
+        const r = await exportLinkTargetReport(db, path, item.report);
+        if (r === null) {
+          outcome.errors.push({
+            label: item.label,
+            error:
+              'Not computed: redirect chains have not been computed for this crawl, so redirect ' +
+              'targets have no final target yet. They are computed at the end of a crawl with ' +
+              'redirect-chain analysis on. No file written.',
+          });
+        } else if (r.rowsWritten > 0) {
+          outcome.files.push({ path, label: item.label, rows: r.rowsWritten });
+        }
+      }
+    } catch (err) {
+      outcome.errors.push({ label: item.name, error: (err as Error).message });
+    }
+  }
+  return outcome;
+}
+
+/**
+ * `freecrawl export`: write reports and bulk exports of an existing project
+ * without the desktop app. Read-only on the project: a desktop-saved one
+ * is unpacked to a working copy that is never packed back.
+ */
+async function runExport(opts: {
+  projectPath: string;
+  out: string | undefined;
+  what: string | undefined;
+  json: boolean;
+}): Promise<number> {
+  const print = (outcome: ExportOutcome, error: string | null): void => {
+    const ok = error === null && outcome.errors.length === 0;
+    if (opts.json) {
+      process.stdout.write(
+        JSON.stringify({ ok, ...(error === null ? {} : { error }), ...outcome }, null, 2) + '\n',
+      );
+      return;
+    }
+    if (error !== null) console.error(error);
+    for (const f of outcome.files) {
+      console.log(`${f.rows === null ? '' : `${f.rows} rows  `}${f.path}`);
+    }
+    for (const e of outcome.errors) console.error(`Failed: ${e.label}: ${e.error}`);
+  };
+  const fail = (message: string): number => {
+    if (!opts.json) {
+      console.error('Usage: freecrawl export --project <file> --out <dir> [--what <list>] [--json]');
+    }
+    print({ files: [], errors: [] }, message);
+    return 2;
+  };
+  if (!opts.out) return fail('--out <dir> is required.');
+  const outDir = resolve(opts.out);
+  let items: ExportItem[];
+  try {
+    items = parseExportWhat(opts.what);
+    checkExportDir(outDir);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+  if (!existsSync(opts.projectPath)) return fail(`Project not found: ${opts.projectPath}`);
+
+  // Ctrl-C exits at once; the exit hooks drop the half-written `.part`
+  // files and the working copy, so no truncated export is left behind.
+  exitOnInterrupt();
+  pendingCleanups.add(removePartialExportFiles);
+  let project: OpenedProject;
+  try {
+    // Locked like a writer: a desktop-saved project another CLI command is
+    // updating is refused (with its pid) instead of exported half-way.
+    project = await openProject(opts.projectPath, { forWrite: true });
+  } catch (err) {
+    return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
+  }
+  try {
+    const outcome = await runExportItems(project.db, outDir, items);
+    print(outcome, null);
+    return outcome.errors.length === 0 ? 0 : 1;
+  } finally {
+    project.dispose();
   }
 }
 

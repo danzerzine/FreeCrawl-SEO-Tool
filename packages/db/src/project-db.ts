@@ -10948,6 +10948,7 @@ export class ProjectDb {
   private rowFromDb = (r: UrlRowDb): CrawlUrlRow => ({
     id: r.id,
     url: r.url,
+    isExternal: r.is_external === 1,
     contentKind: r.content_kind,
     statusCode: r.status_code,
     statusText: r.status_text,

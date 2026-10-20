@@ -9,7 +9,7 @@
  */
 
 import { join } from 'node:path';
-import { mkdir, rmdir, unlink } from 'node:fs/promises';
+import { rmdir } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import { EXPORT_DATASET_COLUMNS } from '@freecrawl/shared-types';
 import type {
@@ -21,6 +21,7 @@ import type {
 } from '@freecrawl/shared-types';
 import { exportLinksToCsv, exportUrlsToCsv } from './csv-export.js';
 import { exportTabular } from './tabular-export.js';
+import { writeExportFile } from './export-file.js';
 
 export interface BulkExportTask {
   label: string;
@@ -181,46 +182,51 @@ export const ISSUE_INLINKS_SUBDIR = 'issue-inlinks';
 
 /**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
- * `outputDir`. Zero-row categories are written then deleted so the dump
+ * `outputDir` (created when missing). Each file goes through
+ * `<name>.part` + rename; zero-row categories leave no file, so the dump
  * folder isn't littered with empty files. Per-task write failures are
  * collected (never abort the whole run). Caller owns any UI / dialogs.
+ * `tasks` narrows the run to those categories only (the CLI's
+ * `tab:<key>`): no link or dataset files then.
  */
 export async function runBulkExport(
   db: ProjectDb,
   outputDir: string,
+  options: { tasks?: readonly BulkExportTask[] } = {},
 ): Promise<BulkExportResult> {
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
+  const hasRows = (r: { rowsWritten: number }): boolean => r.rowsWritten > 0;
   // Silenced checks (Settings → Issues) get no file at all — an empty CSV
   // for a check the user turned off would read as "nothing found".
   const disabled = db.getDisabledIssues();
-  for (const task of BULK_EXPORT_TASKS) {
+  for (const task of options.tasks ?? BULK_EXPORT_TASKS) {
     if (disabled.has(task.category)) continue;
     const filePath = join(outputDir, task.file);
     try {
-      const { rowsWritten } = await exportUrlsToCsv(db, filePath, {
-        category: task.category,
-        columns: task.columns,
-      });
-      if (rowsWritten === 0) {
-        await unlink(filePath).catch(() => undefined);
-        continue;
-      }
+      const { rowsWritten } = await writeExportFile(
+        filePath,
+        (partPath) => exportUrlsToCsv(db, partPath, { category: task.category, columns: task.columns }),
+        hasRows,
+      );
+      if (rowsWritten === 0) continue;
       files.push({ filePath, label: task.label, category: task.category, rowsWritten });
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
     }
   }
+  if (options.tasks) return { outputDir, files, errors };
   // Link-level files: one row per edge rather than per page.
   for (const scope of ['internal', 'external'] as const) {
     const label = scope === 'internal' ? 'Links — Internal' : 'Links — External';
     const filePath = join(outputDir, `links-${scope}.csv`);
     try {
-      const { rowsWritten } = await exportLinksToCsv(db, filePath, { scope });
-      if (rowsWritten === 0) {
-        await unlink(filePath).catch(() => undefined);
-        continue;
-      }
+      const { rowsWritten } = await writeExportFile(
+        filePath,
+        (partPath) => exportLinksToCsv(db, partPath, { scope }),
+        hasRows,
+      );
+      if (rowsWritten === 0) continue;
       files.push({
         filePath,
         label,
@@ -234,15 +240,17 @@ export async function runBulkExport(
   for (const task of BULK_EXPORT_DATASET_TASKS) {
     const filePath = join(outputDir, task.file);
     try {
-      const { rowsWritten } = await exportTabular(db, filePath, {
-        format: 'csv',
-        sections: [{ label: task.label, dataset: task.dataset }],
-        columns: EXPORT_DATASET_COLUMNS[task.dataset].map((c) => c.key),
-      });
-      if (rowsWritten === 0) {
-        await unlink(filePath).catch(() => undefined);
-        continue;
-      }
+      const { rowsWritten } = await writeExportFile(
+        filePath,
+        (partPath) =>
+          exportTabular(db, partPath, {
+            format: 'csv',
+            sections: [{ label: task.label, dataset: task.dataset }],
+            columns: EXPORT_DATASET_COLUMNS[task.dataset].map((c) => c.key),
+          }),
+        hasRows,
+      );
+      if (rowsWritten === 0) continue;
       files.push({ filePath, label: task.label, dataset: task.dataset, rowsWritten });
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
@@ -262,17 +270,18 @@ export async function runBulkExport(
       const label = `Issue Inlinks — ${issueLabel}`;
       const filePath = join(issueDir, `inlinks-${name}.csv`);
       try {
-        await mkdir(issueDir, { recursive: true });
-        const { rowsWritten } = await exportTabular(db, filePath, {
-          format: 'csv',
-          sections: [{ label, dataset: 'issue-inlinks' }],
-          columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
-          datasetContext: { issueKey: key },
-        });
-        if (rowsWritten === 0) {
-          await unlink(filePath).catch(() => undefined);
-          continue;
-        }
+        const { rowsWritten } = await writeExportFile(
+          filePath,
+          (partPath) =>
+            exportTabular(db, partPath, {
+              format: 'csv',
+              sections: [{ label, dataset: 'issue-inlinks' }],
+              columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
+              datasetContext: { issueKey: key },
+            }),
+          hasRows,
+        );
+        if (rowsWritten === 0) continue;
         written++;
         files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
       } catch (err) {

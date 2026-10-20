@@ -1,11 +1,11 @@
 import { join } from 'node:path';
 import { createWriteStream } from 'node:fs';
-import { unlink } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
 import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
+import { writeExportFile } from './export-file.js';
 
 /**
  * "SEO Audit" folder export in Screaming Frog's layout: the same file
@@ -192,6 +192,7 @@ async function writeAuditFile(
   return rowsWritten;
 }
 
+/** Writes the folder under `outputDir` (created when missing), each file via `.part` + rename. */
 export async function runSeoAuditExport(
   db: ProjectDb,
   outputDir: string,
@@ -203,11 +204,12 @@ export async function runSeoAuditExport(
     if (disabled.has(f.category)) continue;
     const filePath = join(outputDir, f.file);
     try {
-      const rowsWritten = await writeAuditFile(db, filePath, f.category);
-      if (rowsWritten === 0) {
-        await unlink(filePath).catch(() => undefined);
-        continue;
-      }
+      const rowsWritten = await writeExportFile(
+        filePath,
+        (partPath) => writeAuditFile(db, partPath, f.category),
+        (rows) => rows > 0,
+      );
+      if (rowsWritten === 0) continue;
       files.push({ filePath, label: f.label, rowsWritten });
     } catch (err) {
       errors.push({ label: f.label, error: err instanceof Error ? err.message : String(err) });
