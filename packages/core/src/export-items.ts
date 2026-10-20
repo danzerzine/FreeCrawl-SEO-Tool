@@ -5,7 +5,7 @@
  * files whichever of them runs it.
  */
 
-import { writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { EXPENSIVE_ISSUE_DEFINITIONS, type ProjectDb } from '@freecrawl/db';
 import {
@@ -160,6 +160,9 @@ export async function runExportItems(
   const headers = options.rawHeaders ? ('keys' as const) : undefined;
   const outcome: ExportOutcome = options.outcome ?? { files: [], errors: [], skipped: [] };
   const progress = options.onProgress ?? (() => {});
+  // Its presence means the run reached the end: a previous run's manifest
+  // goes before any file of this run replaces one of its files.
+  await rm(join(outDir, 'manifest.json'), { force: true });
   // Issue lists and counts read the materialised urls_issues table; a
   // project last materialised by an older set of checks would export stale
   // ones. They are refilled only when this run reads them. It is derived
@@ -182,11 +185,8 @@ export async function runExportItems(
     try {
       if (item.kind === 'bulk') {
         addBulk(
-          await runBulkExport(db, outDir, {
-            headers,
-            toolVersion: options.toolVersion,
-            projectFile: options.projectFile,
-          }),
+          // The run's own manifest, written last, covers the bulk files.
+          await runBulkExport(db, outDir, { headers, manifest: false }),
         );
       } else if (item.kind === 'category') {
         addBulk(await runBulkExport(db, outDir, { tasks: item.tasks, headers }));

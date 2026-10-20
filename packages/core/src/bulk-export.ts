@@ -9,7 +9,7 @@
  */
 
 import { join, relative, sep } from 'node:path';
-import { readdir, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { readdir, rm, rmdir, unlink, writeFile } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import { ISSUE_CATEGORIES } from '@freecrawl/shared-types';
 import type {
@@ -230,6 +230,9 @@ export async function exportIssueInlinks(
       writtenNames.add(fileName);
       files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
     } catch (err) {
+      // A failed write keeps the check's previous file (writeExportFile
+      // leaves it untouched); the cleanup below must not delete it either.
+      writtenNames.add(fileName);
       errors.push({ label, error: (err as Error).message });
     }
   }
@@ -267,9 +270,18 @@ export async function runBulkExport(
     /** Tool version and project file, recorded in `manifest.json`. */
     toolVersion?: string;
     projectFile?: string;
+    /**
+     * `false`: no `manifest.json` of its own; a caller running several
+     * exports into the folder writes one for the whole run.
+     */
+    manifest?: boolean;
   } = {},
 ): Promise<BulkExportResult> {
   const startedAt = new Date();
+  const writesManifest = !options.tasks && options.manifest !== false;
+  // A manifest means the run reached the end: a previous run's one must
+  // not stand beside files this run is replacing one by one.
+  if (writesManifest) await rm(join(outputDir, 'manifest.json'), { force: true });
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
   const hasRows = (r: { rowsWritten: number }): boolean => r.rowsWritten > 0;
@@ -331,7 +343,7 @@ export async function runBulkExport(
     }
   }
   const result: BulkExportResult = { outputDir, files, errors };
-  await writeBulkManifest(result, startedAt, options);
+  if (writesManifest) await writeBulkManifest(result, startedAt, options);
   return result;
 }
 
