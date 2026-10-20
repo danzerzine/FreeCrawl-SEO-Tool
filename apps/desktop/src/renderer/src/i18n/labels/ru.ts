@@ -291,6 +291,7 @@ export const RU_LABELS: Record<string, string> = {
   'Unlinked Targets': 'Цели без ссылок',
   'Orphan Pages (No Inlinks)': 'Страницы-сироты (нет входящих ссылок)',
   'Inlinks Nofollow Only': 'Только входящие ссылки nofollow',
+  'Inlinks Only From Non-Indexable Pages': 'Входящие ссылки только с неиндексируемых страниц',
 
   // Pagination
   'Broken Next/Prev Target': 'Битая цель next/prev',

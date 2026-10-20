@@ -291,6 +291,7 @@ export const HI_LABELS: Record<string, string> = {
   'Unlinked Targets': 'अनलिंक्ड लक्ष्य',
   'Orphan Pages (No Inlinks)': 'अनाथ पृष्ठ (कोई इनलिंक नहीं)',
   'Inlinks Nofollow Only': 'केवल nofollow इनलिंक',
+  'Inlinks Only From Non-Indexable Pages': 'केवल गैर-अनुक्रमणीय पृष्ठों से इनलिंक',
 
   // Pagination
   'Broken Next/Prev Target': 'next/prev लक्ष्य टूटा',

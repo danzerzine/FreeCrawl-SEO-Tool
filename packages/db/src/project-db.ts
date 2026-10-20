@@ -145,6 +145,17 @@ const ORPHAN_PAGE_SQL = `is_external = 0 AND content_kind = 'html'
 /** A `links` row (unaliased) that is not rel="nofollow". */
 const FOLLOWED_LINK_SQL = `(rel IS NULL OR rel NOT LIKE '%nofollow%')`;
 /**
+ * Targets of internal links `l` (joined source page: `s`) that are not
+ * self-links and match `where`. Uncorrelated: SQLite builds it once per
+ * statement, so `url IN (…)` is one pass over `links`.
+ */
+const internalInlinkTargetsSql = (where: string): string => `SELECT l.to_url FROM links l
+    JOIN urls s ON s.id = l.from_url_id
+    WHERE l.is_internal = 1
+      AND l.from_url_id != COALESCE((SELECT id FROM urls t WHERE t.url = l.to_url), -1)
+      AND ${where}`;
+const L_FOLLOWED_SQL = `(l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')`;
+/**
  * Internal 2xx HTML page with nofollow internal inlinks and no followed one
  * (self-links aside). Crawled only through another route (sitemap,
  * redirect, list mode), since nofollow links are not followed. A single
@@ -152,16 +163,18 @@ const FOLLOWED_LINK_SQL = `(rel IS NULL OR rel NOT LIKE '%nofollow%')`;
  */
 const INLINKS_NOFOLLOW_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
   AND status_code >= 200 AND status_code < 300
-  AND url IN (
-    SELECT l.to_url FROM links l
-    WHERE l.is_internal = 1 AND l.rel LIKE '%nofollow%'
-      AND l.from_url_id != COALESCE((SELECT id FROM urls t WHERE t.url = l.to_url), -1)
-  )
-  AND url NOT IN (
-    SELECT l.to_url FROM links l
-    WHERE l.is_internal = 1 AND (l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')
-      AND l.from_url_id != COALESCE((SELECT id FROM urls t WHERE t.url = l.to_url), -1)
-  )`;
+  AND url IN (${internalInlinkTargetsSql(`l.rel LIKE '%nofollow%'`)})
+  AND url NOT IN (${internalInlinkTargetsSql(L_FOLLOWED_SQL)})`;
+/**
+ * Internal 2xx HTML page with followed internal inlinks, every one from a
+ * non-indexable page (noindex, canonicalised away, an error): search
+ * engines reach it only through pages they keep out of the index. Self-links
+ * aside. Materialised in EXPENSIVE_ISSUE_DEFINITIONS.
+ */
+const INLINKS_NON_INDEXABLE_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
+  AND status_code >= 200 AND status_code < 300
+  AND url IN (${internalInlinkTargetsSql(L_FOLLOWED_SQL)})
+  AND url NOT IN (${internalInlinkTargetsSql(`${L_FOLLOWED_SQL} AND s.indexability = 'indexable'`)})`;
 /** Pages with a link-like element a crawler cannot follow, aimed at the site. */
 const UNCRAWLABLE_INTERNAL_OUTLINKS_SQL = `is_external = 0 AND content_kind = 'html'
   AND EXISTS (
@@ -7324,6 +7337,7 @@ export class ProjectDb {
           ? null
           : countWhere(ORPHAN_PAGE_SQL),
       inlinksNofollowOnly: issueCount('issues:inlinks-nofollow-only'),
+      inlinksNonIndexableOnly: issueCount('issues:inlinks-non-indexable-only'),
       crawledNotInSitemap: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND indexability = 'indexable'
@@ -11006,7 +11020,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '5';
+export const ISSUE_MATERIALISATION_VERSION = '6';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -11221,6 +11235,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     'issues:inlinks-nofollow-only',
     INLINKS_NOFOLLOW_ONLY_SQL,
   ],
+  ['issues:inlinks-non-indexable-only', INLINKS_NON_INDEXABLE_ONLY_SQL],
   [
     'issues:image-broken-src',
     `is_external = 0 AND content_kind = 'html'
@@ -12469,6 +12484,7 @@ export function categoryWhereClause(
     case 'issues:og-image-too-large':
     case 'issues:twitter-image-too-large':
     case 'issues:inlinks-nofollow-only':
+    case 'issues:inlinks-non-indexable-only':
       // These three are materialised into `urls_issues` by the issue
       // recompute (EXPENSIVE_ISSUE_DEFINITIONS, every 30 s mid-crawl and
       // once more post-crawl), and the sidebar count already reads that

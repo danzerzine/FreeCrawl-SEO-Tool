@@ -59,6 +59,7 @@ const WARNING: UrlCategory[] = [
   'issues:redirect-canonical-chain',
   'issues:orphan-page',
   'issues:inlinks-nofollow-only',
+  'issues:inlinks-non-indexable-only',
   'issues:mobile-parity-mismatch',
   'issues:content-wider-than-screen',
   'issues:title-too-long',

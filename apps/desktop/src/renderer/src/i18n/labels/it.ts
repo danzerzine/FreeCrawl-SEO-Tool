@@ -291,6 +291,7 @@ export const IT_LABELS: Record<string, string> = {
   'Unlinked Targets': 'Destinazioni non collegate',
   'Orphan Pages (No Inlinks)': 'Pagine orfane (nessun inlink)',
   'Inlinks Nofollow Only': 'Solo link in entrata nofollow',
+  'Inlinks Only From Non-Indexable Pages': 'Link in entrata solo da pagine non indicizzabili',
 
   // Pagination
   'Broken Next/Prev Target': 'Destinazione next/prev rotta',

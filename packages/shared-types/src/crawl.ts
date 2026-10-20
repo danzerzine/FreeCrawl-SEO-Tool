@@ -141,6 +141,7 @@ export type UrlCategory =
   | 'issues:hreflang-unlinked'
   | 'issues:orphan-page'
   | 'issues:inlinks-nofollow-only'
+  | 'issues:inlinks-non-indexable-only'
   | 'issues:crawled-not-in-sitemap'
   | 'issues:redirect-in-sitemap'
   | 'issues:h1-empty'
@@ -1992,8 +1993,10 @@ export interface OverviewCounts {
      * inlinks were never computed, so the count would be meaningless.
      */
     orphanPage: number | null;
-    /** Internal 2xx HTML pages whose every internal inlink is nofollow. */
+    /** Internal 2xx HTML pages with nofollow internal inlinks and no followed one. */
     inlinksNofollowOnly: number;
+    /** Internal 2xx HTML pages whose every followed internal inlink is from a non-indexable page. */
+    inlinksNonIndexableOnly: number;
     crawledNotInSitemap: number;
     redirectInSitemap: number;
     /** Sitemap URL count that the crawl never reached (in sitemap_urls but not in urls). */
