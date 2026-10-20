@@ -2455,6 +2455,50 @@ export interface BrokenLinkRow {
   isInternal: boolean;
 }
 
+/**
+ * Link reports grouped by target (one row per linked URL, not per link):
+ * - `redirects-to-error`: the target redirects and its chain ends in a
+ *   4xx/5xx or no response;
+ * - `error-inlinks`: the target itself is 4xx/5xx or never answered;
+ * - `non-indexable-inlinks`: the target is non-indexable, any reason.
+ */
+export type LinkTargetReportKind =
+  | 'redirects-to-error'
+  | 'error-inlinks'
+  | 'non-indexable-inlinks';
+
+/**
+ * Template links — a target linked from at least 80% of the internal HTML
+ * pages (menus, footers): `include` keeps them, `exclude` drops them,
+ * `only` keeps nothing else.
+ */
+export type TemplateLinkFilter = 'include' | 'exclude' | 'only';
+
+export interface LinkTargetReportInput {
+  report: LinkTargetReportKind;
+  templateLinks?: TemplateLinkFilter;
+  limit: number;
+}
+
+export interface LinkTargetRow {
+  targetUrl: string;
+  /** NULL when the target never answered (see `indexability`). */
+  statusCode: number | null;
+  indexability: Indexability | null;
+  /** End of the redirect chain; NULL when the target is not a redirect. */
+  finalUrl: string | null;
+  finalStatusCode: number | null;
+  finalIndexability: Indexability | null;
+  /** Internal pages linking the target (a page linking itself excluded). */
+  sourcePages: number;
+  /** Linked from at least 80% of the internal HTML pages. */
+  isTemplate: boolean;
+  /** The page region most of these links sit in. */
+  topPosition: LinkPosition | null;
+  /** One of the linking pages, to open first. */
+  sampleSourceUrl: string | null;
+}
+
 export interface InlinkRow {
   fromUrl: string;
   fromStatusCode: number | null;

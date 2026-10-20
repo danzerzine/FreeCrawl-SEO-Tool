@@ -9,7 +9,9 @@
 import type { ProjectDb } from '@freecrawl/db';
 import type {
   AiProvider,
+  LinkTargetReportKind,
   SeoProvider,
+  TemplateLinkFilter,
   UrlCategory,
 } from '@freecrawl/shared-types';
 import { bridgeRequest } from './desktop-bridge.js';
@@ -143,6 +145,25 @@ function clamp(n: unknown, min: number, max: number, fallback: number): number {
   const v = typeof n === 'number' && Number.isFinite(n) ? n : fallback;
   return Math.max(min, Math.min(max, Math.floor(v)));
 }
+
+/** The link reports grouped by target: tool name, report, what it lists. */
+const LINK_TARGET_REPORTS: ReadonlyArray<readonly [string, LinkTargetReportKind, string]> = [
+  [
+    'report_redirects_to_error',
+    'redirects-to-error',
+    'Internal links to redirects whose chain ends in a 4xx/5xx or no response.',
+  ],
+  [
+    'report_error_inlinks',
+    'error-inlinks',
+    'Internal links to 4xx/5xx targets or targets that never answered — query_broken_links grouped by target.',
+  ],
+  [
+    'report_non_indexable_inlinks',
+    'non-indexable-inlinks',
+    'Internal links to non-indexable targets, grouped by reason (indexability: noindex, canonical, robots-blocked, redirect, client-error, server-error, no-response).',
+  ],
+];
 
 export function buildTools(): Tool[] {
   return [
@@ -1150,6 +1171,33 @@ export function buildTools(): Tool[] {
       inputSchema: { type: 'object', properties: {} },
       handler: (_args, db) => ({ rows: db.linkPositionBreakdown() }),
     },
+    ...LINK_TARGET_REPORTS.map(
+      ([name, report, what]): Tool => ({
+        name,
+        description:
+          `${what} One row per link target, not per link: target URL, its status and indexability, ` +
+          'the redirect end (finalUrl / finalStatusCode / finalIndexability) for redirects, the number of ' +
+          'internal pages linking it (sourcePages), whether it is a template link (isTemplate: linked from ' +
+          '>= 80% of internal HTML pages — menus, footers), the page region most of the links sit in ' +
+          '(topPosition) and one linking page (sampleSourceUrl). A NULL status means the target never ' +
+          'answered (timeout, refused connection, DNS). `templateLinks` = include (default) / exclude / only. ' +
+          'Use get_url_inlinks on a target for every linking page.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            templateLinks: { type: 'string', enum: ['include', 'exclude', 'only'] },
+            limit: { type: 'integer', minimum: 1, maximum: 10_000, description: 'Default 1000.' },
+          },
+        },
+        handler: (args, db) => ({
+          rows: db.linkTargetReport({
+            report,
+            templateLinks: (args.templateLinks as TemplateLinkFilter | undefined) ?? 'include',
+            limit: clamp(args.limit, 1, 10_000, 1000),
+          }),
+        }),
+      }),
+    ),
     {
       name: 'report_pages_per_directory',
       description: 'Per-directory page count + share. `depth` controls how many path segments to bucket by (1–4).',

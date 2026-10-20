@@ -82,6 +82,8 @@ import {
   type ExternalDomainHealthRow,
   type AnalyticsCoverageRow,
   type LinkPositionRow,
+  type LinkTargetReportInput,
+  type LinkTargetRow,
   type ImageWeightRow,
   type BucketHistogramRow,
   type ServerHeaderRow,
@@ -407,6 +409,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.reportsAnalyticsCoverage),
   reportsLinkPositions: (): Promise<LinkPositionRow[]> =>
     ipcRenderer.invoke(IPC.reportsLinkPositions),
+  reportsLinkTargets: (input: LinkTargetReportInput): Promise<LinkTargetRow[]> =>
+    ipcRenderer.invoke(IPC.reportsLinkTargets, input),
   reportsImageWeightPerPage: (limit?: number): Promise<ImageWeightRow[]> =>
     ipcRenderer.invoke(IPC.reportsImageWeightPerPage, limit),
   reportsInlinksHistogram: (): Promise<BucketHistogramRow[]> =>

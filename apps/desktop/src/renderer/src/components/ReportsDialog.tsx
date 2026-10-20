@@ -22,6 +22,9 @@ import type {
   WordCountPerDirectoryRow,
   SitemapOrphanRow,
   OrphanCrossSourceRow,
+  LinkTargetReportKind,
+  LinkTargetRow,
+  TemplateLinkFilter,
 } from '@freecrawl/shared-types';
 
 interface Props {
@@ -45,6 +48,7 @@ type ReportKind =
   | 'external-domain-health'
   | 'analytics-coverage'
   | 'link-positions'
+  | LinkTargetReportKind
   | 'image-weight'
   | 'inlinks-histogram'
   | 'word-count-histogram'
@@ -69,7 +73,16 @@ interface ReportRow {
    * as a separate "Value" column.
    */
   valueLabel?: string;
+  /** Optional muted second line under the key (a sample linking page). */
+  detail?: string;
 }
+
+/** The link reports grouped by target; each row is one linked URL. */
+const LINK_TARGET_KINDS: ReadonlySet<ReportKind> = new Set<LinkTargetReportKind>([
+  'redirects-to-error',
+  'error-inlinks',
+  'non-indexable-inlinks',
+]);
 
 const REPORT_LABELS: Record<ReportKind, string> = {
   'pages-per-dir': 'Pages per Directory',
@@ -87,6 +100,9 @@ const REPORT_LABELS: Record<ReportKind, string> = {
   'external-domain-health': 'External Domain Health',
   'analytics-coverage': 'Analytics Tracker Coverage',
   'link-positions': 'Internal Link Positions',
+  'redirects-to-error': 'Redirects to Error (by Target)',
+  'error-inlinks': 'Links to Error Pages (by Target)',
+  'non-indexable-inlinks': 'Links to Non-Indexable Pages (by Target)',
   'image-weight': 'Image Weight per Page (Top 25)',
   'inlinks-histogram': 'Inlinks Histogram',
   'word-count-histogram': 'Word Count Histogram',
@@ -116,6 +132,9 @@ const TOP_URL_METRIC: Record<ReportKind, TopUrlMetric | null> = {
   'external-domain-health': null,
   'analytics-coverage': null,
   'link-positions': null,
+  'redirects-to-error': null,
+  'error-inlinks': null,
+  'non-indexable-inlinks': null,
   'image-weight': null,
   'inlinks-histogram': null,
   'word-count-histogram': null,
@@ -145,6 +164,9 @@ const VALUE_FORMAT: Record<ReportKind, (v: number | null) => string> = {
   'external-domain-health': (v) => (v ?? 0).toLocaleString(),
   'analytics-coverage': (v) => (v ?? 0).toLocaleString(),
   'link-positions': (v) => (v ?? 0).toLocaleString(),
+  'redirects-to-error': (v) => (v ?? 0).toLocaleString(),
+  'error-inlinks': (v) => (v ?? 0).toLocaleString(),
+  'non-indexable-inlinks': (v) => (v ?? 0).toLocaleString(),
   'image-weight': (v) => {
     if (v == null) return '—';
     if (v < 1024) return `${v} B`;
@@ -169,6 +191,7 @@ export function ReportsDialog({ open, onClose }: Props) {
   const [kind, setKind] = useState<ReportKind>('pages-per-dir');
   const [depth, setDepth] = useState(1);
   const [includeBody, setIncludeBody] = useState(false);
+  const [templateLinks, setTemplateLinks] = useState<TemplateLinkFilter>('include');
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -190,6 +213,11 @@ export function ReportsDialog({ open, onClose }: Props) {
     'external-domain-health': t('reports.report.externalDomainHealth', { defaultValue: REPORT_LABELS['external-domain-health'] }),
     'analytics-coverage': t('reports.report.analyticsCoverage', { defaultValue: REPORT_LABELS['analytics-coverage'] }),
     'link-positions': t('reports.report.linkPositions', { defaultValue: REPORT_LABELS['link-positions'] }),
+    'redirects-to-error': t('reports.report.redirectsToError', { defaultValue: REPORT_LABELS['redirects-to-error'] }),
+    'error-inlinks': t('reports.report.errorInlinks', { defaultValue: REPORT_LABELS['error-inlinks'] }),
+    'non-indexable-inlinks': t('reports.report.nonIndexableInlinks', {
+      defaultValue: REPORT_LABELS['non-indexable-inlinks'],
+    }),
     'image-weight': t('reports.report.imageWeight', { defaultValue: REPORT_LABELS['image-weight'] }),
     'inlinks-histogram': t('reports.report.inlinksHistogram', { defaultValue: REPORT_LABELS['inlinks-histogram'] }),
     'word-count-histogram': t('reports.report.wordCountHistogram', { defaultValue: REPORT_LABELS['word-count-histogram'] }),
@@ -220,6 +248,9 @@ export function ReportsDialog({ open, onClose }: Props) {
     'external-domain-health': t('reports.keyDomain', { defaultValue: 'Domain' }),
     'analytics-coverage': t('reports.keyTracker', { defaultValue: 'Tracker' }),
     'link-positions': t('reports.keyPosition', { defaultValue: 'Position' }),
+    'redirects-to-error': t('reports.keyLinkTarget', { defaultValue: 'Link Target' }),
+    'error-inlinks': t('reports.keyLinkTarget', { defaultValue: 'Link Target' }),
+    'non-indexable-inlinks': t('reports.keyLinkTarget', { defaultValue: 'Link Target' }),
     'image-weight': 'URL',
     'inlinks-histogram': t('reports.keyBucket', { defaultValue: 'Bucket' }),
     'word-count-histogram': t('reports.keyBucket', { defaultValue: 'Bucket' }),
@@ -345,6 +376,34 @@ export function ReportsDialog({ open, onClose }: Props) {
               r.map((x: LinkPositionRow) => ({
                 key: linkPositionLabel(x.position, t),
                 count: x.count,
+              })),
+            );
+        } else if (LINK_TARGET_KINDS.has(kind)) {
+          const report = kind as LinkTargetReportKind;
+          const r = await window.freecrawl.reportsLinkTargets({ report, templateLinks, limit: 1000 });
+          if (!cancelled)
+            setRows(
+              r.map((x: LinkTargetRow) => ({
+                // The redirect end sits next to the target: the pair is the fix.
+                key: x.finalUrl
+                  ? `${x.targetUrl} → ${x.finalUrl} (${statusText(x.finalStatusCode, t)})`
+                  : x.targetUrl,
+                badge: statusBadge(x.statusCode, t),
+                // Bar = linking pages, so site-wide targets spike.
+                count: x.sourcePages,
+                valueLabel: [
+                  pageCountLabel(x.sourcePages, t),
+                  report === 'non-indexable-inlinks' && x.indexability
+                    ? indexabilityLabel(x.indexability, t)
+                    : null,
+                  x.topPosition ? linkPositionLabel(x.topPosition, t) : null,
+                  x.isTemplate ? t('reports.templateLink', { defaultValue: 'template link' }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+                ...(x.sampleSourceUrl
+                  ? { detail: t('reports.sampleSource', { defaultValue: 'e.g. {{url}}', url: x.sampleSourceUrl }) }
+                  : {}),
               })),
             );
         } else if (kind === 'image-weight') {
@@ -554,7 +613,7 @@ export function ReportsDialog({ open, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, kind, depth, maxLinksPerPage, includeBody, t]);
+  }, [open, kind, depth, maxLinksPerPage, includeBody, templateLinks, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -632,6 +691,25 @@ export function ReportsDialog({ open, onClose }: Props) {
               </span>
             </label>
           )}
+          {LINK_TARGET_KINDS.has(kind) && (
+            <label
+              className="flex items-center gap-1.5"
+              title={t('reports.templateLinksHint', {
+                defaultValue: 'Linked from at least 80% of internal HTML pages: menus, headers, footers',
+              })}
+            >
+              <span className="text-surface-400">{t('reports.templateLinks', { defaultValue: 'Template links' })}</span>
+              <select
+                className="rounded border border-surface-700 bg-surface-950 px-2 py-0.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
+                value={templateLinks}
+                onChange={(e) => setTemplateLinks(e.target.value as TemplateLinkFilter)}
+              >
+                <option value="include">{t('reports.templateInclude', { defaultValue: 'Show' })}</option>
+                <option value="exclude">{t('reports.templateExclude', { defaultValue: 'Hide' })}</option>
+                <option value="only">{t('reports.templateOnly', { defaultValue: 'Only these' })}</option>
+              </select>
+            </label>
+          )}
           {(kind === 'pages-per-dir' || kind === 'word-count-per-dir') && (
             <label className="flex items-center gap-1.5">
               <span className="text-surface-400">{t('reports.groupAtDepth', { defaultValue: 'Group at depth' })}</span>
@@ -692,6 +770,9 @@ export function ReportsDialog({ open, onClose }: Props) {
                           </span>
                         )}
                         {r.key}
+                        {r.detail && (
+                          <div className="text-[10px] text-surface-500">{r.detail}</div>
+                        )}
                       </div>
                       <div className="w-24 py-1 pr-3 text-right align-top font-mono text-surface-100">
                         {r.valueLabel ?? r.count.toLocaleString()}
@@ -731,6 +812,11 @@ export function ReportsDialog({ open, onClose }: Props) {
 }
 
 type Translate = ReturnType<typeof useTranslation>['t'];
+
+/** A status code, or «No response» when the request got no HTTP answer. */
+function statusText(status: number | null, t: Translate): string {
+  return status === null ? t('reports.noResponse', { defaultValue: 'No response' }) : String(status);
+}
 
 function statusBadge(status: number | null, t: Translate): string {
   if (status === null) return t('reports.badge.net', { defaultValue: 'NET' });

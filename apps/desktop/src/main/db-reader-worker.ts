@@ -97,6 +97,7 @@ const ALLOWED_METHODS = new Set<string>([
   'externalDomainHealth',
   'analyticsCoverage',
   'linkPositionBreakdown',
+  'linkTargetReport',
   'imageWeightPerPage',
   'serverHeaderBreakdown',
   'inlinksHistogram',
