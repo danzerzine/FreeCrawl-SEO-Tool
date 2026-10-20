@@ -188,7 +188,7 @@ export async function runExportItems(
         outcome.files.push({ path, label: 'HTML Report', rows: null });
       } else if (item.kind === 'issues') {
         const path = join(outDir, 'issues-summary.csv');
-        const { rowsWritten } = await exportIssuesSummary(db, path);
+        const { rowsWritten } = await exportIssuesSummary(db, path, { headers });
         outcome.files.push({ path, label: 'Issues Summary', rows: rowsWritten });
       } else if (item.kind === 'dataset') {
         if (item.dataset === 'issue-inlinks') {
@@ -239,7 +239,7 @@ export async function runExportItems(
         }
       } else if (item.kind === 'link') {
         const path = join(outDir, `${item.report}.csv`);
-        const r = await exportLinkTargetReport(db, path, item.report);
+        const r = await exportLinkTargetReport(db, path, item.report, { headers });
         if (r === null) {
           outcome.errors.push({
             label: item.label,
