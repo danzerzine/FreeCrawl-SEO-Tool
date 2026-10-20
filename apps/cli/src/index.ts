@@ -155,6 +155,10 @@ export options:
                                     the Internal Links reports, one row per link target; the redirect
                                     reports need the redirect-chain pass of the crawl ("not computed" else)
                       Checks turned off in Settings → Issues are skipped, as in the desktop app.
+                      Issue lists computed by an older version of the checks are recomputed first
+                        when the run reads them (bulk, seo-audit, html, issues, issues:<key>,
+                        dataset:issues-long / issue-inlinks): in place in a CLI crawl database (the
+                        same derived data a crawl writes), in the working copy of a desktop-saved one.
   --urls <file>       URLs to export the links of, one per line, as stored in the project. Writes
                         selected-inlinks.csv and selected-outlinks.csv (every link into / out of those
                         pages, columns of the Inlinks / Outlinks tabs). Without --what, only these two
@@ -1535,10 +1539,13 @@ function checkExportDir(out: string): void {
 
 /**
  * `freecrawl export`: write reports and bulk exports of an existing project
- * without the desktop app. Read-only on the project (a desktop-saved one
- * is unpacked to a working copy that is never packed back), except
- * `--save-set`, which stores a named `--what` list in it. `--set` runs a
- * saved list; `--list-sets` prints them.
+ * without the desktop app. Leaves the crawl data as it is (a desktop-saved
+ * project is unpacked to a working copy that is never packed back), with
+ * two exceptions: `--save-set` stores a named `--what` list in it, and
+ * issue lists materialised by older checks are recomputed when the run
+ * reads them, in place for a bare project (derived data, written as a
+ * crawl writes it). Hence the write lock. `--set` runs a saved list;
+ * `--list-sets` prints them.
  */
 async function runExport(opts: {
   projectPath: string;

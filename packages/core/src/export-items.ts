@@ -95,6 +95,24 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
   });
 }
 
+/** Whether `item` reads the materialised issue lists (`urls_issues`). */
+function readsIssueData(item: ExportItem): boolean {
+  switch (item.kind) {
+    case 'bulk':
+    case 'seo-audit':
+    case 'html': // the overview counts
+    case 'issues':
+      return true;
+    case 'category':
+      return item.tasks.some((t) => t.category.startsWith('issues:'));
+    case 'dataset':
+      return item.dataset === 'issues-long' || item.dataset === 'issue-inlinks';
+    case 'link':
+    case 'selected':
+      return false;
+  }
+}
+
 export interface RunExportItemsOptions {
   /** Write the internal column keys instead of the grid labels. */
   rawHeaders?: boolean;
@@ -120,10 +138,12 @@ export async function runExportItems(
   const headers = options.rawHeaders ? ('keys' as const) : undefined;
   const outcome: ExportOutcome = { files: [], errors: [] };
   const progress = options.onProgress ?? (() => {});
-  // `issues:*` files read the materialised urls_issues table; a project
-  // last materialised by an older set of checks would export stale lists.
-  // A desktop-saved project is only changed in its working copy.
-  if (db.issueMaterialisationStale()) {
+  // Issue lists and counts read the materialised urls_issues table; a
+  // project last materialised by an older set of checks would export stale
+  // ones. They are refilled only when this run reads them. It is derived
+  // data, written the same way a crawl writes it: a bare project file is
+  // refreshed in place, a desktop-saved one only in its working copy.
+  if (items.some(readsIssueData) && db.issueMaterialisationStale()) {
     progress('Issue lists predate the current checks: recomputing them…');
     try {
       db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
