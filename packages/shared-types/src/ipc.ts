@@ -18,6 +18,8 @@ import type {
   ImageRow,
   ImagesSortKey,
   Indexability,
+  LinkTargetReportInput,
+  LinkTargetRow,
   OverviewCounts,
   UrlCategory,
   UrlDetail,
@@ -286,6 +288,7 @@ export const IPC = {
   reportsExternalDomainHealth: 'reports:external-domain-health',
   reportsAnalyticsCoverage: 'reports:analytics-coverage',
   reportsLinkPositions: 'reports:link-positions',
+  reportsLinkTargets: 'reports:link-targets',
   reportsImageWeightPerPage: 'reports:image-weight-per-page',
   reportsInlinksHistogram: 'reports:inlinks-histogram',
   reportsWordCountHistogram: 'reports:word-count-histogram',
@@ -2164,6 +2167,8 @@ export interface FreeCrawlApi {
   reportsExternalDomainHealth(limit?: number): Promise<ExternalDomainHealthRow[]>;
   reportsAnalyticsCoverage(): Promise<AnalyticsCoverageRow[]>;
   reportsLinkPositions(): Promise<LinkPositionRow[]>;
+  /** Link reports grouped by target (redirects to error, error and non-indexable inlinks). */
+  reportsLinkTargets(input: LinkTargetReportInput): Promise<LinkTargetRow[]>;
   reportsImageWeightPerPage(limit?: number): Promise<ImageWeightRow[]>;
   reportsInlinksHistogram(): Promise<BucketHistogramRow[]>;
   reportsWordCountHistogram(): Promise<BucketHistogramRow[]>;

@@ -110,6 +110,8 @@ import {
   type ExternalDomainHealthRow,
   type AnalyticsCoverageRow,
   type LinkPositionRow,
+  type LinkTargetReportInput,
+  type LinkTargetRow,
   type ImageWeightRow,
   type BucketHistogramRow,
   type ServerHeaderRow,
@@ -5443,6 +5445,14 @@ function registerIpc(): void {
     callReaderOrFallback<LinkPositionRow[]>('linkPositionBreakdown', [], () =>
       getDb().linkPositionBreakdown(),
     ),
+  );
+
+  registerHandle(
+    IPC.reportsLinkTargets,
+    (_e, input: LinkTargetReportInput): Promise<LinkTargetRow[]> =>
+      callReaderOrFallback<LinkTargetRow[]>('linkTargetReport', [input], () =>
+        getDb().linkTargetReport(input),
+      ),
   );
 
   registerHandle(

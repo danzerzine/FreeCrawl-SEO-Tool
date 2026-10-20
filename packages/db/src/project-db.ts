@@ -17,6 +17,8 @@ import type {
   ImagesSortKey,
   Indexability,
   InlinkRow,
+  LinkTargetReportInput,
+  LinkTargetRow,
   OutlinkRow,
   OverviewCounts,
   Soft404ProbeResult,
@@ -1321,8 +1323,36 @@ export type ProbeWrite =
  * external stubs also have a NULL status but keep their placeholder
  * indexability, so they are not reported.
  */
-const BROKEN_TARGET_SQL = `((t.status_code >= 400 AND t.status_code < 600)
-    OR t.indexability = 'non-indexable:no-response')`;
+const brokenTargetSql = (a: string): string => `((${a}.status_code >= 400 AND ${a}.status_code < 600)
+    OR ${a}.indexability = 'non-indexable:no-response')`;
+const BROKEN_TARGET_SQL = brokenTargetSql('t');
+
+/**
+ * Share of the internal HTML pages a target must be linked from to count
+ * as a template link (menu, header, footer). A constant on purpose: the
+ * reports filter on it, nobody tunes it.
+ */
+const TEMPLATE_LINK_SHARE = 0.8;
+
+/** Every `non-indexable:*` value the crawler writes (`Indexability`). */
+const NON_INDEXABLE_SQL_LIST = [
+  'non-indexable:noindex',
+  'non-indexable:canonical',
+  'non-indexable:robots-blocked',
+  'non-indexable:redirect',
+  'non-indexable:client-error',
+  'non-indexable:server-error',
+  'non-indexable:no-response',
+]
+  .map((v) => `'${v}'`)
+  .join(', ');
+
+/** Target predicate (alias `t`, its redirect end `ft`) of each link-target report. */
+const LINK_TARGET_REPORT_SQL: Record<LinkTargetReportInput['report'], string> = {
+  'redirects-to-error': `t.status_code >= 300 AND t.status_code < 400 AND ${brokenTargetSql('ft')}`,
+  'error-inlinks': BROKEN_TARGET_SQL,
+  'non-indexable-inlinks': `t.indexability IN (${NON_INDEXABLE_SQL_LIST})`,
+};
 
 export class ProjectDb {
   /** Parse cache for `getDisabledIssues()` — keyed by the raw meta string. */
@@ -4824,6 +4854,95 @@ export class ProjectDb {
   }
 
   /**
+   * Internal links grouped by target: one row per linked URL with the
+   * number of internal pages linking it, the page region most of those
+   * links sit in and one sample page. A menu link to a 404 is one row
+   * with 300k pages, not 300k rows (the Broken Links tab lists the edges).
+   *
+   * Targets first (status / indexability indexes, a few thousand rows),
+   * then their inlinks through `idx_links_to_internal`; the work grows
+   * with the inlinks of the reported targets, not with the whole graph.
+   * No `is_external` test on the target: `l.is_internal = 1` already
+   * leaves external ones out, and the test would steer the planner to
+   * `idx_urls_is_external`, a walk over every internal URL.
+   */
+  linkTargetReport(params: LinkTargetReportInput): LinkTargetRow[] {
+    const template = params.templateLinks ?? 'include';
+    const isTemplate = `(base.n > 0 AND p.source_pages >= base.n * ${TEMPLATE_LINK_SHARE})`;
+    const templateWhere =
+      template === 'only' ? `WHERE ${isTemplate}` : template === 'exclude' ? `WHERE NOT ${isTemplate}` : '';
+    const order =
+      params.report === 'non-indexable-inlinks'
+        ? 'tg.indexability, p.source_pages DESC, tg.url'
+        : 'p.source_pages DESC, tg.url';
+    const rows = this.db
+      .prepare(
+        `WITH base AS (SELECT COUNT(*) AS n FROM urls WHERE ${INDEXABLE_HTML_SCOPE}),
+         tg AS MATERIALIZED (
+           SELECT t.id, t.url, t.status_code, t.indexability, t.redirect_final_url,
+                  ft.status_code AS final_status, ft.indexability AS final_indexability
+             FROM urls t
+             LEFT JOIN urls ft ON ft.url = t.redirect_final_url
+            WHERE ${LINK_TARGET_REPORT_SQL[params.report]}
+         ),
+         edges AS MATERIALIZED (
+           SELECT tg.id AS target_id, l.from_url_id, l.link_position
+             FROM tg JOIN links l ON l.to_url = tg.url
+            WHERE l.is_internal = 1 AND l.from_url_id != tg.id
+         ),
+         per_target AS (
+           SELECT target_id, COUNT(DISTINCT from_url_id) AS source_pages,
+                  MIN(from_url_id) AS sample_id
+             FROM edges GROUP BY target_id
+         ),
+         per_position AS (
+           SELECT target_id, link_position,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY target_id ORDER BY COUNT(*) DESC, link_position
+                  ) AS rn
+             FROM edges WHERE link_position IS NOT NULL
+            GROUP BY target_id, link_position
+         )
+         SELECT tg.url, tg.status_code, tg.indexability, tg.redirect_final_url,
+                tg.final_status, tg.final_indexability, p.source_pages,
+                ${isTemplate} AS is_template,
+                pp.link_position, s.url AS sample_url
+           FROM per_target p
+           JOIN tg ON tg.id = p.target_id
+           CROSS JOIN base
+           LEFT JOIN per_position pp ON pp.target_id = p.target_id AND pp.rn = 1
+           LEFT JOIN urls s ON s.id = p.sample_id
+           ${templateWhere}
+          ORDER BY ${order}
+          LIMIT ?`,
+      )
+      .all(params.limit) as unknown as {
+      url: string;
+      status_code: number | null;
+      indexability: string | null;
+      redirect_final_url: string | null;
+      final_status: number | null;
+      final_indexability: string | null;
+      source_pages: number;
+      is_template: number;
+      link_position: string | null;
+      sample_url: string | null;
+    }[];
+    return rows.map((r) => ({
+      targetUrl: r.url,
+      statusCode: r.status_code,
+      indexability: r.indexability as Indexability | null,
+      finalUrl: r.redirect_final_url,
+      finalStatusCode: r.final_status,
+      finalIndexability: r.final_indexability as Indexability | null,
+      sourcePages: r.source_pages,
+      isTemplate: r.is_template === 1,
+      topPosition: r.link_position as LinkTargetRow['topPosition'],
+      sampleSourceUrl: r.sample_url,
+    }));
+  }
+
+  /**
    * Faz 7 — store one PageSpeed Insights audit result. Keyed by
    * (url, strategy); re-running an audit overwrites the previous row.
    */
@@ -7325,8 +7444,9 @@ export class ProjectDb {
       // page crawl held a reader worker for minutes and starved the URL
       // table. They are materialised into `urls_issues` (see
       // EXPENSIVE_ISSUE_DEFINITIONS) and read back as one GROUP BY.
-      anchorTextTooLong: issueCount('issues:anchor-text-too-long'),
-      anchorTextGeneric: issueCount('issues:anchor-text-generic'),
+      // Link checks report their distinct targets (`linkTargetsKey`).
+      anchorTextTooLong: issueCount(linkTargetsKey('issues:anchor-text-too-long')),
+      anchorTextGeneric: issueCount(linkTargetsKey('issues:anchor-text-generic')),
       formInputUnlabeled: countWhere(
         `${html} AND form_input_unlabeled > 0`,
       ),
@@ -7363,7 +7483,7 @@ export class ProjectDb {
         `${html} AND schema_missing_recommended > 0`,
       ),
       imageBrokenSrc: issueCount('issues:image-broken-src'),
-      targetBlankNoNoopener: issueCount('issues:target-blank-no-noopener'),
+      targetBlankNoNoopener: issueCount(linkTargetsKey('issues:target-blank-no-noopener')),
       pageEmpty: countWhere(
         `${html} AND status_code BETWEEN 200 AND 299 AND indexability = 'indexable'
          AND word_count IS NOT NULL AND word_count < 30`,
@@ -7395,7 +7515,7 @@ export class ProjectDb {
          AND indexability = 'indexable'
          AND outlinks = 0`,
       ),
-      internalLinkToRedirect: issueCount('issues:internal-link-to-redirect'),
+      internalLinkToRedirect: issueCount(linkTargetsKey('issues:internal-link-to-redirect')),
       h1EqualsTitle: countWhere(
         `${html} AND title IS NOT NULL AND title != ''
          AND h1 IS NOT NULL AND h1 != ''
@@ -7407,7 +7527,7 @@ export class ProjectDb {
       // `recomputeUrlsIssues` + EXPENSIVE_ISSUE_DEFINITIONS). Reads
       // here are O(1) Map.get; mid-crawl (before the first recompute)
       // they show 0 and refill at the next pass.
-      deadExternalDomain: issueCount('issues:dead-external-domain'),
+      deadExternalDomain: issueCount(linkTargetsKey('issues:dead-external-domain')),
       duplicateUrlPostNorm: issueCount('issues:duplicate-url-post-norm'),
       canonicalChainMultiHop: issueCount('issues:canonical-chain-multi-hop'),
       imageSlowLoading: issueCount('issues:image-slow-loading'),
@@ -7516,9 +7636,10 @@ export class ProjectDb {
           : '';
     // Broken targets first (idx_urls_status, a few hundred rows), then
     // their inbound links through idx_links_to. Joining from `links`
-    // walked every stored link on each sidebar tick.
+    // walked every stored link on each sidebar tick. Counts linked targets,
+    // not links: one dead menu link is one problem, not one per page.
     return this.scalarCount(
-      `SELECT COUNT(*) AS c FROM links l
+      `SELECT COUNT(DISTINCT l.to_url) AS c FROM links l
          WHERE l.to_url IN (
            SELECT url FROM urls WHERE status_code >= 400 AND status_code < 600
            UNION
@@ -10777,7 +10898,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '3';
+export const ISSUE_MATERIALISATION_VERSION = '4';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -10805,6 +10926,35 @@ const EXTERNAL_PROBE_FAILED_SQL = `((status_code >= 400 AND status_code NOT IN (
     .map((code) => `status_text LIKE '%${code}%'`)
     .join(' OR ')})))`;
 
+/**
+ * External URL (unaliased `urls` row) whose probe failed on a host where at
+ * least 80% of three or more probed URLs failed — the target of a Dead
+ * External Domain link.
+ */
+const DEAD_EXTERNAL_TARGET_SQL = `is_external = 1
+  AND ${EXTERNAL_PROBE_FAILED_SQL}
+  AND ${urlHostSql('url')} IN (
+    SELECT host_grouped FROM (
+      SELECT
+        ${urlHostSql('url')} AS host_grouped,
+        COUNT(*) AS total,
+        SUM(CASE WHEN ${EXTERNAL_PROBE_FAILED_SQL} THEN 1 ELSE 0 END) AS errors
+      FROM urls
+      WHERE is_external = 1
+        AND (status_code IS NOT NULL OR ${EXTERNAL_PROBE_FAILED_SQL})
+      GROUP BY host_grouped
+      HAVING total >= 3 AND CAST(errors AS REAL) / total >= 0.8
+    )
+  )`;
+
+/**
+ * `urls_issues` key under which a link check stores its link targets
+ * (target URL ids) next to its source pages. The issue total reads the
+ * targets: one menu link to a redirect is one problem, not one per page
+ * carrying the menu. The per-page key still drives the URL list.
+ */
+const linkTargetsKey = (issueKey: string): string => `targets:${issueKey}`;
+
 export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string]> = [
   [
     'issues:dead-external-domain',
@@ -10820,26 +10970,13 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
        SELECT l.from_url_id
          FROM links l
         WHERE l.is_internal = 0
-          AND l.to_url IN (
-            SELECT url
-              FROM urls
-             WHERE is_external = 1
-               AND ${EXTERNAL_PROBE_FAILED_SQL}
-               AND ${urlHostSql('url')} IN (
-                 SELECT host_grouped FROM (
-                   SELECT
-                     ${urlHostSql('url')} AS host_grouped,
-                     COUNT(*) AS total,
-                     SUM(CASE WHEN ${EXTERNAL_PROBE_FAILED_SQL} THEN 1 ELSE 0 END) AS errors
-                   FROM urls
-                   WHERE is_external = 1
-                     AND (status_code IS NOT NULL OR ${EXTERNAL_PROBE_FAILED_SQL})
-                   GROUP BY host_grouped
-                   HAVING total >= 3 AND CAST(errors AS REAL) / total >= 0.8
-                 )
-               )
-          )
+          AND l.to_url IN (SELECT url FROM urls WHERE ${DEAD_EXTERNAL_TARGET_SQL})
      )`,
+  ],
+  [
+    linkTargetsKey('issues:dead-external-domain'),
+    `${DEAD_EXTERNAL_TARGET_SQL}
+     AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 0)`,
   ],
   [
     'issues:duplicate-url-post-norm',
@@ -10881,6 +11018,13 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
      )`,
   ],
   [
+    // Targets come from the link graph alone: it keeps one anchor per
+    // (page, target), so a target whose stored anchor is the short one of
+    // two links on a page is not counted.
+    linkTargetsKey('issues:anchor-text-too-long'),
+    `url IN (SELECT to_url FROM links WHERE anchor IS NOT NULL AND LENGTH(anchor) > 100)`,
+  ],
+  [
     'issues:anchor-text-generic',
     // Same column + legacy fallback split as anchor-text-too-long.
     `is_external = 0 AND content_kind = 'html'
@@ -10891,6 +11035,14 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
           WHERE anchor IS NOT NULL
             AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})
        )
+     )`,
+  ],
+  [
+    linkTargetsKey('issues:anchor-text-generic'),
+    `url IN (
+       SELECT to_url FROM links
+        WHERE anchor IS NOT NULL
+          AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})
      )`,
   ],
   [
@@ -10910,6 +11062,20 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
               )
             )
        )
+     )`,
+  ],
+  [
+    linkTargetsKey('issues:target-blank-no-noopener'),
+    `url IN (
+       SELECT to_url FROM links
+        WHERE LOWER(COALESCE(target, '')) = '_blank'
+          AND (
+            rel IS NULL
+            OR (
+              LOWER(rel) NOT LIKE '%noopener%'
+              AND LOWER(rel) NOT LIKE '%noreferrer%'
+            )
+          )
      )`,
   ],
   [
@@ -10934,6 +11100,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
              WHERE status_code >= 300 AND status_code < 400
           )
      )`,
+  ],
+  [
+    // Redirects first (idx_urls_status), one idx_links_to_internal probe each.
+    linkTargetsKey('issues:internal-link-to-redirect'),
+    `status_code >= 300 AND status_code < 400
+     AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 1)`,
   ],
   [
     'issues:image-broken-src',
