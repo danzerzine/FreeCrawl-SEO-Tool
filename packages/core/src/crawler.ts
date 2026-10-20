@@ -3047,6 +3047,7 @@ export class Crawler extends EventEmitter {
           statusCode: null,
           statusText: 'Skipped: private/internal address (SSRF guard)',
           responseTimeMs: 0,
+          notRequested: true,
         },
       ]);
       return;

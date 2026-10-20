@@ -2421,6 +2421,13 @@ export class ProjectDb {
       redirectTarget?: string | null;
       /** Bot protection answered instead of the page — e.g. "Cloudflare challenge (HTTP 403)". */
       botBlocked?: string | null;
+      /**
+       * The URL was deliberately never requested (SSRF guard). There is no
+       * answer to judge, so the stub keeps its indexability like an
+       * unprobed one and no broken-link check reports it; `statusText`
+       * says why.
+       */
+      notRequested?: boolean;
     },
   ): void {
     // Re-classify the external stub's content_kind from the probed
@@ -2434,9 +2441,13 @@ export class ProjectDb {
     // 404s, is bot-blocked, or never responded would stay reported as
     // "indexable" (misleading, and inflates the Indexable count).
     const status = patch.botBlocked ? null : patch.statusCode;
-    let indexability: string;
+    // null = keep the stored value (see `notRequested`).
+    let indexability: string | null;
     let indexabilityReason: string | null;
-    if (patch.botBlocked) {
+    if (patch.notRequested) {
+      indexability = null;
+      indexabilityReason = null;
+    } else if (patch.botBlocked) {
       // A challenge page is the CDN's answer, not the link target's — it
       // says nothing about whether the link works, so it is no "broken
       // external link".
@@ -2467,8 +2478,9 @@ export class ProjectDb {
            content_kind = COALESCE(:content_kind, content_kind),
            content_length = :content_length,
            response_time_ms = :response_time_ms,
-           indexability = :indexability,
-           indexability_reason = :indexability_reason,
+           indexability = COALESCE(:indexability, indexability),
+           indexability_reason = CASE WHEN :indexability IS NULL
+                                      THEN indexability_reason ELSE :indexability_reason END,
            redirect_target = COALESCE(:redirect_target, redirect_target)
          WHERE url = :url AND is_external = 1`,
       )
