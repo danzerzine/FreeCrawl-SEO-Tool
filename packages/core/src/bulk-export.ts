@@ -72,6 +72,7 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
   { label: 'Issues — Warning', file: 'issues-warning.csv', category: 'issues:severity-warning' },
   { label: 'Issues — Info', file: 'issues-info.csv', category: 'issues:severity-info' },
   { label: 'Orphan Pages', file: 'orphan-pages.csv', category: 'issues:orphan-page' },
+  { label: 'Inlinks Nofollow Only', file: 'inlinks-nofollow-only.csv', category: 'issues:inlinks-nofollow-only' },
   { label: 'Redirect Loops', file: 'redirect-loops.csv', category: 'issues:redirect-loop' },
   {
     label: 'Redirect & Canonical Chains',

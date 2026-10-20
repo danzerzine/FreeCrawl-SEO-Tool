@@ -289,6 +289,7 @@ export const KO_LABELS: Record<string, string> = {
   'Target Issues': '대상 페이지 문제',
   'Unlinked Targets': '링크되지 않은 대상',
   'Orphan Pages (No Inlinks)': '고아 페이지 (인링크 없음)',
+  'Inlinks Nofollow Only': 'nofollow 인바운드 링크만',
 
   // Pagination
   'Broken Next/Prev Target': 'next/prev 대상 끊어짐',
@@ -510,7 +511,7 @@ export const KO_LABELS: Record<string, string> = {
   'Crawl Total Limit (Max URLs)': '크롤 총량 한도(최대 URL 수)',
   'Exclude Patterns (regex, one per line)': '제외 패턴(정규식, 한 줄에 하나씩)',
   'Exclude extensions (comma-separated)': '제외할 확장자(쉼표로 구분)',
-  'Follow / Store Nofollow Links': 'nofollow 링크 따라가기 / 저장',
+  'Count / Probe Nofollow Links': 'nofollow 링크 집계 / 검사',
   'Follow JS / meta-refresh redirects': 'JS / meta-refresh 리다이렉트 따라가기',
   'Follow canonical targets': 'canonical 대상 따라가기',
   'Follow rel=next / rel=prev': 'rel=next / rel=prev 따라가기',

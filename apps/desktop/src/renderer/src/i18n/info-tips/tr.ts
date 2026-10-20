@@ -312,8 +312,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "Kaynağı Görüntüle'nin önemli olduğu SEO denetimleri için açık; diskin dar olduğu 1M URL'lik crawl'larda kapalı.",
   ['ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes).']:
     "SEO denetimleri için AÇIK. Yalnızca ham URL çakışmalarını incelemeniz gerekiyorsa KAPALI (ör. büyük/küçük harfe duyarlı dosya sistemli CMS'ler).",
-  ['On if you need nofollow attribute audits; off keeps the link graph cleaner.']:
-    'nofollow özniteliği denetimi gerekiyorsa açık; kapalı olması bağlantı grafiğini daha temiz tutar.',
+  ["Leave off to respect nofollow; on to count and probe them like any other link."]:
+    "nofollow'a uymak için kapalı bırakın; diğer linkler gibi saymak ve kontrol etmek için açın.",
   ['On if your CMS serves the same page at mixed casing (/Foo and /foo).']:
     "CMS'iniz aynı sayfayı farklı harf düzenleriyle sunuyorsa açık (/Foo ve /foo).",
   ['On if your site canonicalises to non-www but emits www links somewhere.']:
@@ -341,8 +341,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "Desen: ^https://m\\.(.+) · Değişim: https://www.$1 · Bayraklar: i  (mobil alt alan adını www'ye indirger)",
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "İstek başına iptal eşiği. Bundan uzun süren sayfalar ağ hatası olarak kaydedilir. Screaming Frog karşılığı: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — o saniye cinsindendir, bu milisaniye.",
-  ['Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".']:
-    'rel="nofollow" bağlantılarını bağlantı grafiğinde saklar. Kapalıyken nofollow bağlantıları tamamen düşürülür (giden bağlantılara sayılmaz, dış bağlantı olarak sınanmaz). Screaming Frog\'da tersi geçerlidir: bunu AÇMAK ≈ "Follow Internal/External Nofollow" seçeneğinin işaretini kaldırmak.',
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
+    "Nofollow linkleri her zaman link grafiğine kaydedilir, bu yüzden Inlinks ve Outlinks bunları gösterir. Açıkken giden link sayısına da dahil edilir ve harici olanlar kontrol edilir. Kapalıyken (varsayılan) gösterilir ama sayılmaz ve kontrol edilmez. Dahili nofollow linklerinin taranıp taranmayacağı ayrı bir ayardır.",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     "Hazır ayar seçmek aşağıdaki User-Agent alanını doldurur — sonrasında elle düzenleyebilirsiniz. Bir sitenin mobil ve masaüstü crawler'lara nasıl yanıt verdiğini karşılaştırmak için Googlebot Akıllı Telefon / Masaüstü arasında geçiş yapın.",
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

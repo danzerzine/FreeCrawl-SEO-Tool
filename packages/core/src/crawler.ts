@@ -4676,9 +4676,12 @@ export class Crawler extends EventEmitter {
       }
 
       // Respect-Nofollow default (Screaming-Frog style): `rel="nofollow"`
-      // links are treated as hints that exist only for search engines, so
-      // we drop them from persistence and from the crawl graph entirely.
-      // Opt-in via `storeNofollowLinks` if the user wants them recorded.
+      // links are not part of the crawl graph — not followed, not probed
+      // as externals, not counted in `outlinks`. Opt-in via
+      // `storeNofollowLinks` to treat them like any other link there.
+      // They are still recorded in the `links` table either way (below),
+      // so Inlinks / Outlinks show them and "nofollow-only inlinks" can
+      // be answered.
       const storableLinks = this.config.storeNofollowLinks
         ? parsed.links
         : parsed.links.filter((l) => !l.rel?.includes('nofollow'));
@@ -4687,6 +4690,8 @@ export class Crawler extends EventEmitter {
       // itself stays whole: traversal below and the page's outlink count
       // both describe what the page declared, which doesn't change just
       // because the user stopped recording one side of the graph.
+      // Persisted from `parsed.links`, not `storableLinks`: a nofollow
+      // link is recorded (with its `rel`) even when it is not followed.
       // A missing flag (a config assembled outside the Settings dialog —
       // an older saved project, an MCP override) means "store", never
       // "drop": a silently empty link graph is the worse failure.
@@ -4694,7 +4699,7 @@ export class Crawler extends EventEmitter {
       const storeExternalLinks = this.config.storeExternalLinks ?? true;
       const persistedLinks: DiscoveredLink[] = [];
       if (storeInternalLinks || storeExternalLinks) {
-        for (const l of storableLinks) {
+        for (const l of parsed.links) {
           const keep = l.isInternal ? storeInternalLinks : storeExternalLinks;
           if (keep) persistedLinks.push(l);
         }
@@ -5063,7 +5068,7 @@ export class Crawler extends EventEmitter {
               isInScope(this.config.startUrl, link.toUrl, 'subdomain');
             if (!inScope && !checkOnly && !this.crawlsExternalPages) continue;
             // Wave 3 — nofollow follow toggle. By default nofollow links
-            // are stored (when `storeNofollowLinks` is on) but never
+            // are always stored but never
             // recursed into. Turning the matching row on opts out of the
             // "respect nofollow" behaviour and treats them like any other
             // link for the follow decision — internal and external are

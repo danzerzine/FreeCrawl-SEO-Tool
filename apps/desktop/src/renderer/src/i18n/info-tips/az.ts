@@ -310,8 +310,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     'Mənbəyə bax vacib olan SEO auditləri üçün aktiv; diskin məhdud olduğu 1M URL taramaları üçün söndürülü.',
   ['ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes).']:
     'SEO auditləri üçün AKTİV. Yalnız xam URL toqquşmalarını xüsusi olaraq yoxlamaq lazım olduqda SÖNDÜRÜN (məs. hərf registrinə həssas fayl sistemli CMS-lər).',
-  ['On if you need nofollow attribute audits; off keeps the link graph cleaner.']:
-    'nofollow atribut auditləri lazımdırsa aktiv; söndürülü keçid qrafını daha təmiz saxlayır.',
+  ["Leave off to respect nofollow; on to count and probe them like any other link."]:
+    "nofollow-a əməl etmək üçün sönülü saxlayın; digər keçidlər kimi saymaq və yoxlamaq üçün aktiv edin.",
   ['On if your CMS serves the same page at mixed casing (/Foo and /foo).']:
     'CMS-iniz eyni səhifəni qarışıq registrdə verirsə (/Foo və /foo) aktiv.',
   ['On if your site canonicalises to non-www but emits www links somewhere.']:
@@ -339,8 +339,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     'Şablon: ^https://m\\.(.+) · Əvəz: https://www.$1 · Bayraqlar: i  (mobil alt-domeni www-ya yığ)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "Sorğu başına dayandırma həddi. Bundan uzun çəkən səhifələr şəbəkə xətası kimi qeyd olunur. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — o saniyələrlə, bu millisaniyələrlədir.",
-  ['Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".']:
-    'rel="nofollow" keçidlərini keçid qrafında saxla. Söndürülü olduqda nofollow keçidlər tamamilə atılır (çıxış keçidlərinə sayılmır, xarici kimi yoxlanmır). Screaming Frog-un əksi: bunu aktivləşdirmək ≈ "Follow Internal/External Nofollow" işarəsini götürmək.',
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
+    "nofollow keçidlər həmişə keçid qrafında qeyd olunur, ona görə Inlinks və Outlinks onları göstərir. Aktiv olduqda onlar çıxan keçidlərə də daxil edilir, xarici olanlar yoxlanılır. Sönülü olduqda (susmaya görə) göstərilir, amma sayılmır və yoxlanılmır. Daxili nofollow keçidlərinin izlənməsi ayrıca ayardır.",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     'Hazır ayar seçmək aşağıdakı User-Agent sahəsini doldurur — sonra yenə əl ilə redaktə edə bilərsiniz. Saytın mobil və masaüstü tarayıcılara necə cavab verdiyini müqayisə etmək üçün Googlebot Smartphone / Desktop arasında keçid edin.',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

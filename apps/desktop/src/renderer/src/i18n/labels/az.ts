@@ -297,6 +297,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Target Issues': 'Hədəf problemləri',
   'Unlinked Targets': 'Keçidsiz hədəflər',
   'Orphan Pages (No Inlinks)': 'Yetim səhifələr (daxil keçid yoxdur)',
+  'Inlinks Nofollow Only': 'Yalnız nofollow daxil olan keçidlər',
 
   // Pagination
   'Broken Next/Prev Target': 'Qırıq next/prev hədəfi',
@@ -518,7 +519,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Crawl Total Limit (Max URLs)': 'Ümumi tarama həddi (maksimum URL)',
   'Exclude Patterns (regex, one per line)': 'Kənarlaşdırma şablonları (regex, hər sətirdə bir)',
   'Exclude extensions (comma-separated)': 'Uzantıları kənarlaşdır (vergüllə ayrılmış)',
-  'Follow / Store Nofollow Links': 'nofollow keçidlərini izlə / saxla',
+  'Count / Probe Nofollow Links': 'nofollow keçidlərini say / yoxla',
   'Follow JS / meta-refresh redirects': 'JS / meta-refresh yönləndirmələrini izlə',
   'Follow canonical targets': 'canonical hədəflərini izlə',
   'Follow rel=next / rel=prev': 'rel=next / rel=prev-i izlə',

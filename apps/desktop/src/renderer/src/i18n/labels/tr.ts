@@ -288,6 +288,7 @@ export const TR_LABELS: Record<string, string> = {
   'Target Issues': 'Hedef Sorunları',
   'Unlinked Targets': 'Bağlantısız Hedefler',
   'Orphan Pages (No Inlinks)': 'Yetim Sayfalar (Inlink Yok)',
+  'Inlinks Nofollow Only': 'Yalnızca nofollow gelen bağlantılar',
 
   // Pagination
   'Broken Next/Prev Target': 'Bozuk Next/Prev Hedefi',
@@ -510,7 +511,7 @@ export const TR_LABELS: Record<string, string> = {
   'Custom Headers (one per line, ': 'Özel Başlıklar (satır başına bir tane, ',
   'Exclude Patterns (regex, one per line)': 'Hariç Tutma Kalıpları (regex, satır başına bir tane)',
   'Exclude extensions (comma-separated)': 'Hariç tutulan uzantılar (virgülle ayrılmış)',
-  'Follow / Store Nofollow Links': 'Nofollow Linkleri Takip Et / Sakla',
+  'Count / Probe Nofollow Links': 'Nofollow Linklerini Say / Kontrol Et',
   'Follow JS / meta-refresh redirects': 'JS / meta-refresh yönlendirmelerini takip et',
   'Follow canonical targets': 'Canonical hedeflerini takip et',
   'Follow nofollow links (override ': 'Nofollow linkleri takip et (geçersiz kıl ',

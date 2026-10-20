@@ -346,6 +346,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     label: 'Links',
     items: [
       { key: 'issues-orphan-page', label: 'Orphan Pages (No Inlinks)', category: 'issues:orphan-page', count: 'orphanPage' },
+      { key: 'issues-inlinks-nofollow-only', label: 'Inlinks Nofollow Only', category: 'issues:inlinks-nofollow-only', count: 'inlinksNofollowOnly' },
       { key: 'issues-broken-all', label: 'Broken (All)', category: 'issues:broken-links-all', count: ['brokenLinksInternal', 'brokenLinksExternal'] },
       { key: 'issues-broken-internal', label: 'Broken Internal', category: 'issues:broken-links-internal', count: 'brokenLinksInternal' },
       { key: 'issues-broken-external', label: 'Broken External', category: 'issues:broken-links-external', count: 'brokenLinksExternal' },
