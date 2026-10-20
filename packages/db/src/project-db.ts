@@ -148,8 +148,7 @@ const FOLLOWED_LINK_SQL = `(rel IS NULL OR rel NOT LIKE '%nofollow%')`;
  * Internal 2xx HTML page with nofollow internal inlinks and no followed one
  * (self-links aside). Crawled only through another route (sitemap,
  * redirect, list mode), since nofollow links are not followed. A single
- * followed inlink clears it. Uncorrelated on purpose: materialised in
- * EXPENSIVE_ISSUE_DEFINITIONS, one pass over `links` per recompute.
+ * followed inlink clears it. Materialised in EXPENSIVE_ISSUE_DEFINITIONS.
  */
 const INLINKS_NOFOLLOW_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
   AND status_code >= 200 AND status_code < 300
@@ -7324,7 +7323,7 @@ export class ProjectDb {
         this.getMeta(INLINKS_COMPUTED_META_KEY) === null
           ? null
           : countWhere(ORPHAN_PAGE_SQL),
-      inlinksNofollowOnly: countWhere(INLINKS_NOFOLLOW_ONLY_SQL),
+      inlinksNofollowOnly: issueCount('issues:inlinks-nofollow-only'),
       crawledNotInSitemap: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND indexability = 'indexable'
@@ -11007,7 +11006,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '4';
+export const ISSUE_MATERIALISATION_VERSION = '5';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -11215,6 +11214,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     linkTargetsKey('issues:internal-link-to-redirect'),
     `status_code >= 300 AND status_code < 400
      AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 1)`,
+  ],
+  [
+    // Two passes over `links` (nofollow targets, followed targets); the
+    // correlated NOT EXISTS it replaces ran per page on every sidebar tick.
+    'issues:inlinks-nofollow-only',
+    INLINKS_NOFOLLOW_ONLY_SQL,
   ],
   [
     'issues:image-broken-src',
@@ -11983,8 +11988,6 @@ export function categoryWhereClause(
       return "is_external = 0 AND content_kind = 'html' AND hreflang_unlinked > 0";
     case 'issues:orphan-page':
       return ORPHAN_PAGE_SQL;
-    case 'issues:inlinks-nofollow-only':
-      return INLINKS_NOFOLLOW_ONLY_SQL;
     case 'issues:hreflang-target-issues':
       // Hreflang target resolves to a non-200 / noindex / canonical-away
       // page. Aggregated: any kind of broken target trips this filter.
@@ -12465,6 +12468,7 @@ export function categoryWhereClause(
     case 'issues:image-too-large':
     case 'issues:og-image-too-large':
     case 'issues:twitter-image-too-large':
+    case 'issues:inlinks-nofollow-only':
       // These three are materialised into `urls_issues` by the issue
       // recompute (EXPENSIVE_ISSUE_DEFINITIONS, every 30 s mid-crawl and
       // once more post-crawl), and the sidebar count already reads that
