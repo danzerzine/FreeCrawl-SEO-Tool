@@ -463,6 +463,7 @@
       "redirect": "Non-indexable — redirect",
       "clientError": "Non-indexable — 4xx",
       "serverError": "Non-indexable — 5xx",
+      "noResponse": "Non-indexable — no response",
       "botBlocked": "Unknown — blocked by bot protection"
     },
     "kind": {

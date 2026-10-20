@@ -463,6 +463,7 @@
       "redirect": "İndekslenemez — yönlendirme",
       "clientError": "İndekslenemez — 4xx",
       "serverError": "İndekslenemez — 5xx",
+      "noResponse": "İndekslenemez — yanıt yok",
       "botBlocked": "Bilinmiyor — bot korumasına takıldı"
     },
     "kind": {

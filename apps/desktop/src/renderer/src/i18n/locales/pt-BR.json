@@ -479,6 +479,7 @@
       "redirect": "Não indexável — redirecionamento",
       "clientError": "Não indexável — 4xx",
       "serverError": "Não indexável — 5xx",
+      "noResponse": "Não indexável — sem resposta",
       "botBlocked": "Desconhecida — bloqueada pela proteção contra bots"
     },
     "kind": {
