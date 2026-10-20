@@ -152,9 +152,12 @@ export options:
                                     (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies
                                     exceed the CSV cell limit). issue-inlinks writes every issue into
                                     the issue-inlinks/ subfolder (not in bulk: every link into every
-                                    flagged page, tens of GB on a large site). Nothing stored: no file, reason in
+                                    flagged page, tens of GB on a large site: prefer issue-inlinks:<check>). Nothing stored: no file, reason in
                                     errors and on stderr (exit 1). Not offered: selected-* (use
                                     --urls) and search-console, analytics, metrica (need an account).
+                        issue-inlinks:<check>
+                                    every link into the pages of one check, e.g. issue-inlinks:h1-missing,
+                                    into issue-inlinks/inlinks-<check>.csv; other checks' files stay
                         redirects-to-error, error-inlinks, non-indexable-inlinks, redirect-inlinks
                                     the Internal Links reports, one row per link target; the redirect
                                     reports need the redirect-chain pass of the crawl ("not computed" else)

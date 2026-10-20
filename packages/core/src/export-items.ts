@@ -10,6 +10,7 @@ import { join, relative, sep } from 'node:path';
 import { EXPENSIVE_ISSUE_DEFINITIONS, type ProjectDb } from '@freecrawl/db';
 import {
   EXPORT_DATASET_COLUMNS,
+  ISSUE_CATEGORIES,
   type BulkExportResult,
   type ExportDatasetKey,
   type ExportSet,
@@ -28,7 +29,8 @@ export type ExportItem =
   | { kind: 'category'; name: string; tasks: BulkExportTask[] }
   | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
   | { kind: 'selected'; name: 'selected-links'; urls: string[] }
-  | { kind: 'dataset'; name: string; dataset: ExportDatasetKey };
+  | { kind: 'dataset'; name: string; dataset: ExportDatasetKey }
+  | { kind: 'issue-inlinks'; name: string; issueKeys: string[] };
 
 /** Datasets pulled from a linked Google / Yandex account, which the CLI has none of. */
 const ACCOUNT_DATASETS: readonly ExportDatasetKey[] = ['search-console', 'analytics', 'metrica'];
@@ -53,7 +55,7 @@ export interface ExportOutcome {
 }
 
 export const EXPORT_WHAT_HELP =
-  'bulk, seo-audit, html, issues, tab:<key>, issues:<key>, dataset:<key>, ' +
+  'bulk, seo-audit, html, issues, tab:<key>, issues:<key>, dataset:<key>, issue-inlinks:<check>, ' +
   LINK_TARGET_EXPORTS.map((r) => r.report).join(', ');
 
 /**
@@ -70,6 +72,15 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
     }
     const link = LINK_TARGET_EXPORTS.find((r) => r.report === name);
     if (link) return { kind: 'link', name, report: link.report, label: link.label };
+    if (name.startsWith('issue-inlinks:')) {
+      const key = `issues:${name.slice('issue-inlinks:'.length)}`;
+      if ((ISSUE_CATEGORIES as readonly string[]).includes(key)) {
+        return { kind: 'issue-inlinks', name, issueKeys: [key] };
+      }
+      throw new Error(
+        `Unknown check in --what: ${name}. Use the key after "issues:", e.g. issue-inlinks:h1-missing.`,
+      );
+    }
     if (name.startsWith('dataset:')) {
       const key = name.slice('dataset:'.length) as ExportDatasetKey;
       if (CLI_EXPORT_DATASETS.includes(key)) return { kind: 'dataset', name, dataset: key };
@@ -110,6 +121,8 @@ function readsIssueData(item: ExportItem): boolean {
       return item.tasks.some((t) => t.category.startsWith('issues:'));
     case 'dataset':
       return item.dataset === 'issues-long' || item.dataset === 'issue-inlinks';
+    case 'issue-inlinks':
+      return true;
     case 'link':
     case 'selected':
       return false;
@@ -222,6 +235,8 @@ export async function runExportItems(
             outcome.files.push({ path, label, rows: rowsWritten });
           }
         }
+      } else if (item.kind === 'issue-inlinks') {
+        addBulk(await exportIssueInlinks(db, outDir, { headers, issueKeys: item.issueKeys }));
       } else if (item.kind === 'selected') {
         for (const dataset of ['selected-inlinks', 'selected-outlinks'] as const) {
           const label = dataset === 'selected-inlinks' ? 'Selected Inlinks' : 'Selected Outlinks';

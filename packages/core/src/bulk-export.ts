@@ -184,28 +184,41 @@ export const ISSUE_INLINKS_SUBDIR = 'issue-inlinks';
  * file per enabled issue with pages, under `<outputDir>/issue-inlinks/`.
  * Not part of the bulk dump: on a large site it runs to tens of GB (every
  * link into every flagged page, per check). Written on request only, by the
- * CLI's `--what dataset:issue-inlinks`.
+ * CLI's `--what dataset:issue-inlinks` (every check) or `issue-inlinks:<check>`.
  */
+/** `inlinks-<check>.csv`: the name keeps to `[a-z0-9-]`. */
+function issueInlinksFileName(key: string): string {
+  return `inlinks-${key.replace(/^issues:/, '').replace(/[^a-z0-9-]/gi, '-')}.csv`;
+}
+
 export async function exportIssueInlinks(
   db: ProjectDb,
   outputDir: string,
-  options: { headers?: 'labels' | 'keys' } = {},
+  options: {
+    headers?: 'labels' | 'keys';
+    /** Only these checks (catalogue keys); other checks' files in the folder stay. */
+    issueKeys?: readonly string[];
+  } = {},
 ): Promise<{ files: BulkExportFile[]; errors: { label: string; error: string }[] }> {
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
   const disabled = db.getDisabledIssues();
+  const chosen = options.issueKeys;
   // Every enabled check of the catalogue, not only the expensive ones
   // materialised into `urls_issues`; a check with no pages leaves no file.
   // Keys never come from the project file, and the name keeps to
   // `[a-z0-9-]`, so no key can name a path outside the subfolder.
-  const issueKeys = ISSUE_CATEGORIES.filter((key) => !disabled.has(key)).sort();
+  const issueKeys = ISSUE_CATEGORIES.filter(
+    (key) => !disabled.has(key) && (chosen === undefined || chosen.includes(key)),
+  ).sort();
+  const ownNames = new Set(issueKeys.map(issueInlinksFileName));
   const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
   const writtenNames = new Set<string>();
   for (const key of issueKeys) {
-    const name = key.replace(/^issues:/, '').replace(/[^a-z0-9-]/gi, '-');
-    const issueLabel = BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? name;
+    const fileName = issueInlinksFileName(key);
+    const issueLabel =
+      BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? key.replace(/^issues:/, '');
     const label = `Issue Inlinks — ${issueLabel}`;
-    const fileName = `inlinks-${name}.csv`;
     const filePath = join(issueDir, fileName);
     try {
       const { rowsWritten } = await exportDatasetFile(db, filePath, 'issue-inlinks', {
@@ -222,14 +235,16 @@ export async function exportIssueInlinks(
   }
   // A rerun into the same folder: an issue fixed since the last run must
   // not leave its old inlinks file behind as if it still had pages. Only
-  // our own `inlinks-*.csv` names go; anything else in the folder stays.
+  // the files of the checks this run covered go (all of them, or the chosen
+  // ones); anything else in the folder stays.
   const previous = await readdir(issueDir).catch(() => [] as string[]);
   for (const entry of previous) {
-    if (/^inlinks-.*\.csv$/.test(entry) && !writtenNames.has(entry)) {
+    const covered = chosen === undefined ? /^inlinks-.*\.csv$/.test(entry) : ownNames.has(entry);
+    if (covered && !writtenNames.has(entry)) {
       await unlink(join(issueDir, entry)).catch(() => undefined);
     }
   }
-  if (writtenNames.size === 0) await rmdir(issueDir).catch(() => undefined);
+  await rmdir(issueDir).catch(() => undefined); // only when empty
   return { files, errors };
 }
 
