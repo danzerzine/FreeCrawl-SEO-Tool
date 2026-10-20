@@ -2124,6 +2124,15 @@ export class Crawler extends EventEmitter {
     let urls: string[] = [];
     try {
       urls = this.db.unprobedSocialImageUrls(5_000);
+      // "Check external links" off promises no request to any external
+      // host, social-image hosts included.
+      if (!this.config.checkExternalLinks) {
+        const opts = {
+          includeSubdomains: this.config.scope === 'all-subdomains',
+          cdnHosts: this.config.cdnHosts,
+        };
+        urls = urls.filter((u) => isSameHost(this.config.startUrl, u, opts));
+      }
     } catch (err) {
       this.emit(
         'info',
