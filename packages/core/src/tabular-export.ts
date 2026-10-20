@@ -1,4 +1,5 @@
-import { createWriteStream, writeFileSync, mkdirSync } from 'node:fs';
+import { createWriteStream, mkdirSync } from 'node:fs';
+import { open, type FileHandle } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import path from 'node:path';
@@ -10,7 +11,6 @@ import type {
   AdvancedFilter,
   ExportDatasetKey,
 } from '@freecrawl/shared-types';
-import { ensureHeapHeadroom } from './heap-guard.js';
 import { escapeCsv } from './spreadsheet.js';
 import { datasetRows, readCell, type DatasetExportContext } from './dataset-export.js';
 
@@ -332,253 +332,266 @@ function sanitizeSheetName(label: string, used: Set<string>): string {
   return candidate;
 }
 
-/**
- * Sheet XML from a plain cell matrix. Split out of the CrawlUrlRow
- * variant below so the detail-panel grids — whose rows are already
- * formatted strings, not database records — can reuse the same writer.
- */
-function buildSheetXmlFromCells(
-  headers: readonly string[],
-  rows: readonly (readonly unknown[])[],
-): string {
-  const parts: string[] = [];
-  parts.push(
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      '<sheetData>',
-  );
-  parts.push('<row r="1">');
-  headers.forEach((h, i) => {
-    parts.push(
-      `<c r="${colLetter(i)}1" t="inlineStr"><is><t>${xmlEscape(h)}</t></is></c>`,
-    );
-  });
-  parts.push('</row>');
-  rows.forEach((row, rIdx) => {
-    const r = rIdx + 2;
-    parts.push(`<row r="${r}">`);
-    row.forEach((v, i) => {
-      if (v === null || v === undefined || v === '') return;
-      const cellRef = `${colLetter(i)}${r}`;
-      if (typeof v === 'number' && Number.isFinite(v)) {
-        parts.push(`<c r="${cellRef}"><v>${v}</v></c>`);
-      } else if (typeof v === 'boolean') {
-        parts.push(`<c r="${cellRef}" t="b"><v>${v ? 1 : 0}</v></c>`);
-      } else {
-        parts.push(inlineStrCell(cellRef, v));
-      }
-    });
-    parts.push('</row>');
-  });
-  parts.push('</sheetData></worksheet>');
-  return parts.join('');
-}
+// ── Streaming XLSX writer ───────────────────────────────────────────
+//
+// The workbook is written straight to disk, one zip entry at a time:
+// each worksheet's XML is generated row by row and piped through
+// DEFLATE into the file, so memory stays flat no matter how many rows
+// a section has (building the whole workbook as one buffer took
+// 930 MB for 73k rows × 8 columns and could not hold 300k × 40 at all).
+// The local header of each entry is written with zero sizes first and
+// patched in place once the entry is done — the output is a file, so
+// no data descriptor is needed and the zip stays as plain as before.
 
-function buildSheetXml(
-  rows: Record<string, unknown>[],
-  columns: string[],
-): string {
-  const parts: string[] = [];
-  parts.push(
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      '<sheetData>',
-  );
-  // Header row
-  parts.push('<row r="1">');
-  columns.forEach((c, i) => {
-    parts.push(
-      `<c r="${colLetter(i)}1" t="inlineStr"><is><t>${xmlEscape(c)}</t></is></c>`,
-    );
-  });
-  parts.push('</row>');
-  // Data rows
-  rows.forEach((row, rIdx) => {
-    const r = rIdx + 2;
-    parts.push(`<row r="${r}">`);
-    columns.forEach((col, i) => {
-      const v = readCell(row, col);
-      if (v === null || v === undefined || v === '') return;
-      const cellRef = `${colLetter(i)}${r}`;
-      if (typeof v === 'number' && Number.isFinite(v)) {
-        parts.push(`<c r="${cellRef}"><v>${v}</v></c>`);
-      } else if (typeof v === 'boolean') {
-        parts.push(`<c r="${cellRef}" t="b"><v>${v ? 1 : 0}</v></c>`);
-      } else {
-        parts.push(inlineStrCell(cellRef, v));
-      }
-    });
-    parts.push('</row>');
-  });
-  parts.push('</sheetData></worksheet>');
-  return parts.join('');
-}
+/** Data rows per worksheet. Excel stops at 1,048,576 rows including the
+ *  header; a round million leaves headroom, and the rest of a section
+ *  continues on `<name> (2)`, `<name> (3)`, … */
+const XLSX_MAX_DATA_ROWS = 1_000_000;
 
-// ── ZIP writer (DEFLATE, no central directory streaming — small enough
-// to buffer per-entry, write central dir at the end). ────────────────
+/** Uncompressed bytes per worksheet XML before it is continued on the
+ *  next sheet: zip entries without ZIP64 cap sizes at 4 GiB. Only very
+ *  wide or text-heavy sections get here before the row cap. */
+const XLSX_MAX_SHEET_XML_BYTES = 3.5 * 1024 ** 3;
 
-interface ZipEntry {
+/** Worksheet XML is handed to DEFLATE in chunks of about this size. */
+const XLSX_CHUNK_CHARS = 256 * 1024;
+
+const ZIP32_MAX = 0xffffffff;
+
+interface XlsxSheetSource {
   name: string;
-  raw: Buffer;
-  compressed: Buffer;
-  crc32: number;
+  headers: readonly string[];
+  /** Row cells, aligned to `headers`. Consumed once, lazily. */
+  rows: Iterable<readonly unknown[]>;
+}
+
+interface ZipCentralEntry {
+  nameBuf: Buffer;
+  crc: number;
+  compressedSize: number;
+  rawSize: number;
   offset: number;
 }
 
-const CRC_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) {
-      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+/** Sequential zip writer over an open file: DEFLATE entries, central
+ *  directory at the end. */
+class ZipFileWriter {
+  private readonly entries: ZipCentralEntry[] = [];
+  private pos = 0;
+
+  constructor(private readonly fh: FileHandle) {}
+
+  private async write(buf: Buffer): Promise<void> {
+    await this.fh.write(buf, 0, buf.length, this.pos);
+    this.pos += buf.length;
+    if (this.pos > ZIP32_MAX) {
+      throw new Error('XLSX export: workbook exceeds 4 GB — export this data as CSV');
     }
-    table[n] = c >>> 0;
   }
-  return table;
-})();
 
-function crc32(buf: Buffer): number {
-  let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    c = CRC_TABLE[(c ^ buf[i]!) & 0xff]! ^ (c >>> 8);
+  async add(name: string, chunks: Iterable<string>): Promise<void> {
+    const nameBuf = Buffer.from(name, 'utf8');
+    const offset = this.pos;
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50, 0); // local file header sig
+    header.writeUInt16LE(20, 4); // version needed
+    header.writeUInt16LE(0x0800, 6); // gp flag (UTF-8 name)
+    header.writeUInt16LE(8, 8); // method = deflate
+    header.writeUInt16LE(nameBuf.length, 26);
+    // mod time/date, crc and sizes stay 0 until the entry is written.
+    await this.write(header);
+    await this.write(nameBuf);
+
+    let crc = 0;
+    let rawSize = 0;
+    let compressedSize = 0;
+    await pipeline(
+      Readable.from(
+        (function* () {
+          for (const chunk of chunks) {
+            const buf = Buffer.from(chunk, 'utf8');
+            crc = zlib.crc32(buf, crc);
+            rawSize += buf.length;
+            yield buf;
+          }
+        })(),
+      ),
+      zlib.createDeflateRaw(),
+      async (compressed: AsyncIterable<Buffer>) => {
+        for await (const buf of compressed) {
+          await this.write(buf);
+          compressedSize += buf.length;
+        }
+      },
+    );
+    if (rawSize > ZIP32_MAX) {
+      throw new Error(`XLSX export: ${name} exceeds 4 GB — export this data as CSV`);
+    }
+    const sizes = Buffer.alloc(12);
+    sizes.writeUInt32LE(crc, 0);
+    sizes.writeUInt32LE(compressedSize, 4);
+    sizes.writeUInt32LE(rawSize, 8);
+    await this.fh.write(sizes, 0, sizes.length, offset + 14);
+    this.entries.push({ nameBuf, crc, compressedSize, rawSize, offset });
   }
-  return (c ^ 0xffffffff) >>> 0;
+
+  async finish(): Promise<void> {
+    const cdStart = this.pos;
+    for (const e of this.entries) {
+      const cd = Buffer.alloc(46);
+      cd.writeUInt32LE(0x02014b50, 0); // central dir sig
+      cd.writeUInt16LE(20, 4); // version made by
+      cd.writeUInt16LE(20, 6); // version needed
+      cd.writeUInt16LE(0x0800, 8); // gp flag
+      cd.writeUInt16LE(8, 10); // method
+      cd.writeUInt32LE(e.crc, 16);
+      cd.writeUInt32LE(e.compressedSize, 20);
+      cd.writeUInt32LE(e.rawSize, 24);
+      cd.writeUInt16LE(e.nameBuf.length, 28);
+      cd.writeUInt32LE(e.offset, 42);
+      await this.write(cd);
+      await this.write(e.nameBuf);
+    }
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(this.entries.length, 8);
+    eocd.writeUInt16LE(this.entries.length, 10);
+    eocd.writeUInt32LE(this.pos - cdStart, 12);
+    eocd.writeUInt32LE(cdStart, 16);
+    await this.write(eocd);
+  }
 }
 
-function buildZip(files: { name: string; data: Buffer }[]): Buffer {
-  const entries: ZipEntry[] = [];
-  const localChunks: Buffer[] = [];
-  let offset = 0;
-
-  for (const f of files) {
-    const raw = f.data;
-    const compressed = zlib.deflateRawSync(raw);
-    const crc = crc32(raw);
-    const nameBuf = Buffer.from(f.name, 'utf8');
-
-    const localHeader = Buffer.alloc(30);
-    localHeader.writeUInt32LE(0x04034b50, 0); // local file header sig
-    localHeader.writeUInt16LE(20, 4); // version needed
-    localHeader.writeUInt16LE(0x0800, 6); // gp flag (UTF-8 name)
-    localHeader.writeUInt16LE(8, 8); // method = deflate
-    localHeader.writeUInt16LE(0, 10); // mod time
-    localHeader.writeUInt16LE(0, 12); // mod date
-    localHeader.writeUInt32LE(crc, 14);
-    localHeader.writeUInt32LE(compressed.length, 18);
-    localHeader.writeUInt32LE(raw.length, 22);
-    localHeader.writeUInt16LE(nameBuf.length, 26);
-    localHeader.writeUInt16LE(0, 28); // extra field len
-
-    entries.push({
-      name: f.name,
-      raw,
-      compressed,
-      crc32: crc,
-      offset,
-    });
-    localChunks.push(localHeader, nameBuf, compressed);
-    offset += localHeader.length + nameBuf.length + compressed.length;
+/** One worksheet row: number → `<v>`, boolean → `t="b"`, anything else an
+ *  inline string; empty cells are left out. */
+function rowXml(cells: readonly unknown[], r: number): string {
+  let xml = `<row r="${r}">`;
+  for (let i = 0; i < cells.length; i++) {
+    const v = cells[i];
+    if (v === null || v === undefined || v === '') continue;
+    const cellRef = `${colLetter(i)}${r}`;
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      xml += `<c r="${cellRef}"><v>${v}</v></c>`;
+    } else if (typeof v === 'boolean') {
+      xml += `<c r="${cellRef}" t="b"><v>${v ? 1 : 0}</v></c>`;
+    } else {
+      xml += inlineStrCell(cellRef, v);
+    }
   }
-
-  const centralChunks: Buffer[] = [];
-  let cdSize = 0;
-  for (const e of entries) {
-    const nameBuf = Buffer.from(e.name, 'utf8');
-    const cd = Buffer.alloc(46);
-    cd.writeUInt32LE(0x02014b50, 0); // central dir sig
-    cd.writeUInt16LE(20, 4); // version made by
-    cd.writeUInt16LE(20, 6); // version needed
-    cd.writeUInt16LE(0x0800, 8); // gp flag
-    cd.writeUInt16LE(8, 10); // method
-    cd.writeUInt16LE(0, 12);
-    cd.writeUInt16LE(0, 14);
-    cd.writeUInt32LE(e.crc32, 16);
-    cd.writeUInt32LE(e.compressed.length, 20);
-    cd.writeUInt32LE(e.raw.length, 24);
-    cd.writeUInt16LE(nameBuf.length, 28);
-    cd.writeUInt16LE(0, 30);
-    cd.writeUInt16LE(0, 32);
-    cd.writeUInt16LE(0, 34);
-    cd.writeUInt16LE(0, 36);
-    cd.writeUInt32LE(0, 38);
-    cd.writeUInt32LE(e.offset, 42);
-    centralChunks.push(cd, nameBuf);
-    cdSize += cd.length + nameBuf.length;
-  }
-
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);
-  eocd.writeUInt16LE(0, 4);
-  eocd.writeUInt16LE(0, 6);
-  eocd.writeUInt16LE(entries.length, 8);
-  eocd.writeUInt16LE(entries.length, 10);
-  eocd.writeUInt32LE(cdSize, 12);
-  eocd.writeUInt32LE(offset, 16);
-  eocd.writeUInt16LE(0, 20);
-
-  return Buffer.concat([...localChunks, ...centralChunks, eocd]);
+  return xml + '</row>';
 }
 
-function buildXlsxBuffer(
-  sheets: { name: string; rows: Record<string, unknown>[]; columns: string[] }[],
-): Buffer {
-  const contentTypes =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
-    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
-    '<Default Extension="xml" ContentType="application/xml"/>' +
-    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-    sheets
-      .map(
-        (_, i) =>
-          `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
-      )
-      .join('') +
-    '</Types>';
+/**
+ * Write a workbook to `filePath`, one worksheet per source. A source with
+ * more than {@link XLSX_MAX_DATA_ROWS} rows continues on `<name> (2)`,
+ * `<name> (3)`, … — each with the header row again. Returns data rows
+ * written.
+ */
+async function writeXlsxFile(filePath: string, sources: XlsxSheetSource[]): Promise<number> {
+  const fh = await open(filePath, 'w');
+  try {
+    const zip = new ZipFileWriter(fh);
+    const used = new Set<string>();
+    const sheetNames: string[] = [];
+    let total = 0;
+    for (const source of sources) {
+      const base = sanitizeSheetName(source.name, used);
+      // Header row: also frozen, so it stays on screen while scrolling.
+      const head =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        '<sheetViews><sheetView workbookViewId="0">' +
+        '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' +
+        '</sheetView></sheetViews><sheetData>' +
+        `<row r="1">${source.headers
+          .map((h, i) => `<c r="${colLetter(i)}1" t="inlineStr"><is><t>${xmlEscape(h)}</t></is></c>`)
+          .join('')}</row>`;
+      const it = source.rows[Symbol.iterator]();
+      let next = it.next();
+      let part = 1;
+      // Always one sheet (header only when there are no rows); another
+      // only while rows remain.
+      do {
+        let name = base;
+        if (part > 1) {
+          const suffix = ` (${part})`;
+          name = sanitizeSheetName(base.slice(0, 31 - suffix.length) + suffix, used);
+        }
+        sheetNames.push(name);
+        let rowsInSheet = 0;
+        await zip.add(
+          `xl/worksheets/sheet${sheetNames.length}.xml`,
+          (function* () {
+            let buf = head;
+            let bytes = 0;
+            while (
+              !next.done &&
+              rowsInSheet < XLSX_MAX_DATA_ROWS &&
+              bytes < XLSX_MAX_SHEET_XML_BYTES
+            ) {
+              buf += rowXml(next.value, rowsInSheet + 2);
+              rowsInSheet++;
+              next = it.next();
+              if (buf.length >= XLSX_CHUNK_CHARS) {
+                bytes += Buffer.byteLength(buf, 'utf8');
+                yield buf;
+                buf = '';
+              }
+            }
+            yield buf + '</sheetData></worksheet>';
+          })(),
+        );
+        total += rowsInSheet;
+        part++;
+      } while (!next.done);
+    }
 
-  const rels =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
-    '</Relationships>';
-
-  const workbook =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-    '<sheets>' +
-    sheets
-      .map(
-        (s, i) =>
-          `<sheet name="${xmlEscape(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`,
-      )
-      .join('') +
-    '</sheets></workbook>';
-
-  const workbookRels =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-    sheets
-      .map(
-        (_, i) =>
-          `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`,
-      )
-      .join('') +
-    '</Relationships>';
-
-  const files: { name: string; data: Buffer }[] = [
-    { name: '[Content_Types].xml', data: Buffer.from(contentTypes, 'utf8') },
-    { name: '_rels/.rels', data: Buffer.from(rels, 'utf8') },
-    { name: 'xl/workbook.xml', data: Buffer.from(workbook, 'utf8') },
-    { name: 'xl/_rels/workbook.xml.rels', data: Buffer.from(workbookRels, 'utf8') },
-  ];
-  sheets.forEach((s, i) => {
-    files.push({
-      name: `xl/worksheets/sheet${i + 1}.xml`,
-      data: Buffer.from(buildSheetXml(s.rows, s.columns), 'utf8'),
-    });
-  });
-
-  return buildZip(files);
+    // Package parts go after the sheets: only now is the sheet list known.
+    await zip.add('xl/workbook.xml', [
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<sheets>' +
+        sheetNames
+          .map((n, i) => `<sheet name="${xmlEscape(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
+          .join('') +
+        '</sheets></workbook>',
+    ]);
+    await zip.add('xl/_rels/workbook.xml.rels', [
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        sheetNames
+          .map(
+            (_, i) =>
+              `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`,
+          )
+          .join('') +
+        '</Relationships>',
+    ]);
+    await zip.add('_rels/.rels', [
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+        '</Relationships>',
+    ]);
+    await zip.add('[Content_Types].xml', [
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        sheetNames
+          .map(
+            (_, i) =>
+              `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+          )
+          .join('') +
+        '</Types>',
+    ]);
+    await zip.finish();
+    return total;
+  } finally {
+    await fh.close();
+  }
 }
 
 function resolveSectionPath(
@@ -631,33 +644,27 @@ export async function exportTabular(
   }
 
   if (format === 'xlsx') {
-    // xlsx — single workbook, one sheet per section. subdir/filename
-    // are ignored; the workbook lives at `outputPath`. Unlike the
-    // CSV/JSON/XML writers below (which stream row-by-row), the xlsx
-    // container format forces every sheet into memory at once — so
-    // guard the heap while accumulating: better a clear "use CSV for
-    // datasets this big" error than a V8 OOM abort of the whole app.
-    const usedNames = new Set<string>();
-    let total = 0;
-    let cells = 0;
-    const sheets = sections.map((section) => {
-      const rows: Record<string, unknown>[] = [];
-      const sheetColumns = columnsFor(section);
-      for (const row of sourceFor(section)) {
-        rows.push(row);
-        if (rows.length % 50_000 === 0) {
-          ensureHeapHeadroom('XLSX export', 128 * 1024 * 1024);
-        }
-      }
-      total += rows.length;
-      cells += rows.length * sheetColumns.length;
-      return { name: sanitizeSheetName(section.label, usedNames), rows, columns: sheetColumns };
-    });
-    // Workbook buffer is roughly cells × ~24 B of XML.
-    ensureHeapHeadroom('XLSX export', cells * 24);
-    const buf = buildXlsxBuffer(sheets);
-    writeFileSync(outputPath, buf);
-    return { filePath: outputPath, files: [outputPath], rowsWritten: total };
+    // xlsx — single workbook, one sheet per section (continued on
+    // `<label> (2)`, … past Excel's row limit). subdir/filename are
+    // ignored; the workbook lives at `outputPath`. Rows stream from the
+    // database into the zip like the CSV/JSON/XML writers below.
+    const rowsWritten = await writeXlsxFile(
+      outputPath,
+      sections.map((section) => {
+        const sheetColumns = columnsFor(section);
+        return {
+          name: section.label,
+          headers: sheetColumns,
+          // Lazy: a section's query starts only when its sheet is written.
+          rows: (function* () {
+            for (const row of sourceFor(section)) {
+              yield sheetColumns.map((col) => readCell(row, col));
+            }
+          })(),
+        };
+      }),
+    );
+    return { filePath: outputPath, files: [outputPath], rowsWritten };
   }
 
   // CSV / JSON / XML — file-per-section. When the export has only one
@@ -747,12 +754,10 @@ export async function exportGrid(
   mkdirSync(path.dirname(filePath), { recursive: true });
 
   if (format === 'xlsx') {
-    const sheet = sanitizeSheetName(options.sheetName ?? 'Sheet1', new Set());
-    writeFileSync(
-      filePath,
-      buildZipForCells(sheet, headers, rows),
-    );
-    return { filePath, rowsWritten: rows.length };
+    const rowsWritten = await writeXlsxFile(filePath, [
+      { name: options.sheetName ?? 'Sheet1', headers, rows },
+    ]);
+    return { filePath, rowsWritten };
   }
 
   const withBom = options.csvBom !== false;
@@ -770,43 +775,3 @@ export async function exportGrid(
   return { filePath, rowsWritten: rows.length };
 }
 
-/** Single-sheet workbook around {@link buildSheetXmlFromCells}. */
-function buildZipForCells(
-  sheetName: string,
-  headers: readonly string[],
-  rows: readonly (readonly unknown[])[],
-): Buffer {
-  const contentTypes =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
-    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
-    '<Default Extension="xml" ContentType="application/xml"/>' +
-    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
-    '</Types>';
-  const rels =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
-    '</Relationships>';
-  const workbook =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-    `<sheets><sheet name="${xmlEscape(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
-  const workbookRels =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-    '</Relationships>';
-
-  return buildZip([
-    { name: '[Content_Types].xml', data: Buffer.from(contentTypes, 'utf8') },
-    { name: '_rels/.rels', data: Buffer.from(rels, 'utf8') },
-    { name: 'xl/workbook.xml', data: Buffer.from(workbook, 'utf8') },
-    { name: 'xl/_rels/workbook.xml.rels', data: Buffer.from(workbookRels, 'utf8') },
-    {
-      name: 'xl/worksheets/sheet1.xml',
-      data: Buffer.from(buildSheetXmlFromCells(headers, rows), 'utf8'),
-    },
-  ]);
-}
