@@ -77,7 +77,7 @@ Usage:
   freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file]
                                                   Pull per-page Yandex Metrica data (pageviews, visits, users,
                                                   search visits) into a project, as the desktop app does
-  freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--json]
+  freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--raw-headers] [--json]
                                                   Write reports and bulk exports of a project without the desktop app
 
 Options:
@@ -110,8 +110,8 @@ Options:
   --out <file>        Export results after crawl. Format auto-detected by extension:
                         *.json → full JSON dump (every captured field)
                         any other → CSV (subset of common columns, with the grid's column names)
-  --raw-headers       With --out CSV: write the internal keys (statusCode, …) as the header row
-                        and skip the CSV formula guard (raw data for scripts).
+  --raw-headers       With --out CSV and export (bulk files): write the internal keys (statusCode, …) as
+                        the header row and skip the CSV formula guard (raw data for scripts).
   --json              Print a machine-readable JSON summary to stdout (instead of human progress).
                         Useful for CI/CD pipelines.
   --export-dir <dir>  After the crawl, write the exports named by --export into <dir> (see export)
@@ -285,6 +285,7 @@ async function main(): Promise<void> {
       out: values.out,
       what: values.what,
       urls: values.urls,
+      rawHeaders: Boolean(values['raw-headers']),
       json: Boolean(values.json),
     });
     process.exit(exitCode);
@@ -438,7 +439,10 @@ async function main(): Promise<void> {
     // half-written `.part` file.
     exitOnInterrupt();
     pendingCleanups.add(removePartialExportFiles);
-    exported = await runExportItems(db, postCrawlExport.dir, postCrawlExport.items);
+    exported = await runExportItems(db, postCrawlExport.dir, postCrawlExport.items, {
+      rawHeaders: Boolean(values['raw-headers']),
+      projectFile: dbPath,
+    });
   }
 
   const overview = db.getOverviewCounts();
@@ -1471,6 +1475,18 @@ async function runMetricaFetch(opts: {
   }
 }
 
+/** The CLI's own version, from its package.json (recorded in bulk manifests). */
+function cliVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { version?: string };
+    return pkg.version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** One `--what` entry of `freecrawl export`. */
 type ExportItem =
   | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues'; name: string }
@@ -1532,7 +1548,9 @@ async function runExportItems(
   db: ProjectDb,
   outDir: string,
   items: readonly ExportItem[],
+  options: { rawHeaders?: boolean; projectFile?: string } = {},
 ): Promise<ExportOutcome> {
+  const headers = options.rawHeaders ? ('keys' as const) : undefined;
   const outcome: ExportOutcome = { files: [], errors: [] };
   const progress = (line: string): void => {
     process.stderr.write(`${line}\n`);
@@ -1556,9 +1574,15 @@ async function runExportItems(
     progress(`Exporting ${item.name}…`);
     try {
       if (item.kind === 'bulk') {
-        addBulk(await runBulkExport(db, outDir));
+        addBulk(
+          await runBulkExport(db, outDir, {
+            headers,
+            toolVersion: cliVersion(),
+            projectFile: options.projectFile,
+          }),
+        );
       } else if (item.kind === 'tasks') {
-        addBulk(await runBulkExport(db, outDir, { tasks: item.tasks }));
+        addBulk(await runBulkExport(db, outDir, { tasks: item.tasks, headers }));
       } else if (item.kind === 'seo-audit') {
         addBulk(await runSeoAuditExport(db, join(outDir, 'seo-audit')));
       } else if (item.kind === 'html') {
@@ -1579,6 +1603,7 @@ async function runExportItems(
               sections: [{ label, dataset }],
               columns: EXPORT_DATASET_COLUMNS[dataset].map((c) => c.key),
               datasetContext: { urls: item.urls },
+              headers,
             }),
           );
           outcome.files.push({ path, label, rows: rowsWritten });
@@ -1615,6 +1640,7 @@ async function runExport(opts: {
   out: string | undefined;
   what: string | undefined;
   urls: string | undefined;
+  rawHeaders: boolean;
   json: boolean;
 }): Promise<number> {
   const print = (outcome: ExportOutcome, error: string | null): void => {
@@ -1633,7 +1659,9 @@ async function runExport(opts: {
   };
   const fail = (message: string): number => {
     if (!opts.json) {
-      console.error('Usage: freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--json]');
+      console.error(
+        'Usage: freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--raw-headers] [--json]',
+      );
     }
     print({ files: [], errors: [] }, message);
     return 2;
@@ -1687,7 +1715,10 @@ async function runExport(opts: {
       }
       items.push({ kind: 'selected', name: 'selected-links', urls: known });
     }
-    const outcome = await runExportItems(project.db, outDir, items);
+    const outcome = await runExportItems(project.db, outDir, items, {
+      rawHeaders: opts.rawHeaders,
+      projectFile: resolve(opts.projectPath),
+    });
     if (missing.length > 0) {
       const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;
       if (opts.json) process.stderr.write(`${error}\n`);

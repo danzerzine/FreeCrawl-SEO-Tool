@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
 import { urlColumnHeader, type CrawlUrlRow, type UrlCategory } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
+import { writeExportFile } from './export-file.js';
 
 const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'url',
@@ -81,7 +82,9 @@ export async function exportUrlsToCsv(
     }
   };
 
-  await pipeline(Readable.from(generator()), createWriteStream(filePath, { encoding: 'utf8' }));
+  await writeExportFile(filePath, (partPath) =>
+    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
+  );
 
   return { rowsWritten };
 }
@@ -151,7 +154,9 @@ export async function exportLinksToCsv(
       yield cells.map((c) => escapeCsv(c)).join(',') + '\n';
     }
   };
-  await pipeline(Readable.from(generator()), createWriteStream(filePath, { encoding: 'utf8' }));
+  await writeExportFile(filePath, (partPath) =>
+    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
+  );
   return { rowsWritten };
 }
 
@@ -193,7 +198,9 @@ export async function exportImagesToCsv(
     }
   };
 
-  await pipeline(Readable.from(generator()), createWriteStream(filePath, { encoding: 'utf8' }));
+  await writeExportFile(filePath, (partPath) =>
+    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
+  );
 
   return { rowsWritten };
 }
@@ -242,7 +249,9 @@ export async function exportBrokenLinksToCsv(
     }
   };
 
-  await pipeline(Readable.from(generator()), createWriteStream(filePath, { encoding: 'utf8' }));
+  await writeExportFile(filePath, (partPath) =>
+    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
+  );
 
   return { rowsWritten };
 }

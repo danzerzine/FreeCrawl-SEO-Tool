@@ -14,6 +14,7 @@ import type {
 import { EXPORT_DATASET_COLUMNS, urlColumnHeader } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import { datasetRows, readCell, type DatasetExportContext } from './dataset-export.js';
+import { writeExportFile } from './export-file.js';
 
 /** How a section selects its rows. `selectedIds` wins; otherwise category is
  *  narrowed by the active search/filter so the export matches the grid. */
@@ -701,8 +702,8 @@ export async function exportTabular(
     // `<label> (2)`, … past Excel's row limit). subdir/filename are
     // ignored; the workbook lives at `outputPath`. Rows stream from the
     // database into the zip like the CSV/JSON/XML writers below.
-    const rowsWritten = await writeXlsxFile(
-      outputPath,
+    const rowsWritten = await writeExportFile(outputPath, (partPath) => writeXlsxFile(
+      partPath,
       sections.map((section) => {
         const sheetColumns = columnsFor(section);
         return {
@@ -716,7 +717,7 @@ export async function exportTabular(
           })(),
         };
       }),
-    );
+    ));
     return { filePath: outputPath, files: [outputPath], rowsWritten };
   }
 
@@ -740,20 +741,21 @@ export async function exportTabular(
       ? outputPath.replace(/\.[a-z0-9]+$/i, `.${ext}`)
       : outputPath;
 
-  const writeOne = async (filePath: string, section: TabularSection): Promise<number> => {
-    const source = sourceFor(section);
-    const sectionColumns = columnsFor(section);
-    if (format === 'csv') {
-      return writeCsvFile(source, filePath, sectionColumns, csvBom, headersFor(section), options.headers !== 'keys');
-    }
-    if (format === 'json') {
-      return writeJsonFile(source, filePath, sectionColumns);
-    }
-    if (format === 'jsonl') {
-      return writeJsonlFile(source, filePath, sectionColumns);
-    }
-    return writeXmlFile(source, filePath, sectionColumns, section.label);
-  };
+  const writeOne = (filePath: string, section: TabularSection): Promise<number> =>
+    writeExportFile(filePath, async (partPath) => {
+      const source = sourceFor(section);
+      const sectionColumns = columnsFor(section);
+      if (format === 'csv') {
+        return writeCsvFile(source, partPath, sectionColumns, csvBom, headersFor(section), options.headers !== 'keys');
+      }
+      if (format === 'json') {
+        return writeJsonFile(source, partPath, sectionColumns);
+      }
+      if (format === 'jsonl') {
+        return writeJsonlFile(source, partPath, sectionColumns);
+      }
+      return writeXmlFile(source, partPath, sectionColumns, section.label);
+    });
 
   const skipped: { label: string; reason: string }[] = [];
   /** Write one section; an empty size-dependent dataset leaves no file. */
@@ -834,9 +836,9 @@ export async function exportGrid(
   mkdirSync(path.dirname(filePath), { recursive: true });
 
   if (format === 'xlsx') {
-    const rowsWritten = await writeXlsxFile(filePath, [
-      { name: options.sheetName ?? 'Sheet1', headers, rows },
-    ]);
+    const rowsWritten = await writeExportFile(filePath, (partPath) =>
+      writeXlsxFile(partPath, [{ name: options.sheetName ?? 'Sheet1', headers, rows }]),
+    );
     return { filePath, rowsWritten };
   }
 
@@ -848,9 +850,8 @@ export async function exportGrid(
       yield row.map((cell) => escapeCsv(cell)).join(',') + '\n';
     }
   };
-  await pipeline(
-    Readable.from(generator()),
-    createWriteStream(filePath, { encoding: 'utf8' }),
+  await writeExportFile(filePath, (partPath) =>
+    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
   );
   return { filePath, rowsWritten: rows.length };
 }

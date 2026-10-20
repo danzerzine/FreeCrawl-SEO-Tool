@@ -3,6 +3,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
 import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
+import { writeExportFile } from './export-file.js';
 
 /**
  * Streaming XML export of the URL table. Schema is intentionally close
@@ -253,9 +254,8 @@ export async function exportUrlsToXml(
     yield '</crawl>\n';
   };
 
-  await pipeline(
-    Readable.from(generator()),
-    createWriteStream(filePath, { encoding: 'utf8' }),
+  await writeExportFile(filePath, (partPath) =>
+    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
   );
 
   return { rowsWritten };
