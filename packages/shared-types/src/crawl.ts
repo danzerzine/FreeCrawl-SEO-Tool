@@ -1962,8 +1962,11 @@ export interface OverviewCounts {
     hreflangReciprocityMissing: number;
     hreflangTargetIssues: number;
     hreflangUnlinked: number;
-    /** Internal 2xx HTML pages nothing links to (start URL excluded). */
-    orphanPage: number;
+    /**
+     * Internal 2xx HTML pages nothing links to (start URL excluded); null when
+     * inlinks were never computed, so the count would be meaningless.
+     */
+    orphanPage: number | null;
     crawledNotInSitemap: number;
     redirectInSitemap: number;
     /** Sitemap URL count that the crawl never reached (in sitemap_urls but not in urls). */

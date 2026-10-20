@@ -86,15 +86,19 @@ export const DISABLED_ISSUES_META_KEY = 'disabledIssues';
 export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
 /** JSON `Soft404ProbeResult` of the last crawl's missing-page probe; '' when clean. */
 export const SOFT404_PROBE_META_KEY = 'soft404Probe';
+/** `project_meta` key set by `recomputeInlinks`; orphans mean nothing before it. */
+export const INLINKS_COMPUTED_META_KEY = 'inlinksComputed';
 /**
  * Orphan page: an internal 2xx HTML page nothing links to. The start URL
  * is exempt (nothing links to a homepage from inside the site by
  * definition); sitemap-seeded and list-mode pages are exactly the ones
- * this check exists for.
+ * this check exists for. Until inlinks were computed every page has
+ * `inlinks = 0`, so the check flags nothing rather than every page.
  */
 const ORPHAN_PAGE_SQL = `is_external = 0 AND content_kind = 'html'
   AND status_code >= 200 AND status_code < 300 AND inlinks = 0
-  AND url != COALESCE((SELECT value FROM project_meta WHERE key = 'lastStartUrl'), '')`;
+  AND url != COALESCE((SELECT value FROM project_meta WHERE key = 'lastStartUrl'), '')
+  AND EXISTS (SELECT 1 FROM project_meta WHERE key = '${INLINKS_COMPUTED_META_KEY}')`;
 const EMPTY_DISABLED: ReadonlySet<UrlCategory> = new Set();
 
 const SPELLING_STATUSES: readonly SpellingStatus[] = [
@@ -2973,6 +2977,11 @@ export class ProjectDb {
     });
   }
 
+  /** A crawl is about to add pages: stored inlinks no longer cover them. */
+  markInlinksStale(): void {
+    this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(INLINKS_COMPUTED_META_KEY);
+  }
+
   recomputeInlinks(): void {
     // One-pass aggregate via temp table: GROUP BY links.to_url once, then
     // join. The naive correlated-subquery form (UPDATE … = (SELECT COUNT…))
@@ -3000,6 +3009,7 @@ export class ProjectDb {
         )
       `);
       this.db.exec('DROP TABLE _inlink_counts');
+      this.setMeta(INLINKS_COMPUTED_META_KEY, '1');
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -7054,7 +7064,11 @@ export class ProjectDb {
       ),
       hreflangTargetIssues: countWhere(`${html} AND hreflang_target_issues > 0`),
       hreflangUnlinked: countWhere(`${html} AND hreflang_unlinked > 0`),
-      orphanPage: countWhere(ORPHAN_PAGE_SQL),
+      // null = inlinks never computed (crawl stopped early, old project).
+      orphanPage:
+        this.getMeta(INLINKS_COMPUTED_META_KEY) === null
+          ? null
+          : countWhere(ORPHAN_PAGE_SQL),
       crawledNotInSitemap: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND indexability = 'indexable'
