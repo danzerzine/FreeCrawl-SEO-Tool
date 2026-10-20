@@ -175,10 +175,21 @@ const INLINKS_NON_INDEXABLE_ONLY_SQL = `is_external = 0 AND content_kind = 'html
   AND status_code >= 200 AND status_code < 300
   AND url IN (${internalInlinkTargetsSql(L_FOLLOWED_SQL)})
   AND url NOT IN (${internalInlinkTargetsSql(`${L_FOLLOWED_SQL} AND s.indexability = 'indexable'`)})`;
-/** Pages with a link-like element a crawler cannot follow, aimed at the site. */
+/**
+ * Pages with a link-like element a crawler cannot follow, aimed at the site.
+ * A page with no stored rows falls back to its per-page count: projects
+ * crawled before the rows existed have only the count, and it cannot tell
+ * internal from external, so it counts as before.
+ */
 const UNCRAWLABLE_INTERNAL_OUTLINKS_SQL = `is_external = 0 AND content_kind = 'html'
-  AND EXISTS (
-    SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id AND u.is_internal = 1
+  AND (
+    EXISTS (
+      SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id AND u.is_internal = 1
+    )
+    OR (
+      js_only_links_count > 0
+      AND NOT EXISTS (SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id)
+    )
   )`;
 const EMPTY_DISABLED: ReadonlySet<UrlCategory> = new Set();
 
