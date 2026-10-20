@@ -1964,8 +1964,11 @@ export interface OverviewCounts {
     hreflangReciprocityMissing: number;
     hreflangTargetIssues: number;
     hreflangUnlinked: number;
-    /** Internal 2xx HTML pages nothing links to (start URL excluded). */
-    orphanPage: number;
+    /**
+     * Internal 2xx HTML pages nothing links to (start URL excluded); null when
+     * inlinks were never computed, so the count would be meaningless.
+     */
+    orphanPage: number | null;
     /** Internal 2xx HTML pages whose every internal inlink is nofollow. */
     inlinksNofollowOnly: number;
     crawledNotInSitemap: number;

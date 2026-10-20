@@ -2474,6 +2474,22 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 101,
+    name: 'backfill_inlinks_computed_flag',
+    // Projects whose inlinks were computed before the `inlinksComputed` flag
+    // existed carry real counts but no flag, so they would read as "not
+    // computed". A positive inlink count proves the pass ran. No index on
+    // `inlinks`: EXISTS stops at the first matching row, and a project that
+    // never computed them scans the table once (milliseconds at 300k rows).
+    up: (db) => {
+      db.exec(`
+        INSERT OR IGNORE INTO project_meta (key, value)
+        SELECT 'inlinksComputed', '1'
+        WHERE EXISTS (SELECT 1 FROM urls WHERE is_external = 0 AND inlinks > 0)
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {
