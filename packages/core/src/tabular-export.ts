@@ -556,41 +556,48 @@ async function writeXlsxFile(filePath: string, sources: XlsxSheetSource[]): Prom
       const it = source.rows[Symbol.iterator]();
       let next = it.next();
       let part = 1;
-      // Always one sheet (header only when there are no rows); another
-      // only while rows remain.
-      do {
-        let name = base;
-        if (part > 1) {
-          const suffix = ` (${part})`;
-          name = sanitizeSheetName(base.slice(0, 31 - suffix.length) + suffix, used);
-        }
-        sheetNames.push(name);
-        let rowsInSheet = 0;
-        await zip.add(
-          `xl/worksheets/sheet${sheetNames.length}.xml`,
-          (function* () {
-            let buf = head;
-            let bytes = 0;
-            while (
-              !next.done &&
-              rowsInSheet < XLSX_MAX_DATA_ROWS &&
-              bytes < XLSX_MAX_SHEET_XML_BYTES
-            ) {
-              buf += rowXml(next.value, rowsInSheet + 2);
-              rowsInSheet++;
-              next = it.next();
-              if (buf.length >= XLSX_CHUNK_CHARS) {
-                bytes += Buffer.byteLength(buf, 'utf8');
-                yield buf;
-                buf = '';
+      // Rows are pulled by hand, not by for…of, so a failed write must
+      // close the source itself: an unfinished SQLite read would keep its
+      // snapshot (no checkpoint, no schema change) after the export failed.
+      try {
+        // Always one sheet (header only when there are no rows); another
+        // only while rows remain.
+        do {
+          let name = base;
+          if (part > 1) {
+            const suffix = ` (${part})`;
+            name = sanitizeSheetName(base.slice(0, 31 - suffix.length) + suffix, used);
+          }
+          sheetNames.push(name);
+          let rowsInSheet = 0;
+          await zip.add(
+            `xl/worksheets/sheet${sheetNames.length}.xml`,
+            (function* () {
+              let buf = head;
+              let bytes = 0;
+              while (
+                !next.done &&
+                rowsInSheet < XLSX_MAX_DATA_ROWS &&
+                bytes < XLSX_MAX_SHEET_XML_BYTES
+              ) {
+                buf += rowXml(next.value, rowsInSheet + 2);
+                rowsInSheet++;
+                next = it.next();
+                if (buf.length >= XLSX_CHUNK_CHARS) {
+                  bytes += Buffer.byteLength(buf, 'utf8');
+                  yield buf;
+                  buf = '';
+                }
               }
-            }
-            yield buf + '</sheetData></worksheet>';
-          })(),
-        );
-        total += rowsInSheet;
-        part++;
-      } while (!next.done);
+              yield buf + '</sheetData></worksheet>';
+            })(),
+          );
+          total += rowsInSheet;
+          part++;
+        } while (!next.done);
+      } finally {
+        if (!next.done) it.return?.();
+      }
     }
 
     // Package parts go after the sheets: only now is the sheet list known.
