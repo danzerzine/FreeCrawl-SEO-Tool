@@ -79,6 +79,7 @@ interface ReportRow {
 
 /** The link reports grouped by target; each row is one linked URL. */
 const LINK_TARGET_KINDS: ReadonlySet<ReportKind> = new Set<LinkTargetReportKind>([
+  'redirect-inlinks',
   'redirects-to-error',
   'error-inlinks',
   'non-indexable-inlinks',
@@ -100,6 +101,7 @@ const REPORT_LABELS: Record<ReportKind, string> = {
   'external-domain-health': 'External Domain Health',
   'analytics-coverage': 'Analytics Tracker Coverage',
   'link-positions': 'Internal Link Positions',
+  'redirect-inlinks': 'Links to Redirects (by Target)',
   'redirects-to-error': 'Redirects to Error (by Target)',
   'error-inlinks': 'Links to Error Pages (by Target)',
   'non-indexable-inlinks': 'Links to Non-Indexable Pages (by Target)',
@@ -132,6 +134,7 @@ const TOP_URL_METRIC: Record<ReportKind, TopUrlMetric | null> = {
   'external-domain-health': null,
   'analytics-coverage': null,
   'link-positions': null,
+  'redirect-inlinks': null,
   'redirects-to-error': null,
   'error-inlinks': null,
   'non-indexable-inlinks': null,
@@ -164,6 +167,7 @@ const VALUE_FORMAT: Record<ReportKind, (v: number | null) => string> = {
   'external-domain-health': (v) => (v ?? 0).toLocaleString(),
   'analytics-coverage': (v) => (v ?? 0).toLocaleString(),
   'link-positions': (v) => (v ?? 0).toLocaleString(),
+  'redirect-inlinks': (v) => (v ?? 0).toLocaleString(),
   'redirects-to-error': (v) => (v ?? 0).toLocaleString(),
   'error-inlinks': (v) => (v ?? 0).toLocaleString(),
   'non-indexable-inlinks': (v) => (v ?? 0).toLocaleString(),
@@ -218,6 +222,7 @@ export function ReportsDialog({ open, onClose }: Props) {
     'external-domain-health': t('reports.report.externalDomainHealth', { defaultValue: REPORT_LABELS['external-domain-health'] }),
     'analytics-coverage': t('reports.report.analyticsCoverage', { defaultValue: REPORT_LABELS['analytics-coverage'] }),
     'link-positions': t('reports.report.linkPositions', { defaultValue: REPORT_LABELS['link-positions'] }),
+    'redirect-inlinks': t('reports.report.redirectInlinks', { defaultValue: REPORT_LABELS['redirect-inlinks'] }),
     'redirects-to-error': t('reports.report.redirectsToError', { defaultValue: REPORT_LABELS['redirects-to-error'] }),
     'error-inlinks': t('reports.report.errorInlinks', { defaultValue: REPORT_LABELS['error-inlinks'] }),
     'non-indexable-inlinks': t('reports.report.nonIndexableInlinks', {
@@ -253,6 +258,7 @@ export function ReportsDialog({ open, onClose }: Props) {
     'external-domain-health': t('reports.keyDomain', { defaultValue: 'Domain' }),
     'analytics-coverage': t('reports.keyTracker', { defaultValue: 'Tracker' }),
     'link-positions': t('reports.keyPosition', { defaultValue: 'Position' }),
+    'redirect-inlinks': t('reports.keyLinkTarget', { defaultValue: 'Link Target' }),
     'redirects-to-error': t('reports.keyLinkTarget', { defaultValue: 'Link Target' }),
     'error-inlinks': t('reports.keyLinkTarget', { defaultValue: 'Link Target' }),
     'non-indexable-inlinks': t('reports.keyLinkTarget', { defaultValue: 'Link Target' }),

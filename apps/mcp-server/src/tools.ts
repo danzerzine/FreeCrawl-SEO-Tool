@@ -149,6 +149,11 @@ function clamp(n: unknown, min: number, max: number, fallback: number): number {
 /** The link reports grouped by target: tool name, report, what it lists. */
 const LINK_TARGET_REPORTS: ReadonlyArray<readonly [string, LinkTargetReportKind, string]> = [
   [
+    'report_redirect_inlinks',
+    'redirect-inlinks',
+    'Internal links to redirects (any end); the targets the Internal Link → Redirect total counts.',
+  ],
+  [
     'report_redirects_to_error',
     'redirects-to-error',
     'Internal links to redirects whose chain ends in a 4xx/5xx or no response.',

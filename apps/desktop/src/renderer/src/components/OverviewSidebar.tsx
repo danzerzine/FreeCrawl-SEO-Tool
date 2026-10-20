@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import {
   ISSUE_GROUPS,
   issueCount,
+  issueSourcesCount,
+  type IssueCheckDef,
   type OverviewCounts,
   type UrlCategory,
 } from '@freecrawl/shared-types';
@@ -26,8 +28,14 @@ interface Node {
   /** The check is switched off by a crawl setting, so there is no count to
    *  show — rendered as "Off" instead of a misleading 0. */
   off?: boolean;
+  /** The count is link targets, not URLs: no share of the total, and this
+   *  tooltip says what the number and the list (pages or links) are. */
+  targetHint?: string;
   children?: Node[];
 }
+
+/** Tooltip of a check counted by target, for `buildTree`. */
+type TargetHint = (def: IssueCheckDef, targets: number | null, sources: number | null) => string;
 
 export function OverviewSidebar() {
   const { t, i18n } = useTranslation();
@@ -175,9 +183,36 @@ export function OverviewSidebar() {
   // the three cookie checks have nothing to count: a 0 there read as "no
   // insecure cookies" on a site that sets them on every page.
   const cookiesOff = useAppStore((s) => (s.config.cookiePolicy ?? 'reject-all') === 'reject-all');
+  const targetHint = useMemo<TargetHint>(() => {
+    const reportNames: Record<string, string> = {
+      'redirect-inlinks': t('reports.report.redirectInlinks', { defaultValue: 'Links to Redirects (by Target)' }),
+      'error-inlinks': t('reports.report.errorInlinks', { defaultValue: 'Links to Error Pages (by Target)' }),
+    };
+    return (def, targets, sources) => {
+      const values = { targets: (targets ?? 0).toLocaleString(), sources: (sources ?? 0).toLocaleString() };
+      const what =
+        def.byTarget?.unit === 'links'
+          ? t('sidebar.byTargetLinks', {
+              defaultValue: 'Link targets: {{targets}} · links to them: {{sources}}. The list shows the links.',
+              ...values,
+            })
+          : t('sidebar.byTargetPages', {
+              defaultValue:
+                'Link targets: {{targets}} · linking pages: {{sources}}. The list shows the linking pages.',
+              ...values,
+            });
+      const report = def.byTarget?.report;
+      return report
+        ? `${what} ${t('sidebar.byTargetReport', {
+            defaultValue: 'One row per target: Reports → {{report}}.',
+            report: reportNames[report] ?? report,
+          })}`
+        : what;
+    };
+  }, [t]);
   const tree = useMemo(
-    () => buildTree(overview, disabledSet, cookiesOff),
-    [overview, disabledSet, cookiesOff],
+    () => buildTree(overview, disabledSet, cookiesOff, targetHint),
+    [overview, disabledSet, cookiesOff, targetHint],
   );
   const offLabel = t('sidebar.checkOff', { defaultValue: 'Off' });
   const notComputedLabel = t('sidebar.notComputed', { defaultValue: 'Not computed' });
@@ -319,6 +354,7 @@ const TreeNode = memo(function TreeNode({
           isActive && 'bg-accent-500/20 text-surface-50',
         )}
         style={{ paddingLeft: 8 + depth * 12 }}
+        title={node.targetHint}
         onClick={() => {
           if (hasChildren) toggle(node.key);
           if (node.category) onClick(node.category);
@@ -354,6 +390,8 @@ const TreeNode = memo(function TreeNode({
             </span>
             <span className="w-14 text-right font-mono tabular-nums text-surface-500">
               {(() => {
+                // Targets are not a share of the site's URLs.
+                if (node.targetHint) return '';
                 const base = node.percentBase ?? total;
                 return base > 0 ? ((node.count / base) * 100).toFixed(2) + '%' : '—';
               })()}
@@ -387,6 +425,7 @@ function buildTree(
   o: OverviewCounts | null,
   disabled: ReadonlySet<string>,
   cookiesOff: boolean,
+  targetHint: TargetHint,
 ): Node[] {
   if (!o) return [];
   // Response Codes and Security deliberately count external URLs too (that's
@@ -570,6 +609,9 @@ function buildTree(
             count: issueCount(o.issues, i),
             category: i.category,
             ...(i.percentBase === 'images' ? { percentBase: o.summary.totalImages } : {}),
+            ...(i.byTarget
+              ? { targetHint: targetHint(i, issueCount(o.issues, i), issueSourcesCount(o.issues, i)) }
+              : {}),
             ...(cookiesOff && i.category.startsWith('issues:cookie-') ? { off: true } : {}),
           })),
       })).filter((g) => g.children.length > 0),

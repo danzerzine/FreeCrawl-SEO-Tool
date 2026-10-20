@@ -10,7 +10,10 @@
     "checkOff": "Désactivé",
     "cookiesOffHint": "Les contrôles des cookies sont désactivés car la politique de cookies de l'exploration est « Tout refuser ». Choisissez « Tout accepter » ou « Bloquer les tiers » dans Paramètres → Cookies pour analyser les en-têtes Set-Cookie.",
     "notComputed": "Non calculé",
-    "notComputedHint": "Les liens entrants n'ont pas encore été calculés, les pages orphelines ne peuvent donc pas être comptées. Ils sont calculés à la fin d'une exploration avec « Recalculer les liens entrants » activé."
+    "notComputedHint": "Les liens entrants n'ont pas encore été calculés, les pages orphelines ne peuvent donc pas être comptées. Ils sont calculés à la fin d'une exploration avec « Recalculer les liens entrants » activé.",
+    "byTargetPages": "Cibles de liens : {{targets}} · pages qui les lient : {{sources}}. La liste montre les pages qui lient.",
+    "byTargetLinks": "Cibles de liens : {{targets}} · liens vers elles : {{sources}}. La liste montre les liens.",
+    "byTargetReport": "Une ligne par cible : Rapports → {{report}}."
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",
@@ -403,6 +406,7 @@
       "topWords": "Mots les plus fréquents (titre + méta + H1, 100 premiers)",
       "pagesOverLinkLimit": "Pages dépassant le maximum de liens par page",
       "mobileParity": "Différences mobile / bureau",
+      "redirectInlinks": "Liens vers des redirections (par cible)",
       "redirectsToError": "Redirections vers une erreur (par cible)",
       "errorInlinks": "Liens vers des pages en erreur (par cible)",
       "nonIndexableInlinks": "Liens vers des pages non indexables (par cible)"
