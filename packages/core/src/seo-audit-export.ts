@@ -908,13 +908,13 @@ async function writeAuditFiles(
           sink.next++;
         }
         const f = sink.f;
-        if (f.keep && !f.keep(row)) continue;
         if (!bodyRead) {
           body = ctx.bodies.get(row.id);
           bodyRead = true;
         }
         let line: string;
         try {
+          if (f.keep && !f.keep(row)) continue;
           const cells = f.headers.map((c) =>
             c === 'Occurrences' ? occurrences(f.occurrences, row, body) : cell(c, row, ctx),
           );
