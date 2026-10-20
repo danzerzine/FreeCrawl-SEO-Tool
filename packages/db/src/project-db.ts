@@ -8633,7 +8633,10 @@ export class ProjectDb {
         : ISSUE_CATEGORIES.filter((c) => c === issueKey);
     for (const key of keys) {
       if (disabled.has(key)) continue;
-      const where = categoryWhereClause(key, disabled) ?? '1 = 1';
+      // A check with no filter has no pages of its own: skip it rather
+      // than list every URL under it.
+      const where = categoryWhereClause(key, disabled);
+      if (where === null) continue;
       const rows = this.db
         .prepare(`SELECT url FROM urls WHERE ${where} ORDER BY id`)
         .iterate() as unknown as Iterable<{ url: string }>;
