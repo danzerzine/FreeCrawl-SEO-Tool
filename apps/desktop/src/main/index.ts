@@ -5514,6 +5514,23 @@ function registerIpc(): void {
     },
   );
 
+  // The saved list lives in project_meta, so the reader worker's own
+  // connection applies it without being handed the patterns.
+  registerHandle(IPC.reportsOrphanExcludeGet, (): string[] =>
+    getDb().getOrphanExcludePatterns(),
+  );
+  registerHandle(
+    IPC.reportsOrphanExcludeSet,
+    (_e, patterns: string[]): { error: string | null } => {
+      try {
+        getDb().setOrphanExcludePatterns(patterns);
+        return { error: null };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
+
   registerHandle(IPC.reportsServerHeaders, () =>
     callReaderOrFallback<ServerHeaderRow[]>('serverHeaderBreakdown', [], () =>
       getDb().serverHeaderBreakdown(),

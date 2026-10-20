@@ -461,6 +461,9 @@ export const IPC = {
   /** Cross-source orphan-pages report — URLs seen in sitemap / GSC /
    *  GA4 but not in the crawled `urls` table. */
   reportsOrphanCrossSource: 'reports:orphan-cross-source',
+  /** Per-project path patterns that hide service URLs from that report. */
+  reportsOrphanExcludeGet: 'reports:orphan-exclude-get',
+  reportsOrphanExcludeSet: 'reports:orphan-exclude-set',
   /** V2 Faz 2 — Log File Analyzer. `logAnalyzerOpenWindow` opens the
    *  standalone analysis window; `logAnalyze` ingests one access-log file
    *  (parse, bot-detect, aggregate, persist); the remaining channels read
@@ -2171,6 +2174,9 @@ export interface FreeCrawlApi {
   reportsSitemapOrphans(limit?: number): Promise<SitemapOrphanRow[]>;
   /** Cross-source orphan URLs — sitemap ∪ GSC ∪ GA4 minus crawled. */
   reportsOrphanCrossSource(limit?: number): Promise<OrphanCrossSourceRow[]>;
+  reportsOrphanExcludeGet(): Promise<string[]>;
+  /** Saves the list; `error` is set (and nothing saved) when a pattern is invalid or unsafe. */
+  reportsOrphanExcludeSet(patterns: string[]): Promise<{ error: string | null }>;
   reportsServerHeaders(): Promise<ServerHeaderRow[]>;
   reportsTopWords(input: TopWordsInput): Promise<TopWordsRow[]>;
   /** Heartbeat: renderer reports its latest input-lag sample (ms). */

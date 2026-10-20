@@ -422,6 +422,7 @@
     "keyServer": "Serveur",
     "keyWord": "Mot",
     "includeBody": "Inclure le texte du corps (plus lent)",
+    "orphanExclude": "Masquer les URL correspondantes (regex, séparés par des espaces)",
     "orphanGscClicks_one": "{{formatted}} clic GSC",
     "orphanGscClicks_many": "{{formatted}} de clics GSC",
     "orphanGscClicks_other": "{{formatted}} clics GSC",

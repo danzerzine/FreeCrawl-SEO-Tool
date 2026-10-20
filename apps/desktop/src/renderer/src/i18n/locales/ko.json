@@ -408,6 +408,7 @@
     "keyServer": "서버",
     "keyWord": "단어",
     "includeBody": "본문 텍스트 포함 (느림)",
+    "orphanExclude": "일치하는 URL 숨기기(정규식, 공백으로 구분)",
     "orphanGscClicks_other": "GSC 클릭 {{formatted}}회",
     "orphanGscImpressions_other": "노출 {{formatted}}회",
     "orphanGa4Sessions_other": "GA4 세션 {{formatted}}회",

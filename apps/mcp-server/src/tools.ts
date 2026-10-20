@@ -1203,7 +1203,15 @@ export function buildTools(): Tool[] {
         'Orphan pages across all truth sources: URLs present in the XML sitemap, Google Search Console, Google Analytics 4 or Yandex Metrica (the counter last picked or fetched for this project) but never reached by the crawl (or crawled only as an unfetched stub). Each row lists which sources mentioned it plus its GSC clicks / impressions, GA4 sessions and Metrica pageviews (hit-level) / visits (landing page); sorted by traffic (GSC clicks + the larger of GA4 sessions and Metrica visits, then Metrica pageviews) descending so high-value orphans surface first. Sitemap-only with no traffic is often a dead entry; GSC/GA4/Metrica orphans are real pages users reach that no internal link path does.',
       inputSchema: {
         type: 'object',
-        properties: { limit: { type: 'integer', minimum: 1, maximum: 10_000 } },
+        properties: {
+          limit: { type: 'integer', minimum: 1, maximum: 10_000 },
+          excludePatterns: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Regex patterns matched against the full URL; matching URLs are hidden (service paths nobody links to, e.g. "/a/"). Omit to use the project\'s saved list. Nested-quantifier or over-long patterns are rejected.',
+          },
+        },
       },
       handler: (args, db) => ({
         rows: db.orphanPagesCrossSource(
@@ -1211,6 +1219,9 @@ export function buildTools(): Tool[] {
           savedGoogleAccount(db, 'gsc'),
           savedGoogleAccount(db, 'ga4'),
           savedMetricaCounter(db),
+          Array.isArray(args.excludePatterns)
+            ? args.excludePatterns.filter((p): p is string => typeof p === 'string')
+            : undefined,
         ),
       }),
     },

@@ -429,6 +429,7 @@
     "keyServer": "Сервер",
     "keyWord": "Слово",
     "includeBody": "Учитывать текст страницы (медленнее)",
+    "orphanExclude": "Скрыть URL по шаблону (regex, через пробел)",
     "orphanGscClicks_one": "{{formatted}} клик GSC",
     "orphanGscClicks_few": "{{formatted}} клика GSC",
     "orphanGscClicks_many": "{{formatted}} кликов GSC",
