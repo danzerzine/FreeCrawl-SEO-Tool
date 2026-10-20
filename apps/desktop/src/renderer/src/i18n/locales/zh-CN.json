@@ -408,6 +408,7 @@
     "keyServer": "服务器",
     "keyWord": "词",
     "includeBody": "包含正文文本（较慢）",
+    "orphanExclude": "隐藏匹配的 URL（正则，用空格分隔）",
     "orphanGscClicks_other": "{{formatted}} 次 GSC 点击",
     "orphanGscImpressions_other": "{{formatted}} 次展示",
     "orphanGa4Sessions_other": "{{formatted}} 次 GA4 会话",

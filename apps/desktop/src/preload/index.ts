@@ -423,6 +423,10 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.reportsSitemapOrphans, limit),
   reportsOrphanCrossSource: (limit?: number): Promise<OrphanCrossSourceRow[]> =>
     ipcRenderer.invoke(IPC.reportsOrphanCrossSource, limit),
+  reportsOrphanExcludeGet: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC.reportsOrphanExcludeGet),
+  reportsOrphanExcludeSet: (patterns: string[]): Promise<{ error: string | null }> =>
+    ipcRenderer.invoke(IPC.reportsOrphanExcludeSet, patterns),
   // Fire-and-forget — `send` not `invoke` because we don't need a
   // response and we want this to be cheap (≤ 1 ms per call, no wait).
   reportRendererLag: (lagMs: number) => {

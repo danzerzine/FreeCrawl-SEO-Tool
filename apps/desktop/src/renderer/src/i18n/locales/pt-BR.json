@@ -422,6 +422,7 @@
     "keyServer": "Servidor",
     "keyWord": "Palavra",
     "includeBody": "Incluir texto do corpo (mais lento)",
+    "orphanExclude": "Ocultar URLs que correspondam (regex, separados por espaço)",
     "orphanGscClicks_one": "{{formatted}} clique do GSC",
     "orphanGscClicks_many": "{{formatted}} de cliques do GSC",
     "orphanGscClicks_other": "{{formatted}} cliques do GSC",

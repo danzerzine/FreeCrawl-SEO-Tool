@@ -171,6 +171,11 @@ export function ReportsDialog({ open, onClose }: Props) {
   const [includeBody, setIncludeBody] = useState(false);
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(false);
+  // Orphan report only: space-separated patterns that hide service URLs.
+  // `orphanApplied` bumps on each successful save so the report reloads.
+  const [orphanExclude, setOrphanExclude] = useState('');
+  const [orphanExcludeError, setOrphanExcludeError] = useState<string | null>(null);
+  const [orphanApplied, setOrphanApplied] = useState(0);
 
   // Localised label maps. Memoised on `t` so they only rebuild when the
   // language changes, not on every render.
@@ -554,7 +559,22 @@ export function ReportsDialog({ open, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, kind, depth, maxLinksPerPage, includeBody, t]);
+  }, [open, kind, depth, maxLinksPerPage, includeBody, orphanApplied, t]);
+
+  useEffect(() => {
+    if (!open) return;
+    void window.freecrawl
+      .reportsOrphanExcludeGet()
+      .then((list) => setOrphanExclude(list.join(' ')));
+  }, [open]);
+
+  const applyOrphanExclude = async () => {
+    const res = await window.freecrawl.reportsOrphanExcludeSet(
+      orphanExclude.split(/\s+/).filter(Boolean),
+    );
+    setOrphanExcludeError(res.error);
+    if (!res.error) setOrphanApplied((n) => n + 1);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -630,6 +650,29 @@ export function ReportsDialog({ open, onClose }: Props) {
               <span className="text-surface-400">
                 {t('reports.includeBody', { defaultValue: 'Include body text (slower)' })}
               </span>
+            </label>
+          )}
+          {kind === 'orphan-cross-source' && (
+            <label className="flex items-center gap-1.5">
+              <span className="text-surface-400">
+                {t('reports.orphanExclude', { defaultValue: 'Hide URLs matching (regex, space-separated)' })}
+              </span>
+              <input
+                className="w-48 rounded border border-surface-700 bg-surface-950 px-2 py-0.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
+                value={orphanExclude}
+                placeholder="/a/ ^https://x\.com/tmp/"
+                onChange={(e) => setOrphanExclude(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void applyOrphanExclude();
+                }}
+              />
+              <button
+                className="rounded border border-surface-700 px-2 py-0.5 text-surface-100 hover:bg-surface-800"
+                onClick={() => void applyOrphanExclude()}
+              >
+                {t('common.apply', { defaultValue: 'Apply' })}
+              </button>
+              {orphanExcludeError && <span className="text-red-400">{orphanExcludeError}</span>}
             </label>
           )}
           {(kind === 'pages-per-dir' || kind === 'word-count-per-dir') && (

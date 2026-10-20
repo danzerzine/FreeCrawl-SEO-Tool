@@ -88,6 +88,39 @@ export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
 export const SOFT404_PROBE_META_KEY = 'soft404Probe';
 /** `project_meta` key set by `recomputeInlinks`; orphans mean nothing before it. */
 export const INLINKS_COMPUTED_META_KEY = 'inlinksComputed';
+/** `project_meta` key holding the JSON list of path patterns the cross-source orphan report hides. */
+export const ORPHAN_EXCLUDE_META_KEY = 'orphanExcludePatterns';
+const ORPHAN_EXCLUDE_MAX_LENGTH = 200;
+// A quantified group that itself holds a quantifier — `(a+)+`, `(.*)*`,
+// `(x{2,})+` — is the classic catastrophic-backtracking shape.
+const NESTED_QUANTIFIER = /\((?:[^()\\]|\\.)*(?:[+*]|\{\d+,\d*\})(?:[^()\\]|\\.)*\)(?:[+*]|\{\d+,\d*\})/;
+
+/**
+ * Compiles user-typed exclusion patterns for the orphan report. The same
+ * `new RegExp` the crawl include/exclude lists use, plus a guard those lists
+ * lack: patterns are re-run over every orphan candidate, so an over-long or
+ * nested-quantifier pattern is rejected up front instead of hanging a reader.
+ * Throws on the first bad pattern; blank lines are skipped.
+ */
+export function compileOrphanExcludePatterns(patterns: readonly string[]): RegExp[] {
+  const out: RegExp[] = [];
+  for (const raw of patterns) {
+    const pattern = raw.trim();
+    if (!pattern) continue;
+    if (pattern.length > ORPHAN_EXCLUDE_MAX_LENGTH) {
+      throw new Error(`Exclusion pattern too long (max ${ORPHAN_EXCLUDE_MAX_LENGTH}): ${pattern.slice(0, 40)}…`);
+    }
+    if (NESTED_QUANTIFIER.test(pattern)) {
+      throw new Error(`Exclusion pattern rejected, nested quantifier can hang: ${pattern}`);
+    }
+    try {
+      out.push(new RegExp(pattern));
+    } catch (err) {
+      throw new Error(`Invalid exclusion pattern ${pattern}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return out;
+}
 /**
  * Orphan page: an internal 2xx HTML page nothing links to. The start URL
  * is exempt (nothing links to a homepage from inside the site by
@@ -1815,6 +1848,23 @@ export class ProjectDb {
     const next = normalized.length === 0 ? '' : JSON.stringify(normalized);
     if ((this.getMeta(DISABLED_ISSUES_META_KEY) ?? '') === next) return;
     this.setMeta(DISABLED_ISSUES_META_KEY, next);
+  }
+
+  /** Patterns the cross-source orphan report hides (service URLs nobody links to), per project. */
+  getOrphanExcludePatterns(): string[] {
+    try {
+      const v = JSON.parse(this.getMeta(ORPHAN_EXCLUDE_META_KEY) || '[]');
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Validates (throws on an unsafe pattern) and stores the list; empty clears it. */
+  setOrphanExcludePatterns(list: readonly string[]): void {
+    const cleaned = list.map((p) => p.trim()).filter(Boolean);
+    compileOrphanExcludePatterns(cleaned);
+    this.setMeta(ORPHAN_EXCLUDE_META_KEY, cleaned.length === 0 ? '' : JSON.stringify(cleaned));
   }
 
   /** Mirrors the "normalise before duplicate-URL check" toggle for the SQL side. */
@@ -10095,6 +10145,8 @@ export class ProjectDb {
     gscAccountId = '',
     ga4AccountId = '',
     metricaCounterId = '',
+    /** One-off override; omitted = the project's saved list. Matched against the full URL. */
+    excludePatterns?: readonly string[],
   ): {
     url: string;
     sources: string[];
@@ -10106,6 +10158,7 @@ export class ProjectDb {
     lastmod: string | null;
   }[] {
     const cap = Math.max(1, Math.min(10_000, limit));
+    const exclude = compileOrphanExcludePatterns(excludePatterns ?? this.getOrphanExcludePatterns());
     // Every GSC / GA4 reference is pinned to one account id, which is what
     // keeps these joins 1:1: `(url, account_id)` is the primary key of both
     // snapshot tables, so without the account predicate a URL reported by
@@ -10167,7 +10220,9 @@ export class ProjectDb {
         gscAccountId,
         ga4AccountId,
         metricaCounterId,
-        cap,
+        // Exclusions are applied after the query, so the cap must not cut
+        // rows that would survive the filter.
+        exclude.length > 0 ? -1 : cap,
       ) as {
       url: string;
       sources: string;
@@ -10178,7 +10233,11 @@ export class ProjectDb {
       metricaVisits: number | null;
       lastmod: string | null;
     }[];
-    return rows.map((r) => ({
+    const kept =
+      exclude.length === 0
+        ? rows
+        : rows.filter((r) => !exclude.some((re) => re.test(r.url))).slice(0, cap);
+    return kept.map((r) => ({
       url: r.url,
       sources: r.sources ? r.sources.split(',').sort() : [],
       gscClicks: r.gscClicks ?? null,

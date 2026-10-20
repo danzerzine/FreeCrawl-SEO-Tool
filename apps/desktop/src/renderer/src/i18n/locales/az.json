@@ -415,6 +415,7 @@
     "keyServer": "Server",
     "keyWord": "Söz",
     "includeBody": "Mətn gövdəsini daxil et (daha yavaş)",
+    "orphanExclude": "Şablona uyğun URL-ləri gizlət (regex, boşluqla ayrılmış)",
     "orphanGscClicks_one": "{{formatted}} GSC kliki",
     "orphanGscClicks_other": "{{formatted}} GSC kliki",
     "orphanGscImpressions_one": "{{formatted}} göstərilmə",

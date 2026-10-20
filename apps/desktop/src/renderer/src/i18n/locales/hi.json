@@ -415,6 +415,7 @@
     "keyServer": "सर्वर",
     "keyWord": "शब्द",
     "includeBody": "बॉडी टेक्स्ट शामिल करें (धीमा)",
+    "orphanExclude": "मेल खाने वाले URL छिपाएँ (regex, स्पेस से अलग)",
     "orphanGscClicks_one": "{{formatted}} GSC क्लिक",
     "orphanGscClicks_other": "{{formatted}} GSC क्लिक",
     "orphanGscImpressions_one": "{{formatted}} इंप्रेशन",

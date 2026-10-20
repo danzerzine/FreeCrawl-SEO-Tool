@@ -415,6 +415,7 @@
     "keyServer": "Sunucu",
     "keyWord": "Kelime",
     "includeBody": "Gövde metnini dahil et (daha yavaş)",
+    "orphanExclude": "Eşleşen URL'leri gizle (regex, boşlukla ayrılmış)",
     "orphanGscClicks_one": "{{formatted}} GSC tıklaması",
     "orphanGscClicks_other": "{{formatted}} GSC tıklaması",
     "orphanGscImpressions_one": "{{formatted}} gösterim",

@@ -415,6 +415,7 @@
     "keyServer": "Server",
     "keyWord": "Word",
     "includeBody": "Include body text (slower)",
+    "orphanExclude": "Hide URLs matching (regex, space-separated)",
     "orphanGscClicks_one": "{{formatted}} GSC click",
     "orphanGscClicks_other": "{{formatted}} GSC clicks",
     "orphanGscImpressions_one": "{{formatted}} impr",
