@@ -880,6 +880,14 @@ export interface CrawlConfig {
   respectCrawlDelay: boolean;
   crawlExternal: boolean;
   /**
+   * Status-check the targets of external links (one request each) so Broken
+   * Links can report dead ones. Independent of `crawlExternal`, which
+   * decides whether external pages are crawled through. Off sends no request
+   * to any external host: the links are still stored, just without a status.
+   * On large sites externals can outnumber internal URLs several times over.
+   */
+  checkExternalLinks: boolean;
+  /**
    * Crawl internal page subresources so they appear in the Internal tab as
    * their own rows (status code, content type, size) — exactly like
    * Screaming Frog's "Check Images / CSS / JavaScript". Each fetched resource
@@ -2535,6 +2543,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   respectRobotsTxt: true,
   respectCrawlDelay: false,
   crawlExternal: false,
+  checkExternalLinks: true,
   checkImages: true,
   checkCss: true,
   checkJs: true,
