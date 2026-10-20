@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import type { CrawlSummary, OverviewCounts, ReportBranding } from '@freecrawl/shared-types';
+import { writeExportFile } from './export-file.js';
 
 /**
  * Self-contained HTML audit report for a finished crawl. Single-file
@@ -377,10 +378,13 @@ export async function exportHtmlReport(
       cb(null, chunk);
     },
   });
-  await pipeline(
-    Readable.from(htmlReportChunks(db, options)),
-    counter,
-    createWriteStream(filePath, { encoding: 'utf8' }),
+  // `.part` + rename: an interrupted export never leaves a truncated report.
+  await writeExportFile(filePath, (partPath) =>
+    pipeline(
+      Readable.from(htmlReportChunks(db, options)),
+      counter,
+      createWriteStream(partPath, { encoding: 'utf8' }),
+    ),
   );
   return { filePath, bytesWritten };
 }

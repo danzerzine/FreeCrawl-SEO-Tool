@@ -9,7 +9,6 @@
  */
 
 import { join } from 'node:path';
-import { unlink } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import type {
   BulkExportFile,
@@ -18,6 +17,7 @@ import type {
   UrlCategory,
 } from '@freecrawl/shared-types';
 import { exportLinksToCsv, exportUrlsToCsv } from './csv-export.js';
+import { writeExportFile } from './export-file.js';
 
 export interface BulkExportTask {
   label: string;
@@ -153,46 +153,51 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
 
 /**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
- * `outputDir`. Zero-row categories are written then deleted so the dump
+ * `outputDir` (created when missing). Each file goes through
+ * `<name>.part` + rename; zero-row categories leave no file, so the dump
  * folder isn't littered with empty files. Per-task write failures are
  * collected (never abort the whole run). Caller owns any UI / dialogs.
+ * `tasks` narrows the run to some categories (the CLI's `tab:<key>`);
+ * `links: false` skips the two link-level files.
  */
 export async function runBulkExport(
   db: ProjectDb,
   outputDir: string,
+  options: { tasks?: readonly BulkExportTask[]; links?: boolean } = {},
 ): Promise<BulkExportResult> {
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
+  const hasRows = (r: { rowsWritten: number }): boolean => r.rowsWritten > 0;
   // Silenced checks (Settings → Issues) get no file at all — an empty CSV
   // for a check the user turned off would read as "nothing found".
   const disabled = db.getDisabledIssues();
-  for (const task of BULK_EXPORT_TASKS) {
+  for (const task of options.tasks ?? BULK_EXPORT_TASKS) {
     if (disabled.has(task.category)) continue;
     const filePath = join(outputDir, task.file);
     try {
-      const { rowsWritten } = await exportUrlsToCsv(db, filePath, {
-        category: task.category,
-        columns: task.columns,
-      });
-      if (rowsWritten === 0) {
-        await unlink(filePath).catch(() => undefined);
-        continue;
-      }
+      const { rowsWritten } = await writeExportFile(
+        filePath,
+        (partPath) => exportUrlsToCsv(db, partPath, { category: task.category, columns: task.columns }),
+        hasRows,
+      );
+      if (rowsWritten === 0) continue;
       files.push({ filePath, label: task.label, category: task.category, rowsWritten });
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
     }
   }
+  if (options.links === false) return { outputDir, files, errors };
   // Link-level files: one row per edge rather than per page.
   for (const scope of ['internal', 'external'] as const) {
     const label = scope === 'internal' ? 'Links — Internal' : 'Links — External';
     const filePath = join(outputDir, `links-${scope}.csv`);
     try {
-      const { rowsWritten } = await exportLinksToCsv(db, filePath, { scope });
-      if (rowsWritten === 0) {
-        await unlink(filePath).catch(() => undefined);
-        continue;
-      }
+      const { rowsWritten } = await writeExportFile(
+        filePath,
+        (partPath) => exportLinksToCsv(db, partPath, { scope }),
+        hasRows,
+      );
+      if (rowsWritten === 0) continue;
       files.push({
         filePath,
         label,
