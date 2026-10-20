@@ -366,15 +366,18 @@ function colLetter(idx: number): string {
   return s;
 }
 
-function sanitizeSheetName(label: string, used: Set<string>): string {
+function sanitizeSheetName(label: string, used: Set<string>, from?: number): string {
   let base = label.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31);
   if (!base) base = 'Sheet';
-  let candidate = base;
-  let i = 2;
-  while (used.has(candidate.toLowerCase())) {
-    const suffix = ` (${i++})`;
-    candidate = base.slice(0, 31 - suffix.length) + suffix;
-  }
+  const numbered = (n: number): string => {
+    const suffix = ` (${n})`;
+    return base.slice(0, 31 - suffix.length) + suffix;
+  };
+  // `from`: a continued sheet starts at its part number. Numbers always go
+  // on the label itself, never on an already numbered name («X (2) (2)»).
+  let i = from ?? 1;
+  let candidate = from === undefined ? base : numbered(from);
+  while (used.has(candidate.toLowerCase())) candidate = numbered(++i);
   used.add(candidate.toLowerCase());
   return candidate;
 }
@@ -563,11 +566,7 @@ async function writeXlsxFile(filePath: string, sources: XlsxSheetSource[]): Prom
         // Always one sheet (header only when there are no rows); another
         // only while rows remain.
         do {
-          let name = base;
-          if (part > 1) {
-            const suffix = ` (${part})`;
-            name = sanitizeSheetName(base.slice(0, 31 - suffix.length) + suffix, used);
-          }
+          const name = part > 1 ? sanitizeSheetName(source.name, used, part) : base;
           sheetNames.push(name);
           let rowsInSheet = 0;
           await zip.add(
