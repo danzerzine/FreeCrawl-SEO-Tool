@@ -2992,6 +2992,10 @@ export class Crawler extends EventEmitter {
 
   private enqueueExternal(url: string): void {
     if (this.stopped) return;
+    // "Check external links" off: external targets stay stored as links but
+    // no request ever goes to their host. Every external probe (links,
+    // resources, iframes, redirect hops, resume) funnels through here.
+    if (!this.config.checkExternalLinks) return;
     if (this.externalSeen.has(url)) return;
     // Bound external discovery the same way internal crawling is bounded.
     // Without these caps `externalSeen` and the probe queue grow without
@@ -3015,6 +3019,14 @@ export class Crawler extends EventEmitter {
           `External probe error: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
+  }
+
+  /**
+   * Crawling external pages is a request to an external host like any
+   * other, so "check external links" off overrides `crawlExternal`.
+   */
+  private get crawlsExternalPages(): boolean {
+    return this.config.crawlExternal && this.config.checkExternalLinks;
   }
 
   private async probeExternal(url: string): Promise<void> {
@@ -4334,7 +4346,7 @@ export class Crawler extends EventEmitter {
             return;
           }
           const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-          if (inScope || this.config.crawlExternal) {
+          if (inScope || this.crawlsExternalPages) {
             this.enqueue({ url: target, depth: item.depth, redirectHopCount: hopCount });
           } else if (!inScope) {
             // Record the target as an external stub so the hop chain is
@@ -5048,7 +5060,7 @@ export class Crawler extends EventEmitter {
               this.config.scope === 'subfolder' &&
               this.config.checkLinksOutsideStartFolder &&
               isInScope(this.config.startUrl, link.toUrl, 'subdomain');
-            if (!inScope && !checkOnly && !this.config.crawlExternal) continue;
+            if (!inScope && !checkOnly && !this.crawlsExternalPages) continue;
             // Wave 3 — nofollow follow toggle. By default nofollow links
             // are stored (when `storeNofollowLinks` is on) but never
             // recursed into. Turning the matching row on opts out of the
@@ -5073,7 +5085,7 @@ export class Crawler extends EventEmitter {
           for (const target of [parsed.paginationNext, parsed.paginationPrev]) {
             if (!target) continue;
             const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-            if (!inScope && !this.config.crawlExternal) continue;
+            if (!inScope && !this.crawlsExternalPages) continue;
             this.enqueue({ url: target, depth: nextDepth });
           }
         }
@@ -5091,7 +5103,7 @@ export class Crawler extends EventEmitter {
               normalized,
               this.config.scope,
             );
-            if (!inScope && !this.config.crawlExternal) continue;
+            if (!inScope && !this.crawlsExternalPages) continue;
             this.enqueue({ url: normalized, depth: nextDepth });
           }
         }
@@ -5112,7 +5124,7 @@ export class Crawler extends EventEmitter {
             parsed.canonicalResolved,
             this.config.scope,
           );
-          if (inScope || this.config.crawlExternal) {
+          if (inScope || this.crawlsExternalPages) {
             this.enqueue({ url: parsed.canonicalResolved, depth: nextDepth });
           }
         }
@@ -5123,7 +5135,7 @@ export class Crawler extends EventEmitter {
           for (const target of [parsed.metaRefreshUrl, parsed.jsRedirectUrl]) {
             if (!target || target === item.url) continue;
             const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-            if (inScope || this.config.crawlExternal) {
+            if (inScope || this.crawlsExternalPages) {
               this.enqueue({ url: target, depth: nextDepth });
             }
           }
@@ -5135,7 +5147,7 @@ export class Crawler extends EventEmitter {
         const followDeclared = (target: string | null): void => {
           if (!target || target === item.url) return;
           const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-          if (!inScope && !this.config.crawlExternal) return;
+          if (!inScope && !this.crawlsExternalPages) return;
           this.enqueue({ url: target, depth: nextDepth });
         };
         if (this.config.crawlHreflang) {

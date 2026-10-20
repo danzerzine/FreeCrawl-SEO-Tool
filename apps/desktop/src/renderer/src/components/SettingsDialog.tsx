@@ -116,6 +116,7 @@ interface FormState {
   respectRobotsTxt: boolean;
   respectCrawlDelay: boolean;
   crawlExternal: boolean;
+  checkExternalLinks: boolean;
   checkImages: boolean;
   checkCss: boolean;
   checkJs: boolean;
@@ -569,6 +570,7 @@ function configToForm(c: CrawlConfig): FormState {
     respectRobotsTxt: c.respectRobotsTxt,
     respectCrawlDelay: c.respectCrawlDelay,
     crawlExternal: c.crawlExternal,
+    checkExternalLinks: c.checkExternalLinks,
     checkImages: c.checkImages,
     checkCss: c.checkCss,
     checkJs: c.checkJs,
@@ -894,6 +896,7 @@ export function SettingsDialog({ open, onClose }: Props) {
       respectRobotsTxt: form.respectRobotsTxt,
       respectCrawlDelay: form.respectCrawlDelay,
       crawlExternal: form.crawlExternal,
+      checkExternalLinks: form.checkExternalLinks,
       checkImages: form.checkImages,
       checkCss: form.checkCss,
       checkJs: form.checkJs,
@@ -1888,11 +1891,20 @@ function CrawlerPanel({ form, update }: PanelProps) {
           example="Off (default) for normal audits. On when an ops policy requires it — expect the crawl to take Crawl-delay seconds per URL."
         />
         <Bool
-          label={t('settingsPanels.crawler.crawlExternal', { defaultValue: 'Check External Links' })}
+          label={t('settingsPanels.crawler.crawlExternal', { defaultValue: 'Crawl External Pages' })}
           checked={form.crawlExternal}
           onChange={(v) => update('crawlExternal', v)}
-          info="Probe outbound links to other hosts (HEAD only) so the Broken Links view catches dead externals. Screaming Frog: 'External Links' (Configuration → Spider → Crawl)."
-          example="On for outbound link audits; off for fast internal-only crawls."
+          info="Fully crawl pages on other hosts and follow their links onward, not just check their status. Needs «Check external link status» on: with that off, no request goes to other hosts at all. Screaming Frog: 'External Links' (Configuration → Spider → Crawl)."
+          example="Off (default) for ordinary audits. On only to deliberately spider into linked sites; combine with a max URL limit."
+        />
+        <Bool
+          label={t('settingsPanels.crawler.checkExternalLinks', {
+            defaultValue: 'Check external link status',
+          })}
+          checked={form.checkExternalLinks}
+          onChange={(v) => update('checkExternalLinks', v)}
+          info="Send one request to each outbound link target so Broken Links can report dead ones. Off sends no request to other hosts at all, so «Crawl External Pages» has no effect either; external links are still stored, just without a status."
+          example="On (default) for outbound link audits; off when the site links to tens of thousands of external pages and only internal links matter."
         />
         <Bool
           label={t('settingsPanels.crawler.checkImages', { defaultValue: 'Check Images' })}
@@ -2175,7 +2187,7 @@ function SpiderCrawlPanel({ form, update }: PanelProps) {
             />
             <CrawlRow
               label="External Links"
-              info="Outbound links to other hosts are always status-checked (one HEAD each) so Broken Links catches dead externals — that does not depend on this row. Crawl here means fully crawling those pages, following their links onward too. Store keeps outbound links in the link graph."
+              info="Outbound links to other hosts are status-checked (one HEAD each) so Broken Links catches dead externals — that is the separate «Check external link status» setting, not this row. Crawl here means fully crawling those pages, following their links onward too. Store keeps outbound links in the link graph."
               example="Crawl off (default) — status-check externals without spidering the whole web."
               crawl={{ checked: form.crawlExternal, onChange: (v) => update('crawlExternal', v) }}
               store={{

@@ -94,6 +94,7 @@ export interface McpStartCrawlInput {
     respectCrawlDelay?: boolean;
     followRedirects?: boolean;
     crawlExternal?: boolean;
+    checkExternalLinks?: boolean;
     userAgent?: string;
     includePatterns?: string[];
     excludePatterns?: string[];

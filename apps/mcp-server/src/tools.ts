@@ -337,6 +337,8 @@ export function buildTools(): Tool[] {
               respectCrawlDelay: { type: 'boolean' },
               followRedirects: { type: 'boolean' },
               crawlExternal: { type: 'boolean' },
+              // false = send no request to external hosts at all (also stops crawlExternal)
+              checkExternalLinks: { type: 'boolean' },
               userAgent: { type: 'string' },
               includePatterns: { type: 'array', items: { type: 'string' } },
               excludePatterns: { type: 'array', items: { type: 'string' } },
