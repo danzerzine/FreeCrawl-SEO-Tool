@@ -2,8 +2,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import type { ExportSet, ExportSetChoiceGroup } from '@freecrawl/shared-types';
+import { ISSUE_GROUPS, type ExportSet, type ExportSetChoiceGroup } from '@freecrawl/shared-types';
 import { translateLabel } from '../i18n/labels.js';
+import { TAB_ORDER } from '../store.js';
+
+/** `issues:<check>` → its sidebar group and check labels (English, translated at render). */
+const ISSUE_LABELS = new Map(
+  ISSUE_GROUPS.flatMap((g) => g.items.map((i) => [i.category as string, [g.label, i.label] as const])),
+);
+const TAB_LABELS = new Map(TAB_ORDER.map((tab) => [`tab:${tab.key}`, tab.label]));
+/** Link report token → the Reports dialog's label key. */
+const REPORT_KEYS: Record<string, string> = {
+  'redirect-inlinks': 'redirectInlinks',
+  'redirects-to-error': 'redirectsToError',
+  'error-inlinks': 'errorInlinks',
+  'non-indexable-inlinks': 'nonIndexableInlinks',
+};
 
 /**
  * B14 — saved export sets: the `freecrawl export --save-set` / `--set`
@@ -66,9 +80,16 @@ export function ExportSetsDialog({ open, onClose }: ExportSetsDialogProps) {
         return t('scheduled.exportHtml', { defaultValue: 'HTML report' });
       case 'issues':
         return t('exportSets.tokenIssues', { defaultValue: 'Issues summary' });
-      default:
-        return label ? translateLabel(label, lang) : undefined;
     }
+    // The labels the sidebar, tab bar and Reports dialog show, so a set
+    // reads the same as the rest of the app in every language.
+    const issue = ISSUE_LABELS.get(token.replace(/^issue-inlinks:/, 'issues:'));
+    if (issue) return issue.map((l) => translateLabel(l, lang)).join(' — ');
+    const tab = TAB_LABELS.get(token);
+    if (tab) return translateLabel(tab, lang);
+    const report = REPORT_KEYS[token];
+    if (report) return t(`reports.report.${report}`, { defaultValue: label });
+    return label ? translateLabel(label, lang) : undefined;
   };
 
   /** Picker order, so a saved set reads the way the list does. */
