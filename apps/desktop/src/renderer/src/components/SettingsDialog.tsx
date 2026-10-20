@@ -1932,7 +1932,7 @@ function CrawlerPanel({ form, update }: PanelProps) {
           checked={form.storeNofollowLinks}
           onChange={(v) => update('storeNofollowLinks', v)}
           hint={t('settingsPanels.crawler.storeNofollowHint', { defaultValue: "Default off — Screaming Frog 'Respect Nofollow' behaviour" })}
-          info='Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting.'
+          info='Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward inlinks, outlinks and link score, and external ones are probed. When off (default), they are shown but not counted or probed, so a page linked only with nofollow is an orphan and is also listed under Inlinks Nofollow Only, which tells why. Whether internal nofollow links are crawled is a separate setting.'
           example="Leave off to respect nofollow; on to count and probe them like any other link."
         />
         <Bool

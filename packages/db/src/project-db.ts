@@ -92,6 +92,12 @@ export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
 export const SOFT404_PROBE_META_KEY = 'soft404Probe';
 /** `project_meta` key set by `recomputeInlinks`; orphans mean nothing before it. */
 export const INLINKS_COMPUTED_META_KEY = 'inlinksComputed';
+/**
+ * `project_meta` mirror of `CrawlConfig.storeNofollowLinks` ('1' / '0'),
+ * written at crawl start. Off or missing: inlinks, orphans and link score
+ * count followed links only, as before nofollow links were always stored.
+ */
+export const COUNT_NOFOLLOW_META_KEY = 'countNofollowLinks';
 /** `project_meta` key holding the JSON list of path patterns the cross-source orphan report hides. */
 export const ORPHAN_EXCLUDE_META_KEY = 'orphanExcludePatterns';
 const ORPHAN_EXCLUDE_MAX_LENGTH = 200;
@@ -136,18 +142,26 @@ const ORPHAN_PAGE_SQL = `is_external = 0 AND content_kind = 'html'
   AND status_code >= 200 AND status_code < 300 AND inlinks = 0
   AND url != COALESCE((SELECT value FROM project_meta WHERE key = 'lastStartUrl'), '')
   AND EXISTS (SELECT 1 FROM project_meta WHERE key = '${INLINKS_COMPUTED_META_KEY}')`;
+/** A `links` row (unaliased) that is not rel="nofollow". */
+const FOLLOWED_LINK_SQL = `(rel IS NULL OR rel NOT LIKE '%nofollow%')`;
 /**
- * Internal 2xx HTML page that has inlinks, none of them followable: every
- * internal link in (self-links aside) carries rel="nofollow". Crawled only
- * through another route (sitemap, redirect, list mode), since nofollow
- * links are not followed. A single followed inlink clears it.
+ * Internal 2xx HTML page with nofollow internal inlinks and no followed one
+ * (self-links aside). Crawled only through another route (sitemap,
+ * redirect, list mode), since nofollow links are not followed. A single
+ * followed inlink clears it. Uncorrelated on purpose: materialised in
+ * EXPENSIVE_ISSUE_DEFINITIONS, one pass over `links` per recompute.
  */
 const INLINKS_NOFOLLOW_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
-  AND status_code >= 200 AND status_code < 300 AND inlinks > 0
-  AND NOT EXISTS (
-    SELECT 1 FROM links l
-    WHERE l.to_url = urls.url AND l.is_internal = 1 AND l.from_url_id != urls.id
-      AND (l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')
+  AND status_code >= 200 AND status_code < 300
+  AND url IN (
+    SELECT l.to_url FROM links l
+    WHERE l.is_internal = 1 AND l.rel LIKE '%nofollow%'
+      AND l.from_url_id != COALESCE((SELECT id FROM urls t WHERE t.url = l.to_url), -1)
+  )
+  AND url NOT IN (
+    SELECT l.to_url FROM links l
+    WHERE l.is_internal = 1 AND (l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')
+      AND l.from_url_id != COALESCE((SELECT id FROM urls t WHERE t.url = l.to_url), -1)
   )`;
 /** Pages with a link-like element a crawler cannot follow, aimed at the site. */
 const UNCRAWLABLE_INTERNAL_OUTLINKS_SQL = `is_external = 0 AND content_kind = 'html'
@@ -3116,6 +3130,15 @@ export class ProjectDb {
     });
   }
 
+  /**
+   * Links that count toward inlinks and link score: every link when the
+   * crawl counted nofollow links (`COUNT_NOFOLLOW_META_KEY`), else only
+   * followed ones. Nofollow links are stored either way.
+   */
+  private countedLinkSql(): string {
+    return this.getMeta(COUNT_NOFOLLOW_META_KEY) === '1' ? '1 = 1' : FOLLOWED_LINK_SQL;
+  }
+
   /** A crawl is about to add pages: stored inlinks no longer cover them. */
   markInlinksStale(): void {
     this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(INLINKS_COMPUTED_META_KEY);
@@ -3133,6 +3156,7 @@ export class ProjectDb {
           SELECT to_url AS url, COUNT(*) AS c
           FROM links
           WHERE is_internal = 1
+            AND ${this.countedLinkSql()}
             -- A page linking to itself (a skip link, a logo on the home page)
             -- is not an inlink: it must not hide an orphan. The row stays in
             -- the links table so the Inlinks tab can still show it.
@@ -3381,7 +3405,8 @@ export class ProjectDb {
     // dedup in its own (disk-backed) temp B-tree.
     const edgeRows = this.db
       .prepare(
-        'SELECT DISTINCT from_url_id AS source, to_url FROM links WHERE is_internal = 1',
+        `SELECT DISTINCT from_url_id AS source, to_url FROM links
+          WHERE is_internal = 1 AND ${this.countedLinkSql()}`,
       )
       .iterate() as Iterable<{ source: number; to_url: string }>;
     for (const e of edgeRows) {
