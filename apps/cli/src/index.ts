@@ -151,7 +151,8 @@ export options:
                                     images, pagespeed, crux, spelling, ai:<provider>, seo:<provider>
                                     (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies
                                     exceed the CSV cell limit). issue-inlinks writes every issue into
-                                    the issue-inlinks/ subfolder. Nothing stored: no file, reason in
+                                    the issue-inlinks/ subfolder (not in bulk: every link into every
+                                    flagged page, tens of GB on a large site). Nothing stored: no file, reason in
                                     errors and on stderr (exit 1). Not offered: selected-* (use
                                     --urls) and search-console, analytics, metrica (need an account).
                         redirects-to-error, error-inlinks, non-indexable-inlinks, redirect-inlinks

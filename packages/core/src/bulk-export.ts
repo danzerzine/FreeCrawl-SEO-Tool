@@ -182,7 +182,9 @@ export const ISSUE_INLINKS_SUBDIR = 'issue-inlinks';
 /**
  * Per-issue inlinks: every link into the pages that have the issue, one
  * file per enabled issue with pages, under `<outputDir>/issue-inlinks/`.
- * Shared by the bulk dump and the CLI's `--what dataset:issue-inlinks`.
+ * Not part of the bulk dump: on a large site it runs to tens of GB (every
+ * link into every flagged page, per check). Written on request only, by the
+ * CLI's `--what dataset:issue-inlinks`.
  */
 export async function exportIssueInlinks(
   db: ProjectDb,
@@ -313,9 +315,6 @@ export async function runBulkExport(
       errors.push({ label: task.label, error: (err as Error).message });
     }
   }
-  const inlinks = await exportIssueInlinks(db, outputDir, { headers: options.headers });
-  files.push(...inlinks.files);
-  errors.push(...inlinks.errors);
   const result: BulkExportResult = { outputDir, files, errors };
   await writeBulkManifest(result, startedAt, options);
   return result;
