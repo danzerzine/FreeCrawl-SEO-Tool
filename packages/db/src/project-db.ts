@@ -10,6 +10,8 @@ import type {
   IssueInlinkRow,
   SelectedInlinkRow,
   SelectedOutlinkRow,
+  ResponseHeaderExportRow,
+  PageSourceExportRow,
   SitemapUrlExportRow,
   ContentKind,
   CrawlSummary,
@@ -8856,6 +8858,58 @@ export class ProjectDb {
           uncrawlableValue: u.value,
         };
       }
+    }
+  }
+
+  /**
+   * Every stored response header, streamed — one row per (URL, header
+   * name). The `headers` table keeps every header the server sent, names
+   * lowercased, `set-cookie` / `authorization` values redacted at write
+   * time (see `setUrlHeaders`), so the export carries exactly that.
+   */
+  *iterateResponseHeaders(): IterableIterator<ResponseHeaderExportRow> {
+    const rows = this.db
+      .prepare(
+        `SELECT u.url AS url, h.name AS name, h.value AS value
+           FROM headers h
+           JOIN urls u ON u.id = h.url_id
+          ORDER BY h.url_id, h.name`,
+      )
+      .iterate() as unknown as Iterable<ResponseHeaderExportRow>;
+    for (const r of rows) yield { url: r.url, name: r.name, value: r.value };
+  }
+
+  /**
+   * Every page with a stored body snapshot, decompressed one row at a time
+   * so memory stays at one page. Pages with nothing stored (non-HTML,
+   * snapshots off, crawl predates them) are skipped; a page stored only as
+   * a rendered DOM has an empty `html`.
+   */
+  *iteratePageSources(): IterableIterator<PageSourceExportRow> {
+    const rows = this.db
+      .prepare(
+        `SELECT u.url AS url, u.status_code AS status_code, u.content_type AS content_type,
+                s.body AS body, s.rendered_body AS rendered_body
+           FROM url_sources s
+           JOIN urls u ON u.id = s.url_id
+          WHERE s.body_length > 0 OR s.rendered_body_length > 0
+          ORDER BY s.url_id`,
+      )
+      .iterate() as unknown as Iterable<{
+      url: string;
+      status_code: number | null;
+      content_type: string | null;
+      body: string | Uint8Array | null;
+      rendered_body: string | Uint8Array | null;
+    }>;
+    for (const r of rows) {
+      yield {
+        url: r.url,
+        statusCode: r.status_code,
+        contentType: r.content_type,
+        html: this.bodies.unpack(r.body) ?? '',
+        renderedHtml: this.bodies.unpack(r.rendered_body),
+      };
     }
   }
 

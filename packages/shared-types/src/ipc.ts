@@ -738,7 +738,7 @@ export interface ExportTabularSection {
 }
 
 export interface ExportTabularInput {
-  format: 'csv' | 'xlsx' | 'json' | 'xml';
+  format: 'csv' | 'xlsx' | 'json' | 'jsonl' | 'xml';
   /**
    * One or more sections. With CSV/JSON/XML + multiple sections, files are
    * written into a folder the user picks (one file per section, honouring

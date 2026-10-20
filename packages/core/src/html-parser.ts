@@ -711,6 +711,23 @@ function findJsRedirect(
   return found;
 }
 
+const BLOCK_TAG_RE =
+  /<\/?(?:p|div|h[1-6]|li|ul|ol|br|tr|td|th|table|section|article|header|footer|nav|main|aside|blockquote|pre|form|dd|dt|dl)\b/gi;
+
+/**
+ * All visible text of a page — the body text the word count measures
+ * (nav and footer copy included, script / style / noscript payloads not),
+ * whitespace collapsed. Feeds the `page-text` export.
+ */
+export function extractVisibleText(html: string): string {
+  if (!html || html.trim().length === 0) return '';
+  // Cheerio's text() joins sibling blocks without a gap ("Hello" + "World"
+  // → "HelloWorld"); a space before each block tag keeps the words apart.
+  const $ = cheerio.load(html.replace(BLOCK_TAG_RE, ' $&'));
+  $('script, style, noscript, template').remove();
+  return $('body').text().replace(/\s+/g, ' ').trim();
+}
+
 export function extractProseText(
   html: string,
   contentAreaSelector?: string,

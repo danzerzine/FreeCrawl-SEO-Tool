@@ -1,5 +1,5 @@
 import { createWriteStream, mkdirSync } from 'node:fs';
-import { open, type FileHandle } from 'node:fs/promises';
+import { open, unlink, type FileHandle } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import path from 'node:path';
@@ -42,7 +42,7 @@ export interface TabularSection {
 }
 
 export interface TabularExportOptions {
-  format: 'csv' | 'xlsx' | 'json' | 'xml';
+  format: 'csv' | 'xlsx' | 'json' | 'jsonl' | 'xml';
   sections: TabularSection[];
   /** Keys of CrawlUrlRow to include, in order. */
   columns: string[];
@@ -69,7 +69,22 @@ export interface TabularExportResult {
   filePath: string;
   files: string[];
   rowsWritten: number;
+  /** Sections that held nothing, so no file was written, with the reason. */
+  skipped?: { label: string; reason: string }[];
 }
+
+/**
+ * Datasets that are big and depend on what the crawl chose to store: when
+ * they hold no rows the export writes no file (an empty file would read as
+ * "the site has none") and says why instead.
+ */
+const EMPTY_DATASET_REASONS: Partial<Record<ExportDatasetKey, string>> = {
+  'response-headers': 'No response headers are stored for this crawl.',
+  'page-html':
+    'No page HTML is stored: the crawl ran with storeBodySnapshots off, or it fetched no HTML pages.',
+  'page-text':
+    'No page text is available: it is read from the stored page HTML, and the crawl ran with storeBodySnapshots off or fetched no HTML pages.',
+};
 
 /**
  * Bug #9 — Formula injection guard. Excel + LibreOffice + Google Sheets
@@ -215,6 +230,28 @@ async function writeJsonFile(
       rowsWritten++;
     }
     yield first ? ']\n' : '\n]\n';
+  };
+  await pipeline(
+    Readable.from(generator()),
+    createWriteStream(filePath, { encoding: 'utf8' }),
+  );
+  return rowsWritten;
+}
+
+/** JSON Lines: one object per row, so a reader can stream it and page HTML is not squeezed into a cell. */
+async function writeJsonlFile(
+  source: Iterable<Record<string, unknown>>,
+  filePath: string,
+  columns: string[],
+): Promise<number> {
+  let rowsWritten = 0;
+  const generator = async function* (): AsyncGenerator<string> {
+    for (const row of source) {
+      const obj: Record<string, unknown> = {};
+      for (const c of columns) obj[c] = readCell(row, c) ?? null;
+      rowsWritten++;
+      yield JSON.stringify(obj) + '\n';
+    }
   };
   await pipeline(
     Readable.from(generator()),
@@ -709,15 +746,32 @@ export async function exportTabular(
     if (format === 'json') {
       return writeJsonFile(source, filePath, sectionColumns);
     }
+    if (format === 'jsonl') {
+      return writeJsonlFile(source, filePath, sectionColumns);
+    }
     return writeXmlFile(source, filePath, sectionColumns, section.label);
   };
 
+  const skipped: { label: string; reason: string }[] = [];
+  /** Write one section; an empty size-dependent dataset leaves no file. */
+  const writeSection = async (filePath: string, section: TabularSection): Promise<number | null> => {
+    const rows = await writeOne(filePath, section);
+    const reason = section.dataset ? EMPTY_DATASET_REASONS[section.dataset] : undefined;
+    if (rows === 0 && reason) {
+      await unlink(filePath).catch(() => undefined);
+      skipped.push({ label: section.label, reason });
+      return null;
+    }
+    return rows;
+  };
+
   if (singleFlat) {
-    const rows = await writeOne(resolvedOutputPath, sections[0]!);
+    const rows = await writeSection(resolvedOutputPath, sections[0]!);
     return {
       filePath: resolvedOutputPath,
-      files: [resolvedOutputPath],
-      rowsWritten: rows,
+      files: rows === null ? [] : [resolvedOutputPath],
+      rowsWritten: rows ?? 0,
+      ...(skipped.length > 0 ? { skipped } : {}),
     };
   }
 
@@ -727,10 +781,17 @@ export async function exportTabular(
   const written: string[] = [];
   for (const section of sections) {
     const file = resolveSectionPath(outputPath, section, ext);
-    total += await writeOne(file, section);
+    const rows = await writeSection(file, section);
+    if (rows === null) continue;
+    total += rows;
     written.push(file);
   }
-  return { filePath: outputPath, files: written, rowsWritten: total };
+  return {
+    filePath: outputPath,
+    files: written,
+    rowsWritten: total,
+    ...(skipped.length > 0 ? { skipped } : {}),
+  };
 }
 
 // ── Detail-panel grid export ────────────────────────────────────────

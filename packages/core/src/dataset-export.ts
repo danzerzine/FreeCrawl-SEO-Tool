@@ -1,5 +1,6 @@
 import type { ProjectDb } from '@freecrawl/db';
 import type { ExportDatasetKey } from '@freecrawl/shared-types';
+import { extractVisibleText } from './html-parser.js';
 
 /**
  * Row sources for the non-URL-row export tables (see `ExportDatasetKey`).
@@ -56,6 +57,18 @@ function selectedUrls(db: ProjectDb, ctx: DatasetExportContext): string[] {
   return [...out];
 }
 
+/**
+ * Page text is not stored on its own: it is the visible text of the stored
+ * body (the rendered DOM when the crawl rendered the page). Pages whose
+ * body holds no text are left out.
+ */
+function* pageTexts(db: ProjectDb): Generator<Record<string, unknown>> {
+  for (const page of db.iteratePageSources()) {
+    const text = extractVisibleText(page.renderedHtml ?? page.html);
+    if (text.length > 0) yield { url: page.url, text };
+  }
+}
+
 export function datasetRows(
   db: ProjectDb,
   dataset: ExportDatasetKey,
@@ -80,6 +93,12 @@ export function datasetRows(
       return asRecords(db.iterateSelectedInlinks(selectedUrls(db, ctx)));
     case 'selected-outlinks':
       return asRecords(db.iterateSelectedOutlinks(selectedUrls(db, ctx)));
+    case 'response-headers':
+      return asRecords(db.iterateResponseHeaders());
+    case 'page-html':
+      return asRecords(db.iteratePageSources());
+    case 'page-text':
+      return pageTexts(db);
     case 'sitemap-urls':
       return asRecords(db.iterateSitemapUrls());
     case 'crawl-queue':
