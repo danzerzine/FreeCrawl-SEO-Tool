@@ -1031,6 +1031,7 @@
     "exportSeoAudit": "Audit SEO (format Screaming Frog)",
     "exportHtml": "Rapport HTML",
     "exportPdf": "Rapport PDF",
+    "exportSet": "Ensemble d'export enregistré : {{name}}",
     "outputDir": "Dossier",
     "browse": "Parcourir…",
     "outputDirHint": "Choisissez un dossier : chaque exécution écrit dans un sous-dossier horodaté.",

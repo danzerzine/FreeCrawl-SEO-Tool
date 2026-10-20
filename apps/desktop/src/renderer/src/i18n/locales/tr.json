@@ -1009,6 +1009,7 @@
     "exportSeoAudit": "SEO Denetimi (Screaming Frog düzeni)",
     "exportHtml": "HTML rapor",
     "exportPdf": "PDF rapor",
+    "exportSet": "Kayıtlı dışa aktarma seti: {{name}}",
     "outputDir": "Klasör",
     "browse": "Gözat…",
     "outputDirHint": "Bir klasör seçin — her çalışma orada zaman damgalı bir alt klasöre yazar.",

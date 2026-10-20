@@ -309,6 +309,7 @@ export const IPC = {
   prefsImportSettings: 'prefs:import-settings',
   scheduleGet: 'schedule:get',
   scheduleSet: 'schedule:set',
+  exportSetsList: 'export-sets:list',
   /** Faz 7 — integration credential store (safeStorage-encrypted).
    *  `integrationsGetAll` returns the redacted state map (secret values
    *  never leave the main process); `set` merges the supplied fields;
@@ -501,10 +502,21 @@ export type IpcChannel = (typeof IPC)[keyof typeof IPC];
  * survive an app restart, drive the CLI via the OS scheduler (Windows
  * Task Scheduler / launchd / cron); that path is V2.
  */
+/** A named, saved `--what` list, stored in the project (`freecrawl export --save-set`). */
+export interface ExportSet {
+  name: string;
+  /** `--what` tokens, e.g. `bulk`, `tab:redirects`, `dataset:broken-links`. */
+  what: string[];
+  rawHeaders?: boolean;
+}
+
 /** What a scheduled crawl does with its results once it finishes. */
 export interface ScheduleAfterCrawl {
-  /** Export written into a timestamped sub-folder of `outputDir`. */
-  export: 'none' | 'bulk' | 'html' | 'pdf' | 'seo-audit';
+  /** Export written into a timestamped sub-folder of `outputDir`. `set` runs
+   *  the project's saved export set named `exportSet` (`freecrawl export --set`). */
+  export: 'none' | 'bulk' | 'html' | 'pdf' | 'seo-audit' | 'set';
+  /** Name of the saved export set; only with `export: 'set'`. */
+  exportSet?: string;
   /** Parent folder for the export; required for any export other than `none`. */
   outputDir: string;
   /** Also push All URLs to a new Google Sheets spreadsheet (needs a connected Google account). */
@@ -2199,6 +2211,8 @@ export interface FreeCrawlApi {
   /** Save / update the schedule for the currently-loaded project. Passing
    *  `null` removes the schedule entirely. */
   scheduleSet(spec: ScheduleSpec | null): Promise<ScheduleEntry | null>;
+  /** The current project's saved export sets (`freecrawl export --save-set`). */
+  exportSetsList(): Promise<ExportSet[]>;
   /** Faz 7 — read the redacted credential state of every integration.
    *  Secret field values are never returned, only a `set` flag. */
   integrationsGetAll(): Promise<IntegrationsState>;

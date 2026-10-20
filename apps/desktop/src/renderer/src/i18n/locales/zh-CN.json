@@ -987,6 +987,7 @@
     "exportSeoAudit": "SEO 审计（Screaming Frog 布局）",
     "exportHtml": "HTML 报告",
     "exportPdf": "PDF 报告",
+    "exportSet": "已保存的导出集：{{name}}",
     "outputDir": "文件夹",
     "browse": "浏览…",
     "outputDirHint": "选择一个文件夹——每次运行都会写入其中带时间戳的子文件夹。",

@@ -97,6 +97,7 @@ import {
   type SettingsExportResult,
   type SettingsImportResult,
   type ScheduleEntry,
+  type ExportSet,
   type ScheduleSpec,
   type IntegrationsState,
   type OverviewCounts,
@@ -447,6 +448,8 @@ const api: FreeCrawlApi = {
   scheduleGet: (): Promise<ScheduleEntry | null> => ipcRenderer.invoke(IPC.scheduleGet),
   scheduleSet: (spec: ScheduleSpec | null): Promise<ScheduleEntry | null> =>
     ipcRenderer.invoke(IPC.scheduleSet, spec),
+  exportSetsList: (): Promise<ExportSet[]> =>
+    ipcRenderer.invoke(IPC.exportSetsList),
   pickDirectory: (input?: { title?: string; defaultPath?: string }): Promise<string | null> =>
     ipcRenderer.invoke(IPC.pickDirectory, input),
   defaultProjectDir: (): Promise<string> => ipcRenderer.invoke(IPC.defaultProjectDir),

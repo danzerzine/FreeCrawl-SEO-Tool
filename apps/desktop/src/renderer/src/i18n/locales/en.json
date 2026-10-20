@@ -1009,6 +1009,7 @@
     "exportSeoAudit": "SEO Audit (Screaming Frog layout)",
     "exportHtml": "HTML report",
     "exportPdf": "PDF report",
+    "exportSet": "Saved export set: {{name}}",
     "outputDir": "Folder",
     "browse": "Browse…",
     "outputDirHint": "Pick a folder — each run writes into a timestamped sub-folder there.",

@@ -21,6 +21,8 @@ interface FormState {
   minuteOfHour: string;
   dayOfWeek: number;
   afterExport: ScheduleAfterCrawl['export'];
+  /** Saved export set name, with `afterExport: 'set'`. */
+  afterExportSet: string;
   afterOutputDir: string;
   afterSheets: boolean;
   afterWebhook: boolean;
@@ -34,6 +36,7 @@ const DEFAULT_FORM: FormState = {
   minuteOfHour: '00',
   dayOfWeek: 1,
   afterExport: 'none',
+  afterExportSet: '',
   afterOutputDir: '',
   afterSheets: false,
   afterWebhook: false,
@@ -50,6 +53,7 @@ function entryToForm(entry: ScheduleEntry | null): FormState {
     minuteOfHour: String(spec.minuteOfHour ?? 0).padStart(2, '0'),
     dayOfWeek: spec.dayOfWeek ?? 1,
     afterExport: spec.afterCrawl?.export ?? 'none',
+    afterExportSet: spec.afterCrawl?.exportSet ?? '',
     afterOutputDir: spec.afterCrawl?.outputDir ?? '',
     afterSheets: spec.afterCrawl?.sheets ?? false,
     afterWebhook: spec.afterCrawl?.webhook ?? false,
@@ -77,6 +81,7 @@ function formToSpec(form: FormState): ScheduleSpec {
   if (exportKind !== 'none' || form.afterSheets || form.afterWebhook) {
     out.afterCrawl = {
       export: exportKind,
+      ...(exportKind === 'set' ? { exportSet: form.afterExportSet } : {}),
       outputDir,
       sheets: form.afterSheets,
       webhook: form.afterWebhook,
@@ -110,6 +115,7 @@ export function ScheduledCrawlDialog({ open, onClose }: Props) {
     t('scheduled.daySat', { defaultValue: 'Sat' }),
   ];
   const [entry, setEntry] = useState<ScheduleEntry | null>(null);
+  const [exportSets, setExportSets] = useState<string[]>([]);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -127,6 +133,7 @@ export function ScheduledCrawlDialog({ open, onClose }: Props) {
       setEntry(e);
       setForm(entryToForm(e));
     });
+    void window.freecrawl.exportSetsList().then((sets) => setExportSets(sets.map((s) => s.name)));
   }, [open]);
 
   useEffect(() => {
@@ -322,8 +329,16 @@ export function ScheduledCrawlDialog({ open, onClose }: Props) {
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] text-surface-400">{t('scheduled.afterExport', { defaultValue: 'Export' })}</span>
                 <select
-                  value={form.afterExport}
-                  onChange={(e) => update('afterExport', e.target.value as ScheduleAfterCrawl['export'])}
+                  value={form.afterExport === 'set' ? `set:${form.afterExportSet}` : form.afterExport}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v.startsWith('set:')) {
+                      update('afterExport', 'set');
+                      update('afterExportSet', v.slice('set:'.length));
+                    } else {
+                      update('afterExport', v as ScheduleAfterCrawl['export']);
+                    }
+                  }}
                   className="rounded border border-surface-700 bg-surface-950 px-2 py-1 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
                 >
                   <option value="none">{t('scheduled.exportNone', { defaultValue: 'Nothing' })}</option>
@@ -331,6 +346,12 @@ export function ScheduledCrawlDialog({ open, onClose }: Props) {
                   <option value="seo-audit">{t('scheduled.exportSeoAudit', { defaultValue: 'SEO Audit (Screaming Frog layout)' })}</option>
                   <option value="html">{t('scheduled.exportHtml', { defaultValue: 'HTML report' })}</option>
                   <option value="pdf">{t('scheduled.exportPdf', { defaultValue: 'PDF report' })}</option>
+                  {/* A set the schedule names but the project no longer has stays listed, so it is not dropped silently. */}
+                  {[...new Set([...exportSets, ...(form.afterExport === 'set' ? [form.afterExportSet] : [])])].map((name) => (
+                    <option key={name} value={`set:${name}`}>
+                      {t('scheduled.exportSet', { name, defaultValue: 'Saved export set: {{name}}' })}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="flex flex-col gap-1">

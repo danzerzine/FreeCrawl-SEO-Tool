@@ -16,11 +16,8 @@ import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   DEFAULT_CRAWL_CONFIG,
-  EXPORT_DATASET_COLUMNS,
-  type BulkExportResult,
-  type ExportDatasetKey,
   type CrawlConfig,
-  type LinkTargetReportKind,
+  type ExportSet,
   type LogIngestInput,
   type MetricaFetchMeta,
 } from '@freecrawl/shared-types';
@@ -39,23 +36,18 @@ import {
   fetchMetricaPageMetrics,
   MetricaError,
   MetricaCancelledError,
-  BULK_EXPORT_TASKS,
-  LINK_TARGET_EXPORTS,
-  runBulkExport,
-  exportIssueInlinks,
-  runSeoAuditExport,
-  exportHtmlReport,
-  exportIssuesSummary,
-  exportLinkTargetReport,
-  exportTabular,
-  writeExportFile,
+  parseExportWhat,
+  runExportItems,
+  listExportSets,
+  saveExportSet,
+  findExportSet,
   removePartialExportFiles,
-  type BulkExportTask,
+  type ExportItem,
+  type ExportOutcome,
   type LogAnalysisResult,
 } from '@freecrawl/core';
 import {
   ProjectDb,
-  EXPENSIVE_ISSUE_DEFINITIONS,
   detectProjectFormat,
   packProject,
   unpackProject,
@@ -78,8 +70,9 @@ Usage:
   freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file]
                                                   Pull per-page Yandex Metrica data (pageviews, visits, users,
                                                   search visits) into a project, as the desktop app does
-  freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--raw-headers] [--json]
-                                                  Write reports and bulk exports of a project without the desktop app
+  freecrawl export --project <file> --out <dir> [--what <list> | --set <name>] [--urls <file>] [--raw-headers] [--json]
+                                                  Write reports and bulk exports of a project without the desktop app;
+                                                  --save-set <name> / --list-sets keep named --what lists in the project
 
 Options:
   --depth <n>         Max crawl depth (default: ${DEFAULT_CRAWL_CONFIG.maxDepth})
@@ -167,6 +160,10 @@ export options:
                         pages, columns of the Inlinks / Outlinks tabs). Without --what, only these two
                         files are written; with it, they are added. URLs not in the project are listed
                         in errors and on stderr (exit 1); exit 2 when none is in the project.
+  --save-set <name>   Save --what (and --raw-headers) in the project as a named export set, replacing
+                        one of the same name; writes no files. The desktop scheduler can run it too.
+  --set <name>        Run a saved export set instead of --what (exit 2 if the project has none of that name)
+  --list-sets         List the project's saved export sets (--json: {ok, sets: [{name, what, rawHeaders}]})
   --json              Print {ok, files: [{path, label, rows}], errors: [...]} on stdout, also on errors
   Exit codes: 0 done, 1 some exports failed (the others are written), 2 bad arguments or project,
   130 interrupted.
@@ -213,6 +210,9 @@ async function main(): Promise<void> {
       days: { type: 'string' },
       what: { type: 'string' },
       urls: { type: 'string' },
+      set: { type: 'string' },
+      'save-set': { type: 'string' },
+      'list-sets': { type: 'boolean' },
       'export-dir': { type: 'string' },
       export: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
@@ -295,6 +295,9 @@ async function main(): Promise<void> {
       out: values.out,
       what: values.what,
       urls: values.urls,
+      set: values.set,
+      saveSet: values['save-set'],
+      listSets: Boolean(values['list-sets']),
       rawHeaders: Boolean(values['raw-headers']),
       json: Boolean(values.json),
     });
@@ -452,6 +455,8 @@ async function main(): Promise<void> {
     exported = await runExportItems(db, postCrawlExport.dir, postCrawlExport.items, {
       rawHeaders: Boolean(values['raw-headers']),
       projectFile: dbPath,
+      toolVersion: cliVersion(),
+      onProgress: progressLine,
     });
   }
 
@@ -1497,75 +1502,9 @@ function cliVersion(): string {
   }
 }
 
-/** One `--what` entry of `freecrawl export`. */
-type ExportItem =
-  | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues'; name: string }
-  | { kind: 'tasks'; name: string; tasks: BulkExportTask[] }
-  | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
-  | { kind: 'selected'; name: 'selected-links'; urls: string[] }
-  | { kind: 'dataset'; name: string; dataset: ExportDatasetKey };
-
-/**
- * Datasets `--what dataset:<key>` can write. Left out: the `selected-*`
- * ones (they need chosen pages: `--urls`) and the Search Console,
- * Analytics and Metrica pulls (they need a linked account).
- */
-const CLI_EXPORT_DATASETS = (Object.keys(EXPORT_DATASET_COLUMNS) as ExportDatasetKey[]).filter(
-  (k) => !k.startsWith('selected-') && !['search-console', 'analytics', 'metrica'].includes(k),
-);
-
-/** Page bodies exceed the 32,767-character cell limit of CSV / Excel: JSON Lines only. */
-const JSONL_DATASETS: readonly ExportDatasetKey[] = ['page-html', 'page-text'];
-
-interface ExportOutcome {
-  files: { path: string; label: string; rows: number | null }[];
-  errors: { label: string; error: string }[];
-}
-
-const EXPORT_WHAT_HELP =
-  'bulk, seo-audit, html, issues, tab:<key>, issues:<key>, dataset:<key>, ' +
-  LINK_TARGET_EXPORTS.map((r) => r.report).join(', ');
-
-/**
- * Parse a `--what` list (default `bulk`). Category keys are the bulk-export
- * task categories (`tab:redirects`, `issues:title-missing`); a bad entry
- * throws a message that lists the valid ones.
- */
-function parseExportWhat(what: string | undefined): ExportItem[] {
-  const names = [...new Set((what ?? 'bulk').split(',').map((s) => s.trim()).filter(Boolean))];
-  if (names.length === 0) throw new Error(`--what is empty (expected: ${EXPORT_WHAT_HELP}).`);
-  return names.map((name): ExportItem => {
-    if (name === 'bulk' || name === 'seo-audit' || name === 'html' || name === 'issues') {
-      return { kind: name, name };
-    }
-    const link = LINK_TARGET_EXPORTS.find((r) => r.report === name);
-    if (link) return { kind: 'link', name, report: link.report, label: link.label };
-    if (name.startsWith('dataset:')) {
-      const key = name.slice('dataset:'.length) as ExportDatasetKey;
-      if (CLI_EXPORT_DATASETS.includes(key)) return { kind: 'dataset', name, dataset: key };
-      const hint = key.startsWith('selected-')
-        ? ' (it needs chosen pages: use --urls <file> instead)'
-        : ['search-console', 'analytics', 'metrica'].includes(key)
-          ? ' (it needs a linked account, which the CLI does not have)'
-          : '';
-      throw new Error(
-        `Unknown dataset in --what: ${name}${hint}. Valid keys: ${CLI_EXPORT_DATASETS.join(', ')}`,
-      );
-    }
-    if (name.startsWith('tab:') || name.startsWith('issues:')) {
-      const tasks = BULK_EXPORT_TASKS.filter((t) => t.category === name);
-      if (tasks.length > 0) return { kind: 'tasks', name, tasks };
-      const valid = [
-        ...new Set(
-          BULK_EXPORT_TASKS.map((t) => t.category).filter(
-            (c) => c.startsWith('tab:') || c.startsWith('issues:'),
-          ),
-        ),
-      ];
-      throw new Error(`Unknown category in --what: ${name}. Valid keys: ${valid.join(', ')}`);
-    }
-    throw new Error(`Unknown --what entry: ${name} (expected: ${EXPORT_WHAT_HELP}).`);
-  });
+/** Export progress: one line on stderr, so `--json` stdout stays clean. */
+function progressLine(line: string): void {
+  process.stderr.write(`${line}\n`);
 }
 
 /** `--out` must be a directory or not exist yet (it is created). */
@@ -1576,133 +1515,20 @@ function checkExportDir(out: string): void {
 }
 
 /**
- * Write each requested export into `outDir`. Failures are collected per
- * export, never abort the others. Progress goes to stderr.
- */
-async function runExportItems(
-  db: ProjectDb,
-  outDir: string,
-  items: readonly ExportItem[],
-  options: { rawHeaders?: boolean; projectFile?: string } = {},
-): Promise<ExportOutcome> {
-  const headers = options.rawHeaders ? ('keys' as const) : undefined;
-  const outcome: ExportOutcome = { files: [], errors: [] };
-  const progress = (line: string): void => {
-    process.stderr.write(`${line}\n`);
-  };
-  // `issues:*` files read the materialised urls_issues table; a project
-  // last materialised by an older set of checks would export stale lists.
-  // A desktop-saved project is only changed in its working copy.
-  if (db.issueMaterialisationStale()) {
-    progress('Issue lists predate the current checks: recomputing them…');
-    try {
-      db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
-    } catch (err) {
-      outcome.errors.push({ label: 'Issue lists recompute', error: (err as Error).message });
-    }
-  }
-  const addBulk = (r: Pick<BulkExportResult, 'files' | 'errors'>): void => {
-    outcome.files.push(...r.files.map((f) => ({ path: f.filePath, label: f.label, rows: f.rowsWritten })));
-    outcome.errors.push(...r.errors);
-  };
-  for (const item of items) {
-    progress(`Exporting ${item.name}…`);
-    try {
-      if (item.kind === 'bulk') {
-        addBulk(
-          await runBulkExport(db, outDir, {
-            headers,
-            toolVersion: cliVersion(),
-            projectFile: options.projectFile,
-          }),
-        );
-      } else if (item.kind === 'tasks') {
-        addBulk(await runBulkExport(db, outDir, { tasks: item.tasks, headers }));
-      } else if (item.kind === 'seo-audit') {
-        addBulk(await runSeoAuditExport(db, join(outDir, 'seo-audit')));
-      } else if (item.kind === 'html') {
-        const path = join(outDir, 'report.html');
-        await exportHtmlReport(db, path, { startUrl: db.getMeta('lastStartUrl') ?? '' });
-        outcome.files.push({ path, label: 'HTML Report', rows: null });
-      } else if (item.kind === 'issues') {
-        const path = join(outDir, 'issues-summary.csv');
-        const { rowsWritten } = await exportIssuesSummary(db, path);
-        outcome.files.push({ path, label: 'Issues Summary', rows: rowsWritten });
-      } else if (item.kind === 'dataset') {
-        if (item.dataset === 'issue-inlinks') {
-          // Every issue, one file each in the issue-inlinks/ subfolder.
-          addBulk(await exportIssueInlinks(db, outDir, { headers }));
-        } else {
-          const label = item.name;
-          const jsonl = JSONL_DATASETS.includes(item.dataset);
-          const path = join(outDir, `${item.dataset.replace(':', '-')}.${jsonl ? 'jsonl' : 'csv'}`);
-          const { rowsWritten, skipped } = await writeExportFile(
-            path,
-            (partPath) =>
-              exportTabular(db, partPath, {
-                format: jsonl ? 'jsonl' : 'csv',
-                sections: [{ label, dataset: item.dataset }],
-                columns: EXPORT_DATASET_COLUMNS[item.dataset].map((c) => c.key),
-                headers,
-              }),
-            (r) => r.rowsWritten > 0,
-          );
-          if (skipped) {
-            for (const sk of skipped) {
-              progress(`${sk.label}: ${sk.reason}`);
-              outcome.errors.push({ label: sk.label, error: sk.reason });
-            }
-          } else {
-            outcome.files.push({ path, label, rows: rowsWritten });
-          }
-        }
-      } else if (item.kind === 'selected') {
-        for (const dataset of ['selected-inlinks', 'selected-outlinks'] as const) {
-          const label = dataset === 'selected-inlinks' ? 'Selected Inlinks' : 'Selected Outlinks';
-          const path = join(outDir, `${dataset}.csv`);
-          const { rowsWritten } = await writeExportFile(path, (partPath) =>
-            exportTabular(db, partPath, {
-              format: 'csv',
-              sections: [{ label, dataset }],
-              columns: EXPORT_DATASET_COLUMNS[dataset].map((c) => c.key),
-              datasetContext: { urls: item.urls },
-              headers,
-            }),
-          );
-          outcome.files.push({ path, label, rows: rowsWritten });
-        }
-      } else if (item.kind === 'link') {
-        const path = join(outDir, `${item.report}.csv`);
-        const r = await exportLinkTargetReport(db, path, item.report);
-        if (r === null) {
-          outcome.errors.push({
-            label: item.label,
-            error:
-              'Not computed: redirect chains have not been computed for this crawl, so redirect ' +
-              'targets have no final target yet. They are computed at the end of a crawl with ' +
-              'redirect-chain analysis on. No file written.',
-          });
-        } else if (r.rowsWritten > 0) {
-          outcome.files.push({ path, label: item.label, rows: r.rowsWritten });
-        }
-      }
-    } catch (err) {
-      outcome.errors.push({ label: item.name, error: (err as Error).message });
-    }
-  }
-  return outcome;
-}
-
-/**
  * `freecrawl export`: write reports and bulk exports of an existing project
- * without the desktop app. Read-only on the project: a desktop-saved one
- * is unpacked to a working copy that is never packed back.
+ * without the desktop app. Read-only on the project (a desktop-saved one
+ * is unpacked to a working copy that is never packed back), except
+ * `--save-set`, which stores a named `--what` list in it. `--set` runs a
+ * saved list; `--list-sets` prints them.
  */
 async function runExport(opts: {
   projectPath: string;
   out: string | undefined;
   what: string | undefined;
   urls: string | undefined;
+  set: string | undefined;
+  saveSet: string | undefined;
+  listSets: boolean;
   rawHeaders: boolean;
   json: boolean;
 }): Promise<number> {
@@ -1723,19 +1549,29 @@ async function runExport(opts: {
   const fail = (message: string): number => {
     if (!opts.json) {
       console.error(
-        'Usage: freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--raw-headers] [--json]',
+        'Usage: freecrawl export --project <file> --out <dir> [--what <list> | --set <name>] [--urls <file>] [--raw-headers] [--json]\n' +
+          '       freecrawl export --project <file> --save-set <name> --what <list> [--raw-headers] [--json]\n' +
+          '       freecrawl export --project <file> --list-sets [--json]',
       );
     }
     print({ files: [], errors: [] }, message);
     return 2;
   };
+  if (opts.listSets || opts.saveSet !== undefined) return runExportSetCommand(opts, fail);
+  if (opts.set !== undefined && opts.what !== undefined) {
+    return fail('--set runs a saved --what list; give one of --set and --what, not both.');
+  }
   if (!opts.out) return fail('--out <dir> is required.');
   const outDir = resolve(opts.out);
   let items: ExportItem[];
   let selectedUrls: string[] = [];
   try {
     // `--urls` alone means just the selected links; `--what` adds to them.
-    items = opts.urls !== undefined && opts.what === undefined ? [] : parseExportWhat(opts.what);
+    // A `--set` is looked up once the project is open.
+    items =
+      opts.set !== undefined || (opts.urls !== undefined && opts.what === undefined)
+        ? []
+        : parseExportWhat(opts.what);
     if (opts.urls !== undefined) {
       selectedUrls = [
         ...new Set(
@@ -1766,6 +1602,17 @@ async function runExport(opts: {
     return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
   }
   try {
+    let rawHeaders = opts.rawHeaders;
+    if (opts.set !== undefined) {
+      let set: ExportSet;
+      try {
+        set = findExportSet(project.db, opts.set);
+        items = parseExportWhat(set.what.join(','));
+      } catch (err) {
+        return fail((err as Error).message);
+      }
+      rawHeaders ||= set.rawHeaders === true;
+    }
     const missing: string[] = [];
     if (opts.urls !== undefined) {
       const known: string[] = [];
@@ -1779,8 +1626,10 @@ async function runExport(opts: {
       items.push({ kind: 'selected', name: 'selected-links', urls: known });
     }
     const outcome = await runExportItems(project.db, outDir, items, {
-      rawHeaders: opts.rawHeaders,
+      rawHeaders,
       projectFile: resolve(opts.projectPath),
+      toolVersion: cliVersion(),
+      onProgress: progressLine,
     });
     if (missing.length > 0) {
       const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;
@@ -1789,6 +1638,67 @@ async function runExport(opts: {
     }
     print(outcome, null);
     return outcome.errors.length === 0 ? 0 : 1;
+  } finally {
+    project.dispose();
+  }
+}
+
+/** `export --list-sets` and `export --save-set <name> --what <list>`. */
+async function runExportSetCommand(
+  opts: {
+    projectPath: string;
+    what: string | undefined;
+    saveSet: string | undefined;
+    listSets: boolean;
+    rawHeaders: boolean;
+    json: boolean;
+  },
+  fail: (message: string) => number,
+): Promise<number> {
+  const saving = opts.saveSet !== undefined;
+  if (saving && opts.listSets) return fail('Give one of --save-set and --list-sets, not both.');
+  if (saving) {
+    if (opts.what === undefined) return fail('--save-set <name> needs --what <list>.');
+    try {
+      // Same check as a run: a bad entry exits 2 before the project is touched.
+      parseExportWhat(opts.what);
+    } catch (err) {
+      return fail((err as Error).message);
+    }
+  }
+  if (!existsSync(opts.projectPath)) return fail(`Project not found: ${opts.projectPath}`);
+  let project: OpenedProject;
+  try {
+    project = await openProject(opts.projectPath, { forWrite: saving });
+  } catch (err) {
+    return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
+  }
+  try {
+    if (saving) {
+      let set: ExportSet;
+      try {
+        set = saveExportSet(project.db, {
+          name: opts.saveSet ?? '',
+          what: (opts.what ?? '').split(','),
+          rawHeaders: opts.rawHeaders,
+        });
+      } catch (err) {
+        return fail((err as Error).message);
+      }
+      await project.save();
+      if (opts.json) process.stdout.write(JSON.stringify({ ok: true, set }, null, 2) + '\n');
+      else console.log(`Saved export set "${set.name}": ${set.what.join(',')}`);
+      return 0;
+    }
+    const sets = listExportSets(project.db);
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ ok: true, sets }, null, 2) + '\n');
+    } else if (sets.length === 0) {
+      console.log('No export sets saved in this project.');
+    } else {
+      for (const s of sets) console.log(`${s.name}  ${s.what.join(',')}${s.rawHeaders ? '  (raw headers)' : ''}`);
+    }
+    return 0;
   } finally {
     project.dispose();
   }

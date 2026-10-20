@@ -302,6 +302,7 @@ import {
   compileUrlRegexRewrites,
   previewExtractionRules,
   runBulkExport,
+  listExportSets,
   writeExportFile,
   analyzeLogFile,
   buildLogExportXlsx,
@@ -408,6 +409,7 @@ import {
   setSchedule,
   type SchedulerStore,
 } from './scheduler.js';
+import { runScheduledExport } from './scheduled-export.js';
 import type { ProjectDb as ProjectDbType } from '@freecrawl/db';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -5657,6 +5659,8 @@ function registerIpc(): void {
   registerHandle(IPC.scheduleSet, (_e, spec: ScheduleSpec | null) => {
     return setSchedule(schedulerStore, currentSession().currentProjectPath, spec);
   });
+  // B14 — saved export sets live in the project, so a schedule can run one.
+  registerHandle(IPC.exportSetsList, () => listExportSets(currentSession().getDb()));
 
   // V1 Faz 9 — directory picker for Settings → Storage. Returns the chosen
   // absolute path, or null if the user cancelled.
@@ -7729,23 +7733,16 @@ function registerIpc(): void {
       exportDir = join(after.outputDir, `${project}-${stamp}`);
       try {
         await mkdir(exportDir, { recursive: true });
-        if (after.export === 'bulk') {
-          const r = await runBulkExport(db, exportDir, bulkExportMeta(sess));
-          files.push(...r.files.map((f) => f.filePath));
-          errors.push(...r.errors.map((e) => `${e.label}: ${e.error}`));
-        } else if (after.export === 'seo-audit') {
-          const r = await runSeoAuditExport(db, exportDir);
-          files.push(...r.files.map((f) => f.filePath));
-          errors.push(...r.errors.map((e) => `${e.label}: ${e.error}`));
-        } else if (after.export === 'html') {
-          const target = join(exportDir, 'report.html');
-          await exportHtmlReport(db, target, { startUrl, branding: readReportBranding() });
-          files.push(target);
-        } else if (after.export === 'pdf') {
-          const target = join(exportDir, 'report.pdf');
-          await writePdfReport(db, target);
-          files.push(target);
-        }
+        const r = await runScheduledExport(db, after, {
+          exportDir,
+          startUrl,
+          branding: readReportBranding(),
+          ...bulkExportMeta(sess),
+          writePdf: writePdfReport,
+          onProgress: (line) => logger.log('info', 'main', `Scheduled export: ${line}`, undefined, sess.logTag),
+        });
+        files.push(...r.files.map((f) => f.path));
+        errors.push(...r.errors);
         logger.log('info', 'main', `Scheduled export (${after.export}) wrote ${files.length} file(s) to ${exportDir}`, undefined, sess.logTag);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

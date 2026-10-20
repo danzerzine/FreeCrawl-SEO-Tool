@@ -1053,6 +1053,7 @@
     "exportSeoAudit": "SEO-аудит (формат Screaming Frog)",
     "exportHtml": "HTML-отчёт",
     "exportPdf": "PDF-отчёт",
+    "exportSet": "Сохранённый набор экспорта: {{name}}",
     "outputDir": "Папка",
     "browse": "Обзор…",
     "outputDirHint": "Выберите папку — каждый запуск пишет в подпапку с отметкой времени.",

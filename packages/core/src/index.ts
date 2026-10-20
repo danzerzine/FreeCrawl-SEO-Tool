@@ -129,6 +129,19 @@ export {
 } from './bulk-export.js';
 export { writeExportFile, removePartialExportFiles } from './export-file.js';
 export {
+  parseExportWhat,
+  runExportItems,
+  runExportSet,
+  listExportSets,
+  saveExportSet,
+  findExportSet,
+  CLI_EXPORT_DATASETS,
+  EXPORT_WHAT_HELP,
+  type ExportItem,
+  type ExportOutcome,
+  type RunExportItemsOptions,
+} from './export-items.js';
+export {
   exportLinkTargetReport,
   exportIssuesSummary,
   LINK_TARGET_EXPORTS,

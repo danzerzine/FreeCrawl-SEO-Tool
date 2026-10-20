@@ -1031,6 +1031,7 @@
     "exportSeoAudit": "Auditoría SEO (formato Screaming Frog)",
     "exportHtml": "Informe HTML",
     "exportPdf": "Informe PDF",
+    "exportSet": "Conjunto de exportación guardado: {{name}}",
     "outputDir": "Carpeta",
     "browse": "Examinar…",
     "outputDirHint": "Elige una carpeta: cada ejecución escribe en una subcarpeta con fecha y hora.",

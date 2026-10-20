@@ -1009,6 +1009,7 @@
     "exportSeoAudit": "SEO ऑडिट (Screaming Frog लेआउट)",
     "exportHtml": "HTML रिपोर्ट",
     "exportPdf": "PDF रिपोर्ट",
+    "exportSet": "सहेजा गया निर्यात सेट: {{name}}",
     "outputDir": "फ़ोल्डर",
     "browse": "ब्राउज़ करें…",
     "outputDirHint": "एक फ़ोल्डर चुनें — हर रन वहाँ टाइमस्टैम्प वाले उप-फ़ोल्डर में लिखता है।",

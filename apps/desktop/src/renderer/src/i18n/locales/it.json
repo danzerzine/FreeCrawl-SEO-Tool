@@ -1031,6 +1031,7 @@
     "exportSeoAudit": "Audit SEO (layout Screaming Frog)",
     "exportHtml": "Report HTML",
     "exportPdf": "Report PDF",
+    "exportSet": "Set di esportazione salvato: {{name}}",
     "outputDir": "Cartella",
     "browse": "Sfoglia…",
     "outputDirHint": "Scegli una cartella: ogni esecuzione scrive in una sottocartella con data e ora.",

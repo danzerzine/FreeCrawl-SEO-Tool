@@ -1031,6 +1031,7 @@
     "exportSeoAudit": "Auditoria SEO (layout Screaming Frog)",
     "exportHtml": "Relatório HTML",
     "exportPdf": "Relatório PDF",
+    "exportSet": "Conjunto de exportação salvo: {{name}}",
     "outputDir": "Pasta",
     "browse": "Procurar…",
     "outputDirHint": "Escolha uma pasta — cada execução grava em uma subpasta com data e hora.",

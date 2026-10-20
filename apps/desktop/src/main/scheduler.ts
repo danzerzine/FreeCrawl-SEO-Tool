@@ -13,7 +13,12 @@
  * scope; the OS-scheduler-via-CLI path is V2.
  */
 
-import type { ScheduleEntry, ScheduleSpec, ScheduleStatus } from '@freecrawl/shared-types';
+import type {
+  ScheduleAfterCrawl,
+  ScheduleEntry,
+  ScheduleSpec,
+  ScheduleStatus,
+} from '@freecrawl/shared-types';
 
 /**
  * Minimum interval the `custom` cadence will honour. Anything below this
@@ -127,16 +132,20 @@ function normalizeSpec(spec: ScheduleSpec): ScheduleSpec {
   }
   const after = spec.afterCrawl;
   if (after) {
-    const kinds = ['none', 'bulk', 'html', 'pdf', 'seo-audit'] as const;
+    const kinds = ['none', 'bulk', 'html', 'pdf', 'seo-audit', 'set'] as const;
     const kind = kinds.includes(after.export) ? after.export : 'none';
     const outputDir = typeof after.outputDir === 'string' ? after.outputDir.trim() : '';
-    const normalized = {
-      // An export without a folder cannot run; downgrade rather than fail later.
-      export: kind !== 'none' && outputDir === '' ? 'none' : kind,
+    const exportSet = typeof after.exportSet === 'string' ? after.exportSet.trim() : '';
+    // An export without a folder (or a set export without a set) cannot run;
+    // downgrade rather than fail later.
+    const runnable = outputDir !== '' && (kind !== 'set' || exportSet !== '');
+    const normalized: ScheduleAfterCrawl = {
+      export: runnable ? kind : 'none',
+      ...(runnable && kind === 'set' ? { exportSet } : {}),
       outputDir,
       sheets: !!after.sheets,
       webhook: !!after.webhook,
-    } as const;
+    };
     if (normalized.export !== 'none' || normalized.sheets || normalized.webhook) {
       out.afterCrawl = normalized;
     }

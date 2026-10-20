@@ -1009,6 +1009,7 @@
     "exportSeoAudit": "SEO auditi (Screaming Frog düzəni)",
     "exportHtml": "HTML hesabat",
     "exportPdf": "PDF hesabat",
+    "exportSet": "Saxlanmış ixrac dəsti: {{name}}",
     "outputDir": "Qovluq",
     "browse": "Bax…",
     "outputDirHint": "Qovluq seçin — hər icra orada vaxt möhürlü alt qovluğa yazır.",
