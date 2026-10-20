@@ -100,6 +100,8 @@ export const REDIRECT_CHAINS_COMPUTED_META_KEY = 'redirectChainsComputed';
  * count followed links only, as before nofollow links were always stored.
  */
 export const COUNT_NOFOLLOW_META_KEY = 'countNofollowLinks';
+/** project_meta: '0' when the crawl sends no request to external hosts. */
+export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
 /** `project_meta` key holding the JSON list of path patterns the cross-source orphan report hides. */
 export const ORPHAN_EXCLUDE_META_KEY = 'orphanExcludePatterns';
 const ORPHAN_EXCLUDE_MAX_LENGTH = 200;
@@ -2778,13 +2780,17 @@ export class ProjectDb {
       }
 
       // External stubs: also batched into multi-row inserts. ON CONFLICT
-      // keeps already-known external URLs untouched. A nofollow external
-      // link is stored but, unless the crawl counts / probes nofollow links,
-      // never requested: a stub would sit in the External tab as "no
-      // response" for a URL nobody asked. Its link row keeps it in Outlinks.
+      // keeps already-known external URLs untouched. A stub is made only
+      // for a URL the crawl will request: with "Check external links" off,
+      // or for a nofollow link unless the crawl counts / probes nofollow
+      // links, it would sit in the External tab as "no response" for a URL
+      // nobody asked. Its link row keeps it in Outlinks.
+      let probeExternal: boolean | undefined;
       let probeNofollow: boolean | undefined;
       const externals = links.filter((l) => {
         if (l.isInternal) return false;
+        probeExternal ??= this.getMeta(CHECK_EXTERNAL_META_KEY) !== '0';
+        if (!probeExternal) return false;
         if (!l.rel?.includes('nofollow')) return true;
         probeNofollow ??= this.getMeta(COUNT_NOFOLLOW_META_KEY) === '1';
         return probeNofollow;

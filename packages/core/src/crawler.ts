@@ -17,6 +17,7 @@ import {
   EXPENSIVE_ISSUE_DEFINITIONS,
   SOFT404_PROBE_META_KEY,
   COUNT_NOFOLLOW_META_KEY,
+  CHECK_EXTERNAL_META_KEY,
 } from '@freecrawl/db';
 import {
   normalizeUrl,
@@ -1240,6 +1241,8 @@ export class Crawler extends EventEmitter {
     // The post-crawl inlinks and link-score passes read this to decide
     // whether nofollow links count (they are stored either way).
     this.db.setMeta(COUNT_NOFOLLOW_META_KEY, this.config.storeNofollowLinks ? '1' : '0');
+    // insertLinks reads this to skip External rows nothing will request.
+    this.db.setMeta(CHECK_EXTERNAL_META_KEY, this.config.checkExternalLinks ? '1' : '0');
     const isRefresh = isSameSite && !isRespider && !this.resumeOnly;
     // Change markers describe the run that is starting now, so anything
     // a previous refresh flagged is cleared first. A wiped project has
