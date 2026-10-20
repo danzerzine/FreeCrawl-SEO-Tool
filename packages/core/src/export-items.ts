@@ -355,6 +355,15 @@ export function saveExportSet(db: ProjectDb, set: ExportSet): ExportSet {
   return saved;
 }
 
+/** Delete the saved set called `name`; false when there was none. */
+export function deleteExportSet(db: ProjectDb, name: string): boolean {
+  const sets = listExportSets(db);
+  const kept = sets.filter((s) => s.name !== name.trim());
+  if (kept.length === sets.length) return false;
+  db.setMeta(EXPORT_SETS_META_KEY, JSON.stringify(kept));
+  return true;
+}
+
 /** The saved set called `name`; throws, naming the saved ones, when there is none. */
 export function findExportSet(db: ProjectDb, name: string): ExportSet {
   const sets = listExportSets(db);

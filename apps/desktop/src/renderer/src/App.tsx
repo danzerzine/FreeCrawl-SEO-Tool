@@ -12,6 +12,7 @@ import { ReportsDialog } from './components/ReportsDialog.js';
 import { SettingsDialog } from './components/SettingsDialog.js';
 import { CompareDialog } from './components/CompareDialog.js';
 import { ScheduledCrawlDialog } from './components/ScheduledCrawlDialog.js';
+import { ExportSetsDialog } from './components/ExportSetsDialog.js';
 import { ProjectsDialog } from './components/ProjectsDialog.js';
 import { PasswordPromptDialog } from './components/PasswordPromptDialog.js';
 import { ExportDialog } from './components/ExportDialog.js';
@@ -59,6 +60,7 @@ export function App() {
   const [reportsOpen, setReportsOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [exportSetsOpen, setExportSetsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [dropFlash, setDropFlash] = useState<string | null>(null);
   const [passwordPrompt, setPasswordPrompt] = useState<
@@ -386,6 +388,9 @@ export function App() {
         case 'export-bulk':
           void window.freecrawl.exportBulk();
           break;
+        case 'open-export-sets':
+          setExportSetsOpen(true);
+          break;
         case 'export-sheets': {
           const cat = useAppStore.getState().activeCategory;
           void window.freecrawl
@@ -642,6 +647,7 @@ export function App() {
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <CompareDialog open={compareOpen} onClose={() => setCompareOpen(false)} />
       <ScheduledCrawlDialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} />
+      <ExportSetsDialog open={exportSetsOpen} onClose={() => setExportSetsOpen(false)} />
       <ProjectsDialog
         open={projectsOpen}
         onClose={() => setProjectsOpen(false)}

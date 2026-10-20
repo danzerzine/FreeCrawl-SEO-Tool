@@ -55,6 +55,7 @@ export interface MenuLabels {
   exportPdfReport: string;
   exportSeoAudit: string;
   bulkExport: string;
+  exportSets: string;
   exportSheets: string;
   exportBigquery: string;
   compareWith: string;
@@ -133,6 +134,8 @@ export interface MenuLabels {
   ctxRespiderNUrls: string;
   ctxRemoveNUrls: string;
   ctxExportNUrlsAsCsv: string;
+  ctxExportUrlLinks: string;
+  ctxExportNUrlsLinks: string;
   /** Selection-scoped copy items. `{n}` → cell / row / column count. */
   ctxCopyCell: string;
   ctxCopyNCells: string;
@@ -185,6 +188,10 @@ export interface MenuLabels {
   dlgSaveDecryptedProjectTitle: string;
   dlgBulkExportFolderTitle: string;
   dlgBulkExportCompleteTitle: string;
+  dlgExportSetFolderTitle: string;
+  dlgExportSetCompleteTitle: string;
+  dlgExportLinksFolderTitle: string;
+  dlgExportLinksCompleteTitle: string;
   dlgHtmlReportSavedTitle: string;
   dlgPdfReportSavedTitle: string;
   dlgSeoAuditFolderTitle: string;

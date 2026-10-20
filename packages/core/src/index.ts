@@ -136,6 +136,7 @@ export {
   listExportSets,
   saveExportSet,
   findExportSet,
+  deleteExportSet,
   CLI_EXPORT_DATASETS,
   EXPORT_WHAT_HELP,
   type ExportItem,

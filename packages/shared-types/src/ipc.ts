@@ -310,6 +310,10 @@ export const IPC = {
   scheduleGet: 'schedule:get',
   scheduleSet: 'schedule:set',
   exportSetsList: 'export-sets:list',
+  exportSetsChoices: 'export-sets:choices',
+  exportSetSave: 'export-sets:save',
+  exportSetDelete: 'export-sets:delete',
+  exportSetRun: 'export-sets:run',
   /** Faz 7 — integration credential store (safeStorage-encrypted).
    *  `integrationsGetAll` returns the redacted state map (secret values
    *  never leave the main process); `set` merges the supplied fields;
@@ -510,6 +514,18 @@ export interface ExportSet {
   rawHeaders?: boolean;
 }
 
+/** One `--what` token the desktop export-set picker offers. */
+export interface ExportSetChoice {
+  token: string;
+  /** Bulk-export file label (English) for tab / issue tokens. */
+  label?: string;
+}
+
+export interface ExportSetChoiceGroup {
+  group: 'exports' | 'links' | 'tabs' | 'issues' | 'datasets' | 'issueInlinks';
+  choices: ExportSetChoice[];
+}
+
 /** What a scheduled crawl does with its results once it finishes. */
 export interface ScheduleAfterCrawl {
   /** Export written into a timestamped sub-folder of `outputDir`. `set` runs
@@ -631,6 +647,7 @@ export type MenuEvent =
   | 'export-pdf-report'
   | 'export-seo-audit'
   | 'export-bulk'
+  | 'open-export-sets'
   | 'export-sheets'
   | 'export-bigquery'
   | 'delete-domain-data'
@@ -2213,6 +2230,14 @@ export interface FreeCrawlApi {
   scheduleSet(spec: ScheduleSpec | null): Promise<ScheduleEntry | null>;
   /** The current project's saved export sets (`freecrawl export --save-set`). */
   exportSetsList(): Promise<ExportSet[]>;
+  /** Every `--what` token a saved set can hold, grouped for the picker. */
+  exportSetsChoices(): Promise<ExportSetChoiceGroup[]>;
+  /** Save (or replace, by name) a set; rejects with the core message on a bad token or empty name. */
+  exportSetSave(set: ExportSet): Promise<ExportSet>;
+  /** Delete a set by name; false when there was none. */
+  exportSetDelete(name: string): Promise<boolean>;
+  /** Ask for a folder, run the set into it and show the result; `outputDir` is '' when cancelled. */
+  exportSetRun(name: string): Promise<{ outputDir: string; files: number; errors: number }>;
   /** Faz 7 — read the redacted credential state of every integration.
    *  Secret field values are never returned, only a `set` flag. */
   integrationsGetAll(): Promise<IntegrationsState>;

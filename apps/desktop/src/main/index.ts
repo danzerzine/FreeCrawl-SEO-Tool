@@ -136,6 +136,7 @@ import {
   type SitemapGenerateResult,
   type UrlBulkContextMenuInput,
   type UrlGridContextMenuInput,
+  type ExportSet,
   type UrlGridCopyEvent,
   type UrlContextMenuInput,
   type UrlDetail,
@@ -303,6 +304,9 @@ import {
   previewExtractionRules,
   runBulkExport,
   listExportSets,
+  saveExportSet,
+  deleteExportSet,
+  type ExportOutcome,
   writeExportFile,
   analyzeLogFile,
   buildLogExportXlsx,
@@ -410,6 +414,7 @@ import {
   type SchedulerStore,
 } from './scheduler.js';
 import { runScheduledExport } from './scheduled-export.js';
+import { exportSelectedLinks, exportSetChoices, runSavedExportSet } from './export-sets.js';
 import type { ProjectDb as ProjectDbType } from '@freecrawl/db';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -4120,6 +4125,46 @@ function bulkExportMeta(sess: ProjectSession = currentSession()): { toolVersion:
   return { toolVersion: app.getVersion(), ...(projectFile ? { projectFile } : {}) };
 }
 
+/** Folder picker shared by the desktop folder exports; null when cancelled. */
+async function pickExportFolder(
+  title: string,
+  win: BrowserWindow | null = mainWindow,
+): Promise<string | null> {
+  if (!win) return null;
+  const res = await dialog.showOpenDialog(win, {
+    title,
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  return res.canceled ? null : (res.filePaths[0] ?? null);
+}
+
+/** The Bulk Export result box for a core export run: counts, errors, Open Folder. */
+async function showExportOutcome(
+  title: string,
+  outputDir: string,
+  r: ExportOutcome,
+  win: BrowserWindow | null = mainWindow,
+): Promise<void> {
+  if (!win) return;
+  const totalRows = r.files.reduce((s, f) => s + (f.rows ?? 0), 0);
+  const res = await dialog.showMessageBox(win, {
+    type: r.errors.length > 0 ? 'warning' : 'info',
+    title,
+    message: L()
+      .msgBulkExportWritten.replace('{files}', String(r.files.length))
+      .replace('{rows}', totalRows.toLocaleString()),
+    detail:
+      outputDir +
+      (r.errors.length > 0
+        ? `\n\n${L().detailBulkExportErrors}\n${r.errors.map((e) => `• ${e.label}: ${e.error}`).join('\n')}`
+        : ''),
+    buttons: [L().btnOk, L().btnOpenFolder],
+    defaultId: 0,
+    noLink: true,
+  });
+  if (res.response === 1) void shell.openPath(outputDir);
+}
+
 function assertMcpExportPath(raw: unknown, field = 'filePath'): string {
   if (typeof raw !== 'string' || raw.trim() === '') {
     throw new Error(`${field} is required (MCP cannot open dialogs).`);
@@ -5661,6 +5706,23 @@ function registerIpc(): void {
   });
   // B14 — saved export sets live in the project, so a schedule can run one.
   registerHandle(IPC.exportSetsList, () => listExportSets(currentSession().getDb()));
+  registerHandle(IPC.exportSetsChoices, () => exportSetChoices());
+  registerHandle(IPC.exportSetSave, (_e, set: ExportSet) => saveExportSet(currentSession().getDb(), set));
+  registerHandle(IPC.exportSetDelete, (_e, name: string) => deleteExportSet(currentSession().getDb(), name));
+  // Same folder picker and result box as Bulk Export; the files come from
+  // the core runner the CLI's `--set` and the scheduler use.
+  registerHandle(IPC.exportSetRun, async (e, name: string) => {
+    const sess = currentSession();
+    const win = BrowserWindow.fromWebContents(e.sender) ?? mainWindow;
+    const outputDir = await pickExportFolder(L().dlgExportSetFolderTitle.replace('{name}', name), win);
+    if (!outputDir) return { outputDir: '', files: 0, errors: 0 };
+    const r = await runSavedExportSet(sess.getDb(), outputDir, name, {
+      branding: readReportBranding(),
+      ...bulkExportMeta(sess),
+    });
+    await showExportOutcome(L().dlgExportSetCompleteTitle, outputDir, r, win);
+    return { outputDir, files: r.files.length, errors: r.errors.length };
+  });
 
   // V1 Faz 9 — directory picker for Settings → Storage. Returns the chosen
   // absolute path, or null if the user cancelled.
@@ -10054,6 +10116,17 @@ function registerIpc(): void {
           },
         },
         { type: 'separator' },
+        {
+          // B16: the CLI's `--urls`, for the rows picked here.
+          label: many ? L.ctxExportNUrlsLinks.replace('{n}', n) : L.ctxExportUrlLinks,
+          click: async () => {
+            const w = win ?? mainWindow;
+            const outputDir = await pickExportFolder(L.dlgExportLinksFolderTitle, w);
+            if (!outputDir) return;
+            const r = await exportSelectedLinks(db, outputDir, urls, bulkExportMeta(sess));
+            await showExportOutcome(L.dlgExportLinksCompleteTitle, outputDir, r, w);
+          },
+        },
       ];
       // The tail differs by count, and not only for grammar: bulk export
       // is meaningless for one row, and robots.txt is per-origin so it
