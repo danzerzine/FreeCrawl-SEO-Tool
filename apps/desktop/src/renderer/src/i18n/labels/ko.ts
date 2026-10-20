@@ -407,7 +407,6 @@ export const KO_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'JSON-LD 블록',
   'Schema Types': 'Schema 유형',
   'Empty Anchors': '빈 앵커',
-  'JS-Only Links': 'JS만으로 된 링크',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': '순서 끊김',

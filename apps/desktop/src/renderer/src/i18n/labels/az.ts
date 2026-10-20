@@ -415,7 +415,6 @@ export const AZ_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'JSON-LD blokları',
   'Schema Types': 'Schema tipləri',
   'Empty Anchors': 'Boş ankorlar',
-  'JS-Only Links': 'Yalnız JS keçidləri',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': 'Sıra qırılması',

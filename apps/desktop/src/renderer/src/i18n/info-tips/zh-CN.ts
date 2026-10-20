@@ -6,8 +6,8 @@
 export const ZH_CN_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     '?page=1 / ?page=2 / ?page=4 → 对断裂分组的每个成员标记“序列断裂”。',
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    '抓取器无法跟踪的类链接元素（无 href 但有 onclick、`href="javascript:…"`、带 onclick 的 `href="#"`、onclick 跳转，以及带 href 或 data-href 的 `<span>` / `<div>` / `<button>`）。每一个都列在出链中。',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    '无法抓取的链接数量：抓取器无法跟踪的类链接元素（无 href 但有 onclick、`href="javascript:…"`、带 onclick 的 `href="#"`、onclick 跳转，以及带 href 或 data-href 的 `<span>` / `<div>` / `<button>`）。每一个都列在出链中。',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` 的值——本页的 AMP 版本。页面未声明 AMP 替代版本时为空。',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:

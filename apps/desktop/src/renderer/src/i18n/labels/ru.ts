@@ -407,7 +407,6 @@ export const RU_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'Блоки JSON-LD',
   'Schema Types': 'Типы schema',
   'Empty Anchors': 'Пустые анкоры',
-  'JS-Only Links': 'Ссылки только через JS',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': 'Разрыв последовательности',

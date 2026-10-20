@@ -406,7 +406,6 @@ export const TR_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'JSON-LD Blokları',
   'Schema Types': 'Şema Türleri',
   'Empty Anchors': 'Boş Anchor\'lar',
-  'JS-Only Links': 'Yalnızca-JS Linkler',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': 'Sıra Kopukluğu',

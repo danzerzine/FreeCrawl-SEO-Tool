@@ -407,7 +407,6 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'JSON-LD 区块',
   'Schema Types': 'Schema 类型',
   'Empty Anchors': '空锚文本',
-  'JS-Only Links': '仅靠 JS 的链接',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': '序列中断',

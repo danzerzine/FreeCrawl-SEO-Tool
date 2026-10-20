@@ -6,8 +6,8 @@
 export const HI_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → टूटे हुए क्लस्टर के हर सदस्य पर 'अनुक्रम टूटा' चिह्न लगाता है।",
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    'लिंक जैसे तत्व जिन्हें क्रॉलर फ़ॉलो नहीं कर सकता (href नहीं पर onclick है, `href="javascript:…"`, onclick के साथ `href="#"`, onclick से नेविगेशन, href या data-href वाले `<span>` / `<div>` / `<button>`)। हर एक आउटलिंक में दिखता है।',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'क्रॉल न हो सकने वाले लिंक की संख्या: लिंक जैसे तत्व जिन्हें क्रॉलर फ़ॉलो नहीं कर सकता (href नहीं पर onclick है, `href="javascript:…"`, onclick के साथ `href="#"`, onclick से नेविगेशन, href या data-href वाले `<span>` / `<div>` / `<button>`)। हर एक आउटलिंक में दिखता है।',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` का मान — इस पेज का AMP संस्करण। पेज कोई AMP विकल्प घोषित न करे तो खाली।',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:

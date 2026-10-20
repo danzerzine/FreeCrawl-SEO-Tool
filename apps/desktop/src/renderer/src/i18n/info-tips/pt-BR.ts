@@ -6,8 +6,8 @@
 export const PT_BR_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → marca 'Quebra de sequência' em cada membro do grupo quebrado.",
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    'Elementos com cara de link que um rastreador não consegue seguir (sem href + onclick, `href="javascript:…"`, `href="#"` com onclick, navegação por onclick, `<span>` / `<div>` / `<button>` com href ou data-href). Cada um aparece em Links de saída.',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Número de links não rastreáveis: elementos com cara de link que um rastreador não consegue seguir (sem href + onclick, `href="javascript:…"`, `href="#"` com onclick, navegação por onclick, `<span>` / `<div>` / `<button>` com href ou data-href). Cada um aparece em Links de saída.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     'Valor de `<link rel="amphtml" href="…">` — a versão AMP desta página. Vazio quando a página não declara uma alternativa AMP.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:

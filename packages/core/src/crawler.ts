@@ -4689,12 +4689,13 @@ export class Crawler extends EventEmitter {
       }
 
       // Respect-Nofollow default (Screaming-Frog style): `rel="nofollow"`
-      // links are not part of the crawl graph — not followed, not probed
-      // as externals, not counted in `outlinks`. Opt-in via
-      // `storeNofollowLinks` to treat them like any other link there.
-      // They are still recorded in the `links` table either way (below),
-      // so Inlinks / Outlinks show them and "nofollow-only inlinks" can
-      // be answered.
+      // links are not followed, not probed as externals and not counted in
+      // `outlinks` (nor, after the crawl, in inlinks and link score).
+      // `storeNofollowLinks` counts and probes them; the follow loop below
+      // walks `storableLinks` and still needs `followNofollow` /
+      // `followExternalNofollow` to enqueue one. They are recorded in the
+      // `links` table either way (below), so Inlinks / Outlinks show them
+      // and "nofollow-only inlinks" can be answered.
       const storableLinks = this.config.storeNofollowLinks
         ? parsed.links
         : parsed.links.filter((l) => !l.rel?.includes('nofollow'));

@@ -6,8 +6,8 @@
 export const RU_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     '?page=1 / ?page=2 / ?page=4 → помечает «Разрыв последовательности» у каждого члена сломанной группы.',
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    'Элементы, похожие на ссылки, по которым краулер не пройдёт (нет href + onclick, `href="javascript:…"`, `href="#"` с onclick, переход в onclick, `<span>` / `<div>` / `<button>` с href или data-href). Каждый показан в исходящих ссылках.',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Число ссылок, недоступных для обхода: элементы, похожие на ссылки, по которым краулер не пройдёт (нет href + onclick, `href="javascript:…"`, `href="#"` с onclick, переход в onclick, `<span>` / `<div>` / `<button>` с href или data-href). Каждый показан в исходящих ссылках.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     'Значение `<link rel="amphtml" href="…">` — AMP-версия этой страницы. Пусто, если страница не объявляет AMP-альтернативу.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:

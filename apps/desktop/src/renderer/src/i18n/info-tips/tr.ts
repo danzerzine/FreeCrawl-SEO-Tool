@@ -6,8 +6,8 @@
 export const TR_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → bozuk kümenin her üyesine 'Sıra Kopukluğu' işareti koyar.",
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    'Bir tarayıcının izleyemeyeceği bağlantı benzeri öğeler (href yok + onclick var, `href="javascript:…"`, onclick ile birlikte `href="#"`, onclick ile yönlendirme, href ya da data-href taşıyan `<span>` / `<div>` / `<button>`). Her biri giden bağlantılarda listelenir.',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Taranamayan bağlantı sayısı: bir tarayıcının izleyemeyeceği bağlantı benzeri öğeler (href yok + onclick var, `href="javascript:…"`, onclick ile birlikte `href="#"`, onclick ile yönlendirme, href ya da data-href taşıyan `<span>` / `<div>` / `<button>`). Her biri giden bağlantılarda listelenir.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` değeri — bu sayfanın AMP sürümü. Sayfa AMP alternatifi tanımlamıyorsa boştur.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:

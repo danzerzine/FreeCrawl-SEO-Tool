@@ -407,7 +407,6 @@ export const HI_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'JSON-LD ब्लॉक',
   'Schema Types': 'Schema प्रकार',
   'Empty Anchors': 'खाली एंकर',
-  'JS-Only Links': 'केवल JS वाले लिंक',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': 'क्रम टूटा',

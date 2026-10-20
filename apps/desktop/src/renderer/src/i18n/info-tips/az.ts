@@ -6,8 +6,8 @@
 export const AZ_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → qırıq qrupun hər üzvünə 'Ardıcıllıq qırılması' işarəsi qoyur.",
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    'Tarayıcının izləyə bilmədiyi keçidəbənzər elementlər (href yox + onclick var, `href="javascript:…"`, onclick ilə birlikdə `href="#"`, onclick ilə yönləndirmə, href və ya data-href olan `<span>` / `<div>` / `<button>`). Hər biri çıxan keçidlərdə göstərilir.',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Taranıla bilməyən keçidlərin sayı: tarayıcının izləyə bilmədiyi keçidəbənzər elementlər (href yox + onclick var, `href="javascript:…"`, onclick ilə birlikdə `href="#"`, onclick ilə yönləndirmə, href və ya data-href olan `<span>` / `<div>` / `<button>`). Hər biri çıxan keçidlərdə göstərilir.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` dəyəri — bu səhifənin AMP versiyası. Səhifə AMP alternativi bəyan etmirsə boşdur.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:

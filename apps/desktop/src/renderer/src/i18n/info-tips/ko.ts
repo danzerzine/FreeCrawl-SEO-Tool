@@ -6,8 +6,8 @@
 export const KO_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → 끊어진 그룹의 모든 구성원에 '시퀀스 단절'을 표시합니다.",
-  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
-    '크롤러가 따라갈 수 없는 링크 형태의 요소(href 없이 onclick만 있음, `href="javascript:…"`, onclick이 붙은 `href="#"`, onclick 이동, href 또는 data-href가 있는 `<span>` / `<div>` / `<button>`). 각각 아웃바운드 링크에 표시됩니다.',
+  ['Number of uncrawlable links on the page: link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    '크롤할 수 없는 링크 수: 크롤러가 따라갈 수 없는 링크 형태의 요소(href 없이 onclick만 있음, `href="javascript:…"`, onclick이 붙은 `href="#"`, onclick 이동, href 또는 data-href가 있는 `<span>` / `<div>` / `<button>`). 각각 아웃바운드 링크에 표시됩니다.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` 값 — 이 페이지의 AMP 버전. 페이지가 AMP 대체 버전을 선언하지 않으면 비어 있습니다.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:

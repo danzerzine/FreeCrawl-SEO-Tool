@@ -1451,12 +1451,14 @@ export class ProjectDb {
     // here only via compileOrphanExcludePatterns.
     const regexCache = new Map<string, RegExp>();
     this.db.function('fc_regexp', { deterministic: true }, (pattern, value) => {
-      let re = regexCache.get(pattern as string);
+      // A NULL url or a non-text pattern matches nothing.
+      if (typeof pattern !== 'string' || typeof value !== 'string') return 0;
+      let re = regexCache.get(pattern);
       if (!re) {
-        re = new RegExp(pattern as string);
-        regexCache.set(pattern as string, re);
+        re = new RegExp(pattern);
+        regexCache.set(pattern, re);
       }
-      return re.test(String(value)) ? 1 : 0;
+      return re.test(value) ? 1 : 0;
     });
     if (!readOnly) {
       this.db.exec('PRAGMA journal_mode = WAL');
@@ -11128,6 +11130,18 @@ const DEAD_EXTERNAL_TARGET_SQL = `is_external = 1
  */
 const linkTargetsKey = (issueKey: string): string => `targets:${issueKey}`;
 
+/** A `links` row (unaliased) whose anchor is over 100 characters. */
+const LONG_ANCHOR_LINK_SQL = 'anchor IS NOT NULL AND LENGTH(anchor) > 100';
+/** A `links` row (unaliased) whose anchor is a generic phrase ("click here"). */
+const GENERIC_ANCHOR_LINK_SQL = `anchor IS NOT NULL
+  AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})`;
+/** A `links` row (unaliased) opening a new tab without rel=noopener / noreferrer. */
+const TARGET_BLANK_NO_NOOPENER_LINK_SQL = `LOWER(COALESCE(target, '')) = '_blank'
+  AND (
+    rel IS NULL
+    OR (LOWER(rel) NOT LIKE '%noopener%' AND LOWER(rel) NOT LIKE '%noreferrer%')
+  )`;
+
 export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string]> = [
   [
     'issues:dead-external-domain',
@@ -11184,10 +11198,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     `is_external = 0 AND content_kind = 'html'
      AND (
        anchor_too_long_count > 0
-       OR id IN (
-         SELECT from_url_id FROM links
-          WHERE anchor IS NOT NULL AND LENGTH(anchor) > 100
-       )
+       OR id IN (SELECT from_url_id FROM links WHERE ${LONG_ANCHOR_LINK_SQL})
      )`,
   ],
   [
@@ -11195,7 +11206,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // (page, target), so a target whose stored anchor is the short one of
     // two links on a page is not counted.
     linkTargetsKey('issues:anchor-text-too-long'),
-    `url IN (SELECT to_url FROM links WHERE anchor IS NOT NULL AND LENGTH(anchor) > 100)`,
+    `url IN (SELECT to_url FROM links WHERE ${LONG_ANCHOR_LINK_SQL})`,
   ],
   [
     'issues:anchor-text-generic',
@@ -11203,20 +11214,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     `is_external = 0 AND content_kind = 'html'
      AND (
        generic_anchor_count > 0
-       OR id IN (
-         SELECT from_url_id FROM links
-          WHERE anchor IS NOT NULL
-            AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})
-       )
+       OR id IN (SELECT from_url_id FROM links WHERE ${GENERIC_ANCHOR_LINK_SQL})
      )`,
   ],
   [
     linkTargetsKey('issues:anchor-text-generic'),
-    `url IN (
-       SELECT to_url FROM links
-        WHERE anchor IS NOT NULL
-          AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})
-     )`,
+    `url IN (SELECT to_url FROM links WHERE ${GENERIC_ANCHOR_LINK_SQL})`,
   ],
   [
     'issues:target-blank-no-noopener',
@@ -11224,32 +11227,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     `is_external = 0 AND content_kind = 'html'
      AND (
        target_blank_no_noopener_count > 0
-       OR id IN (
-         SELECT from_url_id FROM links
-          WHERE LOWER(COALESCE(target, '')) = '_blank'
-            AND (
-              rel IS NULL
-              OR (
-                LOWER(rel) NOT LIKE '%noopener%'
-                AND LOWER(rel) NOT LIKE '%noreferrer%'
-              )
-            )
-       )
+       OR id IN (SELECT from_url_id FROM links WHERE ${TARGET_BLANK_NO_NOOPENER_LINK_SQL})
      )`,
   ],
   [
     linkTargetsKey('issues:target-blank-no-noopener'),
-    `url IN (
-       SELECT to_url FROM links
-        WHERE LOWER(COALESCE(target, '')) = '_blank'
-          AND (
-            rel IS NULL
-            OR (
-              LOWER(rel) NOT LIKE '%noopener%'
-              AND LOWER(rel) NOT LIKE '%noreferrer%'
-            )
-          )
-     )`,
+    `url IN (SELECT to_url FROM links WHERE ${TARGET_BLANK_NO_NOOPENER_LINK_SQL})`,
   ],
   [
     'issues:external-links-too-many',

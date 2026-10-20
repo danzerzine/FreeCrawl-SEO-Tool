@@ -407,7 +407,6 @@ export const PT_BR_LABELS: Record<string, string> = {
   'JSON-LD Blocks': 'Blocos JSON-LD',
   'Schema Types': 'Tipos de schema',
   'Empty Anchors': 'Âncoras vazias',
-  'JS-Only Links': 'Links só por JS',
   'rel=next': 'rel=next',
   'rel=prev': 'rel=prev',
   'Sequence Break': 'Quebra de sequência',
