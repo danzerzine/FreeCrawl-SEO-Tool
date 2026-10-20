@@ -408,6 +408,7 @@
     "depthTopLevel": "1 (üst seviye)",
     "summary": "{{rows}} satır · {{urls}} URL",
     "noData": "Veri yok — önce bir crawl çalıştır.",
+    "noLinkTargets": "Bu crawl'da bu tür bağlantı yok.",
     "count": "Sayı",
     "share": "Pay",
     "keyDirectory": "Dizin",
@@ -442,6 +443,7 @@
     "orphanMetricaPageviews_one": "{{formatted}} Metrica görüntülemesi (hit)",
     "orphanMetricaPageviews_other": "{{formatted}} Metrica görüntülemesi (hit)",
     "noResponse": "Yanıt yok",
+    "notCrawled": "Crawl edilmedi",
     "bucketOrphan": "0 (yetim)",
     "badge": {
       "ok": "TAMAM",

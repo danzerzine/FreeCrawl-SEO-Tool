@@ -404,7 +404,7 @@ export function ReportsDialog({ open, onClose }: Props) {
               r.map((x: LinkTargetRow) => ({
                 // The redirect end sits next to the target: the pair is the fix.
                 key: x.finalUrl
-                  ? `${x.targetUrl} → ${x.finalUrl} (${statusText(x.finalStatusCode, t)})`
+                  ? `${x.targetUrl} → ${x.finalUrl} (${finalStatusText(x, t)})`
                   : x.targetUrl,
                 badge: statusBadge(x.statusCode, t),
                 // Bar = linking pages, so site-wide targets spike.
@@ -797,7 +797,9 @@ export function ReportsDialog({ open, onClose }: Props) {
             <div className="p-6 text-center text-surface-500">
               {notComputed
                 ? t('sidebar.notComputed', { defaultValue: 'Not computed' })
-                : t('reports.noData', { defaultValue: 'No data — run a crawl first.' })}
+                : LINK_TARGET_KINDS.has(kind)
+                  ? t('reports.noLinkTargets', { defaultValue: 'No such links in this crawl.' })
+                  : t('reports.noData', { defaultValue: 'No data — run a crawl first.' })}
             </div>
           )}
           {rows.length > 0 && (
@@ -874,6 +876,14 @@ type Translate = ReturnType<typeof useTranslation>['t'];
 /** A status code, or «No response» when the request got no HTTP answer. */
 function statusText(status: number | null, t: Translate): string {
   return status === null ? t('reports.noResponse', { defaultValue: 'No response' }) : String(status);
+}
+
+/** A redirect end's status. A chain end the crawl never fetched (beyond
+ *  Max URLs, out of scope) has no status either, but it is not a failure. */
+function finalStatusText(row: LinkTargetRow, t: Translate): string {
+  if (row.finalStatusCode !== null || row.finalIndexability === 'non-indexable:no-response')
+    return statusText(row.finalStatusCode, t);
+  return t('reports.notCrawled', { defaultValue: 'Not crawled' });
 }
 
 function statusBadge(status: number | null, t: Translate): string {

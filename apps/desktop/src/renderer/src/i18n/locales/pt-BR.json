@@ -415,6 +415,7 @@
     "depthTopLevel": "1 (nível superior)",
     "summary": "{{rows}} linhas · {{urls}} URLs",
     "noData": "Sem dados — execute um rastreamento primeiro.",
+    "noLinkTargets": "Não há links desse tipo neste rastreamento.",
     "count": "Contagem",
     "share": "Participação",
     "keyDirectory": "Diretório",
@@ -454,6 +455,7 @@
     "orphanMetricaPageviews_many": "{{formatted}} de visualizações do Metrica (hits)",
     "orphanMetricaPageviews_other": "{{formatted}} visualizações do Metrica (hits)",
     "noResponse": "Sem resposta",
+    "notCrawled": "Não rastreado",
     "bucketOrphan": "0 (órfã)",
     "badge": {
       "ok": "OK",

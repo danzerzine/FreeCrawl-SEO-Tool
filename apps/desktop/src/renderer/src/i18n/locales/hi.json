@@ -408,6 +408,7 @@
     "depthTopLevel": "1 (शीर्ष स्तर)",
     "summary": "{{rows}} पंक्तियाँ · {{urls}} URL",
     "noData": "कोई डेटा नहीं — पहले एक क्रॉल चलाएँ।",
+    "noLinkTargets": "इस क्रॉल में ऐसे कोई लिंक नहीं हैं।",
     "count": "गणना",
     "share": "हिस्सा",
     "keyDirectory": "निर्देशिका",
@@ -442,6 +443,7 @@
     "orphanMetricaPageviews_one": "{{formatted}} Metrica पृष्ठ दृश्य (हिट)",
     "orphanMetricaPageviews_other": "{{formatted}} Metrica पृष्ठ दृश्य (हिट)",
     "noResponse": "कोई प्रतिक्रिया नहीं",
+    "notCrawled": "क्रॉल नहीं किया गया",
     "bucketOrphan": "0 (अनाथ)",
     "badge": {
       "ok": "OK",

@@ -408,6 +408,7 @@
     "depthTopLevel": "1 (top-level)",
     "summary": "{{rows}} rows · {{urls}} URLs",
     "noData": "No data — run a crawl first.",
+    "noLinkTargets": "No such links in this crawl.",
     "count": "Count",
     "share": "Share",
     "keyDirectory": "Directory",
@@ -442,6 +443,7 @@
     "orphanMetricaPageviews_one": "{{formatted}} Metrica pageview (hits)",
     "orphanMetricaPageviews_other": "{{formatted}} Metrica pageviews (hits)",
     "noResponse": "No response",
+    "notCrawled": "Not crawled",
     "bucketOrphan": "0 (orphan)",
     "badge": {
       "ok": "OK",

@@ -401,6 +401,7 @@
     "depthTopLevel": "1（顶层）",
     "summary": "{{rows}} 行 · {{urls}} 个 URL",
     "noData": "无数据——请先运行一次抓取。",
+    "noLinkTargets": "本次抓取中没有此类链接。",
     "count": "数量",
     "share": "占比",
     "keyDirectory": "目录",
@@ -430,6 +431,7 @@
     "orphanMetricaVisits_other": "{{formatted}} 次 Metrica 访问（着陆页）",
     "orphanMetricaPageviews_other": "{{formatted}} 次 Metrica 页面浏览（命中）",
     "noResponse": "无响应",
+    "notCrawled": "未抓取",
     "bucketOrphan": "0（孤立）",
     "badge": {
       "ok": "正常",

@@ -408,6 +408,7 @@
     "depthTopLevel": "1 (ən üst səviyyə)",
     "summary": "{{rows}} sətir · {{urls}} URL",
     "noData": "Məlumat yoxdur — əvvəlcə bir tarama işə salın.",
+    "noLinkTargets": "Bu taramada belə keçidlər yoxdur.",
     "count": "Say",
     "share": "Pay",
     "keyDirectory": "Qovluq",
@@ -442,6 +443,7 @@
     "orphanMetricaPageviews_one": "{{formatted}} Metrica səhifə baxışı (hit)",
     "orphanMetricaPageviews_other": "{{formatted}} Metrica səhifə baxışı (hit)",
     "noResponse": "Cavab yoxdur",
+    "notCrawled": "Taranmayıb",
     "bucketOrphan": "0 (yetim)",
     "badge": {
       "ok": "OK",

@@ -422,6 +422,7 @@
     "depthTopLevel": "1 (верхний уровень)",
     "summary": "Строк: {{rows}} · URL: {{urls}}",
     "noData": "Нет данных — сначала выполните обход.",
+    "noLinkTargets": "В этом обходе таких ссылок нет.",
     "count": "Количество",
     "share": "Доля",
     "keyDirectory": "Каталог",
@@ -466,6 +467,7 @@
     "orphanMetricaPageviews_many": "{{formatted}} просмотров Metrica (хиты)",
     "orphanMetricaPageviews_other": "{{formatted}} просмотра Metrica (хиты)",
     "noResponse": "Нет ответа",
+    "notCrawled": "Не обойдено",
     "bucketOrphan": "0 (осиротевшие)",
     "badge": {
       "ok": "OK",

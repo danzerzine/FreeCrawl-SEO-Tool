@@ -415,6 +415,7 @@
     "depthTopLevel": "1 (niveau supérieur)",
     "summary": "{{rows}} lignes · {{urls}} URL",
     "noData": "Aucune donnée — lancez d'abord une exploration.",
+    "noLinkTargets": "Aucun lien de ce type dans cette exploration.",
     "count": "Nombre",
     "share": "Part",
     "keyDirectory": "Répertoire",
@@ -454,6 +455,7 @@
     "orphanMetricaPageviews_many": "{{formatted}} de pages vues Metrica (hits)",
     "orphanMetricaPageviews_other": "{{formatted}} pages vues Metrica (hits)",
     "noResponse": "Aucune réponse",
+    "notCrawled": "Non exploré",
     "bucketOrphan": "0 (orpheline)",
     "badge": {
       "ok": "OK",

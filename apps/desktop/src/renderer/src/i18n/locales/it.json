@@ -415,6 +415,7 @@
     "depthTopLevel": "1 (primo livello)",
     "summary": "{{rows}} righe · {{urls}} URL",
     "noData": "Nessun dato — esegui prima una scansione.",
+    "noLinkTargets": "Nessun link di questo tipo in questa scansione.",
     "count": "Conteggio",
     "share": "Quota",
     "keyDirectory": "Directory",
@@ -454,6 +455,7 @@
     "orphanMetricaPageviews_many": "{{formatted}} di visualizzazioni di pagina Metrica (hit)",
     "orphanMetricaPageviews_other": "{{formatted}} visualizzazioni di pagina Metrica (hit)",
     "noResponse": "Nessuna risposta",
+    "notCrawled": "Non scansionato",
     "bucketOrphan": "0 (orfana)",
     "badge": {
       "ok": "OK",
