@@ -2490,6 +2490,20 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 102,
+    name: 'add_broken_bookmarks_column',
+    // `broken_bookmarks` counts links to a `#fragment` of the page itself
+    // whose id / `<a name>` is not on it. Fragments are stripped from every
+    // stored URL, so the parser has to judge them while the page is at hand.
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as {
+        name: string;
+      }[];
+      if (!cols.some((c) => c.name === 'broken_bookmarks'))
+        db.exec('ALTER TABLE urls ADD COLUMN broken_bookmarks INTEGER NOT NULL DEFAULT 0');
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

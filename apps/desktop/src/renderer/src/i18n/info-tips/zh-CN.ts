@@ -258,6 +258,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     "任一时刻进行中的 HTTP 请求数。相当于 Screaming Frog 的 'Max Threads'。越高 = 抓取越快 + 目标服务器负载越大。",
   ['Number of internal `<a>` elements with no usable anchor text or alt — accessibility / SEO regression.']:
     '没有可用锚文本或 alt 的内部 `<a>` 元素数量——无障碍 / SEO 退化。',
+  ['Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.']:
+    "指向本页内 `#书签` 但本页不存在对应 id 或 `<a name>` 的链接数量。不检查指向其他页面的书签。",
   ['Number of internal pages that link to this URL. A rough internal-PageRank signal.']:
     '链接到此 URL 的内部页面数。内部 PageRank 的粗略信号。',
   ["Number of pages in this URL's near-duplicate cluster (1 = no duplicates, ≥2 = part of a duplicate group). Tunable via Settings → Duplicates."]:

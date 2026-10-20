@@ -230,7 +230,6 @@ export const IT_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Contiene maiuscole',
   'Long Query String (>100 chars)': 'Query string lunga (>100 caratteri)',
   'Many Query Params (>5)': 'Molti parametri di query (>5)',
-  'Fragment (#) in URL': 'Frammento (#) nell’URL',
   'Spaces in URL': 'Spazi nell’URL',
   'Multiple Slashes': 'Barre multiple',
   'Non-ASCII Characters': 'Caratteri non ASCII',
@@ -241,6 +240,7 @@ export const IT_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Testo di ancora vuoto',
+  'Broken Bookmarks': 'Segnalibri (#) rotti',
   'Generic Anchor Text': 'Testo di ancora generico',
   'Anchor Text Too Long (>100)': 'Testo di ancora troppo lungo (>100)',
   'Total Links per Page > 100': 'Totale link per pagina > 100',

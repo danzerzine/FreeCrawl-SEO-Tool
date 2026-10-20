@@ -196,7 +196,6 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Multiple Slashes', category: 'issues:url-multiple-slashes' },
     { label: 'Non-ASCII Characters', category: 'issues:url-non-ascii' },
     { label: 'Many Query Params (>5)', category: 'issues:url-many-params' },
-    { label: 'Fragment (#) in URL', category: 'issues:url-fragment' },
     { label: 'Spaces in URL', category: 'issues:url-spaces' },
     { label: 'Malformed URL', category: 'issues:url-malformed' },
     { label: 'Crawl Trap', category: 'issues:crawl-trap' },
@@ -339,6 +338,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Broken (All)', category: 'issues:broken-links-all' },
     { label: 'Broken Internal', category: 'issues:broken-links-internal' },
     { label: 'Broken External', category: 'issues:broken-links-external' },
+    { label: 'Broken Bookmarks', category: 'issues:broken-bookmark' },
     { label: 'Empty Anchor Text', category: 'issues:link-empty-anchor' },
     { label: 'Anchor Text Too Long (>100)', category: 'issues:anchor-text-too-long' },
     { label: 'Generic Anchor Text', category: 'issues:anchor-text-generic' },
@@ -958,7 +958,8 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
     // drill-down showed unrelated broken links instead of the pages the
     // count referred to. The Links tab filters the URL table by category,
     // which uses the correct `issues:link-empty-anchor` predicate.
-    cat === 'issues:link-empty-anchor'
+    cat === 'issues:link-empty-anchor' ||
+    cat === 'issues:broken-bookmark'
   ) {
     return 'links';
   }

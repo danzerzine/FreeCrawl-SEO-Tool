@@ -125,6 +125,7 @@ const XML_COLUMNS: (keyof CrawlUrlRow)[] = [
   'landmarkMain',
   'skipLinkPresent',
   'ariaInvalidRoles',
+  'brokenBookmarks',
   'schemaDuplicateIds',
   'schemaUnknownTypes',
   'schemaMissingRequired',

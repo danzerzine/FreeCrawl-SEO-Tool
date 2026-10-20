@@ -229,7 +229,6 @@ export const TR_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Büyük Harf İçeriyor',
   'Long Query String (>100 chars)': 'Uzun Sorgu Dizesi (>100 karakter)',
   'Many Query Params (>5)': 'Çok Sorgu Parametresi (>5)',
-  'Fragment (#) in URL': 'URL\'de Fragment (#)',
   'Spaces in URL': 'URL\'de Boşluk',
   'Multiple Slashes': 'Çoklu Eğik Çizgi',
   'Non-ASCII Characters': 'ASCII Dışı Karakterler',
@@ -240,6 +239,7 @@ export const TR_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Boş Anchor Metni',
+  'Broken Bookmarks': 'Kırık Yer İmleri (#)',
   'Generic Anchor Text': 'Genel Anchor Metni',
   'Anchor Text Too Long (>100)': 'Anchor Metni Çok Uzun (>100)',
   'Total Links per Page > 100': 'Sayfa Başına Toplam Link > 100',

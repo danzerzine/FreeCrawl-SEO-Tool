@@ -265,6 +265,8 @@ export const IT_INFO_TIPS: Record<string, string> = {
     "Numero di richieste HTTP in corso in un dato momento. Equivale a 'Max Threads' di Screaming Frog. Più alto = scansione più veloce + più carico sul server di destinazione.",
   ['Number of internal `<a>` elements with no usable anchor text or alt — accessibility / SEO regression.']:
     'Numero di elementi `<a>` interni senza testo di ancoraggio o alt utilizzabile — regressione di accessibilità / SEO.',
+  ['Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.']:
+    "Numero di link a un `#segnalibro` di questa stessa pagina il cui id o `<a name>` non esiste. I segnalibri di altre pagine non vengono verificati.",
   ['Number of internal pages that link to this URL. A rough internal-PageRank signal.']:
     'Numero di pagine interne che puntano a questo URL. Un segnale approssimativo di PageRank interno.',
   ["Number of pages in this URL's near-duplicate cluster (1 = no duplicates, ≥2 = part of a duplicate group). Tunable via Settings → Duplicates."]:

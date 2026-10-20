@@ -263,6 +263,8 @@ export const PT_BR_INFO_TIPS: Record<string, string> = {
     "Número de requisições HTTP em andamento a qualquer momento. Equivale ao 'Max Threads' do Screaming Frog. Maior = rastreamento mais rápido + mais carga no servidor de destino.",
   ['Number of internal `<a>` elements with no usable anchor text or alt — accessibility / SEO regression.']:
     'Número de elementos `<a>` internos sem texto âncora ou alt utilizável — regressão de acessibilidade / SEO.',
+  ['Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.']:
+    "Número de links para um `#marcador` desta mesma página cujo id ou `<a name>` não existe nela. Marcadores de outras páginas não são verificados.",
   ['Number of internal pages that link to this URL. A rough internal-PageRank signal.']:
     'Número de páginas internas que apontam para esta URL. Um sinal aproximado de PageRank interno.',
   ["Number of pages in this URL's near-duplicate cluster (1 = no duplicates, ≥2 = part of a duplicate group). Tunable via Settings → Duplicates."]:

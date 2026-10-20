@@ -230,7 +230,6 @@ export const FR_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Contient des majuscules',
   'Long Query String (>100 chars)': 'Chaîne de requête longue (>100 caractères)',
   'Many Query Params (>5)': 'Nombreux paramètres de requête (>5)',
-  'Fragment (#) in URL': 'Fragment (#) dans l’URL',
   'Spaces in URL': 'Espaces dans l’URL',
   'Multiple Slashes': 'Barres obliques multiples',
   'Non-ASCII Characters': 'Caractères non ASCII',
@@ -241,6 +240,7 @@ export const FR_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Texte d’ancre vide',
+  'Broken Bookmarks': 'Signets (#) cassés',
   'Generic Anchor Text': 'Texte d’ancre générique',
   'Anchor Text Too Long (>100)': 'Texte d’ancre trop long (>100)',
   'Total Links per Page > 100': 'Total de liens par page > 100',

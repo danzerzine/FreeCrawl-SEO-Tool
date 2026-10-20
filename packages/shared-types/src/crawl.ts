@@ -145,7 +145,7 @@ export type UrlCategory =
   | 'issues:h1-empty'
   | 'issues:h1-too-long'
   | 'issues:title-multiple'
-  | 'issues:url-fragment'
+  | 'issues:broken-bookmark'
   | 'issues:url-spaces'
   | 'issues:url-malformed'
   | 'issues:link-empty-anchor'
@@ -426,6 +426,8 @@ export interface CrawlUrlRow {
   skipLinkPresent: number;
   /** Count of `role="…"` attributes with an unknown ARIA token. */
   ariaInvalidRoles: number;
+  /** Count of same-page `#fragment` links with no matching id / `<a name>`. */
+  brokenBookmarks: number;
   /** Surplus occurrences of `@id` across all JSON-LD blocks (duplicates). */
   schemaDuplicateIds: number;
   /** `@type` values with malformed shape (empty / whitespace / non-PascalCase). */
@@ -1982,7 +1984,6 @@ export interface OverviewCounts {
     h1Empty: number;
     h1TooLong: number;
     titleMultiple: number;
-    urlFragment: number;
     urlSpaces: number;
     /** URLs flagged by `isUrlMalformed` (multiple `?`/`#`, control chars, unescaped reserved chars, double-encoding). */
     urlMalformed: number;
@@ -1991,6 +1992,8 @@ export interface OverviewCounts {
      *  distinct images — non-descriptive / templated alt reuse. */
     imageDuplicateAlt: number;
     linkEmptyAnchor: number;
+    /** Pages linking to a `#fragment` of themselves that has no matching id / `<a name>`. */
+    brokenBookmark: number;
     appleTouchIconMissing: number;
     manifestMissing: number;
     feedMissing: number;

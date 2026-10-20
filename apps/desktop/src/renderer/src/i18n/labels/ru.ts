@@ -230,7 +230,6 @@ export const RU_LABELS: Record<string, string> = {
   'Contains Uppercase': 'Содержит заглавные буквы',
   'Long Query String (>100 chars)': 'Длинная строка запроса (>100 символов)',
   'Many Query Params (>5)': 'Много параметров запроса (>5)',
-  'Fragment (#) in URL': 'Фрагмент (#) в URL',
   'Spaces in URL': 'Пробелы в URL',
   'Multiple Slashes': 'Повторяющиеся слэши',
   'Non-ASCII Characters': 'Символы вне ASCII',
@@ -241,6 +240,7 @@ export const RU_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Пустой анкор',
+  'Broken Bookmarks': 'Битые якоря (#)',
   'Generic Anchor Text': 'Неинформативный анкор',
   'Anchor Text Too Long (>100)': 'Слишком длинный анкор (>100)',
   'Total Links per Page > 100': 'Всего ссылок на страницу > 100',

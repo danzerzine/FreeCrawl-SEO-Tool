@@ -581,6 +581,14 @@ const COL = {
     info: 'JSON map of `{ term: count }` literal-substring hits from the configured Custom Search terms.',
     example: '{"pricing":3,"beta":1}',
   } as ColumnSpec,
+  brokenBookmarks: {
+    key: 'brokenBookmarks',
+    header: 'Broken Bookmarks',
+    size: 120,
+    kind: 'number',
+    align: 'right',
+    info: 'Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.',
+  } as ColumnSpec,
   emptyAnchorCount: {
     key: 'emptyAnchorCount',
     header: 'Empty Anchors',
@@ -843,6 +851,7 @@ export const COLUMN_SPECS: Record<TabKey, ColumnSpec[]> = {
     COL.inlinks,
     COL.outlinks,
     COL.emptyAnchorCount,
+    COL.brokenBookmarks,
     COL.jsOnlyLinksCount,
   ],
 };

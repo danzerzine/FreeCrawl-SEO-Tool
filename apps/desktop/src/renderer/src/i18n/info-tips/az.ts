@@ -263,6 +263,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     "Eyni anda gedən HTTP sorğularının sayı. Screaming Frog-un 'Max Threads' ayarına bərabərdir. Daha yüksək = daha sürətli tarama + hədəf serverə daha çox yük.",
   ['Number of internal `<a>` elements with no usable anchor text or alt — accessibility / SEO regression.']:
     'İstifadəyə yararlı lövbər mətni və ya alt-ı olmayan daxili `<a>` elementlərinin sayı — əlçatanlıq / SEO geriləməsi.',
+  ['Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.']:
+    "Eyni səhifədəki `#əlfəcin` keçidlərinin sayı, hansı ki, id-si və ya `<a name>` səhifədə yoxdur. Digər səhifələrdəki əlfəcinlər yoxlanılmır.",
   ['Number of internal pages that link to this URL. A rough internal-PageRank signal.']:
     'Bu URL-ə keçid verən daxili səhifələrin sayı. Kobud daxili PageRank siqnalı.',
   ["Number of pages in this URL's near-duplicate cluster (1 = no duplicates, ≥2 = part of a duplicate group). Tunable via Settings → Duplicates."]:

@@ -360,6 +360,7 @@ interface UrlRowDb {
   landmark_main: number;
   skip_link_present: number;
   aria_invalid_roles: number;
+  broken_bookmarks: number;
   schema_duplicate_ids: number;
   schema_unknown_types: number;
   schema_missing_required: number;
@@ -585,6 +586,7 @@ export interface UpsertUrlInput {
   landmarkMain?: number;
   skipLinkPresent?: number;
   ariaInvalidRoles?: number;
+  brokenBookmarks?: number;
   schemaDuplicateIds?: number;
   schemaUnknownTypes?: number;
   schemaMissingRequired?: number;
@@ -705,7 +707,7 @@ const UPSERT_URL_SQL = `
     cors_allow_origin, cors_allow_credentials, cors_allow_methods, cors_allow_headers,
     images_responsive, picture_count,
     url_malformed, url_trap, og_type, og_url, og_site_name, og_locale, android_icon,
-    landmark_main, skip_link_present, aria_invalid_roles,
+    landmark_main, skip_link_present, aria_invalid_roles, broken_bookmarks,
     schema_duplicate_ids, schema_unknown_types, schema_missing_required,
     schema_missing_recommended, schema_findings,
     heading_order_violations, subresource_request_count,
@@ -750,7 +752,7 @@ const UPSERT_URL_SQL = `
     :cors_allow_origin, :cors_allow_credentials, :cors_allow_methods, :cors_allow_headers,
     :images_responsive, :picture_count,
     :url_malformed, :url_trap, :og_type, :og_url, :og_site_name, :og_locale, :android_icon,
-    :landmark_main, :skip_link_present, :aria_invalid_roles,
+    :landmark_main, :skip_link_present, :aria_invalid_roles, :broken_bookmarks,
     :schema_duplicate_ids, :schema_unknown_types, :schema_missing_required,
     :schema_missing_recommended, :schema_findings,
     :heading_order_violations, :subresource_request_count,
@@ -889,6 +891,7 @@ const UPSERT_URL_SQL = `
     landmark_main = excluded.landmark_main,
     skip_link_present = excluded.skip_link_present,
     aria_invalid_roles = excluded.aria_invalid_roles,
+    broken_bookmarks = excluded.broken_bookmarks,
     schema_duplicate_ids = excluded.schema_duplicate_ids,
     schema_unknown_types = excluded.schema_unknown_types,
     schema_missing_required = excluded.schema_missing_required,
@@ -2525,6 +2528,7 @@ export class ProjectDb {
       landmark_main: input.landmarkMain ?? 0,
       skip_link_present: input.skipLinkPresent ?? 0,
       aria_invalid_roles: input.ariaInvalidRoles ?? 0,
+      broken_bookmarks: input.brokenBookmarks ?? 0,
       schema_duplicate_ids: input.schemaDuplicateIds ?? 0,
       schema_unknown_types: input.schemaUnknownTypes ?? 0,
       schema_missing_required: input.schemaMissingRequired ?? 0,
@@ -7085,7 +7089,6 @@ export class ProjectDb {
       h1Empty: countWhere(`${html} AND h1_count > 0 AND (h1 IS NULL OR h1 = '')`),
       h1TooLong: countWhere(`${html} AND h1_length > 70`),
       titleMultiple: countWhere(`${html} AND title_count > 1`),
-      urlFragment: countWhere(`${html} AND INSTR(url, '#') > 0`),
       urlSpaces: countWhere(
         `${html} AND (INSTR(url, ' ') > 0 OR INSTR(url, '%20') > 0)`,
       ),
@@ -7100,6 +7103,7 @@ export class ProjectDb {
            ELSE (SELECT COUNT(*) FROM images WHERE alt = '') END) AS c`,
       ),
       linkEmptyAnchor: countWhere(`${html} AND empty_anchor_count > 0`),
+      brokenBookmark: countWhere(`${html} AND broken_bookmarks > 0`),
       appleTouchIconMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND (apple_touch_icon IS NULL OR apple_touch_icon = '')`,
@@ -10513,6 +10517,7 @@ export class ProjectDb {
     landmarkMain: r.landmark_main ?? 0,
     skipLinkPresent: r.skip_link_present ?? 0,
     ariaInvalidRoles: r.aria_invalid_roles ?? 0,
+    brokenBookmarks: r.broken_bookmarks ?? 0,
     schemaDuplicateIds: r.schema_duplicate_ids ?? 0,
     schemaUnknownTypes: r.schema_unknown_types ?? 0,
     schemaMissingRequired: r.schema_missing_required ?? 0,
@@ -11645,11 +11650,6 @@ export function categoryWhereClause(
       // More than one <title> tag — spec says exactly one in <head>.
       // Browsers pick the first; SEO tools' behaviour varies.
       return "is_external = 0 AND content_kind = 'html' AND title_count > 1";
-    case 'issues:url-fragment':
-      // A `#` in the URL means the crawler reached a fragment that wasn't
-      // stripped earlier (URL normaliser usually does, but List-mode +
-      // some redirect chains can leave it).
-      return "is_external = 0 AND content_kind = 'html' AND INSTR(url, '#') > 0";
     case 'issues:url-spaces':
       // Literal space or `%20` in URL — encoding bug, often from CMS that
       // produced filenames with spaces.
@@ -11674,6 +11674,10 @@ export function categoryWhereClause(
       // alt="" specifically. Decorative images use this intentionally, but
       // many sites apply it to content images by mistake.
       return "is_external = 0 AND content_kind = 'html' AND images_empty_alt > 0";
+    case 'issues:broken-bookmark':
+      // Page links to a `#fragment` of itself that has no matching id /
+      // `<a name>` (counted by the parser; stored URLs carry no fragment).
+      return "is_external = 0 AND content_kind = 'html' AND broken_bookmarks > 0";
     case 'issues:link-empty-anchor':
       // Internal links whose anchor has no usable text or alt — Lighthouse
       // a11y "links must have discernible names".

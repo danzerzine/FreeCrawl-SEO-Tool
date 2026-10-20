@@ -264,6 +264,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "Aynı anda açık olan HTTP isteklerinin sayısı. Screaming Frog'daki 'Max Threads' karşılığıdır. Yüksek = daha hızlı crawl ve hedef sunucuda daha fazla yük.",
   ['Number of internal `<a>` elements with no usable anchor text or alt — accessibility / SEO regression.']:
     'Kullanılabilir bağlantı metni veya alt metni olmayan iç `<a>` öğelerinin sayısı — erişilebilirlik / SEO açısından gerileme.',
+  ['Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.']:
+    "Aynı sayfadaki, id'si veya `<a name>` değeri sayfada bulunmayan `#yer-imi` bağlantılarının sayısı. Diğer sayfalardaki yer imleri denetlenmez.",
   ['Number of internal pages that link to this URL. A rough internal-PageRank signal.']:
     "Bu URL'e bağlantı veren iç sayfaların sayısı. Kabaca bir dahili PageRank sinyalidir.",
   ["Number of pages in this URL's near-duplicate cluster (1 = no duplicates, ≥2 = part of a duplicate group). Tunable via Settings → Duplicates."]:
