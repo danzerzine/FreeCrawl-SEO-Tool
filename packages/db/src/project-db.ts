@@ -11927,6 +11927,13 @@ export function categoryWhereClause(
               AND EXISTS (SELECT 1 FROM sitemap_urls s WHERE s.url = urls.url)`;
     case 'issues:image-missing-alt':
       return "is_external = 0 AND content_kind = 'html' AND images_missing_alt > 0";
+    case 'issues:image-duplicate-alt':
+      // Pages using at least one image whose alt is shared with a different
+      // image — the same per-usage predicate as the Images tab and the
+      // sidebar counter.
+      return `is_external = 0 AND content_kind = 'html'
+              AND EXISTS (SELECT 1 FROM image_usages iu
+                          WHERE iu.from_url_id = urls.id AND ${USAGE_DUPLICATE_ALT_PREDICATE})`;
     case 'issues:meta-refresh-used':
       // Any HTML page that declares a `<meta http-equiv="refresh">` —
       // Google explicitly recommends 301 over meta refresh, so every
@@ -12840,8 +12847,13 @@ export function categoryWhereClause(
               AND indexability = 'indexable'
               AND status_code >= 200 AND status_code < 300
               AND title IS NOT NULL AND title != ''`;
-    default:
-      return null;
+    default: {
+      // Every category needs its own case: falling through to `null` (no
+      // filter) once made the bulk "Image — Duplicate Alt" file list every
+      // crawled URL.
+      const unhandled: never = cat;
+      throw new Error(`No URL filter for category ${String(unhandled)}`);
+    }
   }
 }
 

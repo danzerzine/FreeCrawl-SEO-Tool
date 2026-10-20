@@ -250,7 +250,6 @@ async function main(): Promise<void> {
   // labels; in spider mode the positional argument is the start URL.
   const startUrl = listFile ? (listUrls[0] ?? '') : positionals[0]!;
   const dbPath = resolve(values.db ?? 'crawl.seoproject');
-  const db = new ProjectDb(dbPath);
 
   // Layered config: defaults → file (if `--config`) → command-line flags.
   // The file format matches the Settings → Export Settings envelope
@@ -280,16 +279,16 @@ async function main(): Promise<void> {
     urlList: listUrls,
     startUrl,
     ...(values.depth !== undefined
-      ? { maxDepth: parseNumeric(values.depth, DEFAULT_CRAWL_CONFIG.maxDepth) }
+      ? { maxDepth: parseNumeric('depth', values.depth, DEFAULT_CRAWL_CONFIG.maxDepth) }
       : {}),
     ...(values.max !== undefined
-      ? { maxUrls: parseNumeric(values.max, DEFAULT_CRAWL_CONFIG.maxUrls) }
+      ? { maxUrls: parseNumeric('max', values.max, DEFAULT_CRAWL_CONFIG.maxUrls) }
       : {}),
     ...(values.concurrency !== undefined
-      ? { maxConcurrency: parseNumeric(values.concurrency, DEFAULT_CRAWL_CONFIG.maxConcurrency) }
+      ? { maxConcurrency: parseNumeric('concurrency', values.concurrency, DEFAULT_CRAWL_CONFIG.maxConcurrency) }
       : {}),
     ...(values.rps !== undefined
-      ? { maxRps: parseNumeric(values.rps, DEFAULT_CRAWL_CONFIG.maxRps) }
+      ? { maxRps: parseNumeric('rps', values.rps, DEFAULT_CRAWL_CONFIG.maxRps, { integer: false }) }
       : {}),
     ...(values['user-agent'] !== undefined ? { userAgent: values['user-agent'] } : {}),
     // `--no-robots` / `--external` only flip the flag ON in their direction;
@@ -305,6 +304,9 @@ async function main(): Promise<void> {
     ...(values.exclude !== undefined ? { excludePatterns: values.exclude } : {}),
   };
 
+  // Opened only after every flag validated, so a bad argument leaves no
+  // empty project file behind.
+  const db = new ProjectDb(dbPath);
   const crawler = new Crawler(config, db);
   const jsonMode = Boolean(values.json);
 
@@ -415,10 +417,26 @@ function readConfigFile(file: string): Record<string, unknown> {
   return parsed;
 }
 
-function parseNumeric(value: string | undefined, fallback: number): number {
+/**
+ * Parse a non-negative numeric flag. A bad value exits 2 instead of falling
+ * back: `parseInt('0.5')` used to turn `--rps 0.5` into 0, which means
+ * "no rate limit" — the opposite of what the user asked for.
+ */
+function parseNumeric(
+  flag: string,
+  value: string | undefined,
+  fallback: number,
+  { integer = true }: { integer?: boolean } = {},
+): number {
   if (value === undefined) return fallback;
-  const n = Number.parseInt(value, 10);
-  return Number.isFinite(n) ? n : fallback;
+  const n = Number(value.trim());
+  if (value.trim() === '' || !Number.isFinite(n) || n < 0 || (integer && !Number.isInteger(n))) {
+    console.error(
+      `Invalid --${flag}: ${value} (expected a non-negative ${integer ? 'whole number' : 'number'}).`,
+    );
+    process.exit(2);
+  }
+  return n;
 }
 
 /**
