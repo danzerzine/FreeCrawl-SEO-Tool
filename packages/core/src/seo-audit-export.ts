@@ -1,10 +1,9 @@
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, type WriteStream } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { STATUS_CODES } from 'node:http';
-import { pipeline } from 'node:stream/promises';
-import { Readable } from 'node:stream';
+import { once } from 'node:events';
 import type { ProjectDb } from '@freecrawl/db';
 import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
@@ -153,8 +152,10 @@ interface BodyFacts {
 
 /** Per-export lookups the row columns draw on, loaded once per run. */
 export interface SeoAuditContext {
-  bodies: Map<string, BodyFacts>;
-  headers: Map<string, { lastModified?: string; contentLength?: number }>;
+  /** Keyed by URL id. */
+  bodies: Map<number, BodyFacts>;
+  /** Keyed by URL id. */
+  headers: Map<number, { lastModified?: string; contentLength?: number }>;
   external: Map<number, { total: number; unique: number }>;
 }
 
@@ -177,6 +178,24 @@ function metaAttrs(tag: string): Map<string, string> {
   return attrs;
 }
 
+const detachedCache = new Map<string, string>();
+
+/**
+ * A copy of `s` that does not point into the string it was cut from: V8
+ * keeps a substring as a view of its parent, so a robots value kept per
+ * page would otherwise pin that page's whole decompressed body. The values
+ * repeat across a site, so one copy serves every page.
+ */
+function detached(s: string): string {
+  let copy = detachedCache.get(s);
+  if (copy === undefined) {
+    // A fresh flat string; lossless, lone surrogates included.
+    copy = JSON.parse(JSON.stringify(s)) as string;
+    if (detachedCache.size < 10_000) detachedCache.set(copy, copy);
+  }
+  return copy;
+}
+
 function bodyFacts(body: string, contentLength: number | null): BodyFacts {
   let metaDescriptions = 0;
   let metaRobots = 0;
@@ -187,18 +206,17 @@ function bodyFacts(body: string, contentLength: number | null): BodyFacts {
     if (name === 'description') metaDescriptions++;
     else if (ROBOTS_META_NAMES.has(name)) {
       metaRobots++;
-      metaRobots1 ??= (attrs.get('content') ?? '').trim() || null;
+      metaRobots1 ??= detached((attrs.get('content') ?? '').trim()) || null;
     }
   }
   // The stored copy is the decoded body: its UTF-8 bytes are the ones
   // fetched only when the byte count matches (no charset re-encoding,
   // no snapshot cap). Screaming Frog prints the digest as a number, so a
   // leading zero is dropped (`f4d9…` for `0f4d9…`).
-  const bytes = Buffer.from(body, 'utf8');
   const md5 =
-    contentLength !== null && bytes.length === contentLength
+    contentLength !== null && Buffer.byteLength(body, 'utf8') === contentLength
       ? createHash('md5')
-          .update(bytes)
+          .update(body, 'utf8')
           .digest('hex')
           .replace(/^0+(?=.)/, '')
       : null;
@@ -207,23 +225,30 @@ function bodyFacts(body: string, contentLength: number | null): BodyFacts {
 
 /** One pass over stored bodies, headers and external links. */
 export function loadSeoAuditContext(db: ProjectDb): SeoAuditContext {
-  const lengths = new Map<string, number | null>();
-  for (const row of db.iterateUrlsByCategory('internal:html'))
-    lengths.set(row.url, row.contentLength);
-  const bodies = new Map<string, BodyFacts>();
-  for (const src of db.iteratePageSources()) {
+  // The hash needs the stored byte count, taken only for Internal: HTML rows.
+  const html = idSet(db.urlIdsByCategory('internal:html'));
+  const bodies = new Map<number, BodyFacts>();
+  for (const src of db.iteratePageBodies()) {
     if (!src.html) continue;
-    bodies.set(src.url, bodyFacts(src.html, lengths.get(src.url) ?? null));
+    bodies.set(src.id, bodyFacts(src.html, html.has(src.id) ? src.contentLength : null));
   }
   const headers: SeoAuditContext['headers'] = new Map();
-  for (const h of db.iterateResponseHeaders()) {
-    if (h.name !== 'last-modified' && h.name !== 'content-length') continue;
-    const entry = headers.get(h.url) ?? {};
+  for (const h of db.iterateResponseHeadersNamed(['content-length', 'last-modified'])) {
+    const entry = headers.get(h.urlId) ?? {};
     if (h.name === 'last-modified') entry.lastModified = h.value;
     else if (/^\d+$/.test(h.value.trim())) entry.contentLength = Number(h.value.trim());
-    headers.set(h.url, entry);
+    headers.set(h.urlId, entry);
   }
-  return { bodies, headers, external: db.externalOutlinkCounts() };
+  const external = db.externalOutlinkCounts();
+  return { bodies, headers, external };
+}
+
+/** Membership test over an ascending id list. */
+function idSet(ids: Uint32Array): { has(id: number): boolean } {
+  const max = ids.length ? ids[ids.length - 1]! : 0;
+  const bits = new Uint8Array(max + 1);
+  for (const id of ids) bits[id] = 1;
+  return { has: (id) => id <= max && bits[id] === 1 };
 }
 
 function inRange(row: CrawlUrlRow, from: number): boolean {
@@ -336,7 +361,7 @@ const round3 = (n: number): number => Math.round(n * 1000) / 1000;
 
 /** One column's value. Lengths and counts are `0` when the element is missing, as in SF. */
 function cell(column: string, row: CrawlUrlRow, ctx: SeoAuditContext): Cell {
-  const body = ctx.bodies.get(row.url);
+  const body = ctx.bodies.get(row.id);
   const page = isHtmlPage(row);
   const external = ctx.external.get(row.id);
   switch (column) {
@@ -402,7 +427,7 @@ function cell(column: string, row: CrawlUrlRow, ctx: SeoAuditContext): Cell {
     case 'Transferred (Bytes)':
       // Bytes on the wire: the body itself unless it came compressed.
       return row.contentEncoding && row.contentEncoding !== 'identity'
-        ? (ctx.headers.get(row.url)?.contentLength ?? null)
+        ? (ctx.headers.get(row.id)?.contentLength ?? null)
         : row.contentLength;
     case 'Word Count':
       return row.wordCount ?? 0;
@@ -441,7 +466,7 @@ function cell(column: string, row: CrawlUrlRow, ctx: SeoAuditContext): Cell {
         ? null
         : Math.round(row.responseTimeMs) / 1000;
     case 'Last Modified':
-      return ctx.headers.get(row.url)?.lastModified ?? null;
+      return ctx.headers.get(row.id)?.lastModified ?? null;
     case 'Redirect URL':
       return redirectUrl(row);
     case 'Redirect Type':
@@ -802,50 +827,160 @@ function quoted(value: Cell): string {
   return s.startsWith('"') ? s : `"${s}"`;
 }
 
-async function writeAuditFile(
-  db: ProjectDb,
-  filePath: string,
-  f: AuditFile,
-  ctx: SeoAuditContext,
-): Promise<number> {
-  let rowsWritten = 0;
-  const generator = async function* (): AsyncGenerator<string> {
-    yield '﻿' + f.headers.map(quoted).join(',') + '\r\n';
-    for (const row of db.iterateUrlsByCategory(f.category)) {
-      if (f.keep && !f.keep(row)) continue;
-      rowsWritten++;
-      const body = ctx.bodies.get(row.url);
-      const cells = f.headers.map((c) =>
-        c === 'Occurrences' ? occurrences(f.occurrences, row, body) : cell(c, row, ctx),
-      );
-      yield cells.map(quoted).join(',') + '\r\n';
-    }
-  };
-  await pipeline(Readable.from(generator()), createWriteStream(filePath, { encoding: 'utf8' }));
-  return rowsWritten;
+/** One output file of the shared pass: its rows, its open `.part` stream. */
+interface AuditSink {
+  f: AuditFile;
+  /** Ids of the file's category, ascending; null when it is every URL. */
+  ids: Uint32Array | null;
+  next: number;
+  out: WriteStream;
+  buf: string;
+  rows: number;
+  failed: boolean;
 }
 
-/** Writes the folder under `outputDir` (created when missing), each file via `.part` + rename. */
+const FLUSH_CHARS = 1 << 16;
+
+/**
+ * Every file draws its rows from the urls table in id order, so one pass
+ * over all URLs feeds them all: each file keeps a row when its category's
+ * id list holds it (the same rows `iterateUrlsByCategory` would yield).
+ */
+async function writeAuditFiles(
+  db: ProjectDb,
+  targets: { f: AuditFile; partPath: string }[],
+  ctx: SeoAuditContext,
+): Promise<Map<AuditFile, Promise<number>>> {
+  const results = new Map<AuditFile, Promise<number>>();
+  const sinks: AuditSink[] = [];
+  const pendingDrains: Promise<void>[] = [];
+  const write = (sink: AuditSink, flushAt: number): void => {
+    if (sink.failed || sink.buf.length < flushAt) return;
+    const ok = sink.out.write(sink.buf);
+    sink.buf = '';
+    if (!ok)
+      pendingDrains.push(
+        once(sink.out, 'drain').then(
+          () => undefined,
+          () => undefined,
+        ),
+      );
+  };
+  for (const { f, partPath } of targets) {
+    const out = createWriteStream(partPath, { encoding: 'utf8' });
+    const sink: AuditSink = {
+      f,
+      ids: f.category === 'all' ? null : db.urlIdsByCategory(f.category),
+      next: 0,
+      out,
+      buf: '﻿' + f.headers.map(quoted).join(',') + '\r\n',
+      rows: 0,
+      failed: false,
+    };
+    results.set(
+      f,
+      new Promise<number>((resolve, reject) => {
+        out.on('error', (err) => {
+          sink.failed = true;
+          reject(err);
+        });
+        out.on('finish', () => resolve(sink.rows));
+      }),
+    );
+    // A failed file must not stop the others; its error is read from `results`.
+    results.get(f)!.catch(() => undefined);
+    sinks.push(sink);
+  }
+  try {
+    for (const row of db.iterateUrlsByCategory('all')) {
+      let body: BodyFacts | undefined;
+      let bodyRead = false;
+      for (const sink of sinks) {
+        if (sink.failed) continue;
+        if (sink.ids) {
+          const ids = sink.ids;
+          while (sink.next < ids.length && ids[sink.next]! < row.id) sink.next++;
+          if (sink.next >= ids.length || ids[sink.next] !== row.id) continue;
+          sink.next++;
+        }
+        const f = sink.f;
+        if (f.keep && !f.keep(row)) continue;
+        if (!bodyRead) {
+          body = ctx.bodies.get(row.id);
+          bodyRead = true;
+        }
+        sink.rows++;
+        const cells = f.headers.map((c) =>
+          c === 'Occurrences' ? occurrences(f.occurrences, row, body) : cell(c, row, ctx),
+        );
+        sink.buf += cells.map(quoted).join(',') + '\r\n';
+        write(sink, FLUSH_CHARS);
+      }
+      if (pendingDrains.length) await Promise.all(pendingDrains.splice(0));
+    }
+  } catch (err) {
+    for (const sink of sinks) if (!sink.failed) sink.out.destroy(err as Error);
+    return results;
+  }
+  for (const sink of sinks) {
+    write(sink, 0);
+    sink.out.end();
+  }
+  return results;
+}
+
+/**
+ * Writes the folder under `outputDir` (created when missing), each file via
+ * `.part` + rename. Reads through SQLite's page cache: see `withoutMmap`.
+ */
 export async function runSeoAuditExport(
   db: ProjectDb,
   outputDir: string,
 ): Promise<SeoAuditExportResult> {
+  return db.withoutMmap(() => writeSeoAudit(db, outputDir));
+}
+
+async function writeSeoAudit(db: ProjectDb, outputDir: string): Promise<SeoAuditExportResult> {
   const files: SeoAuditExportResult['files'] = [];
   const errors: SeoAuditExportResult['errors'] = [];
   const disabled = db.getDisabledIssues();
   const ctx = loadSeoAuditContext(db);
   for (const legacy of LEGACY_FILES) await rm(join(outputDir, legacy), { force: true });
-  for (const f of SEO_AUDIT_FILES) {
-    if (disabled.has(f.category)) continue;
-    const filePath = join(outputDir, f.file);
-    try {
-      const rowsWritten = await writeExportFile(filePath, (partPath) =>
-        writeAuditFile(db, partPath, f, ctx),
-      );
-      files.push({ filePath, label: f.label, rowsWritten });
-    } catch (err) {
+  const wanted = SEO_AUDIT_FILES.filter((f) => !disabled.has(f.category));
+  // Each file keeps its own `.part` + rename; the writes share one pass,
+  // started once every file's `.part` path is known.
+  const targets: { f: AuditFile; partPath: string }[] = [];
+  let ready!: () => void;
+  const allReady = new Promise<void>((resolve) => (ready = resolve));
+  let pass: Promise<Map<AuditFile, Promise<number>>> | undefined;
+  let waiting = wanted.length;
+  const settle = (): void => {
+    if (--waiting === 0) ready();
+  };
+  const runs = wanted.map((f) =>
+    writeExportFile(join(outputDir, f.file), async (partPath) => {
+      targets.push({ f, partPath });
+      settle();
+      await allReady;
+      pass ??= writeAuditFiles(db, targets, ctx);
+      return (await pass).get(f)!;
+    }).catch((err: unknown) => {
+      // Failed before its write started (folder not creatable): the pass
+      // must not wait for it.
+      if (!targets.some((t) => t.f === f)) settle();
+      throw err;
+    }),
+  );
+  if (wanted.length === 0) ready();
+  const settled = await Promise.allSettled(runs);
+  settled.forEach((r, i) => {
+    const f = wanted[i]!;
+    if (r.status === 'fulfilled') {
+      files.push({ filePath: join(outputDir, f.file), label: f.label, rowsWritten: r.value });
+    } else {
+      const err = r.reason;
       errors.push({ label: f.label, error: err instanceof Error ? err.message : String(err) });
     }
-  }
+  });
   return { outputDir, files, errors };
 }

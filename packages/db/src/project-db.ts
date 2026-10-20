@@ -1510,7 +1510,7 @@ export class ProjectDb {
     this.db.exec(`PRAGMA cache_size = ${readOnly ? -32768 : -131072}`);
     // 30GB virtual address window for mmap-backed reads; OS only pages in
     // what's touched, so there's no actual memory commit here.
-    this.db.exec('PRAGMA mmap_size = 30000000000');
+    this.db.exec(`PRAGMA mmap_size = ${MMAP_SIZE}`);
     if (!readOnly) {
       this.db.exec('PRAGMA page_size = 4096');
       this.db.exec('PRAGMA wal_autocheckpoint = 2000');
@@ -8894,6 +8894,70 @@ export class ProjectDb {
   }
 
   /**
+   * Runs `fn` with SQLite reading through its own page cache instead of
+   * the memory map. A long read-everything export otherwise maps every
+   * page it touches (urls, links) into the process, and Windows counts
+   * them all as the app's memory; through the cache the reads stay in
+   * the OS file cache. Restored afterwards.
+   */
+  async withoutMmap<T>(fn: () => Promise<T>): Promise<T> {
+    this.db.exec('PRAGMA mmap_size = 0');
+    try {
+      return await fn();
+    } finally {
+      this.db.exec(`PRAGMA mmap_size = ${MMAP_SIZE}`);
+    }
+  }
+
+  /**
+   * Ids of the URLs `iterateUrlsByCategory(category)` yields, ascending,
+   * without building the rows: lets one pass over every URL feed several
+   * category files.
+   */
+  urlIdsByCategory(category: UrlCategory): Uint32Array {
+    const where = categoryWhereClause(category, this.getDisabledIssues());
+    const sql = where
+      ? `SELECT id FROM urls WHERE (${where}) ORDER BY id`
+      : 'SELECT id FROM urls ORDER BY id';
+    const ids: number[] = [];
+    for (const r of this.db.prepare(sql).iterate() as Iterable<{ id: number }>) ids.push(r.id);
+    return Uint32Array.from(ids);
+  }
+
+  /**
+   * The stored (non-rendered) body of every page `iteratePageSources`
+   * yields, keyed by URL id, with the URL's stored `content_length`.
+   * Skips decompressing the rendered copy.
+   */
+  *iteratePageBodies(): IterableIterator<{ id: number; contentLength: number | null; html: string }> {
+    const rows = this.db
+      .prepare(
+        `SELECT u.id AS id, u.content_length AS content_length, s.body AS body
+           FROM url_sources s
+           JOIN urls u ON u.id = s.url_id
+          WHERE s.body_length > 0 OR s.rendered_body_length > 0
+          ORDER BY s.url_id`,
+      )
+      .iterate() as unknown as Iterable<{ id: number; content_length: number | null; body: string | Uint8Array | null }>;
+    for (const r of rows) {
+      yield { id: r.id, contentLength: r.content_length, html: this.bodies.unpack(r.body) ?? '' };
+    }
+  }
+
+  /** Stored response headers with one of `names` (exact, lowercase), keyed by URL id. */
+  *iterateResponseHeadersNamed(names: readonly string[]): IterableIterator<{ urlId: number; name: string; value: string }> {
+    if (names.length === 0) return;
+    const rows = this.db
+      .prepare(
+        `SELECT url_id, name, value FROM headers
+          WHERE name IN (${names.map(() => '?').join(', ')})
+          ORDER BY url_id, name`,
+      )
+      .iterate(...names) as unknown as Iterable<{ url_id: number; name: string; value: string }>;
+    for (const r of rows) yield { urlId: r.url_id, name: r.name, value: r.value };
+  }
+
+  /**
    * Every stored response header, streamed — one row per (URL, header
    * name). The `headers` table keeps every header the server sent, names
    * lowercased, `set-cookie` / `authorization` values redacted at write
@@ -11927,6 +11991,9 @@ function buildClauseSql(c: FilterClause, args: (string | number)[]): string | nu
     }
   }
 }
+
+/** `PRAGMA mmap_size` of every connection. */
+const MMAP_SIZE = 30_000_000_000;
 
 export function categoryWhereClause(
   cat: UrlCategory,
