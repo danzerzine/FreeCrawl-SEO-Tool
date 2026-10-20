@@ -11,7 +11,7 @@
 import { join, relative, sep } from 'node:path';
 import { rmdir, writeFile } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
-import { EXPORT_DATASET_COLUMNS } from '@freecrawl/shared-types';
+import { EXPORT_DATASET_COLUMNS, ISSUE_CATEGORIES } from '@freecrawl/shared-types';
 import type {
   BulkExportFile,
   BulkExportResult,
@@ -193,14 +193,18 @@ export async function exportIssueInlinks(
   const errors: { label: string; error: string }[] = [];
   const hasRows = (r: { rowsWritten: number }): boolean => r.rowsWritten > 0;
   const disabled = db.getDisabledIssues();
+  // Issue keys come from the project file: only the checks this build
+  // knows get a file, and the name keeps to `[a-z0-9-]`, so a crafted key
+  // (`issues:../../x`) can never name a path outside the subfolder.
+  const known = new Set<string>(ISSUE_CATEGORIES);
   const issueKeys = [...db.getIssueCounts().keys()]
-    .filter((key) => !disabled.has(key as UrlCategory))
+    .filter((key) => known.has(key) && !disabled.has(key as UrlCategory))
     .sort();
   if (issueKeys.length > 0) {
     const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
     let written = 0;
     for (const key of issueKeys) {
-      const name = key.replace(/^issues:/, '');
+      const name = key.replace(/^issues:/, '').replace(/[^a-z0-9-]/gi, '-');
       const issueLabel = BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? name;
       const label = `Issue Inlinks — ${issueLabel}`;
       const filePath = join(issueDir, `inlinks-${name}.csv`);
