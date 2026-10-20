@@ -349,7 +349,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'No Outlinks (Dead-End)', category: 'issues:outlinks-zero' },
     { label: 'Internal Link → Redirect', category: 'issues:internal-link-to-redirect' },
     { label: 'Dead External Domain', category: 'issues:dead-external-domain' },
-    { label: 'JS-Only Navigation', category: 'issues:js-only-navigation' },
+    { label: 'Pages With Uncrawlable Internal Outlinks', category: 'issues:js-only-navigation' },
   ],
 
   // ─── Analytics tab ──────────────────────────────────────────────────────

@@ -48,6 +48,7 @@ import type {
   SeoRow,
   GscInspectionResult,
   UrlAnalyticsDetail,
+  UncrawlableLink,
   UrlCategory,
   UrlDetail,
   LogIngestInput,
@@ -147,6 +148,11 @@ const INLINKS_NOFOLLOW_ONLY_SQL = `is_external = 0 AND content_kind = 'html'
     SELECT 1 FROM links l
     WHERE l.to_url = urls.url AND l.is_internal = 1 AND l.from_url_id != urls.id
       AND (l.rel IS NULL OR l.rel NOT LIKE '%nofollow%')
+  )`;
+/** Pages with a link-like element a crawler cannot follow, aimed at the site. */
+const UNCRAWLABLE_INTERNAL_OUTLINKS_SQL = `is_external = 0 AND content_kind = 'html'
+  AND EXISTS (
+    SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id AND u.is_internal = 1
   )`;
 const EMPTY_DISABLED: ReadonlySet<UrlCategory> = new Set();
 
@@ -1528,6 +1534,7 @@ export class ProjectDb {
          DELETE FROM images;
          DELETE FROM resource_usages;
          DELETE FROM resources;
+         DELETE FROM uncrawlable_links;
          DELETE FROM links;
          DELETE FROM headers;
          DELETE FROM url_sources;
@@ -1660,6 +1667,9 @@ export class ProjectDb {
             .run(...slice);
           this.db
             .prepare(`DELETE FROM resource_usages WHERE from_url_id IN (${placeholders})`)
+            .run(...slice);
+          this.db
+            .prepare(`DELETE FROM uncrawlable_links WHERE from_url_id IN (${placeholders})`)
             .run(...slice);
           this.db
             .prepare(`DELETE FROM urls_issues WHERE url_id IN (${placeholders})`)
@@ -2013,6 +2023,12 @@ export class ProjectDb {
      * Inlinks tab can list the pages that embed it.
      */
     resources?: DiscoveredResource[];
+    /**
+     * Link-like elements a crawler cannot follow. Undefined when the crawl
+     * does not store them (Store → Uncrawlable Links off): rows an earlier
+     * crawl stored are then left in place, as for `storeLinks`.
+     */
+    uncrawlableLinks?: UncrawlableLink[];
     fromDepth: number;
   }): { urlId: number } {
     return this.runInTransaction(() => {
@@ -2051,6 +2067,16 @@ export class ProjectDb {
           if (payload.resources) {
             this.db.prepare('DELETE FROM resource_usages WHERE from_url_id = ?').run(urlId);
             if (payload.resources.length > 0) this.insertResources(urlId, payload.resources);
+          }
+        }
+        if (payload.uncrawlableLinks) {
+          this.db.prepare('DELETE FROM uncrawlable_links WHERE from_url_id = ?').run(urlId);
+          const ins = this.db.prepare(
+            `INSERT INTO uncrawlable_links (from_url_id, tag, value, target, link_position, is_internal)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          );
+          for (const u of payload.uncrawlableLinks) {
+            ins.run(urlId, u.tag, u.value, u.target, u.linkPosition, u.isInternal ? 1 : 0);
           }
         }
         if (payload.storeImages ?? true) {
@@ -7547,7 +7573,7 @@ export class ProjectDb {
          AND h1 IS NOT NULL AND h1 != ''
          AND TRIM(LOWER(meta_description)) = TRIM(LOWER(h1))`,
       ),
-      jsOnlyNavigation: countWhere(`${html} AND js_only_links_count > 0`),
+      jsOnlyNavigation: countWhere(UNCRAWLABLE_INTERNAL_OUTLINKS_SQL),
       textCodeRatioLow: countWhere(
         `${html} AND text_code_ratio IS NOT NULL AND text_code_ratio < 10`,
       ),
@@ -7853,8 +7879,11 @@ export class ProjectDb {
   getOutlinks(urlId: number, limit: number): { rows: OutlinkRow[]; total: number } {
     const total = (
       this.db
-        .prepare('SELECT COUNT(*) AS c FROM links WHERE from_url_id = ?')
-        .get(urlId) as { c: number }
+        .prepare(
+          `SELECT (SELECT COUNT(*) FROM links WHERE from_url_id = ?)
+                + (SELECT COUNT(*) FROM uncrawlable_links WHERE from_url_id = ?) AS c`,
+        )
+        .get(urlId, urlId) as { c: number }
     ).c;
     const rows = this.db
       .prepare(
@@ -7890,7 +7919,7 @@ export class ProjectDb {
       link_origin: string | null;
       is_internal: number;
     }[];
-    return {
+    const out: { rows: OutlinkRow[]; total: number } = {
       total,
       rows: rows.map((r) => ({
         toUrl: r.to_url,
@@ -7908,8 +7937,51 @@ export class ProjectDb {
         linkPosition: (r.link_position as OutlinkRow['linkPosition']) ?? null,
         linkOrigin: (r.link_origin as OutlinkRow['linkOrigin']) ?? 'html',
         isInternal: r.is_internal === 1,
+        crawlable: true,
+        uncrawlableTag: null,
+        uncrawlableValue: null,
       })),
     };
+    // Then the links no crawler follows, after the real ones: they are
+    // listed so they can be found and fixed, never counted as outlinks.
+    const room = limit - out.rows.length;
+    if (room > 0) {
+      const un = this.db
+        .prepare(
+          `SELECT tag, value, target, link_position, is_internal
+           FROM uncrawlable_links WHERE from_url_id = ? LIMIT ?`,
+        )
+        .all(urlId, room) as unknown as {
+        tag: string;
+        value: string;
+        target: string | null;
+        link_position: string | null;
+        is_internal: number;
+      }[];
+      for (const u of un) {
+        out.rows.push({
+          toUrl: u.target ?? u.value,
+          toStatusCode: null,
+          toSize: null,
+          toFinalUrl: null,
+          toFinalStatusCode: null,
+          type: 'hyperlink',
+          anchor: null,
+          altText: null,
+          rel: null,
+          target: null,
+          pathType: null,
+          linkPath: null,
+          linkPosition: (u.link_position as OutlinkRow['linkPosition']) ?? null,
+          linkOrigin: 'html',
+          isInternal: u.is_internal === 1,
+          crawlable: false,
+          uncrawlableTag: u.tag,
+          uncrawlableValue: u.value,
+        });
+      }
+    }
+    return out;
   }
 
   getUrlDetail(id: number, linkLimit = 500): UrlDetail | null {
@@ -12389,14 +12461,10 @@ export function categoryWhereClause(
               AND h1 IS NOT NULL AND h1 != ''
               AND TRIM(LOWER(meta_description)) = TRIM(LOWER(h1))`;
     case 'issues:js-only-navigation':
-      // Page has ≥1 `<a>` that's clickable but not crawlable:
-      //   - `<a onclick="…">`        (no href at all)
-      //   - `<a href="javascript:…">`
-      //   - `<a href="#" onclick="…">`
-      // Bots can't follow these so any nav that depends on them is
-      // invisible; counted at parse time into js_only_links_count.
-      return `is_external = 0 AND content_kind = 'html'
-              AND js_only_links_count > 0`;
+      // Page has ≥1 link-like element a bot can't follow (`<a onclick>`,
+      // `href="javascript:…"`, `<span href>`, onclick navigation) pointing
+      // into the site or nowhere in particular; recorded at parse time.
+      return UNCRAWLABLE_INTERNAL_OUTLINKS_SQL;
     case 'issues:text-code-ratio-low':
       // Visible-text bytes < 10% of total HTML bytes. Almost always a
       // template-heavy / SPA shell that ships markup but no content.

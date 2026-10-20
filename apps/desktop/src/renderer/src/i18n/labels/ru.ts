@@ -247,7 +247,7 @@ export const RU_LABELS: Record<string, string> = {
   'Total Links per Page > 100': 'Всего ссылок на страницу > 100',
   'External Links > 100': 'Внешних ссылок > 100',
   'No Outlinks (Dead-End)': 'Нет исходящих ссылок (тупик)',
-  'JS-Only Navigation': 'Навигация только через JS',
+  'Pages With Uncrawlable Internal Outlinks': 'Страницы с внутренними ссылками, недоступными для обхода',
   'Internal Link → Redirect': 'Внутренняя ссылка → перенаправление',
   'Broken (All)': 'Битые (все)',
   'Broken Internal': 'Битые внутренние',
@@ -674,6 +674,7 @@ export const RU_LABELS: Record<string, string> = {
   'Link Position': 'Позиция ссылки',
   'Final Target': 'Конечная цель',
   'Link Origin': 'Происхождение ссылки',
+  'Crawlable': 'Доступна для обхода',
   Transferred: 'Передано',
 
   // Settings dialog sidebar sections

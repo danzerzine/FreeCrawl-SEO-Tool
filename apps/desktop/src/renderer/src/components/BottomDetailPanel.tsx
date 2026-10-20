@@ -320,6 +320,8 @@ export function BottomDetailPanel() {
             linkPath: l.linkPath,
             linkPosition: l.linkPosition,
             linkOrigin: l.linkOrigin,
+            crawlable: l.crawlable,
+            uncrawlableTag: l.uncrawlableTag,
           }),
         );
       }
@@ -500,7 +502,7 @@ export function BottomDetailPanel() {
                 selectedUrlId={detail?.row.id ?? null}
                 total={aggregatedOutlinksTotal}
                 shown={aggregatedOutlinks.length}
-                columns={LINK_COLUMNS}
+                columns={OUTLINK_COLUMNS}
                 rows={aggregatedOutlinks}
               />
             )
@@ -512,7 +514,7 @@ export function BottomDetailPanel() {
                 selectedUrlId={detail.row.id}
                 total={detail.outlinksTotal}
                 shown={detail.outlinks.length}
-                columns={LINK_COLUMNS}
+                columns={OUTLINK_COLUMNS}
                 rows={detail.outlinks.map((l) =>
                   buildLinkRow({
                     fromUrl: detail.row.url,
@@ -530,6 +532,8 @@ export function BottomDetailPanel() {
                     linkPath: l.linkPath,
                     linkPosition: l.linkPosition,
                     linkOrigin: l.linkOrigin,
+                    crawlable: l.crawlable,
+                    uncrawlableTag: l.uncrawlableTag,
                   }),
                 )}
               />
@@ -2472,6 +2476,12 @@ const LINK_COLUMNS: LinksColumn[] = [
   { id: 'transferred', header: 'Transferred', width: 100 },
 ];
 
+/** Outlinks also list the link-like elements no crawler follows. */
+const OUTLINK_COLUMNS: LinksColumn[] = [
+  ...LINK_COLUMNS,
+  { id: 'crawlable', header: 'Crawlable', width: 90 },
+];
+
 interface LinkFactsRow {
   fromUrl: string;
   toUrl: string;
@@ -2488,14 +2498,19 @@ interface LinkFactsRow {
   linkPath: string | null;
   linkPosition: LinkPosition | null;
   linkOrigin: LinkOrigin;
+  /** Outlinks only: adds the Crawlable cell. */
+  crawlable?: boolean;
+  /** Element of an uncrawlable outlink, shown as its Type. */
+  uncrawlableTag?: string | null;
 }
 
-/** Collapse a full link record into the 17 column cells shown in the UI. */
+/** Collapse a full link record into the 17 column cells shown in the UI (18 for Outlinks). */
 function buildLinkRow(r: LinkFactsRow): string[] {
-  const follow = r.rel?.toLowerCase().includes('nofollow') ? 'False' : 'True';
+  const follow =
+    r.crawlable === false ? '' : r.rel?.toLowerCase().includes('nofollow') ? 'False' : 'True';
   const size = formatSize(r.toSize);
-  return [
-    capitalise(r.type),
+  const cells = [
+    r.uncrawlableTag ? `<${r.uncrawlableTag}>` : capitalise(r.type),
     r.fromUrl,
     r.toUrl,
     r.anchor ?? '',
@@ -2520,6 +2535,8 @@ function buildLinkRow(r: LinkFactsRow): string[] {
     // decoded body length); mirror Size so the column is meaningful.
     size,
   ];
+  if (r.crawlable !== undefined) cells.push(r.crawlable ? 'True' : 'False');
+  return cells;
 }
 
 function capitalise(s: string): string {

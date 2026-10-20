@@ -2504,6 +2504,25 @@ const MIGRATIONS: Migration[] = [
         db.exec('ALTER TABLE urls ADD COLUMN broken_bookmarks INTEGER NOT NULL DEFAULT 0');
     },
   },
+  {
+    version: 103,
+    name: 'add_uncrawlable_links',
+    // Link-like elements a crawler cannot follow (`<span href>`, `onclick`
+    // navigation, `href="javascript:…"`), one row each. A table of their own
+    // rather than a flag on `links`: every inlink / outlink count, report and
+    // the enqueue path read `links`, and none of them may count these.
+    up: `
+      CREATE TABLE IF NOT EXISTS uncrawlable_links (
+        from_url_id   INTEGER NOT NULL REFERENCES urls(id) ON DELETE CASCADE,
+        tag           TEXT NOT NULL,
+        value         TEXT NOT NULL,
+        target        TEXT,
+        link_position TEXT,
+        is_internal   INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE INDEX IF NOT EXISTS idx_uncrawlable_links_from ON uncrawlable_links(from_url_id);
+    `,
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

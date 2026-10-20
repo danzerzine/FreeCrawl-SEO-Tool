@@ -6,8 +6,8 @@
 export const ZH_CN_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     '?page=1 / ?page=2 / ?page=4 → 对断裂分组的每个成员标记“序列断裂”。',
-  ['`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).']:
-    '看起来可点击但无法抓取的 `<a>` 元素（无 href 但有 onclick、`href="javascript:…"`，或带 onclick 的 `href="#"`）。',
+  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    '抓取器无法跟踪的类链接元素（无 href 但有 onclick、`href="javascript:…"`、带 onclick 的 `href="#"`、onclick 跳转，以及带 href 或 data-href 的 `<span>` / `<div>` / `<button>`）。每一个都列在出链中。',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     '`<link rel="amphtml" href="…">` 的值——本页的 AMP 版本。页面未声明 AMP 替代版本时为空。',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -591,9 +591,10 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '独立 URL 的移动版本（m-dot）：<link rel="alternate" media="only screen and (max-width: …)">。在响应式站点上为 null（大多数站点如此）——此处有值却没有反向的 canonical 互指，是典型的失效 m-dot 配置。',
   ['Crawl on only when the site really does serve a separate mobile host.']:
     '仅当站点确实提供独立移动主机时开启“抓取”。',
-  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.']:
-    '搜索引擎无法跟踪的链接：无 href 但有 onclick 的 <a>、href="javascript:…"，以及绑定了处理程序的 href="#" 占位符。仅“存储”——不可抓取的链接按定义永远不会被获取。为“仅 JS 导航”问题筛选器提供数据。',
-  ['On — it is a count, so it costs nothing.']: '开启——这只是一个计数，没有任何成本。',
+  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.']:
+    '搜索引擎无法跟踪的链接：无 href 但有 onclick 的 <a>、href="javascript:…"、绑定了处理程序的 href="#" 占位符、onclick 跳转，以及带 href 或 data-href 的 <span> / <div> / <button>。仅“存储”——不可抓取的链接按定义永远不会被获取。每一个都列在出链中，并计入“含无法抓取的内部出链的页面”检查。',
+  ['On — a few short rows per page.']:
+    '开启——每页只有几行简短记录。',
   ['With a Subfolder-scoped crawl, links pointing outside the start folder are fetched once so their status code is known, then stopped — they are checked, not crawled through. Off leaves them undiscovered entirely.']:
     '在子文件夹范围的抓取中，指向起始文件夹之外的链接会抓取一次以获知状态码，然后停止——只检查，不深入抓取。关闭则完全不发现它们。',
   ['On — knowing a link out of /blog/ is a 404 costs one request.']:

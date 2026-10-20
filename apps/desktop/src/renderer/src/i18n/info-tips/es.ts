@@ -6,8 +6,8 @@
 export const ES_INFO_TIPS: Record<string, string> = {
   ["?page=1 / ?page=2 / ?page=4 → flags 'Sequence Break' on every member of the broken cluster."]:
     "?page=1 / ?page=2 / ?page=4 → marca 'Ruptura de secuencia' en cada miembro del grupo roto.",
-  ['`<a>` elements that look clickable but aren\'t crawlable (no href + onclick, `href="javascript:…"`, or `href="#"` with onclick).']:
-    'Elementos `<a>` que parecen clicables pero no son rastreables (sin href + onclick, `href="javascript:…"`, o `href="#"` con onclick).',
+  ['Link-like elements a crawler can\'t follow (no href + onclick, `href="javascript:…"`, `href="#"` with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with href or data-href). Each one is listed in Outlinks.']:
+    'Elementos con aspecto de enlace que un rastreador no puede seguir (sin href + onclick, `href="javascript:…"`, `href="#"` con onclick, navegación por onclick, `<span>` / `<div>` / `<button>` con href o data-href). Cada uno aparece en Enlaces salientes.',
   ['`<link rel="amphtml" href="…">` value — the AMP version of this page. Empty when the page does not declare an AMP alternate.']:
     'Valor de `<link rel="amphtml" href="…">` — la versión AMP de esta página. Vacío cuando la página no declara una alternativa AMP.',
   ['`<link rel="next" href="…">` value resolved to absolute. Empty when the page is not paginated forward.']:
@@ -607,10 +607,10 @@ export const ES_INFO_TIPS: Record<string, string> = {
     'La versión móvil con URL separada (m-dot): <link rel="alternate" media="only screen and (max-width: …)">. Nulo en sitios responsive, que son la mayoría — un valor aquí sin canonical recíproco de vuelta es la clásica configuración m-dot rota.',
   ['Crawl on only when the site really does serve a separate mobile host.']:
     'Rastrear activado solo cuando el sitio realmente sirve un host móvil separado.',
-  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", and href="#" placeholders wired to a handler. Store-only — an uncrawlable link is by definition never fetched. Drives the JS-Only Navigation issue filter.']:
-    'Enlaces que un buscador no puede seguir: <a> sin href pero con onclick, href="javascript:…" y marcadores href="#" conectados a un manejador. Solo Almacenar — un enlace no rastreable por definición nunca se descarga. Alimenta el filtro de problemas Navegación solo JS.',
-  ['On — it is a count, so it costs nothing.']:
-    'Activado — es un recuento, así que no cuesta nada.',
+  ['Links a search engine cannot follow: <a> with no href but an onclick, href="javascript:…", href="#" placeholders wired to a handler, onclick navigation, and <span> / <div> / <button> with href or data-href. Store-only — an uncrawlable link is by definition never fetched. Each one is listed in Outlinks and counted by the Pages With Uncrawlable Internal Outlinks check.']:
+    'Enlaces que un buscador no puede seguir: <a> sin href pero con onclick, href="javascript:…", marcadores href="#" conectados a un manejador, navegación por onclick y <span> / <div> / <button> con href o data-href. Solo Almacenar — un enlace no rastreable por definición nunca se descarga. Cada uno aparece en Enlaces salientes y lo cuenta la comprobación Páginas con enlaces salientes internos no rastreables.',
+  ['On — a few short rows per page.']:
+    'Activado — unas pocas filas cortas por página.',
   ['With a Subfolder-scoped crawl, links pointing outside the start folder are fetched once so their status code is known, then stopped — they are checked, not crawled through. Off leaves them undiscovered entirely.']:
     'Con un rastreo de alcance Subcarpeta, los enlaces que apuntan fuera de la carpeta inicial se descargan una vez para conocer su código de estado y luego se detienen — se comprueban, no se rastrean a fondo. Desactivado los deja sin descubrir por completo.',
   ['On — knowing a link out of /blog/ is a 404 costs one request.']:

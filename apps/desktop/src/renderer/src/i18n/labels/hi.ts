@@ -247,7 +247,7 @@ export const HI_LABELS: Record<string, string> = {
   'Total Links per Page > 100': 'प्रति पृष्ठ कुल लिंक > 100',
   'External Links > 100': 'बाहरी लिंक > 100',
   'No Outlinks (Dead-End)': 'कोई आउटलिंक नहीं (बंद रास्ता)',
-  'JS-Only Navigation': 'केवल JS से नेविगेशन',
+  'Pages With Uncrawlable Internal Outlinks': 'क्रॉल न हो सकने वाले आंतरिक आउटलिंक वाले पृष्ठ',
   'Internal Link → Redirect': 'आंतरिक लिंक → रीडायरेक्ट',
   'Broken (All)': 'टूटे (सभी)',
   'Broken Internal': 'टूटे आंतरिक',
@@ -672,6 +672,7 @@ export const HI_LABELS: Record<string, string> = {
   'Link Position': 'लिंक की स्थिति',
   'Final Target': 'अंतिम लक्ष्य',
   'Link Origin': 'लिंक का उद्गम',
+  'Crawlable': 'क्रॉल योग्य',
   Transferred: 'स्थानांतरित',
 
   // Settings dialog sidebar sections

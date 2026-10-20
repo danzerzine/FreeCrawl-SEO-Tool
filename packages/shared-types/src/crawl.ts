@@ -212,6 +212,7 @@ export type UrlCategory =
   | 'issues:canonical-chain-multi-hop'
   | 'issues:image-slow-loading'
   | 'issues:description-equals-h1'
+  // Pages With Uncrawlable Internal Outlinks; id kept from "JS-Only Navigation" for compatibility.
   | 'issues:js-only-navigation'
   | 'issues:text-code-ratio-low'
   | 'issues:flesch-very-difficult'
@@ -477,7 +478,8 @@ export interface CrawlUrlRow {
   /**
    * Per-page count of `<a>` elements that look clickable but are NOT
    * crawlable (no href + onclick, `href="javascript:…"`, or `href="#"`
-   * with onclick). Surfaces in the "JS-Only Navigation" issue filter.
+   * with onclick, onclick navigation, `<span>` / `<div>` / `<button>` with
+   * `href` / `data-href`). Each one is listed in the page's Outlinks.
    */
   jsOnlyLinksCount: number;
   /**
@@ -1397,9 +1399,10 @@ export interface CrawlConfig {
   crawlMobileAlternate: boolean;
   /** Persist the mobile-alternate URL on the page row. */
   storeMobileAlternate: boolean;
-  /** Persist the count of links a search engine cannot follow —
-   *  `<a>` with no href but an onclick, `href="javascript:…"`, and
-   *  `href="#"` placeholders wired to a handler. */
+  /** Persist the links a search engine cannot follow — `<a>` with no
+   *  href but an onclick, `href="javascript:…"`, `href="#"` placeholders
+   *  wired to a handler, onclick navigation, `<span>` / `<div>` /
+   *  `<button>` with `href` / `data-href` — and their per-page count. */
   storeUncrawlableLinks: boolean;
   /** With `scope: 'subfolder'`, still request links that point outside
    *  the start folder (one hop, no recursion) so their status code is
@@ -2154,10 +2157,10 @@ export interface OverviewCounts {
      */
     descriptionEqualsH1: number;
     /**
-     * Pages with at least one `<a>` element that is clickable but not
-     * crawlable (no href + onclick, `href="javascript:…"`, or
-     * `href="#"` paired with onclick). Search-engine bots can't follow
-     * these — any navigation that depends on them is invisible.
+     * Pages with at least one internal link-like element a crawler cannot
+     * follow ({@link UncrawlableLink}). Search-engine bots can't follow
+     * these — any navigation that depends on them is invisible. Key kept
+     * from the old "JS-Only Navigation" check for compatibility.
      */
     jsOnlyNavigation: number;
     /**
@@ -2345,6 +2348,28 @@ export interface DiscoveredLink {
   linkPath: string | null;
   linkPosition: LinkPosition;
   linkOrigin: LinkOrigin;
+  isInternal: boolean;
+}
+
+/**
+ * A link-like element a crawler cannot follow: `<a href="javascript:…">`,
+ * an `<a>` with only an `onclick`, a `<span>` / `<div>` / `<button>` carrying
+ * `href` / `data-href`, or any element whose `onclick` navigates. Kept apart
+ * from {@link DiscoveredLink}: it is never requested, never an inlink and
+ * never part of the link graph.
+ */
+export interface UncrawlableLink {
+  /** Lower-case tag name of the element. */
+  tag: string;
+  /** The raw `href` / `data-href` / `onclick` text, cut to 500 characters. */
+  value: string;
+  /**
+   * Where it would go, when the value is a URL or carries a quoted URL
+   * literal (`go('/y')`, `location='/z'`); never derived by running script.
+   */
+  target: string | null;
+  linkPosition: LinkPosition;
+  /** Target on the crawled site, or no target to judge by (the page's own). */
   isInternal: boolean;
 }
 
@@ -2576,6 +2601,11 @@ export interface OutlinkRow {
   linkPosition: LinkPosition | null;
   linkOrigin: LinkOrigin;
   isInternal: boolean;
+  /** False for an {@link UncrawlableLink}: then `toUrl` is its target, else its raw value. */
+  crawlable: boolean;
+  /** Tag and raw value of an uncrawlable row; null for a crawlable link. */
+  uncrawlableTag: string | null;
+  uncrawlableValue: string | null;
 }
 
 export interface HttpHeader {

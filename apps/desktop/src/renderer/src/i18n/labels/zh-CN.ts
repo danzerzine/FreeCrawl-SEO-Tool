@@ -247,7 +247,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Total Links per Page > 100': '单页链接总数 > 100',
   'External Links > 100': '外部链接 > 100',
   'No Outlinks (Dead-End)': '没有出链（死胡同）',
-  'JS-Only Navigation': '仅靠 JS 的导航',
+  'Pages With Uncrawlable Internal Outlinks': '含无法抓取的内部出链的页面',
   'Internal Link → Redirect': '内部链接 → 重定向',
   'Broken (All)': '失效（全部）',
   'Broken Internal': '失效的内部链接',
@@ -666,6 +666,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Link Position': '链接位置',
   'Final Target': '最终目标',
   'Link Origin': '链接来源',
+  'Crawlable': '可抓取',
   Transferred: '已传输',
 
   // Settings dialog sidebar sections
