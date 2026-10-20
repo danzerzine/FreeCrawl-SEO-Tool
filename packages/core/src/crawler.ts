@@ -2992,6 +2992,10 @@ export class Crawler extends EventEmitter {
 
   private enqueueExternal(url: string): void {
     if (this.stopped) return;
+    // "Check external links" off: external targets stay stored as links but
+    // no request ever goes to their host. Every external probe (links,
+    // resources, iframes, redirect hops, resume) funnels through here.
+    if (!this.config.checkExternalLinks) return;
     if (this.externalSeen.has(url)) return;
     // Bound external discovery the same way internal crawling is bounded.
     // Without these caps `externalSeen` and the probe queue grow without

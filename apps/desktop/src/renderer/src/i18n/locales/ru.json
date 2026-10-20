@@ -639,6 +639,7 @@
       "respectRobotsTxt": "Соблюдать robots.txt",
       "respectCrawlDelay": "Соблюдать Crawl-delay из robots.txt",
       "crawlExternal": "Проверять внешние ссылки",
+      "checkExternalLinks": "Проверять статус внешних ссылок",
       "checkImages": "Проверять изображения",
       "checkCss": "Проверять CSS",
       "checkJs": "Проверять JavaScript",

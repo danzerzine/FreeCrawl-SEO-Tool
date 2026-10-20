@@ -69,6 +69,8 @@ Options:
                         (one request every N seconds). Off by default — the directive is
                         not part of RFC 9309 and published values are often crippling.
   --external          Follow external links
+  --no-check-external Do not status-check external link targets (sends no request to external hosts;
+                        the links are still stored, just without a status)
   --image-variants    Also fetch and measure srcset / <picture> image variants (off by default;
                         a WordPress blog can go from ~2k to ~40k image requests with this on)
   --adaptive-speed    Back off automatically on HTTP 429/503 and Retry-After, then recover
@@ -127,6 +129,7 @@ async function main(): Promise<void> {
       'no-robots': { type: 'boolean' },
       'respect-crawl-delay': { type: 'boolean' },
       external: { type: 'boolean' },
+      'no-check-external': { type: 'boolean' },
       'image-variants': { type: 'boolean' },
       'adaptive-speed': { type: 'boolean' },
       header: { type: 'string', multiple: true },
@@ -293,6 +296,7 @@ async function main(): Promise<void> {
     ...(values['no-robots'] ? { respectRobotsTxt: false } : {}),
     ...(values['respect-crawl-delay'] ? { respectCrawlDelay: true } : {}),
     ...(values.external ? { crawlExternal: true } : {}),
+    ...(values['no-check-external'] ? { checkExternalLinks: false } : {}),
     ...(values['image-variants'] ? { crawlImageVariants: true } : {}),
     ...(values['adaptive-speed'] ? { adaptiveSpeed: true } : {}),
     ...(values.header !== undefined ? { customHeaders: parseHeaders(values.header) } : {}),

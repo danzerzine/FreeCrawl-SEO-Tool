@@ -619,6 +619,7 @@
       "respectRobotsTxt": "Respeitar o robots.txt",
       "respectCrawlDelay": "Respeitar o Crawl-delay do robots.txt",
       "crawlExternal": "Verificar links externos",
+      "checkExternalLinks": "Verificar o status dos links externos",
       "checkImages": "Verificar imagens",
       "checkCss": "Verificar CSS",
       "checkJs": "Verificar JavaScript",

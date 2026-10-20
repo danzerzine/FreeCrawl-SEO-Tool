@@ -599,6 +599,7 @@
       "respectRobotsTxt": "robots.txt-ə riayət et",
       "respectCrawlDelay": "robots.txt-in Crawl-delay dəyərinə riayət et",
       "crawlExternal": "Xarici keçidləri yoxla",
+      "checkExternalLinks": "Xarici keçidlərin statusunu yoxla",
       "checkImages": "Şəkilləri yoxla",
       "checkCss": "CSS-i yoxla",
       "checkJs": "JavaScript-i yoxla",

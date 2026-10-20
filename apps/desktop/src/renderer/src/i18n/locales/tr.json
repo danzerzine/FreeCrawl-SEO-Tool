@@ -599,6 +599,7 @@
       "respectRobotsTxt": "robots.txt'ye Uy",
       "respectCrawlDelay": "robots.txt Crawl-delay'e Uy",
       "crawlExternal": "Harici Linkleri Kontrol Et",
+      "checkExternalLinks": "Harici Bağlantıların Durumunu Kontrol Et",
       "checkImages": "Görselleri Kontrol Et",
       "checkCss": "CSS'i Kontrol Et",
       "checkJs": "JavaScript'i Kontrol Et",

@@ -599,6 +599,7 @@
       "respectRobotsTxt": "robots.txt का पालन करें",
       "respectCrawlDelay": "robots.txt के Crawl-delay का पालन करें",
       "crawlExternal": "बाहरी लिंक जाँचें",
+      "checkExternalLinks": "बाहरी लिंक की स्थिति जाँचें",
       "checkImages": "छवियाँ जाँचें",
       "checkCss": "CSS जाँचें",
       "checkJs": "JavaScript जाँचें",
