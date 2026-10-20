@@ -86,6 +86,24 @@ node apps/cli/dist/index.js compare baseline.seoproject new.seoproject
 any non-zero diff category, so it drops straight into a pipeline gate. Promote
 `new.seoproject` to the new baseline when the pipeline passes.
 
+## Audit files without the desktop app
+
+`export` writes the desktop's bulk export (one CSV per tab and issue check, plus
+the link lists), the SEO Audit folder, the HTML report, an issue summary and the
+Internal Links reports from a saved project, so a scheduled job can publish the
+whole audit as artifacts:
+
+```bash
+node apps/cli/dist/index.js "$TARGET_URL" --max 5000 --db site.seoproject
+node apps/cli/dist/index.js export --project site.seoproject --out audit/ \
+  --what bulk,seo-audit,html,issues,error-inlinks --json > export.json
+# exit 1 → some files failed (the others are written); 2 → bad arguments
+```
+
+Or in one step, right after the crawl: `--export-dir audit/ --export bulk,html`.
+Each file is written as `<name>.part` and renamed when complete, so an
+interrupted job never leaves a truncated CSV behind.
+
 ## Reproducible config
 
 Export your settings once from the desktop app (Settings → Export Settings) and
