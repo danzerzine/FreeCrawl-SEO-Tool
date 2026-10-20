@@ -2778,8 +2778,17 @@ export class ProjectDb {
       }
 
       // External stubs: also batched into multi-row inserts. ON CONFLICT
-      // keeps already-known external URLs untouched.
-      const externals = links.filter((l) => !l.isInternal);
+      // keeps already-known external URLs untouched. A nofollow external
+      // link is stored but, unless the crawl counts / probes nofollow links,
+      // never requested: a stub would sit in the External tab as "no
+      // response" for a URL nobody asked. Its link row keeps it in Outlinks.
+      let probeNofollow: boolean | undefined;
+      const externals = links.filter((l) => {
+        if (l.isInternal) return false;
+        if (!l.rel?.includes('nofollow')) return true;
+        probeNofollow ??= this.getMeta(COUNT_NOFOLLOW_META_KEY) === '1';
+        return probeNofollow;
+      });
       if (externals.length > 0) {
         const externalDepth = fromDepth + 1;
         for (let i = 0; i < externals.length; i += CHUNK) {
