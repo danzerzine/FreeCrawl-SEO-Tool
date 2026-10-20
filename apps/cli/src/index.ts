@@ -110,7 +110,8 @@ Options:
   --out <file>        Export results after crawl. Format auto-detected by extension:
                         *.json → full JSON dump (every captured field)
                         any other → CSV (subset of common columns, with the grid's column names)
-  --raw-headers       With --out CSV: write the internal keys (statusCode, …) as the header row.
+  --raw-headers       With --out CSV: write the internal keys (statusCode, …) as the header row
+                        and skip the CSV formula guard (raw data for scripts).
   --json              Print a machine-readable JSON summary to stdout (instead of human progress).
                         Useful for CI/CD pipelines.
   --export-dir <dir>  After the crawl, write the exports named by --export into <dir> (see export)

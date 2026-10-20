@@ -58,7 +58,8 @@ export interface TabularExportOptions {
   csvBom?: boolean;
   /** CSV / XLSX header row: human labels (default; the grid's names for URL
    *  columns, the dataset's own headers for dataset sections) or the raw
-   *  column keys. JSON / XML always use keys: their consumers are scripts. */
+   *  column keys. JSON / XML always use keys: their consumers are scripts.
+   *  `'keys'` is machine mode: CSV also skips the formula guard (B62). */
   headers?: 'labels' | 'keys';
   /** Account / matching context for the dataset sections that need it. */
   datasetContext?: DatasetExportContext;
@@ -158,19 +159,21 @@ async function writeCsvFile(
   columns: string[],
   withBom: boolean,
   headerLabels: readonly string[] = columns,
+  formulaGuard = true,
 ): Promise<number> {
+  const cell = { formulaGuard };
   let rowsWritten = 0;
   // Escape the header row too: a column label containing a comma, quote or
   // leading `=`/`+`/`-`/`@` would otherwise break the CSV or inject a
   // formula. The data rows below already go through escapeCsv.
-  const header = headerLabels.map((c) => escapeCsv(c)).join(',') + '\n';
+  const header = headerLabels.map((c) => escapeCsv(c, cell)).join(',') + '\n';
   const generator = async function* (): AsyncGenerator<string> {
     if (withBom) yield '﻿' + header;
     else yield header;
     for (const row of source) {
       const line =
         columns
-          .map((c) => escapeCsv(readCell(row, c)))
+          .map((c) => escapeCsv(readCell(row, c), cell))
           .join(',') + '\n';
       rowsWritten++;
       yield line;
@@ -741,7 +744,7 @@ export async function exportTabular(
     const source = sourceFor(section);
     const sectionColumns = columnsFor(section);
     if (format === 'csv') {
-      return writeCsvFile(source, filePath, sectionColumns, csvBom, headersFor(section));
+      return writeCsvFile(source, filePath, sectionColumns, csvBom, headersFor(section), options.headers !== 'keys');
     }
     if (format === 'json') {
       return writeJsonFile(source, filePath, sectionColumns);
