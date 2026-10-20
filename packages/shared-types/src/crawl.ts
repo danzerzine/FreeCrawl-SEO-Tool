@@ -2568,6 +2568,23 @@ export interface IssueInlinkRow {
   isInternal: boolean;
 }
 
+/**
+ * One row of the `selected-inlinks` export: an Inlinks-tab row (see
+ * {@link InlinkRow}) plus the chosen page it points to, since one file
+ * holds the inlinks of several pages.
+ */
+export interface SelectedInlinkRow extends InlinkRow {
+  toUrl: string;
+}
+
+/**
+ * One row of the `selected-outlinks` export: an Outlinks-tab row (see
+ * {@link OutlinkRow}) plus the chosen page it leaves from.
+ */
+export interface SelectedOutlinkRow extends OutlinkRow {
+  fromUrl: string;
+}
+
 /** One row of the `sitemap-urls` export. */
 export interface SitemapUrlExportRow {
   url: string;

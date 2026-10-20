@@ -23,6 +23,8 @@ export type ExportDatasetKey =
   | 'broken-links-by-target'
   | 'issues-long'
   | 'issue-inlinks'
+  | 'selected-inlinks'
+  | 'selected-outlinks'
   | 'sitemap-urls'
   | 'crawl-queue'
   | 'pagespeed'
@@ -143,6 +145,45 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'follow', header: 'Follow' },
     { key: 'position', header: 'Position' },
     { key: 'isInternal', header: 'Internal' },
+  ],
+  // Chosen pages' links: the Inlinks / Outlinks tab columns, plus the
+  // chosen page itself (Destination for inlinks, Source for outlinks).
+  'selected-inlinks': [
+    { key: 'toUrl', header: 'Destination' },
+    { key: 'toStatusCode', header: 'Destination Status' },
+    { key: 'toFinalUrl', header: 'Final Destination' },
+    { key: 'toFinalStatusCode', header: 'Final Destination Status' },
+    { key: 'fromUrl', header: 'Source' },
+    { key: 'fromStatusCode', header: 'Source Status' },
+    { key: 'type', header: 'Type' },
+    { key: 'anchor', header: 'Anchor' },
+    { key: 'altText', header: 'Alt Text' },
+    { key: 'rel', header: 'Rel' },
+    { key: 'target', header: 'Target' },
+    { key: 'pathType', header: 'Path Type' },
+    { key: 'linkPath', header: 'Link Path' },
+    { key: 'linkPosition', header: 'Position' },
+    { key: 'linkOrigin', header: 'Origin' },
+  ],
+  'selected-outlinks': [
+    { key: 'fromUrl', header: 'Source' },
+    { key: 'toUrl', header: 'Destination' },
+    { key: 'toStatusCode', header: 'Destination Status' },
+    { key: 'toFinalUrl', header: 'Final Destination' },
+    { key: 'toFinalStatusCode', header: 'Final Destination Status' },
+    { key: 'type', header: 'Type' },
+    { key: 'anchor', header: 'Anchor' },
+    { key: 'altText', header: 'Alt Text' },
+    { key: 'rel', header: 'Rel' },
+    { key: 'target', header: 'Target' },
+    { key: 'pathType', header: 'Path Type' },
+    { key: 'linkPath', header: 'Link Path' },
+    { key: 'linkPosition', header: 'Position' },
+    { key: 'linkOrigin', header: 'Origin' },
+    { key: 'isInternal', header: 'Internal' },
+    { key: 'crawlable', header: 'Crawlable' },
+    { key: 'uncrawlableTag', header: 'Uncrawlable Tag' },
+    { key: 'uncrawlableValue', header: 'Uncrawlable Value' },
   ],
   'sitemap-urls': [
     { key: 'url', header: 'URL' },

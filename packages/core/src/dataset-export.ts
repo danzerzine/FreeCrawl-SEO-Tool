@@ -25,6 +25,10 @@ export interface DatasetExportContext {
   gscMatchCase?: boolean;
   /** Issue whose inlinks the `issue-inlinks` dataset holds; every issue when unset. */
   issueKey?: string;
+  /** Pages whose links the `selected-inlinks` / `selected-outlinks` datasets hold. */
+  urls?: string[];
+  /** The same pages by id; resolved to URLs and added to `urls`. */
+  urlIds?: number[];
 }
 
 const PAGE_SIZE = 2000;
@@ -40,6 +44,16 @@ function* paged<T>(
     if (rows.length < pageSize) return;
     offset += pageSize;
   }
+}
+
+/** The chosen pages as URLs, `urls` first then the resolved `urlIds`, without repeats. */
+function selectedUrls(db: ProjectDb, ctx: DatasetExportContext): string[] {
+  const out = new Set(ctx.urls ?? []);
+  for (const id of ctx.urlIds ?? []) {
+    const row = db.getUrlRowById(id);
+    if (row) out.add(row.url);
+  }
+  return [...out];
 }
 
 export function datasetRows(
@@ -62,6 +76,10 @@ export function datasetRows(
       return asRecords(db.iterateIssuesLong());
     case 'issue-inlinks':
       return asRecords(db.iterateIssueInlinks(ctx.issueKey));
+    case 'selected-inlinks':
+      return asRecords(db.iterateSelectedInlinks(selectedUrls(db, ctx)));
+    case 'selected-outlinks':
+      return asRecords(db.iterateSelectedOutlinks(selectedUrls(db, ctx)));
     case 'sitemap-urls':
       return asRecords(db.iterateSitemapUrls());
     case 'crawl-queue':

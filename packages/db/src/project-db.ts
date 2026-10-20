@@ -8,6 +8,8 @@ import type {
   CrawlQueueExportRow,
   IssueLongRow,
   IssueInlinkRow,
+  SelectedInlinkRow,
+  SelectedOutlinkRow,
   SitemapUrlExportRow,
   ContentKind,
   CrawlSummary,
@@ -8666,6 +8668,194 @@ export class ProjectDb {
         position: (r.link_position as IssueInlinkRow['position']) ?? null,
         isInternal: r.is_internal === 1,
       };
+    }
+  }
+
+  /**
+   * Every inlink of each chosen page, streamed: the Inlinks tab's rows
+   * (hyperlinks, then image and resource embeds, as `getInlinks`) with the
+   * chosen page as `toUrl`, in the order of `urls`. Pages not in the
+   * project yield nothing. Each page is one `idx_links_to` probe (plus
+   * the image / resource usage lookups), so the work grows with the
+   * chosen pages' inlinks, not with the links table.
+   */
+  *iterateSelectedInlinks(urls: readonly string[]): IterableIterator<SelectedInlinkRow> {
+    type Row = {
+      from_url: string;
+      from_status_code: number | null;
+      to_status_code: number | null;
+      to_size: number | null;
+      to_final_url: string | null;
+      to_final_status_code: number | null;
+      type: string | null;
+      anchor: string | null;
+      alt_text: string | null;
+      rel: string | null;
+      target: string | null;
+      path_type: string | null;
+      link_path: string | null;
+      link_position: string | null;
+      link_origin: string | null;
+    };
+    const head = `f.url AS from_url, f.status_code AS from_status_code,
+           t.status_code AS to_status_code, t.content_length AS to_size,
+           t.redirect_final_url AS to_final_url, ft.status_code AS to_final_status_code`;
+    const hyper = this.db.prepare(
+      `SELECT ${head},
+         l.type, l.anchor, l.alt_text, l.rel, l.target,
+         l.path_type, l.link_path, l.link_position, l.link_origin
+       FROM links l
+       JOIN urls f ON f.id = l.from_url_id
+       LEFT JOIN urls t ON t.url = l.to_url
+       LEFT JOIN urls ft ON ft.url = t.redirect_final_url
+       WHERE l.to_url = ?
+       ORDER BY l.id`,
+    );
+    const images = this.db.prepare(
+      `SELECT ${head},
+         'image' AS type, NULL AS anchor, iu.alt AS alt_text, NULL AS rel, NULL AS target,
+         NULL AS path_type, NULL AS link_path, NULL AS link_position, 'html' AS link_origin
+       FROM images i
+       JOIN image_usages iu ON iu.image_id = i.id
+       JOIN urls f ON f.id = iu.from_url_id
+       LEFT JOIN urls t ON t.url = i.src
+       LEFT JOIN urls ft ON ft.url = t.redirect_final_url
+       WHERE i.src = ?`,
+    );
+    const resources = this.db.prepare(
+      `SELECT ${head},
+         CASE r.kind WHEN 'css' THEN 'stylesheet' WHEN 'js' THEN 'script'
+                     WHEN 'image' THEN 'image' ELSE 'other' END AS type,
+         NULL AS anchor, NULL AS alt_text, NULL AS rel, NULL AS target,
+         NULL AS path_type, NULL AS link_path, NULL AS link_position, 'html' AS link_origin
+       FROM resources r
+       JOIN resource_usages ru ON ru.resource_id = r.id
+       JOIN urls f ON f.id = ru.from_url_id
+       LEFT JOIN urls t ON t.url = r.url
+       LEFT JOIN urls ft ON ft.url = t.redirect_final_url
+       WHERE r.url = ?`,
+    );
+    for (const url of urls) {
+      if (this.getUrlIdByUrl(url) === null) continue;
+      for (const stmt of [hyper, images, resources]) {
+        for (const r of stmt.iterate(url) as unknown as Iterable<Row>) {
+          yield {
+            toUrl: url,
+            fromUrl: r.from_url,
+            fromStatusCode: r.from_status_code,
+            toStatusCode: r.to_status_code,
+            toSize: r.to_size,
+            toFinalUrl: r.to_final_url,
+            toFinalStatusCode: r.to_final_status_code,
+            type: (r.type as SelectedInlinkRow['type']) ?? 'hyperlink',
+            anchor: r.anchor,
+            altText: r.alt_text,
+            rel: r.rel,
+            target: r.target,
+            pathType: (r.path_type as SelectedInlinkRow['pathType']) ?? null,
+            linkPath: r.link_path,
+            linkPosition: (r.link_position as SelectedInlinkRow['linkPosition']) ?? null,
+            linkOrigin: (r.link_origin as SelectedInlinkRow['linkOrigin']) ?? 'html',
+          };
+        }
+      }
+    }
+  }
+
+  /**
+   * Every outlink of each chosen page, streamed: the Outlinks tab's rows
+   * (the links a crawler follows, then the uncrawlable ones, as
+   * `getOutlinks`) with the chosen page as `fromUrl`, in the order of
+   * `urls`. Pages not in the project yield nothing. Each page is one
+   * `idx_links_from` probe.
+   */
+  *iterateSelectedOutlinks(urls: readonly string[]): IterableIterator<SelectedOutlinkRow> {
+    const hyper = this.db.prepare(
+      `SELECT l.to_url, t.status_code AS to_status_code, t.content_length AS to_size,
+         t.redirect_final_url AS to_final_url, ft.status_code AS to_final_status_code,
+         l.type, l.anchor, l.alt_text, l.rel, l.target,
+         l.path_type, l.link_path, l.link_position, l.link_origin, l.is_internal
+       FROM links l
+       LEFT JOIN urls t ON t.url = l.to_url
+       LEFT JOIN urls ft ON ft.url = t.redirect_final_url
+       WHERE l.from_url_id = ?
+       ORDER BY l.id`,
+    );
+    const uncrawlable = this.db.prepare(
+      `SELECT tag, value, target, link_position, is_internal
+         FROM uncrawlable_links WHERE from_url_id = ? ORDER BY rowid`,
+    );
+    for (const url of urls) {
+      const id = this.getUrlIdByUrl(url);
+      if (id === null) continue;
+      for (const r of hyper.iterate(id) as unknown as Iterable<{
+        to_url: string;
+        to_status_code: number | null;
+        to_size: number | null;
+        to_final_url: string | null;
+        to_final_status_code: number | null;
+        type: string | null;
+        anchor: string | null;
+        alt_text: string | null;
+        rel: string | null;
+        target: string | null;
+        path_type: string | null;
+        link_path: string | null;
+        link_position: string | null;
+        link_origin: string | null;
+        is_internal: number;
+      }>) {
+        yield {
+          fromUrl: url,
+          toUrl: r.to_url,
+          toStatusCode: r.to_status_code,
+          toSize: r.to_size,
+          toFinalUrl: r.to_final_url,
+          toFinalStatusCode: r.to_final_status_code,
+          type: (r.type as SelectedOutlinkRow['type']) ?? 'hyperlink',
+          anchor: r.anchor,
+          altText: r.alt_text,
+          rel: r.rel,
+          target: r.target,
+          pathType: (r.path_type as SelectedOutlinkRow['pathType']) ?? null,
+          linkPath: r.link_path,
+          linkPosition: (r.link_position as SelectedOutlinkRow['linkPosition']) ?? null,
+          linkOrigin: (r.link_origin as SelectedOutlinkRow['linkOrigin']) ?? 'html',
+          isInternal: r.is_internal === 1,
+          crawlable: true,
+          uncrawlableTag: null,
+          uncrawlableValue: null,
+        };
+      }
+      for (const u of uncrawlable.iterate(id) as unknown as Iterable<{
+        tag: string;
+        value: string;
+        target: string | null;
+        link_position: string | null;
+        is_internal: number;
+      }>) {
+        yield {
+          fromUrl: url,
+          toUrl: u.target ?? u.value,
+          toStatusCode: null,
+          toSize: null,
+          toFinalUrl: null,
+          toFinalStatusCode: null,
+          type: 'hyperlink',
+          anchor: null,
+          altText: null,
+          rel: null,
+          target: null,
+          pathType: null,
+          linkPath: null,
+          linkPosition: (u.link_position as SelectedOutlinkRow['linkPosition']) ?? null,
+          linkOrigin: 'html',
+          isInternal: u.is_internal === 1,
+          crawlable: false,
+          uncrawlableTag: u.tag,
+          uncrawlableValue: u.value,
+        };
+      }
     }
   }
 

@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   DEFAULT_CRAWL_CONFIG,
+  EXPORT_DATASET_COLUMNS,
   type BulkExportResult,
   type CrawlConfig,
   type LinkTargetReportKind,
@@ -44,6 +45,8 @@ import {
   exportHtmlReport,
   exportIssuesSummary,
   exportLinkTargetReport,
+  exportTabular,
+  writeExportFile,
   removePartialExportFiles,
   type BulkExportTask,
   type LogAnalysisResult,
@@ -74,7 +77,7 @@ Usage:
   freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file]
                                                   Pull per-page Yandex Metrica data (pageviews, visits, users,
                                                   search visits) into a project, as the desktop app does
-  freecrawl export --project <file> --out <dir> [--what <list>] [--json]
+  freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--json]
                                                   Write reports and bulk exports of a project without the desktop app
 
 Options:
@@ -148,6 +151,11 @@ export options:
                                     the Internal Links reports, one row per link target; the redirect
                                     reports need the redirect-chain pass of the crawl ("not computed" else)
                       Checks turned off in Settings → Issues are skipped, as in the desktop app.
+  --urls <file>       URLs to export the links of, one per line, as stored in the project. Writes
+                        selected-inlinks.csv and selected-outlinks.csv (every link into / out of those
+                        pages, columns of the Inlinks / Outlinks tabs). Without --what, only these two
+                        files are written; with it, they are added. URLs not in the project are listed
+                        in errors and on stderr (exit 1); exit 2 when none is in the project.
   --json              Print {ok, files: [{path, label, rows}], errors: [...]} on stdout, also on errors
   Exit codes: 0 done, 1 some exports failed (the others are written), 2 bad arguments or project,
   130 interrupted.
@@ -193,6 +201,7 @@ async function main(): Promise<void> {
       counter: { type: 'string' },
       days: { type: 'string' },
       what: { type: 'string' },
+      urls: { type: 'string' },
       'export-dir': { type: 'string' },
       export: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
@@ -274,6 +283,7 @@ async function main(): Promise<void> {
       projectPath: resolve(values.project ?? values.db ?? 'crawl.seoproject'),
       out: values.out,
       what: values.what,
+      urls: values.urls,
       json: Boolean(values.json),
     });
     process.exit(exitCode);
@@ -1464,7 +1474,8 @@ async function runMetricaFetch(opts: {
 type ExportItem =
   | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues'; name: string }
   | { kind: 'tasks'; name: string; tasks: BulkExportTask[] }
-  | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string };
+  | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
+  | { kind: 'selected'; name: 'selected-links'; urls: string[] };
 
 interface ExportOutcome {
   files: { path: string; label: string; rows: number | null }[];
@@ -1557,6 +1568,20 @@ async function runExportItems(
         const path = join(outDir, 'issues-summary.csv');
         const { rowsWritten } = await exportIssuesSummary(db, path);
         outcome.files.push({ path, label: 'Issues Summary', rows: rowsWritten });
+      } else if (item.kind === 'selected') {
+        for (const dataset of ['selected-inlinks', 'selected-outlinks'] as const) {
+          const label = dataset === 'selected-inlinks' ? 'Selected Inlinks' : 'Selected Outlinks';
+          const path = join(outDir, `${dataset}.csv`);
+          const { rowsWritten } = await writeExportFile(path, (partPath) =>
+            exportTabular(db, partPath, {
+              format: 'csv',
+              sections: [{ label, dataset }],
+              columns: EXPORT_DATASET_COLUMNS[dataset].map((c) => c.key),
+              datasetContext: { urls: item.urls },
+            }),
+          );
+          outcome.files.push({ path, label, rows: rowsWritten });
+        }
       } else if (item.kind === 'link') {
         const path = join(outDir, `${item.report}.csv`);
         const r = await exportLinkTargetReport(db, path, item.report);
@@ -1588,6 +1613,7 @@ async function runExport(opts: {
   projectPath: string;
   out: string | undefined;
   what: string | undefined;
+  urls: string | undefined;
   json: boolean;
 }): Promise<number> {
   const print = (outcome: ExportOutcome, error: string | null): void => {
@@ -1606,7 +1632,7 @@ async function runExport(opts: {
   };
   const fail = (message: string): number => {
     if (!opts.json) {
-      console.error('Usage: freecrawl export --project <file> --out <dir> [--what <list>] [--json]');
+      console.error('Usage: freecrawl export --project <file> --out <dir> [--what <list>] [--urls <file>] [--json]');
     }
     print({ files: [], errors: [] }, message);
     return 2;
@@ -1614,8 +1640,21 @@ async function runExport(opts: {
   if (!opts.out) return fail('--out <dir> is required.');
   const outDir = resolve(opts.out);
   let items: ExportItem[];
+  let selectedUrls: string[] = [];
   try {
-    items = parseExportWhat(opts.what);
+    // `--urls` alone means just the selected links; `--what` adds to them.
+    items = opts.urls !== undefined && opts.what === undefined ? [] : parseExportWhat(opts.what);
+    if (opts.urls !== undefined) {
+      selectedUrls = [
+        ...new Set(
+          readFileSync(resolve(opts.urls), 'utf8')
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean),
+        ),
+      ];
+      if (selectedUrls.length === 0) throw new Error(`--urls ${opts.urls} has no URLs.`);
+    }
     checkExportDir(outDir);
   } catch (err) {
     return fail((err as Error).message);
@@ -1635,7 +1674,24 @@ async function runExport(opts: {
     return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
   }
   try {
+    const missing: string[] = [];
+    if (opts.urls !== undefined) {
+      const known: string[] = [];
+      for (const u of selectedUrls) {
+        (project.db.getUrlIdByUrl(u) !== null ? known : missing).push(u);
+      }
+      if (known.length === 0) {
+        print({ files: [], errors: [] }, `None of the ${selectedUrls.length} URLs in ${opts.urls} is in the project.`);
+        return 2;
+      }
+      items.push({ kind: 'selected', name: 'selected-links', urls: known });
+    }
     const outcome = await runExportItems(project.db, outDir, items);
+    if (missing.length > 0) {
+      const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;
+      if (opts.json) process.stderr.write(`${error}\n`);
+      outcome.errors.push({ label: 'URLs not in the project', error });
+    }
     print(outcome, null);
     return outcome.errors.length === 0 ? 0 : 1;
   } finally {
