@@ -866,11 +866,15 @@ async function writeAuditFiles(
         ),
       );
   };
-  for (const { f, partPath } of targets) {
+  // Listed before any `.part` is opened, so a failure here leaves none open.
+  const ids = targets.map(({ f }) =>
+    f.category === 'all' ? null : db.urlIdsByCategory(f.category),
+  );
+  for (const [i, { f, partPath }] of targets.entries()) {
     const out = createWriteStream(partPath, { encoding: 'utf8' });
     const sink: AuditSink = {
       f,
-      ids: f.category === 'all' ? null : db.urlIdsByCategory(f.category),
+      ids: ids[i]!,
       next: 0,
       out,
       buf: '﻿' + f.headers.map(quoted).join(',') + '\r\n',
@@ -909,11 +913,20 @@ async function writeAuditFiles(
           body = ctx.bodies.get(row.id);
           bodyRead = true;
         }
+        let line: string;
+        try {
+          const cells = f.headers.map((c) =>
+            c === 'Occurrences' ? occurrences(f.occurrences, row, body) : cell(c, row, ctx),
+          );
+          line = cells.map(quoted).join(',') + '\r\n';
+        } catch (err) {
+          // A row this file cannot build fails this file only.
+          sink.failed = true;
+          sink.out.destroy(err as Error);
+          continue;
+        }
         sink.rows++;
-        const cells = f.headers.map((c) =>
-          c === 'Occurrences' ? occurrences(f.occurrences, row, body) : cell(c, row, ctx),
-        );
-        sink.buf += cells.map(quoted).join(',') + '\r\n';
+        sink.buf += line;
         write(sink, FLUSH_CHARS);
       }
       if (pendingDrains.length) await Promise.all(pendingDrains.splice(0));

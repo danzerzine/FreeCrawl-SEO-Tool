@@ -8898,16 +8898,19 @@ export class ProjectDb {
    * the memory map. A long read-everything export otherwise maps every
    * page it touches (urls, links) into the process, and Windows counts
    * them all as the app's memory; through the cache the reads stay in
-   * the OS file cache. Restored afterwards.
+   * the OS file cache. Restored when the last overlapping call ends.
    */
   async withoutMmap<T>(fn: () => Promise<T>): Promise<T> {
-    this.db.exec('PRAGMA mmap_size = 0');
+    if (this.mmapOffCalls++ === 0) this.db.exec('PRAGMA mmap_size = 0');
     try {
       return await fn();
     } finally {
-      this.db.exec(`PRAGMA mmap_size = ${MMAP_SIZE}`);
+      if (--this.mmapOffCalls === 0) this.db.exec(`PRAGMA mmap_size = ${MMAP_SIZE}`);
     }
   }
+
+  /** Running `withoutMmap` calls; the map comes back when it drops to 0. */
+  private mmapOffCalls = 0;
 
   /**
    * Ids of the URLs `iterateUrlsByCategory(category)` yields, ascending,
