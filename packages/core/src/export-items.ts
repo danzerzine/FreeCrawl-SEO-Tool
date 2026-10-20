@@ -351,15 +351,20 @@ export function findExportSet(db: ProjectDb, name: string): ExportSet {
   );
 }
 
-/** Run a saved set into `outDir`: its tokens through {@link runExportItems}. */
+/**
+ * Run a saved set into `outDir`: its tokens through {@link runExportItems},
+ * then `extraItems` (the CLI's `--urls`). Throws before writing anything
+ * when a stored token is no longer valid.
+ */
 export async function runExportSet(
   db: ProjectDb,
   outDir: string,
   set: ExportSet,
-  options: RunExportItemsOptions = {},
+  options: RunExportItemsOptions & { extraItems?: readonly ExportItem[] } = {},
 ): Promise<ExportOutcome> {
-  return runExportItems(db, outDir, parseExportWhat(set.what.join(',')), {
-    ...options,
-    rawHeaders: options.rawHeaders || set.rawHeaders,
+  const { extraItems = [], ...rest } = options;
+  return runExportItems(db, outDir, [...parseExportWhat(set.what.join(',')), ...extraItems], {
+    ...rest,
+    rawHeaders: rest.rawHeaders || set.rawHeaders,
   });
 }

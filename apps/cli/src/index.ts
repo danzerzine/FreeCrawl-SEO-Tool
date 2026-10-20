@@ -38,6 +38,7 @@ import {
   MetricaCancelledError,
   parseExportWhat,
   runExportItems,
+  runExportSet,
   listExportSets,
   saveExportSet,
   findExportSet,
@@ -1646,16 +1647,13 @@ async function runExport(opts: {
     return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
   }
   try {
-    let rawHeaders = opts.rawHeaders;
+    let set: ExportSet | null = null;
     if (opts.set !== undefined) {
-      let set: ExportSet;
       try {
         set = findExportSet(project.db, opts.set);
-        items = parseExportWhat(set.what.join(','));
       } catch (err) {
         return fail((err as Error).message);
       }
-      rawHeaders ||= set.rawHeaders === true;
     }
     const missing: string[] = [];
     if (opts.urls !== undefined) {
@@ -1669,13 +1667,24 @@ async function runExport(opts: {
       }
       items.push({ kind: 'selected', name: 'selected-links', urls: known });
     }
-    await runExportItems(project.db, outDir, items, {
-      rawHeaders,
+    const runOptions = {
+      rawHeaders: opts.rawHeaders,
       projectFile: resolve(opts.projectPath),
       toolVersion: cliVersion(),
       onProgress: progressLine,
       outcome,
-    });
+    };
+    if (set) {
+      try {
+        // `items` holds only the --urls links here; the set brings the rest.
+        await runExportSet(project.db, outDir, set, { ...runOptions, extraItems: items });
+      } catch (err) {
+        // A stored token this version no longer knows: nothing was written.
+        return fail(`Export set "${set.name}": ${(err as Error).message}`);
+      }
+    } else {
+      await runExportItems(project.db, outDir, items, runOptions);
+    }
     if (missing.length > 0) {
       const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;
       if (opts.json) process.stderr.write(`${error}\n`);
