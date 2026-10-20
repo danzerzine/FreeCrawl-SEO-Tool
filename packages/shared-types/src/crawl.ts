@@ -1967,8 +1967,14 @@ export interface OverviewCounts {
     ampValidationErrors: number;
     canonicalConflictNearDuplicate: number;
     highBoilerplate: number;
+    /** Distinct broken targets of internal links. */
     brokenLinksInternal: number;
+    /** Distinct broken targets of external links. */
     brokenLinksExternal: number;
+    /** Internal links to those targets (the Broken Links rows). */
+    brokenLinksInternalLinks: number;
+    /** External links to those targets. */
+    brokenLinksExternalLinks: number;
     nearDuplicate: number;
     duplicateContentExact: number;
     hreflangInvalidCode: number;
@@ -2045,10 +2051,14 @@ export interface OverviewCounts {
     hstsMaxAgeShort: number;
     /** HTTPS pages whose HSTS header lacks `includeSubDomains`. */
     hstsNoIncludeSubdomains: number;
-    /** Pages with at least one outgoing link whose anchor text exceeds 100 chars. */
+    /** Link targets whose anchor text exceeds 100 chars. */
     anchorTextTooLong: number;
-    /** Pages with at least one outgoing link whose anchor is a generic phrase ("click here", "read more", …). */
+    /** Pages with at least one outgoing link whose anchor text exceeds 100 chars. */
+    anchorTextTooLongPages: number;
+    /** Link targets whose anchor is a generic phrase ("click here", "read more", …). */
     anchorTextGeneric: number;
+    /** Pages with at least one such link. */
+    anchorTextGenericPages: number;
     /** Pages with at least one form input that has no associated `<label>` / aria-label / title. */
     formInputUnlabeled: number;
     /** Pages with ≥5 images but lazy-loading adoption below 50%. */
@@ -2075,8 +2085,10 @@ export interface OverviewCounts {
     schemaMissingRecommended: number;
     /** Pages referencing at least one image whose HEAD probe returned a 4xx/5xx status. */
     imageBrokenSrc: number;
-    /** Pages with at least one `<a target="_blank">` without `rel="noopener"` (reverse-tabnabbing risk). */
+    /** Link targets opened by `<a target="_blank">` without `rel="noopener"` (reverse-tabnabbing risk). */
     targetBlankNoNoopener: number;
+    /** Pages with at least one such link. */
+    targetBlankNoNoopenerPages: number;
     /** 2xx HTML pages whose body has fewer than 30 words (near-empty / placeholder). */
     pageEmpty: number;
     /** Pages whose `og:image` is a relative URL — Facebook / LinkedIn require absolute URLs. */
@@ -2094,11 +2106,13 @@ export interface OverviewCounts {
     /** Indexable HTML pages with zero outlinks (link dead-end / orphan leaf). */
     outlinksZero: number;
     /**
-     * Pages with at least one internal link pointing to a 3xx redirect.
-     * Wastes crawl budget and dilutes link equity — best practice is to
+     * Redirect (3xx) targets of internal links (pages linking them:
+     * `internalLinkToRedirectPages`). Wastes crawl budget and dilutes link equity — best practice is to
      * update the link to point directly at the final URL.
      */
     internalLinkToRedirect: number;
+    /** Pages linking at least one of those redirect targets. */
+    internalLinkToRedirectPages: number;
     /**
      * Pages where the H1 text equals the title text (case-insensitive,
      * trimmed). Often a CMS-default rather than an intentional SEO
@@ -2106,11 +2120,13 @@ export interface OverviewCounts {
      */
     h1EqualsTitle: number;
     /**
-     * Pages with at least one outgoing link to an external domain whose
-     * crawled pages are mostly broken (≥3 attempts AND ≥80% error rate).
+     * Failed external targets on a domain whose crawled pages are mostly
+     * broken (≥3 attempts AND ≥80% error rate).
      * Hurts user experience + signals abandonment to crawlers.
      */
     deadExternalDomain: number;
+    /** Pages linking at least one of those dead external targets. */
+    deadExternalDomainPages: number;
     /**
      * Pages whose URL collides with another page after applying the
      * configured URL normalisation (lowercase host, trailing-slash
@@ -2478,12 +2494,15 @@ export interface BrokenLinkRow {
 
 /**
  * Link reports grouped by target (one row per linked URL, not per link):
+ * - `redirect-inlinks`: the target redirects (any end) — the targets the
+ *   Internal Link → Redirect total counts;
  * - `redirects-to-error`: the target redirects and its chain ends in a
  *   4xx/5xx or no response;
  * - `error-inlinks`: the target itself is 4xx/5xx or never answered;
  * - `non-indexable-inlinks`: the target is non-indexable, any reason.
  */
 export type LinkTargetReportKind =
+  | 'redirect-inlinks'
   | 'redirects-to-error'
   | 'error-inlinks'
   | 'non-indexable-inlinks';

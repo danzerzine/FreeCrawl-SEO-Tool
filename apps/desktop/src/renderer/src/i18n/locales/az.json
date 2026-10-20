@@ -10,7 +10,10 @@
     "checkOff": "Bağlı",
     "cookiesOffHint": "Taramanın kuki siyasəti \"Hamısını rədd et\" olduğu üçün kuki yoxlamaları bağlıdır. Set-Cookie başlıqlarını təhlil etmək üçün Parametrlər → Kukilər bölməsində \"Hamısını qəbul et\" və ya \"Üçüncü tərəfləri blokla\" seçin.",
     "notComputed": "Hesablanmayıb",
-    "notComputedHint": "Daxil olan keçidlər hələ hesablanmadığı üçün yetim səhifələri saymaq mümkün deyil. Onlar \"Daxil olan keçidləri yenidən hesabla\" aktiv olan taramanın sonunda hesablanır."
+    "notComputedHint": "Daxil olan keçidlər hələ hesablanmadığı üçün yetim səhifələri saymaq mümkün deyil. Onlar \"Daxil olan keçidləri yenidən hesabla\" aktiv olan taramanın sonunda hesablanır.",
+    "byTargetPages": "Keçid hədəfləri: {{targets}} · keçid verən səhifələr: {{sources}}. Siyahı keçid verən səhifələri göstərir.",
+    "byTargetLinks": "Keçid hədəfləri: {{targets}} · onlara keçidlər: {{sources}}. Siyahı keçidlərin özünü göstərir.",
+    "byTargetReport": "Hər hədəf üçün bir sətir: Hesabatlar → {{report}}."
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",
@@ -396,6 +399,7 @@
       "topWords": "Ən çox rast gəlinən sözlər (başlıq + meta + H1, ilk 100)",
       "pagesOverLinkLimit": "Səhifə başına maksimum keçid limitini aşan səhifələr",
       "mobileParity": "Mobil və masaüstü fərqləri",
+      "redirectInlinks": "Yönləndirmələrə keçidlər (hədəfə görə)",
       "redirectsToError": "Xətaya aparan yönləndirmələr (hədəfə görə)",
       "errorInlinks": "Xətalı səhifələrə keçidlər (hədəfə görə)",
       "nonIndexableInlinks": "İndekslənə bilməyən səhifələrə keçidlər (hədəfə görə)"

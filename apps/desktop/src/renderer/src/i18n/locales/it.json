@@ -10,7 +10,10 @@
     "checkOff": "Disattivato",
     "cookiesOffHint": "I controlli sui cookie sono disattivati perché la politica dei cookie della scansione è \"Rifiuta tutto\". Scegli \"Accetta tutto\" o \"Blocca terze parti\" in Impostazioni → Cookie per analizzare le intestazioni Set-Cookie.",
     "notComputed": "Non calcolato",
-    "notComputedHint": "I link in entrata non sono ancora stati calcolati, quindi le pagine orfane non possono essere contate. Vengono calcolati al termine di una scansione con \"Ricalcola i link in entrata\" attivo."
+    "notComputedHint": "I link in entrata non sono ancora stati calcolati, quindi le pagine orfane non possono essere contate. Vengono calcolati al termine di una scansione con \"Ricalcola i link in entrata\" attivo.",
+    "byTargetPages": "Destinazioni dei link: {{targets}} · pagine che le linkano: {{sources}}. L'elenco mostra le pagine che linkano.",
+    "byTargetLinks": "Destinazioni dei link: {{targets}} · link verso di esse: {{sources}}. L'elenco mostra i link.",
+    "byTargetReport": "Una riga per destinazione: Report → {{report}}."
   },
   "integrations": {
     "intro": "Collega servizi esterni con le tue credenziali. Le chiavi API e i segreti sono cifrati a riposo tramite l'archivio sicuro del tuo sistema operativo e non lasciano mai questa macchina.",
@@ -403,6 +406,7 @@
       "topWords": "Parole più frequenti (titolo + meta + H1, prime 100)",
       "pagesOverLinkLimit": "Pagine oltre il massimo di link per pagina",
       "mobileParity": "Differenze mobile / desktop",
+      "redirectInlinks": "Link a reindirizzamenti (per destinazione)",
       "redirectsToError": "Reindirizzamenti verso errore (per destinazione)",
       "errorInlinks": "Link a pagine con errore (per destinazione)",
       "nonIndexableInlinks": "Link a pagine non indicizzabili (per destinazione)"
