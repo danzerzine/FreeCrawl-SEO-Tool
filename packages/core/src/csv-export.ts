@@ -54,14 +54,17 @@ export async function exportUrlsToCsv(
      *  instead of only the generic column set. Defaults to CSV_COLUMNS. */
     columns?: (keyof CrawlUrlRow)[];
     /** Header row: the grid's column labels (default) or the raw
-     *  `CrawlUrlRow` keys for scripts that read the file back. */
+     *  `CrawlUrlRow` keys for scripts that read the file back. `'keys'` is
+     *  machine mode: it also turns the CSV formula guard off, so a
+     *  «- text» cell is written as is. */
     headers?: 'labels' | 'keys';
   } = {},
 ): Promise<{ rowsWritten: number }> {
   let rowsWritten = 0;
   const cols = options.columns && options.columns.length > 0 ? options.columns : CSV_COLUMNS;
+  const cell = { formulaGuard: options.headers !== 'keys' };
   const header =
-    cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c))).join(',') + '\n';
+    cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c), cell)).join(',') + '\n';
 
   const source: Iterable<CrawlUrlRow> =
     options.selectedIds && options.selectedIds.length > 0
@@ -73,7 +76,7 @@ export async function exportUrlsToCsv(
   const generator = async function* (): AsyncGenerator<string> {
     yield '﻿' + header;
     for (const row of source) {
-      const line = cols.map((col) => escapeCsv(row[col])).join(',') + '\n';
+      const line = cols.map((col) => escapeCsv(row[col], cell)).join(',') + '\n';
       rowsWritten++;
       yield line;
     }
@@ -148,7 +151,7 @@ export async function exportLinksToCsv(
         l.link_origin,
       ];
       rowsWritten++;
-      yield cells.map(escapeCsv).join(',') + '\n';
+      yield cells.map((c) => escapeCsv(c)).join(',') + '\n';
     }
   };
   await writeExportFile(filePath, (partPath) =>
@@ -191,7 +194,7 @@ export async function exportImagesToCsv(
         row.fromUrl,
       ];
       rowsWritten++;
-      yield cells.map(escapeCsv).join(',') + '\n';
+      yield cells.map((c) => escapeCsv(c)).join(',') + '\n';
     }
   };
 
@@ -242,7 +245,7 @@ export async function exportBrokenLinksToCsv(
         row.position,
       ];
       rowsWritten++;
-      yield cells.map(escapeCsv).join(',') + '\n';
+      yield cells.map((c) => escapeCsv(c)).join(',') + '\n';
     }
   };
 

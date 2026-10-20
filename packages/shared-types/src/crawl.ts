@@ -2568,6 +2568,28 @@ export interface IssueInlinkRow {
   isInternal: boolean;
 }
 
+/** One row of the `response-headers` export: one stored header of one URL. */
+export interface ResponseHeaderExportRow {
+  url: string;
+  /** Lowercased header name. */
+  name: string;
+  value: string;
+}
+
+/**
+ * One row of the `page-html` export (and the source of `page-text`): a page
+ * whose body snapshot is stored. `html` is the raw response body as stored,
+ * clipped at `bodySnapshotMaxBytes`; `renderedHtml` is the JavaScript-rendered
+ * DOM when the crawl rendered the page.
+ */
+export interface PageSourceExportRow {
+  url: string;
+  statusCode: number | null;
+  contentType: string | null;
+  html: string;
+  renderedHtml: string | null;
+}
+
 /** One row of the `sitemap-urls` export. */
 export interface SitemapUrlExportRow {
   url: string;

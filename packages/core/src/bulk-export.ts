@@ -165,6 +165,7 @@ export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
   { label: 'Broken Links', file: 'broken-links.csv', dataset: 'broken-links' },
   { label: 'Broken Links — By Target', file: 'broken-links-by-target.csv', dataset: 'broken-links-by-target' },
   { label: 'Issues — One Row Per URL and Issue', file: 'issues-long.csv', dataset: 'issues-long' },
+  { label: 'Response Headers — One Row Per URL and Header', file: 'response-headers.csv', dataset: 'response-headers' },
   { label: 'Sitemap URLs', file: 'sitemap-urls.csv', dataset: 'sitemap-urls' },
   { label: 'Crawl Queue (Unfetched)', file: 'crawl-queue.csv', dataset: 'crawl-queue' },
 ];

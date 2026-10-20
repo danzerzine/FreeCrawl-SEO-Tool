@@ -37,7 +37,7 @@ const LINK_TARGET_HEADER = [
 ];
 
 function csv(rows: readonly (readonly unknown[])[]): string {
-  return '﻿' + rows.map((r) => r.map(escapeCsv).join(',')).join('\n') + '\n';
+  return '﻿' + rows.map((r) => r.map((c) => escapeCsv(c)).join(',')).join('\n') + '\n';
 }
 
 /**

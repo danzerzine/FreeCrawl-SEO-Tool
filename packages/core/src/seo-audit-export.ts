@@ -185,7 +185,7 @@ async function writeAuditFile(
     yield '\ufeff' + SEO_AUDIT_HEADERS.join(',') + '\n';
     for (const row of db.iterateUrlsByCategory(category)) {
       rowsWritten++;
-      yield seoAuditRow(row).map(escapeCsv).join(',') + '\n';
+      yield seoAuditRow(row).map((c) => escapeCsv(c)).join(',') + '\n';
     }
   };
   await pipeline(Readable.from(generator()), createWriteStream(filePath, { encoding: 'utf8' }));
