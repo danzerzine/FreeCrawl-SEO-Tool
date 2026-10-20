@@ -24,6 +24,9 @@ export async function writeExportFile<T>(
   write: (partPath: string) => Promise<T>,
   keep: (result: T) => boolean = () => true,
 ): Promise<T> {
+  // Already a temp file of an outer writeExportFile: that call owns the
+  // rename, so a second `.part` layer would only double the work.
+  if (filePath.endsWith('.part')) return write(filePath);
   await mkdir(dirname(filePath), { recursive: true });
   const partPath = `${filePath}.part`;
   inFlight.add(partPath);

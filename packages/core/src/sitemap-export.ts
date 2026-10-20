@@ -4,6 +4,7 @@ import { Readable, Transform } from 'node:stream';
 import { createGzip } from 'node:zlib';
 import path from 'node:path';
 import type { ProjectDb } from '@freecrawl/db';
+import { writeExportFile } from './export-file.js';
 
 export type SitemapVariant =
   | 'standard'
@@ -264,16 +265,14 @@ async function writePart(
   };
 
   const source = Readable.from(gen());
-  const sink = createWriteStream(filePath, { encoding: gzip ? undefined : 'utf8' });
-  if (gzip) {
-    await pipeline(
-      source.pipe(stringEncodeStream()),
-      createGzip(),
-      sink,
-    );
-  } else {
-    await pipeline(source, sink);
-  }
+  await writeExportFile(filePath, async (partPath) => {
+    const sink = createWriteStream(partPath, { encoding: gzip ? undefined : 'utf8' });
+    if (gzip) {
+      await pipeline(source.pipe(stringEncodeStream()), createGzip(), sink);
+    } else {
+      await pipeline(source, sink);
+    }
+  });
 }
 
 /**
@@ -309,12 +308,14 @@ async function writeIndex(
     yield '</sitemapindex>\n';
   };
   const source = Readable.from(gen());
-  const sink = createWriteStream(filePath, { encoding: gzip ? undefined : 'utf8' });
-  if (gzip) {
-    await pipeline(source.pipe(stringEncodeStream()), createGzip(), sink);
-  } else {
-    await pipeline(source, sink);
-  }
+  await writeExportFile(filePath, async (partPath) => {
+    const sink = createWriteStream(partPath, { encoding: gzip ? undefined : 'utf8' });
+    if (gzip) {
+      await pipeline(source.pipe(stringEncodeStream()), createGzip(), sink);
+    } else {
+      await pipeline(source, sink);
+    }
+  });
 }
 
 /**

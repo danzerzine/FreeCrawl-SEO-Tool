@@ -302,6 +302,7 @@ import {
   compileUrlRegexRewrites,
   previewExtractionRules,
   runBulkExport,
+  writeExportFile,
   analyzeLogFile,
   buildLogExportXlsx,
   buildLogExportCsv,
@@ -4111,13 +4112,19 @@ function validateProjectPath(
  * mcp-bridge discovery file). Requires an absolute path outside both.
  * Returns the resolved path or throws with a clear message.
  */
-function assertMcpExportPath(raw: unknown): string {
+/** Tool version and project file for the bulk export's `manifest.json`. */
+function bulkExportMeta(sess: ProjectSession = currentSession()): { toolVersion: string; projectFile?: string } {
+  const projectFile = sess.currentProjectPath;
+  return { toolVersion: app.getVersion(), ...(projectFile ? { projectFile } : {}) };
+}
+
+function assertMcpExportPath(raw: unknown, field = 'filePath'): string {
   if (typeof raw !== 'string' || raw.trim() === '') {
-    throw new Error('filePath is required (MCP cannot open dialogs).');
+    throw new Error(`${field} is required (MCP cannot open dialogs).`);
   }
   const trimmed = raw.trim();
   if (!isAbsolute(trimmed)) {
-    throw new Error(`filePath must be an absolute path (got '${trimmed}').`);
+    throw new Error(`${field} must be an absolute path (got '${trimmed}').`);
   }
   const normalized = resolvePath(trimmed);
   const lower = normalized.toLowerCase();
@@ -4126,7 +4133,7 @@ function assertMcpExportPath(raw: unknown): string {
     const d = dir.toLowerCase();
     if (lower === d || lower.startsWith(d + pathSep.toLowerCase())) {
       throw new Error(
-        'filePath must be outside the application and application-data directories.',
+        `${field} must be outside the application and application-data directories.`,
       );
     }
   }
@@ -4984,14 +4991,13 @@ function registerIpc(): void {
         threats: allLogThreats(db),
         threatIps: db.getLogThreatIps(100_000),
       };
-      const { writeFileSync } = await import('node:fs');
       if (format === 'csv') {
         const csv = buildLogExportCsv(tables);
-        writeFileSync(filePath, csv, 'utf8');
+        await writeExportFile(filePath, (partPath) => writeFile(partPath, csv, 'utf8'));
         return { filePath, bytesWritten: Buffer.byteLength(csv, 'utf8') };
       }
       const buf = buildLogExportXlsx(tables);
-      writeFileSync(filePath, buf);
+      await writeExportFile(filePath, (partPath) => writeFile(partPath, buf));
       return { filePath, bytesWritten: buf.length };
     },
   );
@@ -5201,7 +5207,7 @@ function registerIpc(): void {
         rules,
       };
       const json = JSON.stringify(payload, null, 2);
-      writeFileSync(res.filePath, json, 'utf8');
+      await writeExportFile(res.filePath, (partPath) => writeFile(partPath, json, 'utf8'));
       return {
         filePath: res.filePath,
         bytesWritten: Buffer.byteLength(json, 'utf8'),
@@ -5595,7 +5601,7 @@ function registerIpc(): void {
         config: redactConfigSecrets(input.config),
       };
       const json = JSON.stringify(payload, null, 2);
-      writeFileSync(filePath, json, 'utf8');
+      await writeExportFile(filePath, (partPath) => writeFile(partPath, json, 'utf8'));
       return { filePath, bytesWritten: Buffer.byteLength(json, 'utf8') };
     },
   );
@@ -7697,7 +7703,7 @@ function registerIpc(): void {
         pageSize: 'A4',
         margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
       });
-      await writeFile(filePath, pdf);
+      await writeExportFile(filePath, (partPath) => writeFile(partPath, pdf));
       return pdf.byteLength;
     } finally {
       win.destroy();
@@ -7724,7 +7730,7 @@ function registerIpc(): void {
       try {
         await mkdir(exportDir, { recursive: true });
         if (after.export === 'bulk') {
-          const r = await runBulkExport(db, exportDir);
+          const r = await runBulkExport(db, exportDir, bulkExportMeta(sess));
           files.push(...r.files.map((f) => f.filePath));
           errors.push(...r.errors.map((e) => `${e.label}: ${e.error}`));
         } else if (after.export === 'seo-audit') {
@@ -9397,9 +9403,8 @@ function registerIpc(): void {
     // here with explicit paths (an agent can't drive a save/open dialog). ----
 
     'export-bulk': async (input) => {
-      const dir = (input as { outputDir?: string }).outputDir;
-      if (!dir) throw new Error('outputDir is required (MCP cannot open dialogs).');
-      return runBulkExport(getDb(), dir);
+      const dir = assertMcpExportPath((input as { outputDir?: string }).outputDir, 'outputDir');
+      return runBulkExport(getDb(), dir, bulkExportMeta());
     },
 
     'project-save-as': async (input) => {
@@ -9407,8 +9412,7 @@ function registerIpc(): void {
       // agent-made snapshot is a normal project file. Unlike the desktop
       // handler this does NOT bind the session to it — an agent taking a
       // snapshot shouldn't yank the UI onto a different document.
-      const target = (input as { filePath?: string }).filePath;
-      if (!target) throw new Error('filePath is required (MCP cannot open dialogs).');
+      const target = assertMcpExportPath((input as { filePath?: string }).filePath);
       const sess = currentSession();
       const wasDirty = sess.dirty;
       const boundPath = sess.currentProjectPath;
@@ -9422,14 +9426,14 @@ function registerIpc(): void {
 
     'project-save-encrypted': async (input) => {
       const i = input as { filePath?: string; password?: string };
-      if (!i.filePath) throw new Error('filePath is required.');
+      const target = assertMcpExportPath(i.filePath);
       if (!i.password) throw new Error('password is required.');
       const tmpPath = join(app.getPath('temp'), `freecrawl-enc-${Date.now()}.seoproject`);
       try {
         await snapshotDatabaseWithTitle(currentSession(), tmpPath);
         const { encryptFile } = await import('./project-encryption.js');
-        const result = await encryptFile(tmpPath, i.filePath, i.password);
-        return { filePath: i.filePath, bytesWritten: result.bytesWritten };
+        const result = await encryptFile(tmpPath, target, i.password);
+        return { filePath: target, bytesWritten: result.bytesWritten };
       } finally {
         try {
           const { unlinkSync } = await import('node:fs');
@@ -9446,11 +9450,11 @@ function registerIpc(): void {
       const i = input as { filePath?: string; password?: string; destPath?: string };
       if (!i.filePath) throw new Error('filePath is required (source .seoproject.enc).');
       if (!i.password) throw new Error('password is required.');
-      if (!i.destPath) throw new Error('destPath is required (output .seoproject path).');
+      const destPath = assertMcpExportPath(i.destPath, 'destPath');
       const { decryptFile } = await import('./project-encryption.js');
-      await decryptFile(i.filePath, i.destPath, i.password);
-      await openProjectAtPath(i.destPath);
-      return { filePath: i.destPath };
+      await decryptFile(i.filePath, destPath, i.password);
+      await openProjectAtPath(destPath);
+      return { filePath: destPath };
     },
   };
 
@@ -10541,7 +10545,7 @@ function registerIpc(): void {
     const outputDir = dirRes.filePaths[0]!;
     // Task list + per-category writing live in @freecrawl/core's runBulkExport
     // so the desktop handler and the MCP `export_bulk` action stay in sync.
-    const { files, errors } = await runBulkExport(getDb(), outputDir);
+    const { files, errors } = await runBulkExport(getDb(), outputDir, bulkExportMeta());
     if (mainWindow) {
       const totalRows = files.reduce((s, f) => s + f.rowsWritten, 0);
       await dialog.showMessageBox(mainWindow, {

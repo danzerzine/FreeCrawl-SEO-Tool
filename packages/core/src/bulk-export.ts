@@ -8,8 +8,8 @@
  * must not take a runtime dependency on db) — same pattern as csv-export.
  */
 
-import { join } from 'node:path';
-import { rmdir } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
+import { rmdir, writeFile } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import { EXPORT_DATASET_COLUMNS } from '@freecrawl/shared-types';
 import type {
@@ -68,7 +68,6 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
   { label: 'Insecure Form Action', file: 'issues-insecure-form-action.csv', category: 'issues:insecure-form-action' },
   { label: 'Hreflang — Reciprocity Missing', file: 'hreflang-reciprocity-missing.csv', category: 'issues:hreflang-reciprocity-missing' },
   { label: 'Sitemap — Crawled, Not Listed', file: 'sitemap-crawled-not-in-sitemap.csv', category: 'issues:crawled-not-in-sitemap' },
-  { label: 'Image Missing Alt', file: 'issues-image-missing-alt.csv', category: 'issues:image-missing-alt' },
   { label: 'Near-Duplicate Content', file: 'issues-near-duplicate.csv', category: 'issues:near-duplicate' },
   { label: 'All Redirects', file: 'all-redirects.csv', category: 'tab:redirects' },
   { label: 'Redirect Chains (Long)', file: 'redirect-chains-long.csv', category: 'issues:redirect-chain-long' },
@@ -191,8 +190,16 @@ export const ISSUE_INLINKS_SUBDIR = 'issue-inlinks';
 export async function runBulkExport(
   db: ProjectDb,
   outputDir: string,
-  options: { tasks?: readonly BulkExportTask[] } = {},
+  options: {
+    tasks?: readonly BulkExportTask[];
+    /** Header row of the CSV files: the grid's labels (default) or raw keys. */
+    headers?: 'labels' | 'keys';
+    /** Tool version and project file, recorded in `manifest.json`. */
+    toolVersion?: string;
+    projectFile?: string;
+  } = {},
 ): Promise<BulkExportResult> {
+  const startedAt = new Date();
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
   const hasRows = (r: { rowsWritten: number }): boolean => r.rowsWritten > 0;
@@ -205,7 +212,11 @@ export async function runBulkExport(
     try {
       const { rowsWritten } = await writeExportFile(
         filePath,
-        (partPath) => exportUrlsToCsv(db, partPath, { category: task.category, columns: task.columns }),
+        (partPath) => exportUrlsToCsv(db, partPath, {
+            category: task.category,
+            columns: task.columns,
+            headers: options.headers,
+          }),
         hasRows,
       );
       if (rowsWritten === 0) continue;
@@ -244,6 +255,7 @@ export async function runBulkExport(
         (partPath) =>
           exportTabular(db, partPath, {
             format: 'csv',
+            headers: options.headers,
             sections: [{ label: task.label, dataset: task.dataset }],
             columns: EXPORT_DATASET_COLUMNS[task.dataset].map((c) => c.key),
           }),
@@ -274,6 +286,7 @@ export async function runBulkExport(
           (partPath) =>
             exportTabular(db, partPath, {
               format: 'csv',
+              headers: options.headers,
               sections: [{ label, dataset: 'issue-inlinks' }],
               columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
               datasetContext: { issueKey: key },
@@ -289,5 +302,40 @@ export async function runBulkExport(
     }
     if (written === 0) await rmdir(issueDir).catch(() => undefined);
   }
-  return { outputDir, files, errors };
+  const result: BulkExportResult = { outputDir, files, errors };
+  await writeBulkManifest(result, startedAt, options);
+  return result;
+}
+
+/**
+ * `manifest.json` beside the files: what was written (relative path, label,
+ * rows), when, by which tool version, from which project. Written last, so
+ * its presence means the run reached the end. A failed manifest is an
+ * error entry like any other file, not an abort.
+ */
+async function writeBulkManifest(
+  result: BulkExportResult,
+  startedAt: Date,
+  options: { toolVersion?: string; projectFile?: string },
+): Promise<void> {
+  try {
+    const manifest = {
+      tool: 'FreeCrawl SEO Tool',
+      toolVersion: options.toolVersion ?? null,
+      projectFile: options.projectFile ?? null,
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      files: result.files.map((f) => ({
+        path: relative(result.outputDir, f.filePath).split(sep).join('/'),
+        label: f.label,
+        rows: f.rowsWritten,
+      })),
+      errors: result.errors,
+    };
+    await writeExportFile(join(result.outputDir, 'manifest.json'), (partPath) =>
+      writeFile(partPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8'),
+    );
+  } catch (err) {
+    result.errors.push({ label: 'Manifest', error: (err as Error).message });
+  }
 }
