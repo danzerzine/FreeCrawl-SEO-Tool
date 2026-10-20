@@ -8,7 +8,9 @@
     "siteBotBlocked": "Bot koruması taramanın bir kısmını engelledi",
     "siteBotBlockedHint": "Sitenin bot koruması bu sayfalar yerine bir doğrulama sayfasıyla yanıt verdi. Bu sayfalar taranmadı; kırık bağlantı ve sitemap kontrollerinin dışında tutuldu. Tarama hızını düşürün ya da tarayıcının user agent’ını izin listesine ekleyin, sonra yeniden tarayın.",
     "checkOff": "Kapalı",
-    "cookiesOffHint": "Taramanın çerez politikası \"Tümünü reddet\" olduğu için çerez kontrolleri kapalı. Set-Cookie başlıklarını incelemek için Ayarlar → Çerezler altında \"Tümünü kabul et\" veya \"Üçüncü tarafları engelle\" seçin."
+    "cookiesOffHint": "Taramanın çerez politikası \"Tümünü reddet\" olduğu için çerez kontrolleri kapalı. Set-Cookie başlıklarını incelemek için Ayarlar → Çerezler altında \"Tümünü kabul et\" veya \"Üçüncü tarafları engelle\" seçin.",
+    "notComputed": "Hesaplanmadı",
+    "notComputedHint": "Gelen bağlantılar henüz hesaplanmadığı için yetim sayfalar sayılamıyor. \"Inlink'leri yeniden hesapla\" açık olan bir taramanın sonunda hesaplanırlar."
   },
   "integrations": {
     "intro": "Harici servisleri kendi kimlik bilgilerinle bağla. API anahtarları ve secret'lar işletim sisteminin güvenli depolaması ile şifreli saklanır ve bu makineden asla çıkmaz.",
@@ -607,11 +609,12 @@
       "followRedirects": "Yönlendirmeleri Daima Takip Et",
       "respectRobotsTxt": "robots.txt'ye Uy",
       "respectCrawlDelay": "robots.txt Crawl-delay'e Uy",
-      "crawlExternal": "Harici Linkleri Kontrol Et",
+      "crawlExternal": "Harici Sayfaları Tara",
+      "checkExternalLinks": "Harici Bağlantıların Durumunu Kontrol Et",
       "checkImages": "Görselleri Kontrol Et",
       "checkCss": "CSS'i Kontrol Et",
       "checkJs": "JavaScript'i Kontrol Et",
-      "storeNofollow": "Nofollow Linkleri Takip Et / Sakla",
+      "storeNofollow": "Nofollow Linklerini Say / Kontrol Et",
       "storeNofollowHint": "Varsayılan kapalı — Screaming Frog 'Respect Nofollow' davranışı",
       "discoverSitemaps": "XML Sitemap'leri Otomatik Keşfet",
       "discoverSitemapsHint": "Crawl başlangıcında robots.txt + default yollardan sitemap.xml okur",

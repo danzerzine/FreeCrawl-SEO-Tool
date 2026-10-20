@@ -140,6 +140,7 @@ export type UrlCategory =
   | 'issues:hreflang-target-issues'
   | 'issues:hreflang-unlinked'
   | 'issues:orphan-page'
+  | 'issues:inlinks-nofollow-only'
   | 'issues:crawled-not-in-sitemap'
   | 'issues:redirect-in-sitemap'
   | 'issues:h1-empty'
@@ -879,6 +880,14 @@ export interface CrawlConfig {
   respectCrawlDelay: boolean;
   crawlExternal: boolean;
   /**
+   * Status-check the targets of external links (one request each) so Broken
+   * Links can report dead ones. Independent of `crawlExternal`, which
+   * decides whether external pages are crawled through. Off sends no request
+   * to any external host: the links are still stored, just without a status.
+   * On large sites externals can outnumber internal URLs several times over.
+   */
+  checkExternalLinks: boolean;
+  /**
    * Crawl internal page subresources so they appear in the Internal tab as
    * their own rows (status code, content type, size) — exactly like
    * Screaming Frog's "Check Images / CSS / JavaScript". Each fetched resource
@@ -900,11 +909,12 @@ export interface CrawlConfig {
   /** Initial backoff (ms) — doubles on each attempt. */
   retryInitialDelayMs: number;
   /**
-   * Persist `rel="nofollow"` links in the `links` table.
-   * Default `false` — nofollow links are never stored, never probed as
-   * externals, and don't count toward `urls.outlinks`. Screaming-Frog
-   * style "Respect Nofollow" behaviour: nofollow links exist only as
-   * hints to search engines, not as part of the crawl graph.
+   * Treat `rel="nofollow"` links as part of the crawl graph: probe
+   * external ones and count them toward `urls.outlinks`.
+   * Default `false` — Screaming-Frog style "Respect Nofollow": they are
+   * still stored in the `links` table (with their `rel`) so Inlinks /
+   * Outlinks show them, but are not probed and don't count as outlinks.
+   * Following internal ones is `followNofollow`.
    */
   storeNofollowLinks: boolean;
   /**
@@ -1278,7 +1288,8 @@ export interface CrawlConfig {
   /**
    * Follow `<a rel="nofollow">` links (still respecting all other
    * filters). Default `false` — Screaming Frog "Respect Nofollow"
-   * default. Combined with `storeNofollowLinks` for the storage side.
+   * default. Nofollow links are stored either way; `storeNofollowLinks`
+   * only decides whether they count as outlinks and get probed.
    */
   followNofollow: boolean;
   /**
@@ -1962,8 +1973,13 @@ export interface OverviewCounts {
     hreflangReciprocityMissing: number;
     hreflangTargetIssues: number;
     hreflangUnlinked: number;
-    /** Internal 2xx HTML pages nothing links to (start URL excluded). */
-    orphanPage: number;
+    /**
+     * Internal 2xx HTML pages nothing links to (start URL excluded); null when
+     * inlinks were never computed, so the count would be meaningless.
+     */
+    orphanPage: number | null;
+    /** Internal 2xx HTML pages whose every internal inlink is nofollow. */
+    inlinksNofollowOnly: number;
     crawledNotInSitemap: number;
     redirectInSitemap: number;
     /** Sitemap URL count that the crawl never reached (in sitemap_urls but not in urls). */
@@ -2571,6 +2587,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   respectRobotsTxt: true,
   respectCrawlDelay: false,
   crawlExternal: false,
+  checkExternalLinks: true,
   checkImages: true,
   checkCss: true,
   checkJs: true,

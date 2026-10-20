@@ -1124,6 +1124,10 @@ export class Crawler extends EventEmitter {
 
     this.setOp(`crawl:start:${this.config.startUrl}`);
 
+    // New pages arrive with inlinks = 0 until the end-of-crawl pass runs, so
+    // the orphan count is meaningless from here on (also for respider runs).
+    await this.runDbPass('markInlinksStale');
+
     // Fire an immediate progress event so the UI can flip to "Running"
     // before we block on resolveStartUrl (which can spend several seconds
     // probing HTTPS then HTTP on unreachable hosts).
@@ -2988,6 +2992,10 @@ export class Crawler extends EventEmitter {
 
   private enqueueExternal(url: string): void {
     if (this.stopped) return;
+    // "Check external links" off: external targets stay stored as links but
+    // no request ever goes to their host. Every external probe (links,
+    // resources, iframes, redirect hops, resume) funnels through here.
+    if (!this.config.checkExternalLinks) return;
     if (this.externalSeen.has(url)) return;
     // Bound external discovery the same way internal crawling is bounded.
     // Without these caps `externalSeen` and the probe queue grow without
@@ -3011,6 +3019,14 @@ export class Crawler extends EventEmitter {
           `External probe error: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
+  }
+
+  /**
+   * Crawling external pages is a request to an external host like any
+   * other, so "check external links" off overrides `crawlExternal`.
+   */
+  private get crawlsExternalPages(): boolean {
+    return this.config.crawlExternal && this.config.checkExternalLinks;
   }
 
   private async probeExternal(url: string): Promise<void> {
@@ -4330,7 +4346,7 @@ export class Crawler extends EventEmitter {
             return;
           }
           const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-          if (inScope || this.config.crawlExternal) {
+          if (inScope || this.crawlsExternalPages) {
             this.enqueue({ url: target, depth: item.depth, redirectHopCount: hopCount });
           } else if (!inScope) {
             // Record the target as an external stub so the hop chain is
@@ -4660,9 +4676,12 @@ export class Crawler extends EventEmitter {
       }
 
       // Respect-Nofollow default (Screaming-Frog style): `rel="nofollow"`
-      // links are treated as hints that exist only for search engines, so
-      // we drop them from persistence and from the crawl graph entirely.
-      // Opt-in via `storeNofollowLinks` if the user wants them recorded.
+      // links are not part of the crawl graph — not followed, not probed
+      // as externals, not counted in `outlinks`. Opt-in via
+      // `storeNofollowLinks` to treat them like any other link there.
+      // They are still recorded in the `links` table either way (below),
+      // so Inlinks / Outlinks show them and "nofollow-only inlinks" can
+      // be answered.
       const storableLinks = this.config.storeNofollowLinks
         ? parsed.links
         : parsed.links.filter((l) => !l.rel?.includes('nofollow'));
@@ -4671,6 +4690,8 @@ export class Crawler extends EventEmitter {
       // itself stays whole: traversal below and the page's outlink count
       // both describe what the page declared, which doesn't change just
       // because the user stopped recording one side of the graph.
+      // Persisted from `parsed.links`, not `storableLinks`: a nofollow
+      // link is recorded (with its `rel`) even when it is not followed.
       // A missing flag (a config assembled outside the Settings dialog —
       // an older saved project, an MCP override) means "store", never
       // "drop": a silently empty link graph is the worse failure.
@@ -4678,7 +4699,7 @@ export class Crawler extends EventEmitter {
       const storeExternalLinks = this.config.storeExternalLinks ?? true;
       const persistedLinks: DiscoveredLink[] = [];
       if (storeInternalLinks || storeExternalLinks) {
-        for (const l of storableLinks) {
+        for (const l of parsed.links) {
           const keep = l.isInternal ? storeInternalLinks : storeExternalLinks;
           if (keep) persistedLinks.push(l);
         }
@@ -5044,9 +5065,9 @@ export class Crawler extends EventEmitter {
               this.config.scope === 'subfolder' &&
               this.config.checkLinksOutsideStartFolder &&
               isInScope(this.config.startUrl, link.toUrl, 'subdomain');
-            if (!inScope && !checkOnly && !this.config.crawlExternal) continue;
+            if (!inScope && !checkOnly && !this.crawlsExternalPages) continue;
             // Wave 3 — nofollow follow toggle. By default nofollow links
-            // are stored (when `storeNofollowLinks` is on) but never
+            // are always stored but never
             // recursed into. Turning the matching row on opts out of the
             // "respect nofollow" behaviour and treats them like any other
             // link for the follow decision — internal and external are
@@ -5069,7 +5090,7 @@ export class Crawler extends EventEmitter {
           for (const target of [parsed.paginationNext, parsed.paginationPrev]) {
             if (!target) continue;
             const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-            if (!inScope && !this.config.crawlExternal) continue;
+            if (!inScope && !this.crawlsExternalPages) continue;
             this.enqueue({ url: target, depth: nextDepth });
           }
         }
@@ -5087,7 +5108,7 @@ export class Crawler extends EventEmitter {
               normalized,
               this.config.scope,
             );
-            if (!inScope && !this.config.crawlExternal) continue;
+            if (!inScope && !this.crawlsExternalPages) continue;
             this.enqueue({ url: normalized, depth: nextDepth });
           }
         }
@@ -5108,7 +5129,7 @@ export class Crawler extends EventEmitter {
             parsed.canonicalResolved,
             this.config.scope,
           );
-          if (inScope || this.config.crawlExternal) {
+          if (inScope || this.crawlsExternalPages) {
             this.enqueue({ url: parsed.canonicalResolved, depth: nextDepth });
           }
         }
@@ -5119,7 +5140,7 @@ export class Crawler extends EventEmitter {
           for (const target of [parsed.metaRefreshUrl, parsed.jsRedirectUrl]) {
             if (!target || target === item.url) continue;
             const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-            if (inScope || this.config.crawlExternal) {
+            if (inScope || this.crawlsExternalPages) {
               this.enqueue({ url: target, depth: nextDepth });
             }
           }
@@ -5131,7 +5152,7 @@ export class Crawler extends EventEmitter {
         const followDeclared = (target: string | null): void => {
           if (!target || target === item.url) return;
           const inScope = isInScope(this.config.startUrl, target, this.config.scope);
-          if (!inScope && !this.config.crawlExternal) return;
+          if (!inScope && !this.crawlsExternalPages) return;
           this.enqueue({ url: target, depth: nextDepth });
         };
         if (this.config.crawlHreflang) {

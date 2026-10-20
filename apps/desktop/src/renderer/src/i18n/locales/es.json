@@ -8,7 +8,9 @@
     "siteBotBlocked": "La protección antibots bloqueó parte del rastreo",
     "siteBotBlockedHint": "La protección antibots del sitio respondió con un desafío en lugar de estas páginas. No se rastrearon y quedan fuera de las comprobaciones de enlaces rotos y de sitemap. Reduce la velocidad de rastreo o añade el user agent del rastreador a la lista de permitidos y vuelve a rastrearlas.",
     "checkOff": "Desactivado",
-    "cookiesOffHint": "Las comprobaciones de cookies están desactivadas porque la política de cookies del rastreo es \"Rechazar todo\". Elija \"Aceptar todo\" o \"Bloquear de terceros\" en Ajustes → Cookies para analizar las cabeceras Set-Cookie."
+    "cookiesOffHint": "Las comprobaciones de cookies están desactivadas porque la política de cookies del rastreo es \"Rechazar todo\". Elija \"Aceptar todo\" o \"Bloquear de terceros\" en Ajustes → Cookies para analizar las cabeceras Set-Cookie.",
+    "notComputed": "No calculado",
+    "notComputedHint": "Los enlaces entrantes aún no se han calculado, por lo que no se pueden contar las páginas huérfanas. Se calculan al final de un rastreo con \"Recalcular enlaces entrantes\" activado."
   },
   "integrations": {
     "intro": "Conecta servicios externos con tus propias credenciales. Las claves de API y los secretos se cifran en reposo mediante el almacenamiento seguro de tu sistema operativo y nunca salen de esta máquina.",
@@ -627,11 +629,12 @@
       "followRedirects": "Seguir siempre las redirecciones",
       "respectRobotsTxt": "Respetar robots.txt",
       "respectCrawlDelay": "Respetar el Crawl-delay de robots.txt",
-      "crawlExternal": "Comprobar enlaces externos",
+      "crawlExternal": "Rastrear páginas externas",
+      "checkExternalLinks": "Comprobar el estado de los enlaces externos",
       "checkImages": "Comprobar imágenes",
       "checkCss": "Comprobar CSS",
       "checkJs": "Comprobar JavaScript",
-      "storeNofollow": "Seguir / almacenar enlaces nofollow",
+      "storeNofollow": "Contar / comprobar enlaces nofollow",
       "storeNofollowHint": "Desactivado por defecto — comportamiento «Respect Nofollow» de Screaming Frog",
       "discoverSitemaps": "Descubrir automáticamente sitemaps XML",
       "discoverSitemapsHint": "Lee sitemap.xml desde robots.txt y desde las rutas por defecto al iniciar el rastreo",

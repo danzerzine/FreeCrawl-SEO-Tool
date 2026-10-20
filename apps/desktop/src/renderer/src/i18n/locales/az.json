@@ -8,7 +8,9 @@
     "siteBotBlocked": "Bot qorunması taramanın bir hissəsini blokladı",
     "siteBotBlockedHint": "Saytın bot qorunması bu səhifələrin əvəzinə yoxlama səhifəsi ilə cavab verdi. Onlar taranmadı və qırıq keçid və sitemap yoxlamalarından kənarda saxlanılır. Tarama sürətini azaldın və ya tarayıcının user agent-ini icazə siyahısına əlavə edin, sonra onları yenidən tarayın.",
     "checkOff": "Bağlı",
-    "cookiesOffHint": "Taramanın kuki siyasəti \"Hamısını rədd et\" olduğu üçün kuki yoxlamaları bağlıdır. Set-Cookie başlıqlarını təhlil etmək üçün Parametrlər → Kukilər bölməsində \"Hamısını qəbul et\" və ya \"Üçüncü tərəfləri blokla\" seçin."
+    "cookiesOffHint": "Taramanın kuki siyasəti \"Hamısını rədd et\" olduğu üçün kuki yoxlamaları bağlıdır. Set-Cookie başlıqlarını təhlil etmək üçün Parametrlər → Kukilər bölməsində \"Hamısını qəbul et\" və ya \"Üçüncü tərəfləri blokla\" seçin.",
+    "notComputed": "Hesablanmayıb",
+    "notComputedHint": "Daxil olan keçidlər hələ hesablanmadığı üçün yetim səhifələri saymaq mümkün deyil. Onlar \"Daxil olan keçidləri yenidən hesabla\" aktiv olan taramanın sonunda hesablanır."
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",
@@ -607,11 +609,12 @@
       "followRedirects": "Yönləndirmələri hər zaman izlə",
       "respectRobotsTxt": "robots.txt-ə riayət et",
       "respectCrawlDelay": "robots.txt-in Crawl-delay dəyərinə riayət et",
-      "crawlExternal": "Xarici keçidləri yoxla",
+      "crawlExternal": "Xarici səhifələri tara",
+      "checkExternalLinks": "Xarici keçidlərin statusunu yoxla",
       "checkImages": "Şəkilləri yoxla",
       "checkCss": "CSS-i yoxla",
       "checkJs": "JavaScript-i yoxla",
-      "storeNofollow": "nofollow keçidlərini izlə / saxla",
+      "storeNofollow": "nofollow keçidlərini say / yoxla",
       "storeNofollowHint": "Susmaya görə sönülüdür — Screaming Frog-un «Respect Nofollow» davranışı",
       "discoverSitemaps": "XML sitemap-ları avtomatik tap",
       "discoverSitemapsHint": "Tarama başlayanda robots.txt və susmaya görə yollardan sitemap.xml-i oxuyur",

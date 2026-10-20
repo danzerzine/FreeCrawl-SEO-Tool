@@ -1686,16 +1686,17 @@ export function parseHtml(
     // than the first: a `rel="nofollow"` nav link followed by a plain
     // content link to the same page used to record the target as nofollow,
     // and with `storeNofollowLinks` off (the default) the crawler then
-    // dropped it entirely — so the page lost an inlink and, if that was its
-    // only link, was never crawled and reported as an orphan. If any
+    // did not follow it — so, if that was its only link, the page was
+    // never crawled and reported as an orphan. If any
     // occurrence is followable, the link is followable.
     const existing = linkMap.get(normalized);
     if (existing) {
       if (existing.rel?.includes('nofollow') && !rel?.includes('nofollow')) {
         existing.rel = rel;
-        // A followable content link also carries the more useful anchor
-        // text than an icon-only nav link, so take it when we had none.
-        if (!existing.anchor && anchor) existing.anchor = anchor;
+        // The stored record describes the followable occurrence, so its
+        // anchor text replaces the nofollow one's; an empty anchor keeps
+        // the text we already had.
+        if (anchor) existing.anchor = anchor;
       }
       // The page is flagged above for a too-long / generic anchor even when
       // the same target is also linked with a fine one (a product card's

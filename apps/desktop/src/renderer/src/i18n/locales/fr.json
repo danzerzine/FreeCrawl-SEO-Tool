@@ -8,7 +8,9 @@
     "siteBotBlocked": "La protection anti-bots a bloqué une partie de l'exploration",
     "siteBotBlockedHint": "La protection anti-bots du site a répondu par une vérification au lieu de ces pages. Elles n'ont pas été explorées et sont exclues des contrôles de liens cassés et de sitemap. Réduisez la vitesse d'exploration ou autorisez le user agent du robot, puis explorez-les à nouveau.",
     "checkOff": "Désactivé",
-    "cookiesOffHint": "Les contrôles des cookies sont désactivés car la politique de cookies de l'exploration est « Tout refuser ». Choisissez « Tout accepter » ou « Bloquer les tiers » dans Paramètres → Cookies pour analyser les en-têtes Set-Cookie."
+    "cookiesOffHint": "Les contrôles des cookies sont désactivés car la politique de cookies de l'exploration est « Tout refuser ». Choisissez « Tout accepter » ou « Bloquer les tiers » dans Paramètres → Cookies pour analyser les en-têtes Set-Cookie.",
+    "notComputed": "Non calculé",
+    "notComputedHint": "Les liens entrants n'ont pas encore été calculés, les pages orphelines ne peuvent donc pas être comptées. Ils sont calculés à la fin d'une exploration avec « Recalculer les liens entrants » activé."
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",
@@ -627,11 +629,12 @@
       "followRedirects": "Toujours suivre les redirections",
       "respectRobotsTxt": "Respecter robots.txt",
       "respectCrawlDelay": "Respecter le Crawl-delay de robots.txt",
-      "crawlExternal": "Vérifier les liens externes",
+      "crawlExternal": "Explorer les pages externes",
+      "checkExternalLinks": "Vérifier le statut des liens externes",
       "checkImages": "Vérifier les images",
       "checkCss": "Vérifier le CSS",
       "checkJs": "Vérifier le JavaScript",
-      "storeNofollow": "Suivre / stocker les liens nofollow",
+      "storeNofollow": "Compter / vérifier les liens nofollow",
       "storeNofollowHint": "Désactivé par défaut — comportement « Respect Nofollow » de Screaming Frog",
       "discoverSitemaps": "Découvrir automatiquement les sitemaps XML",
       "discoverSitemapsHint": "Lit sitemap.xml depuis robots.txt et les chemins par défaut au démarrage de l'exploration",

@@ -347,6 +347,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     label: 'Links',
     items: [
       { key: 'issues-orphan-page', label: 'Orphan Pages (No Inlinks)', category: 'issues:orphan-page', count: 'orphanPage' },
+      { key: 'issues-inlinks-nofollow-only', label: 'Inlinks Nofollow Only', category: 'issues:inlinks-nofollow-only', count: 'inlinksNofollowOnly' },
       { key: 'issues-broken-all', label: 'Broken (All)', category: 'issues:broken-links-all', count: ['brokenLinksInternal', 'brokenLinksExternal'] },
       { key: 'issues-broken-internal', label: 'Broken Internal', category: 'issues:broken-links-internal', count: 'brokenLinksInternal' },
       { key: 'issues-broken-external', label: 'Broken External', category: 'issues:broken-links-external', count: 'brokenLinksExternal' },
@@ -388,11 +389,11 @@ export const ISSUE_COUNT_KEY: ReadonlyMap<UrlCategory, IssueCountKey> = new Map(
   ),
 );
 
-/** Reads a check's counter, summing composite ones. */
-export function issueCount(issues: OverviewCounts['issues'], def: IssueCheckDef): number {
+/** Reads a check's counter, summing composite ones; null = not computed. */
+export function issueCount(issues: OverviewCounts['issues'], def: IssueCheckDef): number | null {
   return typeof def.count === 'string'
     ? issues[def.count]
-    : def.count.reduce((acc, k) => acc + issues[k], 0);
+    : def.count.reduce((acc, k) => acc + (issues[k] ?? 0), 0);
 }
 
 /** Every toggleable issue category, in sidebar order. */

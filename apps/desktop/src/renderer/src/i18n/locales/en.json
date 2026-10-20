@@ -8,7 +8,9 @@
     "siteBotBlocked": "Bot protection blocked part of the crawl",
     "siteBotBlockedHint": "The site's bot protection answered with a challenge instead of these pages. They were not crawled and are left out of the broken-link and sitemap checks. Lower the crawl speed or allowlist the crawler's user agent, then re-crawl them.",
     "checkOff": "Off",
-    "cookiesOffHint": "Cookie checks are off because the crawl's cookie policy is \"Reject all\". Choose \"Accept all\" or \"Block third-party\" under Settings → Cookies to analyse Set-Cookie headers."
+    "cookiesOffHint": "Cookie checks are off because the crawl's cookie policy is \"Reject all\". Choose \"Accept all\" or \"Block third-party\" under Settings → Cookies to analyse Set-Cookie headers.",
+    "notComputed": "Not computed",
+    "notComputedHint": "Inlinks have not been computed yet, so orphan pages cannot be counted. They are computed at the end of a crawl that has \"Recompute inlinks\" on."
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",
@@ -607,11 +609,12 @@
       "followRedirects": "Always Follow Redirects",
       "respectRobotsTxt": "Respect robots.txt",
       "respectCrawlDelay": "Respect robots.txt Crawl-delay",
-      "crawlExternal": "Check External Links",
+      "crawlExternal": "Crawl External Pages",
+      "checkExternalLinks": "Check external link status",
       "checkImages": "Check Images",
       "checkCss": "Check CSS",
       "checkJs": "Check JavaScript",
-      "storeNofollow": "Follow / Store Nofollow Links",
+      "storeNofollow": "Count / Probe Nofollow Links",
       "storeNofollowHint": "Default off — Screaming Frog 'Respect Nofollow' behaviour",
       "discoverSitemaps": "Auto-Discover XML Sitemaps",
       "discoverSitemapsHint": "Reads sitemap.xml from robots.txt + default paths at crawl start",
