@@ -9,7 +9,7 @@
  */
 
 import { join, relative, sep } from 'node:path';
-import { rmdir, writeFile } from 'node:fs/promises';
+import { readdir, rmdir, unlink, writeFile } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import { EXPORT_DATASET_COLUMNS, ISSUE_CATEGORIES } from '@freecrawl/shared-types';
 import type {
@@ -200,36 +200,44 @@ export async function exportIssueInlinks(
   const issueKeys = [...db.getIssueCounts().keys()]
     .filter((key) => known.has(key) && !disabled.has(key as UrlCategory))
     .sort();
-  if (issueKeys.length > 0) {
-    const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
-    let written = 0;
-    for (const key of issueKeys) {
-      const name = key.replace(/^issues:/, '').replace(/[^a-z0-9-]/gi, '-');
-      const issueLabel = BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? name;
-      const label = `Issue Inlinks — ${issueLabel}`;
-      const filePath = join(issueDir, `inlinks-${name}.csv`);
-      try {
-        const { rowsWritten } = await writeExportFile(
-          filePath,
-          (partPath) =>
-            exportTabular(db, partPath, {
-              format: 'csv',
-              headers: options.headers,
-              sections: [{ label, dataset: 'issue-inlinks' }],
-              columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
-              datasetContext: { issueKey: key },
-            }),
-          hasRows,
-        );
-        if (rowsWritten === 0) continue;
-        written++;
-        files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
-      } catch (err) {
-        errors.push({ label, error: (err as Error).message });
-      }
+  const issueDir = join(outputDir, ISSUE_INLINKS_SUBDIR);
+  const writtenNames = new Set<string>();
+  for (const key of issueKeys) {
+    const name = key.replace(/^issues:/, '').replace(/[^a-z0-9-]/gi, '-');
+    const issueLabel = BULK_EXPORT_TASKS.find((t) => t.category === key)?.label ?? name;
+    const label = `Issue Inlinks — ${issueLabel}`;
+    const fileName = `inlinks-${name}.csv`;
+    const filePath = join(issueDir, fileName);
+    try {
+      const { rowsWritten } = await writeExportFile(
+        filePath,
+        (partPath) =>
+          exportTabular(db, partPath, {
+            format: 'csv',
+            headers: options.headers,
+            sections: [{ label, dataset: 'issue-inlinks' }],
+            columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
+            datasetContext: { issueKey: key },
+          }),
+        hasRows,
+      );
+      if (rowsWritten === 0) continue;
+      writtenNames.add(fileName);
+      files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
+    } catch (err) {
+      errors.push({ label, error: (err as Error).message });
     }
-    if (written === 0) await rmdir(issueDir).catch(() => undefined);
   }
+  // A rerun into the same folder: an issue fixed since the last run must
+  // not leave its old inlinks file behind as if it still had pages. Only
+  // our own `inlinks-*.csv` names go; anything else in the folder stays.
+  const previous = await readdir(issueDir).catch(() => [] as string[]);
+  for (const entry of previous) {
+    if (/^inlinks-.*\.csv$/.test(entry) && !writtenNames.has(entry)) {
+      await unlink(join(issueDir, entry)).catch(() => undefined);
+    }
+  }
+  if (writtenNames.size === 0) await rmdir(issueDir).catch(() => undefined);
   return { files, errors };
 }
 
