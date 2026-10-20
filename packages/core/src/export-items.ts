@@ -5,7 +5,8 @@
  * files whichever of them runs it.
  */
 
-import { join } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
 import { EXPENSIVE_ISSUE_DEFINITIONS, type ProjectDb } from '@freecrawl/db';
 import {
   EXPORT_DATASET_COLUMNS,
@@ -24,10 +25,13 @@ import { exportTabular } from './tabular-export.js';
 /** One `--what` entry of `freecrawl export`. */
 export type ExportItem =
   | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues'; name: string }
-  | { kind: 'tasks'; name: string; tasks: BulkExportTask[] }
+  | { kind: 'category'; name: string; tasks: BulkExportTask[] }
   | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
   | { kind: 'selected'; name: 'selected-links'; urls: string[] }
   | { kind: 'dataset'; name: string; dataset: ExportDatasetKey };
+
+/** Datasets pulled from a linked Google / Yandex account, which the CLI has none of. */
+const ACCOUNT_DATASETS: readonly ExportDatasetKey[] = ['search-console', 'analytics', 'metrica'];
 
 /**
  * Datasets `--what dataset:<key>` can write. Left out: the `selected-*`
@@ -35,7 +39,7 @@ export type ExportItem =
  * Analytics and Metrica pulls (they need a linked account).
  */
 export const CLI_EXPORT_DATASETS = (Object.keys(EXPORT_DATASET_COLUMNS) as ExportDatasetKey[]).filter(
-  (k) => !k.startsWith('selected-') && !['search-console', 'analytics', 'metrica'].includes(k),
+  (k) => !k.startsWith('selected-') && !ACCOUNT_DATASETS.includes(k),
 );
 
 /** Page bodies exceed the 32,767-character cell limit of CSV / Excel: JSON Lines only. */
@@ -44,6 +48,8 @@ const JSONL_DATASETS: readonly ExportDatasetKey[] = ['page-html', 'page-text'];
 export interface ExportOutcome {
   files: { path: string; label: string; rows: number | null }[];
   errors: { label: string; error: string }[];
+  /** Outputs that held no rows, so no file was written; not a failure. */
+  skipped: { label: string; reason: string }[];
 }
 
 export const EXPORT_WHAT_HELP =
@@ -69,7 +75,7 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
       if (CLI_EXPORT_DATASETS.includes(key)) return { kind: 'dataset', name, dataset: key };
       const hint = key.startsWith('selected-')
         ? ' (it needs chosen pages: use --urls <file> instead)'
-        : ['search-console', 'analytics', 'metrica'].includes(key)
+        : ACCOUNT_DATASETS.includes(key)
           ? ' (it needs a linked account, which the CLI does not have)'
           : '';
       throw new Error(
@@ -78,7 +84,7 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
     }
     if (name.startsWith('tab:') || name.startsWith('issues:')) {
       const tasks = BULK_EXPORT_TASKS.filter((t) => t.category === name);
-      if (tasks.length > 0) return { kind: 'tasks', name, tasks };
+      if (tasks.length > 0) return { kind: 'category', name, tasks };
       const valid = [
         ...new Set(
           BULK_EXPORT_TASKS.map((t) => t.category).filter(
@@ -92,16 +98,39 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
   });
 }
 
+/** Whether `item` reads the materialised issue lists (`urls_issues`). */
+function readsIssueData(item: ExportItem): boolean {
+  switch (item.kind) {
+    case 'bulk':
+    case 'seo-audit':
+    case 'html': // the overview counts
+    case 'issues':
+      return true;
+    case 'category':
+      return item.tasks.some((t) => t.category.startsWith('issues:'));
+    case 'dataset':
+      return item.dataset === 'issues-long' || item.dataset === 'issue-inlinks';
+    case 'link':
+    case 'selected':
+      return false;
+  }
+}
+
 export interface RunExportItemsOptions {
   /** Write the internal column keys instead of the grid labels. */
   rawHeaders?: boolean;
-  /** Recorded in the bulk export's manifest. */
+  /** Recorded in the run's manifest.json. */
   projectFile?: string;
   toolVersion?: string;
   /** White-label header of the `html` report. */
   branding?: HtmlReportOptions['branding'];
   /** One line per step; the CLI sends it to stderr. */
   onProgress?: (line: string) => void;
+  /**
+   * Filled as items finish (and returned), so a caller cut short by
+   * Ctrl-C can still report the files written so far.
+   */
+  outcome?: ExportOutcome;
 }
 
 /**
@@ -114,13 +143,16 @@ export async function runExportItems(
   items: readonly ExportItem[],
   options: RunExportItemsOptions = {},
 ): Promise<ExportOutcome> {
+  const startedAt = new Date();
   const headers = options.rawHeaders ? ('keys' as const) : undefined;
-  const outcome: ExportOutcome = { files: [], errors: [] };
+  const outcome: ExportOutcome = options.outcome ?? { files: [], errors: [], skipped: [] };
   const progress = options.onProgress ?? (() => {});
-  // `issues:*` files read the materialised urls_issues table; a project
-  // last materialised by an older set of checks would export stale lists.
-  // A desktop-saved project is only changed in its working copy.
-  if (db.issueMaterialisationStale()) {
+  // Issue lists and counts read the materialised urls_issues table; a
+  // project last materialised by an older set of checks would export stale
+  // ones. They are refilled only when this run reads them. It is derived
+  // data, written the same way a crawl writes it: a bare project file is
+  // refreshed in place, a desktop-saved one only in its working copy.
+  if (items.some(readsIssueData) && db.issueMaterialisationStale()) {
     progress('Issue lists predate the current checks: recomputing them…');
     try {
       db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
@@ -143,7 +175,7 @@ export async function runExportItems(
             projectFile: options.projectFile,
           }),
         );
-      } else if (item.kind === 'tasks') {
+      } else if (item.kind === 'category') {
         addBulk(await runBulkExport(db, outDir, { tasks: item.tasks, headers }));
       } else if (item.kind === 'seo-audit') {
         addBulk(await runSeoAuditExport(db, join(outDir, 'seo-audit')));
@@ -178,10 +210,14 @@ export async function runExportItems(
             (r) => r.rowsWritten > 0,
           );
           if (skipped) {
+            // Nothing stored that the crawl could have stored (page bodies
+            // off): a failure of the run, with the reason.
             for (const sk of skipped) {
               progress(`${sk.label}: ${sk.reason}`);
               outcome.errors.push({ label: sk.label, error: sk.reason });
             }
+          } else if (rowsWritten === 0) {
+            outcome.skipped.push({ label, reason: 'No rows in this crawl: no file written.' });
           } else {
             outcome.files.push({ path, label, rows: rowsWritten });
           }
@@ -214,13 +250,57 @@ export async function runExportItems(
           });
         } else if (r.rowsWritten > 0) {
           outcome.files.push({ path, label: item.label, rows: r.rowsWritten });
+        } else {
+          outcome.skipped.push({
+            label: item.label,
+            reason: 'No link targets of this kind in this crawl: no file written.',
+          });
         }
       }
     } catch (err) {
       outcome.errors.push({ label: item.name, error: (err as Error).message });
     }
   }
+  await writeRunManifest(outDir, items, outcome, startedAt, options);
   return outcome;
+}
+
+/**
+ * `manifest.json` in `outDir`: every file this run wrote (relative path,
+ * label, rows), what was asked, when, by which tool version, from which
+ * project. Written last, so its presence means the run reached the end;
+ * it replaces the manifest a `bulk` item wrote for its own files. A
+ * failed manifest is an error entry, not an abort.
+ */
+async function writeRunManifest(
+  outDir: string,
+  items: readonly ExportItem[],
+  outcome: ExportOutcome,
+  startedAt: Date,
+  options: RunExportItemsOptions,
+): Promise<void> {
+  try {
+    const manifest = {
+      tool: 'FreeCrawl SEO Tool',
+      toolVersion: options.toolVersion ?? null,
+      projectFile: options.projectFile ?? null,
+      what: items.map((i) => i.name),
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      files: outcome.files.map((f) => ({
+        path: relative(outDir, f.path).split(sep).join('/'),
+        label: f.label,
+        rows: f.rows,
+      })),
+      errors: outcome.errors,
+      skipped: outcome.skipped,
+    };
+    await writeExportFile(join(outDir, 'manifest.json'), (partPath) =>
+      writeFile(partPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8'),
+    );
+  } catch (err) {
+    outcome.errors.push({ label: 'Manifest', error: (err as Error).message });
+  }
 }
 
 /** `project_meta` key: JSON array of {@link ExportSet}. */
@@ -271,15 +351,20 @@ export function findExportSet(db: ProjectDb, name: string): ExportSet {
   );
 }
 
-/** Run a saved set into `outDir`: its tokens through {@link runExportItems}. */
+/**
+ * Run a saved set into `outDir`: its tokens through {@link runExportItems},
+ * then `extraItems` (the CLI's `--urls`). Throws before writing anything
+ * when a stored token is no longer valid.
+ */
 export async function runExportSet(
   db: ProjectDb,
   outDir: string,
   set: ExportSet,
-  options: RunExportItemsOptions = {},
+  options: RunExportItemsOptions & { extraItems?: readonly ExportItem[] } = {},
 ): Promise<ExportOutcome> {
-  return runExportItems(db, outDir, parseExportWhat(set.what.join(',')), {
-    ...options,
-    rawHeaders: options.rawHeaders || set.rawHeaders,
+  const { extraItems = [], ...rest } = options;
+  return runExportItems(db, outDir, [...parseExportWhat(set.what.join(',')), ...extraItems], {
+    ...rest,
+    rawHeaders: rest.rawHeaders || set.rawHeaders,
   });
 }

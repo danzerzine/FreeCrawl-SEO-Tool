@@ -7735,7 +7735,6 @@ function registerIpc(): void {
         await mkdir(exportDir, { recursive: true });
         const r = await runScheduledExport(db, after, {
           exportDir,
-          startUrl,
           branding: readReportBranding(),
           ...bulkExportMeta(sess),
           writePdf: writePdfReport,

@@ -38,6 +38,7 @@ import {
   MetricaCancelledError,
   parseExportWhat,
   runExportItems,
+  runExportSet,
   listExportSets,
   saveExportSet,
   findExportSet,
@@ -135,6 +136,8 @@ export options:
   --out <dir>         Output directory; created if missing. Files of the same name are overwritten,
                         nothing else in it is touched. Each file is written as <name>.part and renamed
                         when complete, so Ctrl-C (exit 130) leaves no half-written file.
+                        Written last: manifest.json, every file of the run (path, label, rows), what was
+                        asked, start and end time, tool version, project.
   --what <list>       Comma-separated (default: bulk):
                         bulk        one CSV per tab / issue check with rows, plus links-internal/external.csv
                         seo-audit   Screaming Frog-style SEO Audit files in <dir>/seo-audit
@@ -155,6 +158,10 @@ export options:
                                     the Internal Links reports, one row per link target; the redirect
                                     reports need the redirect-chain pass of the crawl ("not computed" else)
                       Checks turned off in Settings → Issues are skipped, as in the desktop app.
+                      Issue lists computed by an older version of the checks are recomputed first
+                        when the run reads them (bulk, seo-audit, html, issues, issues:<key>,
+                        dataset:issues-long / issue-inlinks): in place in a CLI crawl database (the
+                        same derived data a crawl writes), in the working copy of a desktop-saved one.
   --urls <file>       URLs to export the links of, one per line, as stored in the project. Writes
                         selected-inlinks.csv and selected-outlinks.csv (every link into / out of those
                         pages, columns of the Inlinks / Outlinks tabs). Without --what, only these two
@@ -164,9 +171,11 @@ export options:
                         one of the same name; writes no files. The desktop scheduler can run it too.
   --set <name>        Run a saved export set instead of --what (exit 2 if the project has none of that name)
   --list-sets         List the project's saved export sets (--json: {ok, sets: [{name, what, rawHeaders}]})
-  --json              Print {ok, files: [{path, label, rows}], errors: [...]} on stdout, also on errors
+  --json              Print {ok, files: [{path, label, rows}], errors: [...], skipped: [{label, reason}]}
+                        on stdout, also on errors. skipped: a link report or dataset with no rows in
+                        this crawl (no file written; not an error)
   Exit codes: 0 done, 1 some exports failed (the others are written), 2 bad arguments or project,
-  130 interrupted.
+  130 interrupted (--json: ok false, error "interrupted", files: the items finished before Ctrl-C).
 
 Projects:
   compare, analyze-logs, metrica-fetch and export open projects saved by the desktop app as well
@@ -178,8 +187,9 @@ Projects:
 `);
 }
 
-async function main(): Promise<void> {
-  const { values, positionals } = parseArgs({
+/** The command line, strict: an unknown option or a missing value throws. */
+function parseCliArgs() {
+  return parseArgs({
     allowPositionals: true,
     options: {
       depth: { type: 'string' },
@@ -218,6 +228,24 @@ async function main(): Promise<void> {
       help: { type: 'boolean', short: 'h' },
     },
   });
+}
+
+async function main(): Promise<void> {
+  let parsed: ReturnType<typeof parseCliArgs>;
+  try {
+    parsed = parseCliArgs();
+  } catch (err) {
+    // A typo in an option is a bad argument (exit 2), not a crash: the
+    // message without a stack, as JSON when --json was asked for.
+    const error = (err as Error).message;
+    if (process.argv.includes('--json')) {
+      process.stdout.write(JSON.stringify({ ok: false, error }, null, 2) + '\n');
+    } else {
+      console.error(`${error}\nRun freecrawl --help for the options.`);
+    }
+    process.exit(2);
+  }
+  const { values, positionals } = parsed;
 
   // Subcommands: `validate-sitemap <url>` and `audit-robots <url>` short-
   // circuit the crawl path — they're standalone diagnostics that don't
@@ -503,6 +531,7 @@ async function main(): Promise<void> {
     if (exported) {
       console.log(`Exported ${exported.files.length} file(s) -> ${postCrawlExport!.dir}`);
       for (const e of exported.errors) console.error(`Export failed: ${e.label}: ${e.error}`);
+      for (const k of exported.skipped) console.error(`Export skipped: ${k.label}: ${k.reason}`);
     }
     if (botBlocked) {
       console.log(
@@ -687,13 +716,18 @@ process.on('exit', () => {
 });
 
 /** Ctrl-C for a command with no cancel of its own: exit through
- *  `process.exit`, so the exit hook still removes working copies. */
-function exitOnInterrupt(): void {
+ *  `process.exit`, so the exit hook still removes working copies.
+ *  `report` runs first, e.g. to print a `--json` summary. */
+function exitOnInterrupt(report?: () => void): void {
   // `on`, not `once`: a second Ctrl-C while the exit hook runs must not
   // fall back to the default kill and cut the cleanup short.
   process.on('SIGINT', () => {
     process.stderr.write('\nInterrupted.\n');
-    process.exit(130);
+    try {
+      report?.();
+    } finally {
+      process.exit(130);
+    }
   });
 }
 
@@ -1516,10 +1550,13 @@ function checkExportDir(out: string): void {
 
 /**
  * `freecrawl export`: write reports and bulk exports of an existing project
- * without the desktop app. Read-only on the project (a desktop-saved one
- * is unpacked to a working copy that is never packed back), except
- * `--save-set`, which stores a named `--what` list in it. `--set` runs a
- * saved list; `--list-sets` prints them.
+ * without the desktop app. Leaves the crawl data as it is (a desktop-saved
+ * project is unpacked to a working copy that is never packed back), with
+ * two exceptions: `--save-set` stores a named `--what` list in it, and
+ * issue lists materialised by older checks are recomputed when the run
+ * reads them, in place for a bare project (derived data, written as a
+ * crawl writes it). Hence the write lock. `--set` runs a saved list;
+ * `--list-sets` prints them.
  */
 async function runExport(opts: {
   projectPath: string;
@@ -1545,6 +1582,7 @@ async function runExport(opts: {
       console.log(`${f.rows === null ? '' : `${f.rows} rows  `}${f.path}`);
     }
     for (const e of outcome.errors) console.error(`Failed: ${e.label}: ${e.error}`);
+    for (const k of outcome.skipped) console.error(`Skipped: ${k.label}: ${k.reason}`);
   };
   const fail = (message: string): number => {
     if (!opts.json) {
@@ -1554,7 +1592,7 @@ async function runExport(opts: {
           '       freecrawl export --project <file> --list-sets [--json]',
       );
     }
-    print({ files: [], errors: [] }, message);
+    print({ files: [], errors: [], skipped: [] }, message);
     return 2;
   };
   if (opts.listSets || opts.saveSet !== undefined) return runExportSetCommand(opts, fail);
@@ -1591,7 +1629,14 @@ async function runExport(opts: {
 
   // Ctrl-C exits at once; the exit hooks drop the half-written `.part`
   // files and the working copy, so no truncated export is left behind.
-  exitOnInterrupt();
+  // Under --json the summary still comes out, with the files done so far
+  // (written synchronously: process.exit would cut an async pipe write).
+  const outcome: ExportOutcome = { files: [], errors: [], skipped: [] };
+  exitOnInterrupt(() => {
+    if (opts.json) {
+      writeSync(1, JSON.stringify({ ok: false, error: 'interrupted', ...outcome }, null, 2) + '\n');
+    }
+  });
   pendingCleanups.add(removePartialExportFiles);
   let project: OpenedProject;
   try {
@@ -1602,16 +1647,13 @@ async function runExport(opts: {
     return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
   }
   try {
-    let rawHeaders = opts.rawHeaders;
+    let set: ExportSet | null = null;
     if (opts.set !== undefined) {
-      let set: ExportSet;
       try {
         set = findExportSet(project.db, opts.set);
-        items = parseExportWhat(set.what.join(','));
       } catch (err) {
         return fail((err as Error).message);
       }
-      rawHeaders ||= set.rawHeaders === true;
     }
     const missing: string[] = [];
     if (opts.urls !== undefined) {
@@ -1620,17 +1662,29 @@ async function runExport(opts: {
         (project.db.getUrlIdByUrl(u) !== null ? known : missing).push(u);
       }
       if (known.length === 0) {
-        print({ files: [], errors: [] }, `None of the ${selectedUrls.length} URLs in ${opts.urls} is in the project.`);
+        print({ files: [], errors: [], skipped: [] }, `None of the ${selectedUrls.length} URLs in ${opts.urls} is in the project.`);
         return 2;
       }
       items.push({ kind: 'selected', name: 'selected-links', urls: known });
     }
-    const outcome = await runExportItems(project.db, outDir, items, {
-      rawHeaders,
+    const runOptions = {
+      rawHeaders: opts.rawHeaders,
       projectFile: resolve(opts.projectPath),
       toolVersion: cliVersion(),
       onProgress: progressLine,
-    });
+      outcome,
+    };
+    if (set) {
+      try {
+        // `items` holds only the --urls links here; the set brings the rest.
+        await runExportSet(project.db, outDir, set, { ...runOptions, extraItems: items });
+      } catch (err) {
+        // A stored token this version no longer knows: nothing was written.
+        return fail(`Export set "${set.name}": ${(err as Error).message}`);
+      }
+    } else {
+      await runExportItems(project.db, outDir, items, runOptions);
+    }
     if (missing.length > 0) {
       const error = `${missing.length} URL(s) not in the project, skipped: ${missing.join(' ')}`;
       if (opts.json) process.stderr.write(`${error}\n`);
@@ -1685,7 +1739,11 @@ async function runExportSetCommand(
       } catch (err) {
         return fail((err as Error).message);
       }
-      await project.save();
+      try {
+        await project.save();
+      } catch (err) {
+        return fail(`Cannot save project ${opts.projectPath}: ${(err as Error).message}`);
+      }
       if (opts.json) process.stdout.write(JSON.stringify({ ok: true, set }, null, 2) + '\n');
       else console.log(`Saved export set "${set.name}": ${set.what.join(',')}`);
       return 0;
