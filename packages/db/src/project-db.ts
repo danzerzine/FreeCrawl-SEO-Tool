@@ -1366,6 +1366,18 @@ export class ProjectDb {
       ? new DatabaseSync(filePath, { readOnly: true })
       : new DatabaseSync(filePath);
     this.bodies = new BodyCodec(this.db);
+    // Per-connection (reader workers open ProjectDb too): lets SQL filter by
+    // user regex so LIMIT still applies after the exclusion. Patterns reach
+    // here only via compileOrphanExcludePatterns.
+    const regexCache = new Map<string, RegExp>();
+    this.db.function('fc_regexp', { deterministic: true }, (pattern, value) => {
+      let re = regexCache.get(pattern as string);
+      if (!re) {
+        re = new RegExp(pattern as string);
+        regexCache.set(pattern as string, re);
+      }
+      return re.test(String(value)) ? 1 : 0;
+    });
     if (!readOnly) {
       this.db.exec('PRAGMA journal_mode = WAL');
       this.db.exec('PRAGMA synchronous = NORMAL');
@@ -10158,7 +10170,9 @@ export class ProjectDb {
     lastmod: string | null;
   }[] {
     const cap = Math.max(1, Math.min(10_000, limit));
-    const exclude = compileOrphanExcludePatterns(excludePatterns ?? this.getOrphanExcludePatterns());
+    const exclude = compileOrphanExcludePatterns(
+      excludePatterns ?? this.getOrphanExcludePatterns(),
+    ).map((re) => re.source);
     // Every GSC / GA4 reference is pinned to one account id, which is what
     // keeps these joins 1:1: `(url, account_id)` is the primary key of both
     // snapshot tables, so without the account predicate a URL reported by
@@ -10207,7 +10221,9 @@ export class ProjectDb {
            LEFT JOIN ga4_results a ON a.url = s.url AND a.account_id = ?
            LEFT JOIN metrica_results m ON m.url = s.url AND m.account_id = ?
            LEFT JOIN sitemap_urls sm ON sm.url = s.url
-          WHERE u.url IS NULL OR u.status_code IS NULL
+          WHERE (u.url IS NULL OR u.status_code IS NULL)${exclude
+            .map(() => ' AND NOT fc_regexp(?, s.url)')
+            .join('')}
           GROUP BY s.url
           ORDER BY (COALESCE(g.clicks, 0) + MAX(COALESCE(a.sessions, 0), COALESCE(m.visits, 0))) DESC,
                    COALESCE(m.pageviews, 0) DESC, s.url
@@ -10220,9 +10236,8 @@ export class ProjectDb {
         gscAccountId,
         ga4AccountId,
         metricaCounterId,
-        // Exclusions are applied after the query, so the cap must not cut
-        // rows that would survive the filter.
-        exclude.length > 0 ? -1 : cap,
+        ...exclude,
+        cap,
       ) as {
       url: string;
       sources: string;
@@ -10233,11 +10248,7 @@ export class ProjectDb {
       metricaVisits: number | null;
       lastmod: string | null;
     }[];
-    const kept =
-      exclude.length === 0
-        ? rows
-        : rows.filter((r) => !exclude.some((re) => re.test(r.url))).slice(0, cap);
-    return kept.map((r) => ({
+    return rows.map((r) => ({
       url: r.url,
       sources: r.sources ? r.sources.split(',').sort() : [],
       gscClicks: r.gscClicks ?? null,
