@@ -10,7 +10,10 @@
     "checkOff": "已关闭",
     "cookiesOffHint": "由于抓取的 Cookie 策略为“全部拒绝”，Cookie 检查已关闭。请在 设置 → Cookie 中选择“全部接受”或“拦截第三方”以分析 Set-Cookie 标头。",
     "notComputed": "未计算",
-    "notComputedHint": "尚未计算入链，因此无法统计孤立页面。入链会在开启“重新计算入链”的抓取结束时计算。"
+    "notComputedHint": "尚未计算入链，因此无法统计孤立页面。入链会在开启“重新计算入链”的抓取结束时计算。",
+    "byTargetPages": "链接目标：{{targets}} · 链接到它们的页面：{{sources}}。列表显示的是链接到它们的页面。",
+    "byTargetLinks": "链接目标：{{targets}} · 指向它们的链接：{{sources}}。列表显示的是这些链接。",
+    "byTargetReport": "每个目标一行：报告 → {{report}}。"
   },
   "integrations": {
     "intro": "使用你自己的凭据连接外部服务。API 密钥和机密会通过操作系统的安全存储在本地加密保存，绝不会离开这台机器。",
@@ -389,6 +392,7 @@
       "topWords": "高频词（标题 + meta + H1，前 100）",
       "pagesOverLinkLimit": "超过每页最大链接数的页面",
       "mobileParity": "移动端与桌面端差异",
+      "redirectInlinks": "指向重定向的链接（按目标）",
       "redirectsToError": "重定向至错误（按目标）",
       "errorInlinks": "指向错误页面的链接（按目标）",
       "nonIndexableInlinks": "指向不可索引页面的链接（按目标）"

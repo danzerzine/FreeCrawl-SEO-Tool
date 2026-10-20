@@ -1,4 +1,4 @@
-import type { OverviewCounts, UrlCategory } from './crawl.js';
+import type { LinkTargetReportKind, OverviewCounts, UrlCategory } from './crawl.js';
 
 /** A field of `OverviewCounts.issues` — the sidebar counter behind one check. */
 export type IssueCountKey = keyof OverviewCounts['issues'];
@@ -20,6 +20,17 @@ export interface IssueCheckDef {
   count: IssueCountKey | readonly IssueCountKey[];
   /** Denominator for the sidebar percentage; `images` = total image count. */
   percentBase?: 'images';
+  /**
+   * Link checks counted by target: `count` is distinct link targets, this
+   * names the counter of what the check's list shows (source `pages`, or
+   * the `links` of Broken Links), and `report` the by-target report that
+   * lists the targets themselves. A target count has no share of pages.
+   */
+  byTarget?: {
+    sources: IssueCountKey | readonly IssueCountKey[];
+    unit: 'pages' | 'links';
+    report?: LinkTargetReportKind;
+  };
 }
 
 /** A sidebar group (Page Titles, Meta Descriptions, …) and its checks. */
@@ -348,19 +359,19 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     items: [
       { key: 'issues-orphan-page', label: 'Orphan Pages (No Inlinks)', category: 'issues:orphan-page', count: 'orphanPage' },
       { key: 'issues-inlinks-nofollow-only', label: 'Inlinks Nofollow Only', category: 'issues:inlinks-nofollow-only', count: 'inlinksNofollowOnly' },
-      { key: 'issues-broken-all', label: 'Broken (All)', category: 'issues:broken-links-all', count: ['brokenLinksInternal', 'brokenLinksExternal'] },
-      { key: 'issues-broken-internal', label: 'Broken Internal', category: 'issues:broken-links-internal', count: 'brokenLinksInternal' },
-      { key: 'issues-broken-external', label: 'Broken External', category: 'issues:broken-links-external', count: 'brokenLinksExternal' },
+      { key: 'issues-broken-all', label: 'Broken (All)', category: 'issues:broken-links-all', count: ['brokenLinksInternal', 'brokenLinksExternal'], byTarget: { sources: ['brokenLinksInternalLinks', 'brokenLinksExternalLinks'], unit: 'links' } },
+      { key: 'issues-broken-internal', label: 'Broken Internal', category: 'issues:broken-links-internal', count: 'brokenLinksInternal', byTarget: { sources: 'brokenLinksInternalLinks', unit: 'links', report: 'error-inlinks' } },
+      { key: 'issues-broken-external', label: 'Broken External', category: 'issues:broken-links-external', count: 'brokenLinksExternal', byTarget: { sources: 'brokenLinksExternalLinks', unit: 'links' } },
       { key: 'issues-broken-bookmark', label: 'Broken Bookmarks', category: 'issues:broken-bookmark', count: 'brokenBookmark' },
       { key: 'issues-link-empty-anchor', label: 'Empty Anchor Text', category: 'issues:link-empty-anchor', count: 'linkEmptyAnchor' },
-      { key: 'issues-anchor-text-too-long', label: 'Anchor Text Too Long (>100)', category: 'issues:anchor-text-too-long', count: 'anchorTextTooLong' },
-      { key: 'issues-anchor-text-generic', label: 'Generic Anchor Text', category: 'issues:anchor-text-generic', count: 'anchorTextGeneric' },
-      { key: 'issues-target-blank-no-noopener', label: 'target=_blank without noopener', category: 'issues:target-blank-no-noopener', count: 'targetBlankNoNoopener' },
+      { key: 'issues-anchor-text-too-long', label: 'Anchor Text Too Long (>100)', category: 'issues:anchor-text-too-long', count: 'anchorTextTooLong', byTarget: { sources: 'anchorTextTooLongPages', unit: 'pages' } },
+      { key: 'issues-anchor-text-generic', label: 'Generic Anchor Text', category: 'issues:anchor-text-generic', count: 'anchorTextGeneric', byTarget: { sources: 'anchorTextGenericPages', unit: 'pages' } },
+      { key: 'issues-target-blank-no-noopener', label: 'target=_blank without noopener', category: 'issues:target-blank-no-noopener', count: 'targetBlankNoNoopener', byTarget: { sources: 'targetBlankNoNoopenerPages', unit: 'pages' } },
       { key: 'issues-external-links-too-many', label: 'External Links > 100', category: 'issues:external-links-too-many', count: 'externalLinksTooMany' },
       { key: 'issues-links-per-page-too-many', label: 'Total Links per Page > 100', category: 'issues:links-per-page-too-many', count: 'linksPerPageTooMany' },
       { key: 'issues-outlinks-zero', label: 'No Outlinks (Dead-End)', category: 'issues:outlinks-zero', count: 'outlinksZero' },
-      { key: 'issues-internal-link-to-redirect', label: 'Internal Link → Redirect', category: 'issues:internal-link-to-redirect', count: 'internalLinkToRedirect' },
-      { key: 'issues-dead-external-domain', label: 'Dead External Domain', category: 'issues:dead-external-domain', count: 'deadExternalDomain' },
+      { key: 'issues-internal-link-to-redirect', label: 'Internal Link → Redirect', category: 'issues:internal-link-to-redirect', count: 'internalLinkToRedirect', byTarget: { sources: 'internalLinkToRedirectPages', unit: 'pages', report: 'redirect-inlinks' } },
+      { key: 'issues-dead-external-domain', label: 'Dead External Domain', category: 'issues:dead-external-domain', count: 'deadExternalDomain', byTarget: { sources: 'deadExternalDomainPages', unit: 'pages' } },
       { key: 'issues-uncrawlable-internal-outlinks', label: 'Pages With Uncrawlable Internal Outlinks', category: 'issues:uncrawlable-internal-outlinks', count: 'uncrawlableInternalOutlinks' },
     ],
   },
@@ -390,11 +401,32 @@ export const ISSUE_COUNT_KEY: ReadonlyMap<UrlCategory, IssueCountKey> = new Map(
   ),
 );
 
+/** `issues:*` category → the counter of the sources a by-target check lists. */
+export const ISSUE_SOURCES_COUNT_KEY: ReadonlyMap<UrlCategory, IssueCountKey> = new Map(
+  ISSUE_GROUPS.flatMap((g) =>
+    g.items.flatMap((i) =>
+      typeof i.byTarget?.sources === 'string' ? [[i.category, i.byTarget.sources] as const] : [],
+    ),
+  ),
+);
+
 /** Reads a check's counter, summing composite ones; null = not computed. */
 export function issueCount(issues: OverviewCounts['issues'], def: IssueCheckDef): number | null {
-  return typeof def.count === 'string'
-    ? issues[def.count]
-    : def.count.reduce((acc, k) => acc + (issues[k] ?? 0), 0);
+  return sumCounts(issues, def.count);
+}
+
+/** What a by-target check's list shows (pages or links); null when not by target. */
+export function issueSourcesCount(issues: OverviewCounts['issues'], def: IssueCheckDef): number | null {
+  return def.byTarget ? sumCounts(issues, def.byTarget.sources) : null;
+}
+
+function sumCounts(
+  issues: OverviewCounts['issues'],
+  keys: IssueCountKey | readonly IssueCountKey[],
+): number | null {
+  return typeof keys === 'string'
+    ? issues[keys]
+    : keys.reduce((acc, k) => acc + (issues[k] ?? 0), 0);
 }
 
 /** Every toggleable issue category, in sidebar order. */

@@ -72,6 +72,7 @@ import type {
 import {
   GENERIC_ANCHOR_TEXTS,
   ISSUE_COUNT_KEY,
+  ISSUE_SOURCES_COUNT_KEY,
   issueCategoriesBySeverity,
   normalizeDisabledIssues,
   isValidHreflangCode,
@@ -1355,6 +1356,7 @@ const NON_INDEXABLE_SQL_LIST = [
 
 /** Target predicate (alias `t`, its redirect end `ft`) of each link-target report. */
 const LINK_TARGET_REPORT_SQL: Record<LinkTargetReportInput['report'], string> = {
+  'redirect-inlinks': 't.status_code >= 300 AND t.status_code < 400',
   'redirects-to-error': `t.status_code >= 300 AND t.status_code < 400 AND ${brokenTargetSql('ft')}`,
   'error-inlinks': BROKEN_TARGET_SQL,
   'non-indexable-inlinks': `t.indexability IN (${NON_INDEXABLE_SQL_LIST})`,
@@ -1968,6 +1970,8 @@ export class ProjectDb {
     for (const cat of disabled) {
       const key = ISSUE_COUNT_KEY.get(cat);
       if (key) (out as Record<string, number>)[key] = 0;
+      const sources = ISSUE_SOURCES_COUNT_KEY.get(cat);
+      if (sources) (out as Record<string, number>)[sources] = 0;
     }
     return out;
   }
@@ -7275,8 +7279,10 @@ export class ProjectDb {
       highBoilerplate: countWhere(
         `${html} AND boilerplate_coverage IS NOT NULL AND boilerplate_coverage > 50`,
       ),
-      brokenLinksInternal: this.countBrokenLinks('internal'),
-      brokenLinksExternal: this.countBrokenLinks('external'),
+      brokenLinksInternal: this.countBrokenLinks('internal', 'targets'),
+      brokenLinksExternal: this.countBrokenLinks('external', 'targets'),
+      brokenLinksInternalLinks: this.countBrokenLinks('internal', 'links'),
+      brokenLinksExternalLinks: this.countBrokenLinks('external', 'links'),
       nearDuplicate: countWhere(`${html} AND cluster_id > 0 AND cluster_size > 1`),
       duplicateContentExact: dup('content_hash'),
       hreflangInvalidCode: countWhere(`${html} AND hreflang_invalid_count > 0`),
@@ -7472,7 +7478,9 @@ export class ProjectDb {
       // EXPENSIVE_ISSUE_DEFINITIONS) and read back as one GROUP BY.
       // Link checks report their distinct targets (`linkTargetsKey`).
       anchorTextTooLong: issueCount(linkTargetsKey('issues:anchor-text-too-long')),
+      anchorTextTooLongPages: issueCount('issues:anchor-text-too-long'),
       anchorTextGeneric: issueCount(linkTargetsKey('issues:anchor-text-generic')),
+      anchorTextGenericPages: issueCount('issues:anchor-text-generic'),
       formInputUnlabeled: countWhere(
         `${html} AND form_input_unlabeled > 0`,
       ),
@@ -7510,6 +7518,7 @@ export class ProjectDb {
       ),
       imageBrokenSrc: issueCount('issues:image-broken-src'),
       targetBlankNoNoopener: issueCount(linkTargetsKey('issues:target-blank-no-noopener')),
+      targetBlankNoNoopenerPages: issueCount('issues:target-blank-no-noopener'),
       pageEmpty: countWhere(
         `${html} AND status_code BETWEEN 200 AND 299 AND indexability = 'indexable'
          AND word_count IS NOT NULL AND word_count < 30`,
@@ -7542,6 +7551,7 @@ export class ProjectDb {
          AND outlinks = 0`,
       ),
       internalLinkToRedirect: issueCount(linkTargetsKey('issues:internal-link-to-redirect')),
+      internalLinkToRedirectPages: issueCount('issues:internal-link-to-redirect'),
       h1EqualsTitle: countWhere(
         `${html} AND title IS NOT NULL AND title != ''
          AND h1 IS NOT NULL AND h1 != ''
@@ -7554,6 +7564,7 @@ export class ProjectDb {
       // here are O(1) Map.get; mid-crawl (before the first recompute)
       // they show 0 and refill at the next pass.
       deadExternalDomain: issueCount(linkTargetsKey('issues:dead-external-domain')),
+      deadExternalDomainPages: issueCount('issues:dead-external-domain'),
       duplicateUrlPostNorm: issueCount('issues:duplicate-url-post-norm'),
       canonicalChainMultiHop: issueCount('issues:canonical-chain-multi-hop'),
       imageSlowLoading: issueCount('issues:image-slow-loading'),
@@ -7653,7 +7664,7 @@ export class ProjectDb {
     return this.getOverviewCounts();
   }
 
-  private countBrokenLinks(kind: 'internal' | 'external' | 'all'): number {
+  private countBrokenLinks(kind: 'internal' | 'external' | 'all', unit: 'targets' | 'links'): number {
     const scope =
       kind === 'internal'
         ? 'AND l.is_internal = 1'
@@ -7662,10 +7673,11 @@ export class ProjectDb {
           : '';
     // Broken targets first (idx_urls_status, a few hundred rows), then
     // their inbound links through idx_links_to. Joining from `links`
-    // walked every stored link on each sidebar tick. Counts linked targets,
-    // not links: one dead menu link is one problem, not one per page.
+    // walked every stored link on each sidebar tick. The issue total is
+    // linked targets (one dead menu link is one problem, not one per page);
+    // the link count is what the Broken Links tab lists.
     return this.scalarCount(
-      `SELECT COUNT(DISTINCT l.to_url) AS c FROM links l
+      `SELECT ${unit === 'targets' ? 'COUNT(DISTINCT l.to_url)' : 'COUNT(*)'} AS c FROM links l
          WHERE l.to_url IN (
            SELECT url FROM urls WHERE status_code >= 400 AND status_code < 600
            UNION

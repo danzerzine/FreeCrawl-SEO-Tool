@@ -10,7 +10,10 @@
     "checkOff": "Off",
     "cookiesOffHint": "Cookie checks are off because the crawl's cookie policy is \"Reject all\". Choose \"Accept all\" or \"Block third-party\" under Settings → Cookies to analyse Set-Cookie headers.",
     "notComputed": "Not computed",
-    "notComputedHint": "Inlinks have not been computed yet, so orphan pages cannot be counted. They are computed at the end of a crawl that has \"Recompute inlinks\" on."
+    "notComputedHint": "Inlinks have not been computed yet, so orphan pages cannot be counted. They are computed at the end of a crawl that has \"Recompute inlinks\" on.",
+    "byTargetPages": "Link targets: {{targets}} · linking pages: {{sources}}. The list shows the linking pages.",
+    "byTargetLinks": "Link targets: {{targets}} · links to them: {{sources}}. The list shows the links.",
+    "byTargetReport": "One row per target: Reports → {{report}}."
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",
@@ -396,6 +399,7 @@
       "topWords": "Top Words (Title + Meta + H1, Top 100)",
       "pagesOverLinkLimit": "Pages Over Max Links per Page",
       "mobileParity": "Mobile vs Desktop Differences",
+      "redirectInlinks": "Links to Redirects (by Target)",
       "redirectsToError": "Redirects to Error (by Target)",
       "errorInlinks": "Links to Error Pages (by Target)",
       "nonIndexableInlinks": "Links to Non-Indexable Pages (by Target)"

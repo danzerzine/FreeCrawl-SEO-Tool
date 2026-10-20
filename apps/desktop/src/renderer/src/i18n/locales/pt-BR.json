@@ -10,7 +10,10 @@
     "checkOff": "Desativado",
     "cookiesOffHint": "As verificações de cookies estão desativadas porque a política de cookies do rastreamento é \"Rejeitar tudo\". Escolha \"Aceitar tudo\" ou \"Bloquear terceiros\" em Configurações → Cookies para analisar os cabeçalhos Set-Cookie.",
     "notComputed": "Não calculado",
-    "notComputedHint": "Os links de entrada ainda não foram calculados, então as páginas órfãs não podem ser contadas. Eles são calculados no fim de um rastreamento com \"Recalcular links de entrada\" ativado."
+    "notComputedHint": "Os links de entrada ainda não foram calculados, então as páginas órfãs não podem ser contadas. Eles são calculados no fim de um rastreamento com \"Recalcular links de entrada\" ativado.",
+    "byTargetPages": "Destinos de link: {{targets}} · páginas que linkam: {{sources}}. A lista mostra as páginas que linkam.",
+    "byTargetLinks": "Destinos de link: {{targets}} · links para eles: {{sources}}. A lista mostra os links.",
+    "byTargetReport": "Uma linha por destino: Relatórios → {{report}}."
   },
   "integrations": {
     "intro": "Conecte serviços externos com suas próprias credenciais. As chaves de API e os segredos são criptografados em repouso pelo armazenamento seguro do seu sistema operacional e nunca saem desta máquina.",
@@ -403,6 +406,7 @@
       "topWords": "Palavras mais frequentes (título + meta + H1, 100 primeiras)",
       "pagesOverLinkLimit": "Páginas acima do máximo de links por página",
       "mobileParity": "Diferenças mobile vs desktop",
+      "redirectInlinks": "Links para redirecionamentos (por destino)",
       "redirectsToError": "Redirecionamentos para erro (por destino)",
       "errorInlinks": "Links para páginas com erro (por destino)",
       "nonIndexableInlinks": "Links para páginas não indexáveis (por destino)"
