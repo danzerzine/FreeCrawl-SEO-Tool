@@ -2167,8 +2167,11 @@ export interface FreeCrawlApi {
   reportsExternalDomainHealth(limit?: number): Promise<ExternalDomainHealthRow[]>;
   reportsAnalyticsCoverage(): Promise<AnalyticsCoverageRow[]>;
   reportsLinkPositions(): Promise<LinkPositionRow[]>;
-  /** Link reports grouped by target (redirects to error, error and non-indexable inlinks). */
-  reportsLinkTargets(input: LinkTargetReportInput): Promise<LinkTargetRow[]>;
+  /**
+   * Link reports grouped by target (redirects to error, error and non-indexable inlinks).
+   * null: a redirect report before the redirect-chain pass ran (not computed).
+   */
+  reportsLinkTargets(input: LinkTargetReportInput): Promise<LinkTargetRow[] | null>;
   reportsImageWeightPerPage(limit?: number): Promise<ImageWeightRow[]>;
   reportsInlinksHistogram(): Promise<BucketHistogramRow[]>;
   reportsWordCountHistogram(): Promise<BucketHistogramRow[]>;

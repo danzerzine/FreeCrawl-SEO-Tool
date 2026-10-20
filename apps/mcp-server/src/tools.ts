@@ -151,12 +151,14 @@ const LINK_TARGET_REPORTS: ReadonlyArray<readonly [string, LinkTargetReportKind,
   [
     'report_redirect_inlinks',
     'redirect-inlinks',
-    'Internal links to redirects (any end); the targets the Internal Link → Redirect total counts.',
+    'Internal links to redirects (any end); the targets the Internal Link → Redirect total counts. ' +
+      'Returns notComputed instead of rows until the crawl has computed redirect chains.',
   ],
   [
     'report_redirects_to_error',
     'redirects-to-error',
-    'Internal links to redirects whose chain ends in a 4xx/5xx or no response.',
+    'Internal links to redirects whose chain ends in a 4xx/5xx or no response. ' +
+      'Returns notComputed instead of rows until the crawl has computed redirect chains.',
   ],
   [
     'report_error_inlinks',
@@ -1196,13 +1198,21 @@ export function buildTools(): Tool[] {
             limit: { type: 'integer', minimum: 1, maximum: 10_000, description: 'Default 1000.' },
           },
         },
-        handler: (args, db) => ({
-          rows: db.linkTargetReport({
+        handler: (args, db) => {
+          const rows = db.linkTargetReport({
             report,
             templateLinks: (args.templateLinks as TemplateLinkFilter | undefined) ?? 'include',
             limit: clamp(args.limit, 1, 10_000, 1000),
-          }),
-        }),
+          });
+          return rows === null
+            ? {
+                notComputed: true,
+                message:
+                  'Redirect chains have not been computed for this crawl, so redirect targets have no ' +
+                  'final target yet. They are computed at the end of a crawl with redirect-chain analysis on.',
+              }
+            : { rows };
+        },
       }),
     ),
     {

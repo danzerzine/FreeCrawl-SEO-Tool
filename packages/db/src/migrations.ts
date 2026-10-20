@@ -2538,6 +2538,20 @@ const MIGRATIONS: Migration[] = [
          AND COALESCE(status_text, '') NOT LIKE 'Skipped:%';
     `,
   },
+  {
+    version: 105,
+    name: 'backfill_redirect_chains_computed_flag',
+    // Same as 101 for the redirect-chain pass: a stored final target
+    // proves it ran. A project without redirects reads as not computed
+    // until its next crawl, which only changes an empty report's label.
+    up: (db) => {
+      db.exec(`
+        INSERT OR IGNORE INTO project_meta (key, value)
+        SELECT 'redirectChainsComputed', '1'
+        WHERE EXISTS (SELECT 1 FROM urls WHERE redirect_final_url IS NOT NULL)
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

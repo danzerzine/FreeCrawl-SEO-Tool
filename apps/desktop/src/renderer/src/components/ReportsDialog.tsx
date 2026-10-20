@@ -198,6 +198,8 @@ export function ReportsDialog({ open, onClose }: Props) {
   const [templateLinks, setTemplateLinks] = useState<TemplateLinkFilter>('include');
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(false);
+  /** The report needs a post-crawl pass that has not run (see linkTargetReport). */
+  const [notComputed, setNotComputed] = useState(false);
   // Orphan report only: space-separated patterns that hide service URLs.
   // `orphanApplied` bumps on each successful save so the report reloads.
   const [orphanExclude, setOrphanExclude] = useState('');
@@ -279,6 +281,7 @@ export function ReportsDialog({ open, onClose }: Props) {
     if (!open) return;
     let cancelled = false;
     setLoading(true);
+    setNotComputed(false);
     const load = async () => {
       try {
         if (kind === 'pages-per-dir') {
@@ -392,7 +395,11 @@ export function ReportsDialog({ open, onClose }: Props) {
         } else if (LINK_TARGET_KINDS.has(kind)) {
           const report = kind as LinkTargetReportKind;
           const r = await window.freecrawl.reportsLinkTargets({ report, templateLinks, limit: 1000 });
-          if (!cancelled)
+          if (cancelled) return;
+          if (r === null) {
+            setNotComputed(true);
+            setRows([]);
+          } else
             setRows(
               r.map((x: LinkTargetRow) => ({
                 // The redirect end sits next to the target: the pair is the fix.
@@ -788,7 +795,9 @@ export function ReportsDialog({ open, onClose }: Props) {
         <div ref={scrollRef} className="flex-1 overflow-auto px-4 py-3 text-[11px]">
           {rows.length === 0 && !loading && (
             <div className="p-6 text-center text-surface-500">
-              {t('reports.noData', { defaultValue: 'No data — run a crawl first.' })}
+              {notComputed
+                ? t('sidebar.notComputed', { defaultValue: 'Not computed' })
+                : t('reports.noData', { defaultValue: 'No data — run a crawl first.' })}
             </div>
           )}
           {rows.length > 0 && (

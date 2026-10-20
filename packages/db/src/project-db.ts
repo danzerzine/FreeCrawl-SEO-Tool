@@ -92,6 +92,8 @@ export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
 export const SOFT404_PROBE_META_KEY = 'soft404Probe';
 /** `project_meta` key set by `recomputeInlinks`; orphans mean nothing before it. */
 export const INLINKS_COMPUTED_META_KEY = 'inlinksComputed';
+/** `project_meta` key set by `recomputeRedirectChains`; redirect ends mean nothing before it. */
+export const REDIRECT_CHAINS_COMPUTED_META_KEY = 'redirectChainsComputed';
 /**
  * `project_meta` mirror of `CrawlConfig.storeNofollowLinks` ('1' / '0'),
  * written at crawl start. Off or missing: inlinks, orphans and link score
@@ -3179,6 +3181,13 @@ export class ProjectDb {
     this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(INLINKS_COMPUTED_META_KEY);
   }
 
+  /** A crawl is about to add redirects: their final targets are not walked yet. */
+  markRedirectChainsStale(): void {
+    this.db
+      .prepare('DELETE FROM project_meta WHERE key = ?')
+      .run(REDIRECT_CHAINS_COMPUTED_META_KEY);
+  }
+
   recomputeInlinks(): void {
     // One-pass aggregate via temp table: GROUP BY links.to_url once, then
     // join. The naive correlated-subquery form (UPDATE … = (SELECT COUNT…))
@@ -3298,6 +3307,7 @@ export class ProjectDb {
         }
         upd.run(chain, finalUrl, loop, row.id);
       }
+      this.setMeta(REDIRECT_CHAINS_COMPUTED_META_KEY, '1');
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -4956,7 +4966,16 @@ export class ProjectDb {
    * leaves external ones out, and the test would steer the planner to
    * `idx_urls_is_external`, a walk over every internal URL.
    */
-  linkTargetReport(params: LinkTargetReportInput): LinkTargetRow[] {
+  linkTargetReport(params: LinkTargetReportInput): LinkTargetRow[] | null {
+    // The redirect reports read each target's chain end, written only by
+    // the post-crawl redirect-chain pass: before it they would be empty or
+    // lack the final target, so they say "not computed" (null) instead.
+    if (
+      (params.report === 'redirects-to-error' || params.report === 'redirect-inlinks') &&
+      this.getMeta(REDIRECT_CHAINS_COMPUTED_META_KEY) === null
+    ) {
+      return null;
+    }
     const template = params.templateLinks ?? 'include';
     const isTemplate = `(base.n > 0 AND p.source_pages >= base.n * ${TEMPLATE_LINK_SHARE})`;
     const templateWhere =

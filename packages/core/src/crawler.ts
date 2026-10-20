@@ -1125,9 +1125,11 @@ export class Crawler extends EventEmitter {
 
     this.setOp(`crawl:start:${this.config.startUrl}`);
 
-    // New pages arrive with inlinks = 0 until the end-of-crawl pass runs, so
-    // the orphan count is meaningless from here on (also for respider runs).
+    // New pages arrive with inlinks = 0 and redirects without a final target
+    // until the end-of-crawl passes run, so orphans and the redirect reports
+    // are meaningless from here on (also for respider runs).
     await this.runDbPass('markInlinksStale');
+    await this.runDbPass('markRedirectChainsStale');
 
     // Fire an immediate progress event so the UI can flip to "Running"
     // before we block on resolveStartUrl (which can spend several seconds

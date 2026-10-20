@@ -121,6 +121,7 @@ const ALLOWED_METHODS = new Set<string>([
   'updateExternalProbe',
   'recomputeInlinks',
   'markInlinksStale',
+  'markRedirectChainsStale',
   'recomputeRedirectChains',
   'recomputeCanonicalChains',
   'recomputeLinkScore',
