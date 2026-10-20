@@ -8879,6 +8879,21 @@ export class ProjectDb {
   }
 
   /**
+   * External links per source page: every `<a>`/resource edge to another
+   * host (`total`) and the distinct targets among them (`unique`), keyed by
+   * the source URL's id. Pages without external links are absent.
+   */
+  externalOutlinkCounts(): Map<number, { total: number; unique: number }> {
+    const rows = this.db
+      .prepare(
+        `SELECT from_url_id AS id, COUNT(*) AS total, COUNT(DISTINCT to_url) AS uniq
+           FROM links WHERE is_internal = 0 GROUP BY from_url_id`,
+      )
+      .all() as { id: number; total: number; uniq: number }[];
+    return new Map(rows.map((r) => [r.id, { total: r.total, unique: r.uniq }]));
+  }
+
+  /**
    * Every stored response header, streamed — one row per (URL, header
    * name). The `headers` table keeps every header the server sent, names
    * lowercased, `set-cookie` / `authorization` values redacted at write
