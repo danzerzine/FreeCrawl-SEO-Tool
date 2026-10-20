@@ -178,8 +178,9 @@ Projects:
 `);
 }
 
-async function main(): Promise<void> {
-  const { values, positionals } = parseArgs({
+/** The command line, strict: an unknown option or a missing value throws. */
+function parseCliArgs() {
+  return parseArgs({
     allowPositionals: true,
     options: {
       depth: { type: 'string' },
@@ -218,6 +219,24 @@ async function main(): Promise<void> {
       help: { type: 'boolean', short: 'h' },
     },
   });
+}
+
+async function main(): Promise<void> {
+  let parsed: ReturnType<typeof parseCliArgs>;
+  try {
+    parsed = parseCliArgs();
+  } catch (err) {
+    // A typo in an option is a bad argument (exit 2), not a crash: the
+    // message without a stack, as JSON when --json was asked for.
+    const error = (err as Error).message;
+    if (process.argv.includes('--json')) {
+      process.stdout.write(JSON.stringify({ ok: false, error }, null, 2) + '\n');
+    } else {
+      console.error(`${error}\nRun freecrawl --help for the options.`);
+    }
+    process.exit(2);
+  }
+  const { values, positionals } = parsed;
 
   // Subcommands: `validate-sitemap <url>` and `audit-robots <url>` short-
   // circuit the crawl path — they're standalone diagnostics that don't
@@ -1685,7 +1704,11 @@ async function runExportSetCommand(
       } catch (err) {
         return fail((err as Error).message);
       }
-      await project.save();
+      try {
+        await project.save();
+      } catch (err) {
+        return fail(`Cannot save project ${opts.projectPath}: ${(err as Error).message}`);
+      }
       if (opts.json) process.stdout.write(JSON.stringify({ ok: true, set }, null, 2) + '\n');
       else console.log(`Saved export set "${set.name}": ${set.what.join(',')}`);
       return 0;
