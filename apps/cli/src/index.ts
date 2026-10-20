@@ -106,7 +106,8 @@ Options:
   --db <file>         SQLite project file (default: ./crawl.seoproject)
   --out <file>        Export results after crawl. Format auto-detected by extension:
                         *.json → full JSON dump (every captured field)
-                        any other → CSV (subset of common columns)
+                        any other → CSV (subset of common columns, with the grid's column names)
+  --raw-headers       With --out CSV: write the internal keys (statusCode, …) as the header row.
   --json              Print a machine-readable JSON summary to stdout (instead of human progress).
                         Useful for CI/CD pipelines.
   --export-dir <dir>  After the crawl, write the exports named by --export into <dir> (see export)
@@ -183,6 +184,7 @@ async function main(): Promise<void> {
       config: { type: 'string' },
       db: { type: 'string' },
       out: { type: 'string' },
+      'raw-headers': { type: 'boolean' },
       json: { type: 'boolean' },
       project: { type: 'string' },
       format: { type: 'string' },
@@ -412,7 +414,9 @@ async function main(): Promise<void> {
     const isJson = outPath.toLowerCase().endsWith('.json');
     const r = isJson
       ? await exportUrlsToJson(db, outPath, { pretty: true })
-      : await exportUrlsToCsv(db, outPath);
+      : await exportUrlsToCsv(db, outPath, {
+          headers: values['raw-headers'] ? 'keys' : 'labels',
+        });
     rowsWritten = r.rowsWritten;
     exportedTo = outPath;
   }

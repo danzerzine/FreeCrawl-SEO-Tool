@@ -11,6 +11,7 @@ import type {
   AdvancedFilter,
   ExportDatasetKey,
 } from '@freecrawl/shared-types';
+import { EXPORT_DATASET_COLUMNS, urlColumnHeader } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import { datasetRows, readCell, type DatasetExportContext } from './dataset-export.js';
 
@@ -55,6 +56,10 @@ export interface TabularExportOptions {
   /** Prefix CSV files with a UTF-8 BOM so Excel-for-Windows opens them
    *  in the correct charset. Ignored for non-CSV formats. Default true. */
   csvBom?: boolean;
+  /** CSV / XLSX header row: human labels (default; the grid's names for URL
+   *  columns, the dataset's own headers for dataset sections) or the raw
+   *  column keys. JSON / XML always use keys: their consumers are scripts. */
+  headers?: 'labels' | 'keys';
   /** Account / matching context for the dataset sections that need it. */
   datasetContext?: DatasetExportContext;
 }
@@ -137,12 +142,13 @@ async function writeCsvFile(
   filePath: string,
   columns: string[],
   withBom: boolean,
+  headerLabels: readonly string[] = columns,
 ): Promise<number> {
   let rowsWritten = 0;
   // Escape the header row too: a column label containing a comma, quote or
   // leading `=`/`+`/`-`/`@` would otherwise break the CSV or inject a
   // formula. The data rows below already go through escapeCsv.
-  const header = columns.map((c) => escapeCsv(c)).join(',') + '\n';
+  const header = headerLabels.map((c) => escapeCsv(c)).join(',') + '\n';
   const generator = async function* (): AsyncGenerator<string> {
     if (withBom) yield '﻿' + header;
     else yield header;
@@ -630,6 +636,13 @@ export async function exportTabular(
   // (Search Console, Broken Links, …) walk their own query with the
   // per-section keys the dialog picked for them.
   const columnsFor = (section: TabularSection): string[] => section.columns ?? columns;
+  const headersFor = (section: TabularSection): string[] => {
+    const keys = columnsFor(section);
+    if (options.headers === 'keys') return keys;
+    if (!section.dataset) return keys.map(urlColumnHeader);
+    const known = new Map(EXPORT_DATASET_COLUMNS[section.dataset].map((c) => [c.key, c.header]));
+    return keys.map((k) => known.get(k) ?? urlColumnHeader(k));
+  };
   const sourceFor = (section: TabularSection): Iterable<Record<string, unknown>> => {
     if (section.dataset) return datasetRows(db, section.dataset, options.datasetContext);
     if (!section.category) {
@@ -654,7 +667,7 @@ export async function exportTabular(
         const sheetColumns = columnsFor(section);
         return {
           name: section.label,
-          headers: sheetColumns,
+          headers: headersFor(section),
           // Lazy: a section's query starts only when its sheet is written.
           rows: (function* () {
             for (const row of sourceFor(section)) {
@@ -691,7 +704,7 @@ export async function exportTabular(
     const source = sourceFor(section);
     const sectionColumns = columnsFor(section);
     if (format === 'csv') {
-      return writeCsvFile(source, filePath, sectionColumns, csvBom);
+      return writeCsvFile(source, filePath, sectionColumns, csvBom, headersFor(section));
     }
     if (format === 'json') {
       return writeJsonFile(source, filePath, sectionColumns);

@@ -322,6 +322,8 @@ export interface MobileParityDiff {
 export interface CrawlUrlRow {
   id: number;
   url: string;
+  /** True for a URL outside the crawl scope (found as a link target, e.g. external). */
+  isExternal: boolean;
   contentKind: ContentKind;
   statusCode: number | null;
   statusText: string | null;

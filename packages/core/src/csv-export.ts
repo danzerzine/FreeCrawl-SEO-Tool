@@ -2,11 +2,12 @@ import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
-import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
+import { urlColumnHeader, type CrawlUrlRow, type UrlCategory } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 
 const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'url',
+  'isExternal',
   'statusCode',
   'contentKind',
   'indexability',
@@ -51,11 +52,15 @@ export async function exportUrlsToCsv(
      *  custom-extraction / hreflang / security files carry their own fields
      *  instead of only the generic column set. Defaults to CSV_COLUMNS. */
     columns?: (keyof CrawlUrlRow)[];
+    /** Header row: the grid's column labels (default) or the raw
+     *  `CrawlUrlRow` keys for scripts that read the file back. */
+    headers?: 'labels' | 'keys';
   } = {},
 ): Promise<{ rowsWritten: number }> {
   let rowsWritten = 0;
   const cols = options.columns && options.columns.length > 0 ? options.columns : CSV_COLUMNS;
-  const header = cols.map((c) => escapeCsv(c)).join(',') + '\n';
+  const header =
+    cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c))).join(',') + '\n';
 
   const source: Iterable<CrawlUrlRow> =
     options.selectedIds && options.selectedIds.length > 0
