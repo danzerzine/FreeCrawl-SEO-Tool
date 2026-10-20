@@ -2459,6 +2459,9 @@ export interface InlinkRow {
   /** Status code of the page the inlink points *to* (the detail panel URL). */
   toStatusCode: number | null;
   toSize: number | null;
+  /** Where a redirecting target ends up (`redirect_final_url`) and that page's status; null when the target does not redirect. */
+  toFinalUrl: string | null;
+  toFinalStatusCode: number | null;
   type: LinkType;
   anchor: string | null;
   altText: string | null;
@@ -2474,6 +2477,9 @@ export interface OutlinkRow {
   toUrl: string;
   toStatusCode: number | null;
   toSize: number | null;
+  /** Where a redirecting target ends up (`redirect_final_url`) and that page's status; null when the target does not redirect. */
+  toFinalUrl: string | null;
+  toFinalStatusCode: number | null;
   type: LinkType;
   anchor: string | null;
   altText: string | null;
