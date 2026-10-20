@@ -351,6 +351,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-broken-all', label: 'Broken (All)', category: 'issues:broken-links-all', count: ['brokenLinksInternal', 'brokenLinksExternal'] },
       { key: 'issues-broken-internal', label: 'Broken Internal', category: 'issues:broken-links-internal', count: 'brokenLinksInternal' },
       { key: 'issues-broken-external', label: 'Broken External', category: 'issues:broken-links-external', count: 'brokenLinksExternal' },
+      { key: 'issues-broken-bookmark', label: 'Broken Bookmarks', category: 'issues:broken-bookmark', count: 'brokenBookmark' },
       { key: 'issues-link-empty-anchor', label: 'Empty Anchor Text', category: 'issues:link-empty-anchor', count: 'linkEmptyAnchor' },
       { key: 'issues-anchor-text-too-long', label: 'Anchor Text Too Long (>100)', category: 'issues:anchor-text-too-long', count: 'anchorTextTooLong' },
       { key: 'issues-anchor-text-generic', label: 'Generic Anchor Text', category: 'issues:anchor-text-generic', count: 'anchorTextGeneric' },

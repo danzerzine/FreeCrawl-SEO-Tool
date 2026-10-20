@@ -264,6 +264,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     "किसी भी समय चल रहे HTTP अनुरोधों की संख्या। Screaming Frog के 'Max Threads' के बराबर। अधिक = तेज़ क्रॉल + लक्ष्य सर्वर पर अधिक भार।",
   ['Number of internal `<a>` elements with no usable anchor text or alt — accessibility / SEO regression.']:
     'बिना उपयोगी एंकर टेक्स्ट या alt वाले आंतरिक `<a>` तत्वों की संख्या — पहुँच / SEO में गिरावट।',
+  ['Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.']:
+    "इसी पृष्ठ के किसी `#बुकमार्क` की ओर जाने वाले लिंक की संख्या, जिसका id या `<a name>` इस पृष्ठ पर मौजूद नहीं है। अन्य पृष्ठों के बुकमार्क जाँचे नहीं जाते।",
   ['Number of internal pages that link to this URL. A rough internal-PageRank signal.']:
     'इस URL से लिंक करने वाले आंतरिक पेजों की संख्या। आंतरिक PageRank का मोटा संकेत।',
   ["Number of pages in this URL's near-duplicate cluster (1 = no duplicates, ≥2 = part of a duplicate group). Tunable via Settings → Duplicates."]:

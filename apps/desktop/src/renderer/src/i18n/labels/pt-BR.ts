@@ -241,6 +241,7 @@ export const PT_BR_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Texto de âncora vazio',
+  'Broken Bookmarks': 'Marcadores quebrados (#)',
   'Generic Anchor Text': 'Texto de âncora genérico',
   'Anchor Text Too Long (>100)': 'Texto de âncora longo demais (>100)',
   'Total Links per Page > 100': 'Total de links por página > 100',

@@ -241,6 +241,7 @@ export const RU_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Пустой анкор',
+  'Broken Bookmarks': 'Битые якоря (#)',
   'Generic Anchor Text': 'Неинформативный анкор',
   'Anchor Text Too Long (>100)': 'Слишком длинный анкор (>100)',
   'Total Links per Page > 100': 'Всего ссылок на страницу > 100',

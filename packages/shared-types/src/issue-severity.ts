@@ -191,6 +191,7 @@ const INFO: UrlCategory[] = [
   'issues:crawled-not-in-sitemap',
   'issues:h1-too-long',
   'issues:url-fragment',
+  'issues:broken-bookmark',
   'issues:link-empty-anchor',
   'issues:apple-touch-icon-missing',
   'issues:manifest-missing',

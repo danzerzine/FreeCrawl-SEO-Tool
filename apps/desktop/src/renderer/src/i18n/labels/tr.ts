@@ -240,6 +240,7 @@ export const TR_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Boş Anchor Metni',
+  'Broken Bookmarks': 'Kırık Yer İmleri (#)',
   'Generic Anchor Text': 'Genel Anchor Metni',
   'Anchor Text Too Long (>100)': 'Anchor Metni Çok Uzun (>100)',
   'Total Links per Page > 100': 'Sayfa Başına Toplam Link > 100',

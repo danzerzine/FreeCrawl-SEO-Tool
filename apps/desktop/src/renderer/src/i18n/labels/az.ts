@@ -249,6 +249,7 @@ export const AZ_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Boş ankor mətni',
+  'Broken Bookmarks': 'Qırıq əlfəcinlər (#)',
   'Generic Anchor Text': 'Ümumi ankor mətni',
   'Anchor Text Too Long (>100)': 'Ankor mətni çox uzun (> 100)',
   'Total Links per Page > 100': 'Səhifə başına ümumi keçid > 100',

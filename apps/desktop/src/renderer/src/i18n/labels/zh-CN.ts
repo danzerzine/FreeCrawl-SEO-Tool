@@ -241,6 +241,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': '锚文本为空',
+  'Broken Bookmarks': '失效的页内书签（#）',
   'Generic Anchor Text': '锚文本过于笼统',
   'Anchor Text Too Long (>100)': '锚文本过长（>100）',
   'Total Links per Page > 100': '单页链接总数 > 100',

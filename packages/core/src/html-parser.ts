@@ -286,6 +286,12 @@ export interface ParsedPage {
    */
   ariaInvalidRolesCount: number;
   /**
+   * Links to a `#fragment` of this very page whose id / `<a name>` does not
+   * exist on it. Cross-page bookmarks are not judged (the target's ids are
+   * not kept); SPA routes (`#/…`, `#!…`), `#top` and `#` are never counted.
+   */
+  brokenBookmarkCount: number;
+  /**
    * Document outline — every `<h1>`–`<h6>` in source order, capped at
    * 200 entries so a 5000-heading CMS dump can't bloat the row. Drives
    * the Detail Panel "Outline" sub-tab (skipped-level highlighting,
@@ -1852,6 +1858,36 @@ export function parseHtml(
     if (!anyValid) ariaInvalidRolesCount++;
   });
 
+  // Broken bookmarks — `<a href="#x">` (or the page's own URL + `#x`) with
+  // no element `id="x"` / `<a name="x">`. Fragments are stripped from every
+  // stored URL, so this is the only place they can be judged. A page whose
+  // own URL is a hash route has no single document to look ids up in.
+  let brokenBookmarkCount = 0;
+  if (!pageUrl.includes('#')) {
+    let anchorIds: Set<string> | null = null;
+    $('a[href*="#"]').each((_, el) => {
+      const href = ($(el).attr('href') ?? '').trim();
+      const hash = href.indexOf('#');
+      let frag = href.slice(hash + 1);
+      // `#top` is always valid (HTML spec); `#!` / `#/` are SPA routes;
+      // `:~:` is a text fragment directive.
+      if (frag === '' || /^(!|\/|:~:)/.test(frag) || frag.toLowerCase() === 'top') return;
+      if (normalizeUrl(href, baseUrl, opts.urlRewrites) !== pageUrl) return;
+      try {
+        frag = decodeURIComponent(frag);
+      } catch {
+        // keep the raw form
+      }
+      if (!anchorIds) {
+        anchorIds = new Set<string>();
+        const ids = anchorIds;
+        $('[id]').each((_, e) => void ids.add($(e).attr('id') ?? ''));
+        $('a[name]').each((_, e) => void ids.add($(e).attr('name') ?? ''));
+      }
+      if (!anchorIds.has(frag)) brokenBookmarkCount++;
+    });
+  }
+
   let imagesEmptyAlt = 0;
   let imagesLazy = 0;
   let imagesResponsive = 0;
@@ -2131,6 +2167,7 @@ export function parseHtml(
     hasMain,
     skipLinkPresent,
     ariaInvalidRolesCount,
+    brokenBookmarkCount,
     headings,
     headingOrderViolations,
     subresourceRequestCount,

@@ -241,6 +241,7 @@ export const ES_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Texto de ancla vacío',
+  'Broken Bookmarks': 'Marcadores rotos (#)',
   'Generic Anchor Text': 'Texto de ancla genérico',
   'Anchor Text Too Long (>100)': 'Texto de ancla demasiado largo (>100)',
   'Total Links per Page > 100': 'Total de enlaces por página > 100',

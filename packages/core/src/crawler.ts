@@ -4911,6 +4911,7 @@ export class Crawler extends EventEmitter {
           landmarkMain: parsed.hasMain ? 1 : 0,
           skipLinkPresent: parsed.skipLinkPresent ? 1 : 0,
           ariaInvalidRoles: parsed.ariaInvalidRolesCount,
+          brokenBookmarks: parsed.brokenBookmarkCount,
           schemaDuplicateIds: parsed.schemaDuplicateIds,
           schemaUnknownTypes: parsed.schemaUnknownTypes,
           schemaMissingRequired: parsed.schemaMissingRequired,

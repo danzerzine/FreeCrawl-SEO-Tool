@@ -2366,6 +2366,7 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
         return `Over: ${parts.join(', ')}`;
       })(),
     ],
+    ['Broken Bookmarks', row.brokenBookmarks > 0 ? row.brokenBookmarks : null],
     ['Empty Anchor Links', row.emptyAnchorCount > 0 ? row.emptyAnchorCount : null],
     ['Mixed Content (subresources)', row.mixedContentCount > 0 ? row.mixedContentCount : null],
     [

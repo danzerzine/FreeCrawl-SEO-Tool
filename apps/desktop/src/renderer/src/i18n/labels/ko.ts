@@ -241,6 +241,7 @@ export const KO_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': '앵커 텍스트 없음',
+  'Broken Bookmarks': '끊어진 북마크(#)',
   'Generic Anchor Text': '두루뭉술한 앵커 텍스트',
   'Anchor Text Too Long (>100)': '앵커 텍스트 너무 긺(100자 초과)',
   'Total Links per Page > 100': '페이지당 전체 링크 100개 초과',

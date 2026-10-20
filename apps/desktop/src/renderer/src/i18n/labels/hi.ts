@@ -241,6 +241,7 @@ export const HI_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'खाली एंकर टेक्स्ट',
+  'Broken Bookmarks': 'टूटे बुकमार्क (#)',
   'Generic Anchor Text': 'सामान्य एंकर टेक्स्ट',
   'Anchor Text Too Long (>100)': 'एंकर टेक्स्ट बहुत लंबा (>100)',
   'Total Links per Page > 100': 'प्रति पृष्ठ कुल लिंक > 100',

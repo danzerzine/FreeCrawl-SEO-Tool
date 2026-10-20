@@ -260,6 +260,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     "한 시점에 진행 중인 HTTP 요청 수. Screaming Frog의 'Max Threads'에 해당합니다. 높을수록 크롤링이 빠르고 대상 서버 부하가 커집니다.",
   ['Number of internal `<a>` elements with no usable anchor text or alt — accessibility / SEO regression.']:
     '사용 가능한 앵커 텍스트나 alt가 없는 내부 `<a>` 요소 수 — 접근성 / SEO 퇴행.',
+  ['Number of links to a `#bookmark` on this same page whose id or `<a name>` does not exist on it. Bookmarks on other pages are not checked.']:
+    "같은 페이지의 `#북마크`를 가리키지만 해당 id 또는 `<a name>`이 페이지에 없는 링크 수. 다른 페이지의 북마크는 검사하지 않습니다.",
   ['Number of internal pages that link to this URL. A rough internal-PageRank signal.']:
     '이 URL로 링크하는 내부 페이지 수. 대략적인 내부 PageRank 신호입니다.',
   ["Number of pages in this URL's near-duplicate cluster (1 = no duplicates, ≥2 = part of a duplicate group). Tunable via Settings → Duplicates."]:

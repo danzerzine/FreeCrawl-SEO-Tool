@@ -241,6 +241,7 @@ export const IT_LABELS: Record<string, string> = {
 
   // Links
   'Empty Anchor Text': 'Testo di ancora vuoto',
+  'Broken Bookmarks': 'Segnalibri (#) rotti',
   'Generic Anchor Text': 'Testo di ancora generico',
   'Anchor Text Too Long (>100)': 'Testo di ancora troppo lungo (>100)',
   'Total Links per Page > 100': 'Totale link per pagina > 100',
