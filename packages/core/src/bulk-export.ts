@@ -251,6 +251,11 @@ export async function exportIssueInlinks(
   return { files, errors };
 }
 
+/** Whole ms since `t0` (a `performance.now()` reading). */
+export function since(t0: number): number {
+  return Math.round(performance.now() - t0);
+}
+
 /**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
  * `outputDir` (created when missing). Each file goes through
@@ -291,6 +296,7 @@ export async function runBulkExport(
   for (const task of options.tasks ?? BULK_EXPORT_TASKS) {
     if (disabled.has(task.category)) continue;
     const filePath = join(outputDir, task.file);
+    const t0 = performance.now();
     try {
       const { rowsWritten } = await writeExportFile(
         filePath,
@@ -302,7 +308,7 @@ export async function runBulkExport(
         hasRows,
       );
       if (rowsWritten === 0) continue;
-      files.push({ filePath, label: task.label, category: task.category, rowsWritten });
+      files.push({ filePath, label: task.label, category: task.category, rowsWritten, ms: since(t0) });
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
     }
@@ -312,6 +318,7 @@ export async function runBulkExport(
   for (const scope of ['internal', 'external'] as const) {
     const label = scope === 'internal' ? 'Links — Internal' : 'Links — External';
     const filePath = join(outputDir, `links-${scope}.csv`);
+    const t0 = performance.now();
     try {
       const { rowsWritten } = await writeExportFile(
         filePath,
@@ -324,6 +331,7 @@ export async function runBulkExport(
         label,
         category: scope === 'internal' ? 'internal:all' : 'external:all',
         rowsWritten,
+        ms: since(t0),
       });
     } catch (err) {
       errors.push({ label, error: (err as Error).message });
@@ -331,13 +339,14 @@ export async function runBulkExport(
   }
   for (const task of BULK_EXPORT_DATASET_TASKS) {
     const filePath = join(outputDir, task.file);
+    const t0 = performance.now();
     try {
       const { rowsWritten } = await exportDatasetFile(db, filePath, task.dataset, {
         label: task.label,
         headers: options.headers,
       });
       if (rowsWritten === 0) continue;
-      files.push({ filePath, label: task.label, dataset: task.dataset, rowsWritten });
+      files.push({ filePath, label: task.label, dataset: task.dataset, rowsWritten, ms: since(t0) });
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
     }
@@ -369,6 +378,7 @@ async function writeBulkManifest(
         path: relative(result.outputDir, f.filePath).split(sep).join('/'),
         label: f.label,
         rows: f.rowsWritten,
+        ms: f.ms,
       })),
       errors: result.errors,
     };

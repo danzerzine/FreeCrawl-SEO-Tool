@@ -947,6 +947,8 @@ export interface BulkExportFile {
   /** Dataset that drove this export (link, issue, sitemap and queue files). */
   dataset?: ExportDatasetKey;
   rowsWritten: number;
+  /** Wall time from the file's first write to its rename, ms (manifest.json). */
+  ms?: number;
 }
 
 export interface BulkExportResult {
