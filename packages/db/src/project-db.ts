@@ -1261,6 +1261,16 @@ export type ProbeWrite =
   | { method: 'setPdfMetadata'; args: Parameters<ProjectDb['setPdfMetadata']> }
   | { method: 'setMobileParity'; args: Parameters<ProjectDb['setMobileParity']> };
 
+/**
+ * Link-target predicate (alias `t`) of the Broken Links report: a 4xx/5xx
+ * answer, or a probe that got none (timeout, refused connection, DNS) —
+ * stored with a NULL status and `non-indexable:no-response`. Unprobed
+ * external stubs also have a NULL status but keep their placeholder
+ * indexability, so they are not reported.
+ */
+const BROKEN_TARGET_SQL = `((t.status_code >= 400 AND t.status_code < 600)
+    OR t.indexability = 'non-indexable:no-response')`;
+
 export class ProjectDb {
   /** Parse cache for `getDisabledIssues()` — keyed by the raw meta string. */
   private disabledIssuesRaw: string | null = null;
@@ -2265,7 +2275,7 @@ export class ProjectDb {
       indexability = 'unknown:bot-blocked';
       indexabilityReason = `Blocked by bot protection — ${patch.botBlocked}`;
     } else if (status === null) {
-      indexability = 'non-indexable:client-error';
+      indexability = 'non-indexable:no-response';
       indexabilityReason = 'No response';
     } else if (status >= 500) {
       indexability = 'non-indexable:server-error';
@@ -4449,8 +4459,8 @@ export class ProjectDb {
   }
 
   /**
-   * Indexability distribution across internal URLs. Seven buckets —
-   * `indexable` + the six `non-indexable:…` reasons — give the user a
+   * Indexability distribution across internal URLs. `indexable` + the
+   * `non-indexable:…` reasons — give the user a
    * one-glance breakdown of why pages are or aren't reaching Google.
    * Ordered by `count DESC` so the dominant bucket sits at the top.
    */
@@ -4650,7 +4660,8 @@ export class ProjectDb {
   }
 
   /**
-   * Return link rows whose destination is a 4xx/5xx URL. Joins the link
+   * Return link rows whose destination is a 4xx/5xx URL or never answered
+   * (timeout, refused connection, DNS failure). Joins the link
    * catalogue to the URL table twice — once for the source page's status,
    * once for the destination's. `internal` filter: 'all' | 'internal' | 'external'.
    */
@@ -4660,7 +4671,7 @@ export class ProjectDb {
     internal?: 'all' | 'internal' | 'external';
     search?: string;
   }): { rows: BrokenLinkRow[]; total: number; uniqueTargets: number } {
-    const where: string[] = ['t.status_code >= 400 AND t.status_code < 600'];
+    const where: string[] = [BROKEN_TARGET_SQL];
     const args: (string | number)[] = [];
     const internal = params.internal ?? 'all';
     if (internal === 'internal') where.push('l.is_internal = 1');
@@ -7410,6 +7421,8 @@ export class ProjectDb {
       `SELECT COUNT(*) AS c FROM links l
          WHERE l.to_url IN (
            SELECT url FROM urls WHERE status_code >= 400 AND status_code < 600
+           UNION
+           SELECT url FROM urls WHERE indexability = 'non-indexable:no-response'
          ) ${scope}`,
     );
   }
@@ -8135,7 +8148,7 @@ export class ProjectDb {
     internal: 'all' | 'internal' | 'external' = 'all',
     search?: string,
   ): IterableIterator<BrokenLinkRow> {
-    const where: string[] = ['t.status_code >= 400 AND t.status_code < 600'];
+    const where: string[] = [BROKEN_TARGET_SQL];
     if (internal === 'internal') where.push('l.is_internal = 1');
     else if (internal === 'external') where.push('l.is_internal = 0');
     // Same search predicate as `queryBrokenLinks` so the export mirrors the

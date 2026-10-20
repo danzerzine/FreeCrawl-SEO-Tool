@@ -263,6 +263,8 @@ export type Indexability =
   | 'non-indexable:redirect'
   | 'non-indexable:client-error'
   | 'non-indexable:server-error'
+  // The request got no HTTP answer at all: timeout, refused connection, DNS.
+  | 'non-indexable:no-response'
   // Bot protection (Cloudflare challenge, WAF block) or a rate limit
   // answered instead of the page. Not "non-indexable": search engines are
   // usually let through, the crawler wasn't — indexability is unknown.

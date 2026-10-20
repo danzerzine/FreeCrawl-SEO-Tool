@@ -479,6 +479,7 @@
       "redirect": "Non indicizzabile — reindirizzamento",
       "clientError": "Non indicizzabile — 4xx",
       "serverError": "Non indicizzabile — 5xx",
+      "noResponse": "Non indicizzabile — nessuna risposta",
       "botBlocked": "Sconosciuta — bloccata dalla protezione anti-bot"
     },
     "kind": {

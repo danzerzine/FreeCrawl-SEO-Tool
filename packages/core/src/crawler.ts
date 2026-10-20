@@ -5183,7 +5183,7 @@ export class Crawler extends EventEmitter {
           contentKind: detectContentKind(item.url, null),
           statusCode: null,
           statusText: detail,
-          indexability: 'non-indexable:client-error',
+          indexability: 'non-indexable:no-response',
           indexabilityReason: `Network error: ${detail}`,
           responseTimeMs: elapsed,
           depth: item.depth,
