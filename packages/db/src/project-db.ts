@@ -2975,6 +2975,11 @@ export class ProjectDb {
           SELECT to_url AS url, COUNT(*) AS c
           FROM links
           WHERE is_internal = 1
+            -- A page linking to itself (a skip link, a logo on the home page)
+            -- is not an inlink: it must not hide an orphan. The row stays in
+            -- the links table so the Inlinks tab can still show it.
+            AND from_url_id != COALESCE(
+              (SELECT id FROM urls WHERE urls.url = links.to_url), -1)
           GROUP BY to_url
       `);
       this.db.exec('CREATE INDEX _inlink_counts_url ON _inlink_counts(url)');
