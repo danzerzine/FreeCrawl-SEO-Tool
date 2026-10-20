@@ -168,7 +168,9 @@ export options:
                         one of the same name; writes no files. The desktop scheduler can run it too.
   --set <name>        Run a saved export set instead of --what (exit 2 if the project has none of that name)
   --list-sets         List the project's saved export sets (--json: {ok, sets: [{name, what, rawHeaders}]})
-  --json              Print {ok, files: [{path, label, rows}], errors: [...]} on stdout, also on errors
+  --json              Print {ok, files: [{path, label, rows}], errors: [...], skipped: [{label, reason}]}
+                        on stdout, also on errors. skipped: a link report or dataset with no rows in
+                        this crawl (no file written; not an error)
   Exit codes: 0 done, 1 some exports failed (the others are written), 2 bad arguments or project,
   130 interrupted.
 
@@ -526,6 +528,7 @@ async function main(): Promise<void> {
     if (exported) {
       console.log(`Exported ${exported.files.length} file(s) -> ${postCrawlExport!.dir}`);
       for (const e of exported.errors) console.error(`Export failed: ${e.label}: ${e.error}`);
+      for (const k of exported.skipped) console.error(`Export skipped: ${k.label}: ${k.reason}`);
     }
     if (botBlocked) {
       console.log(
@@ -1571,6 +1574,7 @@ async function runExport(opts: {
       console.log(`${f.rows === null ? '' : `${f.rows} rows  `}${f.path}`);
     }
     for (const e of outcome.errors) console.error(`Failed: ${e.label}: ${e.error}`);
+    for (const k of outcome.skipped) console.error(`Skipped: ${k.label}: ${k.reason}`);
   };
   const fail = (message: string): number => {
     if (!opts.json) {
@@ -1580,7 +1584,7 @@ async function runExport(opts: {
           '       freecrawl export --project <file> --list-sets [--json]',
       );
     }
-    print({ files: [], errors: [] }, message);
+    print({ files: [], errors: [], skipped: [] }, message);
     return 2;
   };
   if (opts.listSets || opts.saveSet !== undefined) return runExportSetCommand(opts, fail);
@@ -1646,7 +1650,7 @@ async function runExport(opts: {
         (project.db.getUrlIdByUrl(u) !== null ? known : missing).push(u);
       }
       if (known.length === 0) {
-        print({ files: [], errors: [] }, `None of the ${selectedUrls.length} URLs in ${opts.urls} is in the project.`);
+        print({ files: [], errors: [], skipped: [] }, `None of the ${selectedUrls.length} URLs in ${opts.urls} is in the project.`);
         return 2;
       }
       items.push({ kind: 'selected', name: 'selected-links', urls: known });

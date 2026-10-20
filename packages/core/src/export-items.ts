@@ -47,6 +47,8 @@ const JSONL_DATASETS: readonly ExportDatasetKey[] = ['page-html', 'page-text'];
 export interface ExportOutcome {
   files: { path: string; label: string; rows: number | null }[];
   errors: { label: string; error: string }[];
+  /** Outputs that held no rows, so no file was written; not a failure. */
+  skipped: { label: string; reason: string }[];
 }
 
 export const EXPORT_WHAT_HELP =
@@ -136,7 +138,7 @@ export async function runExportItems(
   options: RunExportItemsOptions = {},
 ): Promise<ExportOutcome> {
   const headers = options.rawHeaders ? ('keys' as const) : undefined;
-  const outcome: ExportOutcome = { files: [], errors: [] };
+  const outcome: ExportOutcome = { files: [], errors: [], skipped: [] };
   const progress = options.onProgress ?? (() => {});
   // Issue lists and counts read the materialised urls_issues table; a
   // project last materialised by an older set of checks would export stale
@@ -201,10 +203,14 @@ export async function runExportItems(
             (r) => r.rowsWritten > 0,
           );
           if (skipped) {
+            // Nothing stored that the crawl could have stored (page bodies
+            // off): a failure of the run, with the reason.
             for (const sk of skipped) {
               progress(`${sk.label}: ${sk.reason}`);
               outcome.errors.push({ label: sk.label, error: sk.reason });
             }
+          } else if (rowsWritten === 0) {
+            outcome.skipped.push({ label, reason: 'No rows in this crawl: no file written.' });
           } else {
             outcome.files.push({ path, label, rows: rowsWritten });
           }
@@ -237,6 +243,11 @@ export async function runExportItems(
           });
         } else if (r.rowsWritten > 0) {
           outcome.files.push({ path, label: item.label, rows: r.rowsWritten });
+        } else {
+          outcome.skipped.push({
+            label: item.label,
+            reason: 'No link targets of this kind in this crawl: no file written.',
+          });
         }
       }
     } catch (err) {
