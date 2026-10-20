@@ -913,8 +913,10 @@ export interface BulkExportFile {
   filePath: string;
   /** Display label (e.g. "Internal HTML"). */
   label: string;
-  /** Category that drove this export. */
-  category: UrlCategory;
+  /** Category that drove this export; absent for dataset files. */
+  category?: UrlCategory;
+  /** Dataset that drove this export (link, issue, sitemap and queue files). */
+  dataset?: ExportDatasetKey;
   rowsWritten: number;
 }
 

@@ -1542,7 +1542,7 @@ async function runExportItems(
       if (item.kind === 'bulk') {
         addBulk(await runBulkExport(db, outDir));
       } else if (item.kind === 'tasks') {
-        addBulk(await runBulkExport(db, outDir, { tasks: item.tasks, links: false }));
+        addBulk(await runBulkExport(db, outDir, { tasks: item.tasks }));
       } else if (item.kind === 'seo-audit') {
         addBulk(await runSeoAuditExport(db, join(outDir, 'seo-audit')));
       } else if (item.kind === 'html') {

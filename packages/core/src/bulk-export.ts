@@ -10,13 +10,16 @@
 
 import { join } from 'node:path';
 import type { ProjectDb } from '@freecrawl/db';
+import { EXPORT_DATASET_COLUMNS } from '@freecrawl/shared-types';
 import type {
   BulkExportFile,
   BulkExportResult,
   CrawlUrlRow,
+  ExportDatasetKey,
   UrlCategory,
 } from '@freecrawl/shared-types';
 import { exportLinksToCsv, exportUrlsToCsv } from './csv-export.js';
+import { exportTabular } from './tabular-export.js';
 import { writeExportFile } from './export-file.js';
 
 export interface BulkExportTask {
@@ -151,19 +154,34 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
   { label: 'Outlinks Zero', file: 'outlinks-zero.csv', category: 'issues:outlinks-zero' },
 ];
 
+export interface BulkExportDatasetTask {
+  label: string;
+  file: string;
+  dataset: ExportDatasetKey;
+}
+
+/** Link, issue, sitemap and queue tables that are not views over the URL rows. */
+export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
+  { label: 'Broken Links', file: 'broken-links.csv', dataset: 'broken-links' },
+  { label: 'Broken Links — By Target', file: 'broken-links-by-target.csv', dataset: 'broken-links-by-target' },
+  { label: 'Issues — One Row Per URL and Issue', file: 'issues-long.csv', dataset: 'issues-long' },
+  { label: 'Sitemap URLs', file: 'sitemap-urls.csv', dataset: 'sitemap-urls' },
+  { label: 'Crawl Queue (Unfetched)', file: 'crawl-queue.csv', dataset: 'crawl-queue' },
+];
+
 /**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
  * `outputDir` (created when missing). Each file goes through
  * `<name>.part` + rename; zero-row categories leave no file, so the dump
  * folder isn't littered with empty files. Per-task write failures are
  * collected (never abort the whole run). Caller owns any UI / dialogs.
- * `tasks` narrows the run to some categories (the CLI's `tab:<key>`);
- * `links: false` skips the two link-level files.
+ * `tasks` narrows the run to those categories only (the CLI's
+ * `tab:<key>`): no link or dataset files then.
  */
 export async function runBulkExport(
   db: ProjectDb,
   outputDir: string,
-  options: { tasks?: readonly BulkExportTask[]; links?: boolean } = {},
+  options: { tasks?: readonly BulkExportTask[] } = {},
 ): Promise<BulkExportResult> {
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
@@ -186,7 +204,7 @@ export async function runBulkExport(
       errors.push({ label: task.label, error: (err as Error).message });
     }
   }
-  if (options.links === false) return { outputDir, files, errors };
+  if (options.tasks) return { outputDir, files, errors };
   // Link-level files: one row per edge rather than per page.
   for (const scope of ['internal', 'external'] as const) {
     const label = scope === 'internal' ? 'Links — Internal' : 'Links — External';
@@ -206,6 +224,25 @@ export async function runBulkExport(
       });
     } catch (err) {
       errors.push({ label, error: (err as Error).message });
+    }
+  }
+  for (const task of BULK_EXPORT_DATASET_TASKS) {
+    const filePath = join(outputDir, task.file);
+    try {
+      const { rowsWritten } = await writeExportFile(
+        filePath,
+        (partPath) =>
+          exportTabular(db, partPath, {
+            format: 'csv',
+            sections: [{ label: task.label, dataset: task.dataset }],
+            columns: EXPORT_DATASET_COLUMNS[task.dataset].map((c) => c.key),
+          }),
+        hasRows,
+      );
+      if (rowsWritten === 0) continue;
+      files.push({ filePath, label: task.label, dataset: task.dataset, rowsWritten });
+    } catch (err) {
+      errors.push({ label: task.label, error: (err as Error).message });
     }
   }
   return { outputDir, files, errors };
