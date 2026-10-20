@@ -2977,6 +2977,11 @@ export class ProjectDb {
     });
   }
 
+  /** A crawl is about to add pages: stored inlinks no longer cover them. */
+  markInlinksStale(): void {
+    this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(INLINKS_COMPUTED_META_KEY);
+  }
+
   recomputeInlinks(): void {
     // One-pass aggregate via temp table: GROUP BY links.to_url once, then
     // join. The naive correlated-subquery form (UPDATE … = (SELECT COUNT…))
