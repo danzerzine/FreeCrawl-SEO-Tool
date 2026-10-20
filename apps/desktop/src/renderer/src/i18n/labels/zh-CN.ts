@@ -511,7 +511,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Crawl Total Limit (Max URLs)': '抓取总量上限（最大 URL 数）',
   'Exclude Patterns (regex, one per line)': '排除模式（正则，每行一个）',
   'Exclude extensions (comma-separated)': '排除扩展名（用逗号分隔）',
-  'Follow / Store Nofollow Links': '跟随 / 存储 nofollow 链接',
+  'Count / Probe Nofollow Links': '统计 / 检查 nofollow 链接',
   'Follow JS / meta-refresh redirects': '跟随 JS / meta-refresh 重定向',
   'Follow canonical targets': '跟随 canonical 目标',
   'Follow rel=next / rel=prev': '跟随 rel=next / rel=prev',

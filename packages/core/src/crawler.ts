@@ -5055,7 +5055,7 @@ export class Crawler extends EventEmitter {
               isInScope(this.config.startUrl, link.toUrl, 'subdomain');
             if (!inScope && !checkOnly && !this.config.crawlExternal) continue;
             // Wave 3 — nofollow follow toggle. By default nofollow links
-            // are stored (when `storeNofollowLinks` is on) but never
+            // are always stored but never
             // recursed into. Turning the matching row on opts out of the
             // "respect nofollow" behaviour and treats them like any other
             // link for the follow decision — internal and external are

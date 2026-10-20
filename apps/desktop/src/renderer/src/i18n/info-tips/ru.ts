@@ -310,8 +310,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Вкл. для SEO-аудитов, где важен «Исходный код»; выкл. для сканирований на 1M URL при нехватке диска.',
   ['ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes).']:
     'ВКЛ. для SEO-аудитов. ВЫКЛЮЧАЙТЕ только когда нужно специально изучить коллизии сырых URL (например, CMS на регистрозависимой файловой системе).',
-  ['On if you need nofollow attribute audits; off keeps the link graph cleaner.']:
-    'Вкл., если нужен аудит атрибута nofollow; выкл. держит граф ссылок чище.',
+  ["Leave off to respect nofollow; on to count and probe them like any other link."]:
+    "Выключено: nofollow соблюдается; включено: считать и проверять их как обычные ссылки.",
   ['On if your CMS serves the same page at mixed casing (/Foo and /foo).']:
     'Вкл., если ваша CMS отдаёт одну и ту же страницу в разном регистре (/Foo и /foo).',
   ['On if your site canonicalises to non-www but emits www links somewhere.']:
@@ -339,8 +339,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Шаблон: ^https://m\\.(.+) · Замена: https://www.$1 · Флаги: i  (свернуть мобильный поддомен в www)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "Порог прерывания на запрос. Страницы, отвечающие дольше, записываются как сетевые ошибки. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — там в секундах, здесь в миллисекундах.",
-  ['Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".']:
-    'Сохранять ссылки rel="nofollow" в графе ссылок. Если выключено, nofollow-ссылки отбрасываются полностью (не считаются в исходящих, не проверяются как внешние). Обратное к Screaming Frog: включить это ≈ снять галочку "Follow Internal/External Nofollow".',
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
+    "Ссылки nofollow всегда записываются в граф ссылок, поэтому Inlinks и Outlinks их показывают. Если включено, они ещё и считаются в исходящих, а внешние проверяются. Если выключено (по умолчанию), они видны, но не считаются и не проверяются. Идти ли по внутренним nofollow-ссылкам, решает отдельная настройка.",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     'Выбор пресета заполняет поле User-Agent ниже — потом его всё равно можно править вручную. Переключайтесь между Googlebot Smartphone / Desktop, чтобы сравнить, как сайт отвечает мобильному и десктопному краулеру.',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

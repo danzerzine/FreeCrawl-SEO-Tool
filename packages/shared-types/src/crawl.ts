@@ -1280,7 +1280,8 @@ export interface CrawlConfig {
   /**
    * Follow `<a rel="nofollow">` links (still respecting all other
    * filters). Default `false` — Screaming Frog "Respect Nofollow"
-   * default. Combined with `storeNofollowLinks` for the storage side.
+   * default. Nofollow links are stored either way; `storeNofollowLinks`
+   * only decides whether they count as outlinks and get probed.
    */
   followNofollow: boolean;
   /**

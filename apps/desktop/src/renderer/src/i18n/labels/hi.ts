@@ -512,7 +512,7 @@ export const HI_LABELS: Record<string, string> = {
   'Crawl Total Limit (Max URLs)': 'कुल क्रॉल सीमा (अधिकतम URL)',
   'Exclude Patterns (regex, one per line)': 'बहिष्करण पैटर्न (regex, प्रति पंक्ति एक)',
   'Exclude extensions (comma-separated)': 'एक्सटेंशन छोड़ें (अल्पविराम से अलग)',
-  'Follow / Store Nofollow Links': 'nofollow लिंक का अनुसरण / संग्रहण',
+  'Count / Probe Nofollow Links': 'nofollow लिंक गिनें / जाँचें',
   'Follow JS / meta-refresh redirects': 'JS / meta-refresh रीडायरेक्ट का अनुसरण करें',
   'Follow canonical targets': 'canonical लक्ष्यों का अनुसरण करें',
   'Follow rel=next / rel=prev': 'rel=next / rel=prev का अनुसरण करें',

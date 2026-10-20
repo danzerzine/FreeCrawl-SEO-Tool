@@ -622,7 +622,7 @@
       "checkImages": "Vérifier les images",
       "checkCss": "Vérifier le CSS",
       "checkJs": "Vérifier le JavaScript",
-      "storeNofollow": "Suivre / stocker les liens nofollow",
+      "storeNofollow": "Compter / vérifier les liens nofollow",
       "storeNofollowHint": "Désactivé par défaut — comportement « Respect Nofollow » de Screaming Frog",
       "discoverSitemaps": "Découvrir automatiquement les sitemaps XML",
       "discoverSitemapsHint": "Lit sitemap.xml depuis robots.txt et les chemins par défaut au démarrage de l'exploration",

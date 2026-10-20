@@ -513,7 +513,7 @@ export const IT_LABELS: Record<string, string> = {
   'Crawl Total Limit (Max URLs)': 'Limite totale della scansione (URL max)',
   'Exclude Patterns (regex, one per line)': 'Pattern di esclusione (regex, uno per riga)',
   'Exclude extensions (comma-separated)': 'Escludi estensioni (separate da virgole)',
-  'Follow / Store Nofollow Links': 'Segui / archivia i link nofollow',
+  'Count / Probe Nofollow Links': 'Conta / verifica i link nofollow',
   'Follow JS / meta-refresh redirects': 'Segui i reindirizzamenti JS / meta-refresh',
   'Follow canonical targets': 'Segui le destinazioni canonical',
   'Follow rel=next / rel=prev': 'Segui rel=next / rel=prev',

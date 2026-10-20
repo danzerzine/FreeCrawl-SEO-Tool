@@ -582,7 +582,7 @@
       "checkImages": "이미지 확인",
       "checkCss": "CSS 확인",
       "checkJs": "JavaScript 확인",
-      "storeNofollow": "nofollow 링크 따라가기 / 저장",
+      "storeNofollow": "nofollow 링크 집계 / 검사",
       "storeNofollowHint": "기본값은 꺼짐 — Screaming Frog의 \"Respect Nofollow\" 동작과 같습니다",
       "discoverSitemaps": "XML 사이트맵 자동 검색",
       "discoverSitemapsHint": "크롤 시작 시 robots.txt와 기본 경로에서 sitemap.xml을 읽습니다",

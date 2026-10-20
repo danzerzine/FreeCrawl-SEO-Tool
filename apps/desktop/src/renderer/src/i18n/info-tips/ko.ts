@@ -304,8 +304,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '소스 보기가 중요한 SEO 감사에는 켬. 디스크가 부족한 100만 URL 크롤링에는 끔.',
   ['ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes).']:
     'SEO 감사에는 켬. 원시 URL 충돌(예: 대소문자를 구분하는 파일 시스템 CMS)을 특별히 검사해야 할 때만 끄세요.',
-  ['On if you need nofollow attribute audits; off keeps the link graph cleaner.']:
-    'nofollow 속성 감사가 필요하면 켬. 끄면 링크 그래프가 더 깔끔해집니다.',
+  ["Leave off to respect nofollow; on to count and probe them like any other link."]:
+    "nofollow를 따르려면 끄고, 다른 링크처럼 집계하고 검사하려면 켜세요.",
   ['On if your CMS serves the same page at mixed casing (/Foo and /foo).']:
     'CMS가 같은 페이지를 대소문자가 섞인 형태(/Foo와 /foo)로 제공하면 켬.',
   ['On if your site canonicalises to non-www but emits www links somewhere.']:
@@ -333,8 +333,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '패턴: ^https://m\\.(.+) · 치환: https://www.$1 · 플래그: i  (모바일 서브도메인을 www로 병합)',
   ["Per-request abort threshold. Pages that take longer than this are recorded as network errors. Screaming Frog: 'Response Timeout (secs)' (Configuration → Spider → Advanced) — that one's in seconds, this is in milliseconds."]:
     "요청당 중단 임계값. 이보다 오래 걸리는 페이지는 네트워크 오류로 기록됩니다. Screaming Frog: 'Response Timeout (secs)'(Configuration → Spider → Advanced) — 그쪽은 초 단위, 여기는 밀리초 단위입니다.",
-  ['Persist rel="nofollow" links in the link graph. When off, nofollow links are dropped entirely (not counted in outlinks, not probed as externals). Screaming Frog inverse: turning this ON ≈ unchecking "Follow Internal/External Nofollow".']:
-    'rel="nofollow" 링크를 링크 그래프에 유지합니다. 끄면 nofollow 링크는 완전히 버려집니다(아웃링크에 포함되지 않고 외부 링크로 검사되지 않음). Screaming Frog의 반대: 이것을 켜는 것 ≈ "Follow Internal/External Nofollow" 체크 해제.',
+  ["Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward outlinks and external ones are probed. When off (default), they are shown but not counted or probed. Whether internal nofollow links are crawled is a separate setting."]:
+    "nofollow 링크는 항상 링크 그래프에 기록되므로 Inlinks와 Outlinks에 표시됩니다. 켜면 아웃링크로 집계되고 외부 링크는 검사됩니다. 끄면(기본값) 표시만 되고 집계나 검사는 하지 않습니다. 내부 nofollow 링크를 크롤할지는 별도 설정입니다.",
   ['Picking a preset fills the User-Agent field below — you can still hand-edit it afterwards. Switch between Googlebot Smartphone / Desktop to compare how a site responds to mobile vs desktop crawlers.']:
     '프리셋을 선택하면 아래 User-Agent 필드가 채워집니다 — 이후 직접 수정할 수 있습니다. Googlebot Smartphone / Desktop을 전환해 사이트가 모바일과 데스크톱 크롤러에 어떻게 응답하는지 비교하세요.',
   ["Picks one of the saved profiles by name. Empty = use the Proxy URL field above (or env vars when that's also empty)."]:

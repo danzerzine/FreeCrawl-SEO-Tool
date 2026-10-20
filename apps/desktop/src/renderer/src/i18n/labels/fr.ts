@@ -514,7 +514,7 @@ export const FR_LABELS: Record<string, string> = {
   'Exclude Patterns (regex, one per line)': 'Motifs d’exclusion (regex, un par ligne)',
   'Exclude extensions (comma-separated)':
     'Exclure des extensions (séparées par des virgules)',
-  'Follow / Store Nofollow Links': 'Suivre / stocker les liens nofollow',
+  'Count / Probe Nofollow Links': 'Compter / vérifier les liens nofollow',
   'Follow JS / meta-refresh redirects': 'Suivre les redirections JS / meta-refresh',
   'Follow canonical targets': 'Suivre les cibles canonical',
   'Follow rel=next / rel=prev': 'Suivre rel=next / rel=prev',

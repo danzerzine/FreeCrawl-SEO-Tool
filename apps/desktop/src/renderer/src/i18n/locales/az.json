@@ -602,7 +602,7 @@
       "checkImages": "Şəkilləri yoxla",
       "checkCss": "CSS-i yoxla",
       "checkJs": "JavaScript-i yoxla",
-      "storeNofollow": "nofollow keçidlərini izlə / saxla",
+      "storeNofollow": "nofollow keçidlərini say / yoxla",
       "storeNofollowHint": "Susmaya görə sönülüdür — Screaming Frog-un «Respect Nofollow» davranışı",
       "discoverSitemaps": "XML sitemap-ları avtomatik tap",
       "discoverSitemapsHint": "Tarama başlayanda robots.txt və susmaya görə yollardan sitemap.xml-i oxuyur",
