@@ -818,6 +818,39 @@ export async function exportTabular(
   };
 }
 
+/**
+ * One dataset (see `ExportDatasetKey`) to one file with all its catalogue
+ * columns, through `<name>.part` + rename. A dataset with no rows leaves
+ * no file (an earlier one of that name is removed); a size-dependent one
+ * also says why in `skipped`. The bulk dump, the issue inlinks files and
+ * the CLI's `dataset:<key>` all write datasets through here.
+ */
+export function exportDatasetFile(
+  db: ProjectDb,
+  filePath: string,
+  dataset: ExportDatasetKey,
+  options: {
+    label: string;
+    format?: 'csv' | 'jsonl';
+    /** Header row: catalogue labels (default) or keys; keys also drop the CSV formula guard. */
+    headers?: 'labels' | 'keys';
+    datasetContext?: DatasetExportContext;
+  },
+): Promise<TabularExportResult> {
+  return writeExportFile(
+    filePath,
+    (partPath) =>
+      exportTabular(db, partPath, {
+        format: options.format ?? 'csv',
+        headers: options.headers,
+        sections: [{ label: options.label, dataset }],
+        columns: EXPORT_DATASET_COLUMNS[dataset].map((c) => c.key),
+        datasetContext: options.datasetContext,
+      }),
+    (r) => r.rowsWritten > 0,
+  );
+}
+
 // ── Detail-panel grid export ────────────────────────────────────────
 //
 // The URL Details panel's sub-tabs (Inlinks, Images, HTTP Headers,

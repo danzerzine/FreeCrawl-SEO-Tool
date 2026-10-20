@@ -51,6 +51,7 @@ export { exportUrlsToJson, type JsonExportOptions } from './json-export.js';
 export { exportUrlsToXml } from './xml-export.js';
 export {
   exportTabular,
+  exportDatasetFile,
   exportGrid,
   type TabularExportOptions,
   type TabularExportResult,

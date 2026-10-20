@@ -11,7 +11,7 @@
 import { join, relative, sep } from 'node:path';
 import { readdir, rmdir, unlink, writeFile } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
-import { EXPORT_DATASET_COLUMNS, ISSUE_CATEGORIES } from '@freecrawl/shared-types';
+import { ISSUE_CATEGORIES } from '@freecrawl/shared-types';
 import type {
   BulkExportFile,
   BulkExportResult,
@@ -20,7 +20,7 @@ import type {
   UrlCategory,
 } from '@freecrawl/shared-types';
 import { exportLinksToCsv, exportUrlsToCsv } from './csv-export.js';
-import { exportTabular } from './tabular-export.js';
+import { exportDatasetFile } from './tabular-export.js';
 import { writeExportFile } from './export-file.js';
 
 export interface BulkExportTask {
@@ -191,7 +191,6 @@ export async function exportIssueInlinks(
 ): Promise<{ files: BulkExportFile[]; errors: { label: string; error: string }[] }> {
   const files: BulkExportFile[] = [];
   const errors: { label: string; error: string }[] = [];
-  const hasRows = (r: { rowsWritten: number }): boolean => r.rowsWritten > 0;
   const disabled = db.getDisabledIssues();
   // Issue keys come from the project file: only the checks this build
   // knows get a file, and the name keeps to `[a-z0-9-]`, so a crafted key
@@ -209,18 +208,11 @@ export async function exportIssueInlinks(
     const fileName = `inlinks-${name}.csv`;
     const filePath = join(issueDir, fileName);
     try {
-      const { rowsWritten } = await writeExportFile(
-        filePath,
-        (partPath) =>
-          exportTabular(db, partPath, {
-            format: 'csv',
-            headers: options.headers,
-            sections: [{ label, dataset: 'issue-inlinks' }],
-            columns: EXPORT_DATASET_COLUMNS['issue-inlinks'].map((c) => c.key),
-            datasetContext: { issueKey: key },
-          }),
-        hasRows,
-      );
+      const { rowsWritten } = await exportDatasetFile(db, filePath, 'issue-inlinks', {
+        label,
+        headers: options.headers,
+        datasetContext: { issueKey: key },
+      });
       if (rowsWritten === 0) continue;
       writtenNames.add(fileName);
       files.push({ filePath, label, dataset: 'issue-inlinks', rowsWritten });
@@ -313,17 +305,10 @@ export async function runBulkExport(
   for (const task of BULK_EXPORT_DATASET_TASKS) {
     const filePath = join(outputDir, task.file);
     try {
-      const { rowsWritten } = await writeExportFile(
-        filePath,
-        (partPath) =>
-          exportTabular(db, partPath, {
-            format: 'csv',
-            headers: options.headers,
-            sections: [{ label: task.label, dataset: task.dataset }],
-            columns: EXPORT_DATASET_COLUMNS[task.dataset].map((c) => c.key),
-          }),
-        hasRows,
-      );
+      const { rowsWritten } = await exportDatasetFile(db, filePath, task.dataset, {
+        label: task.label,
+        headers: options.headers,
+      });
       if (rowsWritten === 0) continue;
       files.push({ filePath, label: task.label, dataset: task.dataset, rowsWritten });
     } catch (err) {
