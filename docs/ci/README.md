@@ -96,7 +96,7 @@ whole audit as artifacts:
 ```bash
 node apps/cli/dist/index.js "$TARGET_URL" --max 5000 --db site.seoproject
 node apps/cli/dist/index.js export --project site.seoproject --out audit/ \
-  --what bulk,seo-audit,html,issues,error-inlinks --json > export.json
+  --what bulk,seo-audit,html,issues,error-inlinks,dataset:issues-long --json > export.json
 # exit 1 → some files failed (the others are written); 2 → bad arguments
 ```
 
