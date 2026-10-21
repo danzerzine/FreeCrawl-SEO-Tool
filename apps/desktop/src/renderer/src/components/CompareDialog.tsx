@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { X, FolderOpen, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import type {
-  CompareCategory,
-  CompareDiffRow,
-  CompareLoadResult,
+import {
+  COMPARE_CATEGORIES,
+  type CompareCategory,
+  type CompareDiffRow,
+  type CompareLoadResult,
 } from '@freecrawl/shared-types';
 
 interface Props {
@@ -14,22 +15,27 @@ interface Props {
 }
 
 interface CategoryDef {
-  key: CompareCategory;
   labelKey: string;
   fallback: string;
 }
 
-const CATEGORIES: CategoryDef[] = [
-  { key: 'added', labelKey: 'compare.added', fallback: 'Added' },
-  { key: 'removed', labelKey: 'compare.removed', fallback: 'Removed' },
-  { key: 'status', labelKey: 'compare.statusChanged', fallback: 'Status Changed' },
-  { key: 'title', labelKey: 'compare.titleChanged', fallback: 'Title Changed' },
-  { key: 'meta', labelKey: 'compare.metaChanged', fallback: 'Meta Description Changed' },
-  { key: 'h1', labelKey: 'compare.h1Changed', fallback: 'H1 Changed' },
-  { key: 'canonical', labelKey: 'compare.canonicalChanged', fallback: 'Canonical Changed' },
-  { key: 'indexability', labelKey: 'compare.indexabilityChanged', fallback: 'Indexability Changed' },
-  { key: 'response_time', labelKey: 'compare.responseTimeDelta', fallback: 'Response Time Δ' },
-];
+// Exhaustive over CompareCategory: a new kind fails the build until it has a label.
+const CATEGORY_LABELS: Record<CompareCategory, CategoryDef> = {
+  added: { labelKey: 'compare.added', fallback: 'Added' },
+  removed: { labelKey: 'compare.removed', fallback: 'Removed' },
+  status: { labelKey: 'compare.statusChanged', fallback: 'Status Changed' },
+  title: { labelKey: 'compare.titleChanged', fallback: 'Title Changed' },
+  meta: { labelKey: 'compare.metaChanged', fallback: 'Meta Description Changed' },
+  h1: { labelKey: 'compare.h1Changed', fallback: 'H1 Changed' },
+  canonical: { labelKey: 'compare.canonicalChanged', fallback: 'Canonical Changed' },
+  indexability: { labelKey: 'compare.indexabilityChanged', fallback: 'Indexability Changed' },
+  response_time: { labelKey: 'compare.responseTimeDelta', fallback: 'Response Time Δ' },
+  depth: { labelKey: 'compare.depthChanged', fallback: 'Depth Changed' },
+  content: { labelKey: 'compare.contentChanged', fallback: 'Content Changed' },
+  structured_data: { labelKey: 'compare.structuredDataChanged', fallback: 'Structured Data Changed' },
+  outlinks: { labelKey: 'compare.outlinksChanged', fallback: 'Outlinks Changed' },
+  issues: { labelKey: 'compare.issuesChanged', fallback: 'Issues Changed' },
+};
 
 export function CompareDialog({ open, onClose }: Props) {
   const { t } = useTranslation();
@@ -96,9 +102,9 @@ export function CompareDialog({ open, onClose }: Props) {
           </div>
           {result && (
             <div className="ml-3 truncate text-[11px] text-surface-400">
-              <span className="text-surface-500">{t('compare.aCurrent', { defaultValue: 'A (current)' })}</span>{' '}
+              <span className="text-surface-500">{t('compare.beforeHeader', { defaultValue: 'Before' })}</span>{' '}
               {result.totalA.toLocaleString()} {t('compare.urlsUnit', { defaultValue: 'URLs' })} ·{' '}
-              <span className="text-surface-500">B</span>{' '}
+              <span className="text-surface-500">{t('compare.afterOpen', { defaultValue: 'After (open project)' })}</span>{' '}
               {result.totalB.toLocaleString()} {t('compare.urlsUnit', { defaultValue: 'URLs' })} · {result.filePath}
             </div>
           )}
@@ -134,7 +140,7 @@ export function CompareDialog({ open, onClose }: Props) {
 
         {!result && !error && !loading && (
           <div className="flex flex-1 items-center justify-center text-[12px] text-surface-500">
-            {t('compare.pickPrompt', { defaultValue: 'Pick a `.seoproject` file to diff against the current crawl.' })}
+            {t('compare.pickPrompt', { defaultValue: 'Pick the earlier crawl (a `.seoproject` file) to compare with the open project.' })}
           </div>
         )}
 
@@ -142,12 +148,13 @@ export function CompareDialog({ open, onClose }: Props) {
           <div className="flex flex-1 min-h-0">
             <aside className="flex w-56 flex-col border-r border-surface-800 bg-surface-950/40">
               <nav className="flex-1 overflow-auto py-1">
-                {CATEGORIES.map((c) => {
-                  const count = result.counts[c.key] ?? 0;
-                  const isActive = c.key === active;
+                {COMPARE_CATEGORIES.map((key) => {
+                  const c = CATEGORY_LABELS[key];
+                  const count = result.counts[key] ?? 0;
+                  const isActive = key === active;
                   return (
                     <button
-                      key={c.key}
+                      key={key}
                       className={clsx(
                         'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors',
                         isActive
@@ -155,7 +162,7 @@ export function CompareDialog({ open, onClose }: Props) {
                           : 'border-l-2 border-transparent text-surface-300 hover:bg-surface-800 hover:text-surface-100',
                         count === 0 && 'opacity-50',
                       )}
-                      onClick={() => setActive(c.key)}
+                      onClick={() => setActive(key)}
                     >
                       <span>{t(c.labelKey, { defaultValue: c.fallback })}</span>
                       <span className="font-mono text-[10px] text-surface-400">
@@ -168,6 +175,19 @@ export function CompareDialog({ open, onClose }: Props) {
             </aside>
 
             <div className="flex flex-1 flex-col min-w-0">
+              {Object.keys(result.notComparable).length > 0 && (
+                <div
+                  className="border-b border-surface-800 px-4 py-2 text-[11px] text-amber-300"
+                  title={Object.entries(result.notComparable)
+                    .map(([kind, n]) => `${kind}: ${n.reason}`)
+                    .join('\n')}
+                >
+                  {t('compare.notComparable', {
+                    defaultValue: 'Not compared: {{kinds}}',
+                    kinds: Object.keys(result.notComparable).join(', '),
+                  })}
+                </div>
+              )}
               <div className="border-b border-surface-800 px-4 py-2 text-[11px] text-surface-400">
                 {t('compare.entriesShown', {
                   defaultValue: '{{shown}} of {{total}} entries shown',
@@ -176,7 +196,7 @@ export function CompareDialog({ open, onClose }: Props) {
                 })}
                 {result.counts[active] > sample.length && (
                   <span className="ml-1 text-surface-500">
-                    {t('compare.truncated', { defaultValue: '(truncated — export CSV for the full set)' })}
+                    {t('compare.truncated', { defaultValue: '(truncated — full set: freecrawl compare <before> <after> --out <dir>)' })}
                   </span>
                 )}
               </div>

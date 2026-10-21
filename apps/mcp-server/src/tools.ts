@@ -7,12 +7,13 @@
  */
 
 import type { ProjectDb } from '@freecrawl/db';
-import type {
-  AiProvider,
-  LinkTargetReportKind,
-  SeoProvider,
-  TemplateLinkFilter,
-  UrlCategory,
+import {
+  COMPARE_CATEGORIES,
+  type AiProvider,
+  type LinkTargetReportKind,
+  type SeoProvider,
+  type TemplateLinkFilter,
+  type UrlCategory,
 } from '@freecrawl/shared-types';
 import { bridgeRequest } from './desktop-bridge.js';
 
@@ -1555,7 +1556,7 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'compare_load',
       description:
-        'Diff the active project against another `.seoproject` file — same as File → Compare With Project. Returns counts across 9 categories (added / removed / status / title / meta / h1 / canonical / indexability / response_time) plus sample rows (up to 5K per category).',
+        `Compare the active project (the newer crawl, "after") with another \`.seoproject\` file (the older one, "before") — same as File → Compare With Project. Returns counts across ${COMPARE_CATEGORIES.length} categories (${COMPARE_CATEGORIES.join(' / ')}) plus sample rows (up to 5K per category), issueChanges (per check: pages that appeared / resolved) and notComparable (kinds the pair cannot be compared on).`,
       inputSchema: {
         type: 'object',
         properties: {

@@ -294,7 +294,6 @@ import {
   runSeoAuditExport,
   postWebhookJson,
   ensureHeapHeadroom,
-  compareCrawls,
   testUrlAgainstRobots,
   validateRobotsTxt,
   aggregateTopWords,
@@ -423,6 +422,7 @@ import {
   type SchedulerStore,
 } from './scheduler.js';
 import { runScheduledExport } from './scheduled-export.js';
+import { cancelledCompareResult, compareWithOpenProject } from './compare-load.js';
 import { monitorHistory, monitorMetricNames } from './monitor-history.js';
 import { exportSelectedLinks, exportSetChoices, runSavedExportSet } from './export-sets.js';
 import { alertAfterCrawl, alertsState, crawlRunSaved, saveAlertsConfig, sendTestAlert, type AlertDeps } from './monitor-alerts.js';
@@ -8571,21 +8571,7 @@ function registerIpc(): void {
     'compare-load': async (input) => {
       const i = input as CompareLoadInput;
       if (!i.filePath) throw new Error('filePath is required (MCP cannot open dialogs).');
-      // read-only: never create or mutate the compared file (see the IPC
-      // compare-load handler for the full rationale).
-      const otherDb = new ProjectDb(i.filePath, { readOnly: true });
-      try {
-        const summary = compareCrawls(getDb(), otherDb);
-        return {
-          filePath: i.filePath,
-          totalA: summary.totalA,
-          totalB: summary.totalB,
-          counts: summary.counts,
-          samples: summary.samples,
-        };
-      } finally {
-        otherDb.close?.();
-      }
+      return compareWithOpenProject(getDb(), i.filePath);
     },
 
     'schedule-get': async () => {
@@ -10784,45 +10770,13 @@ function registerIpc(): void {
           ],
         });
         if (res.canceled || res.filePaths.length === 0) {
-          return {
-            filePath: '',
-            totalA: 0,
-            totalB: 0,
-            counts: {
-              added: 0,
-              removed: 0,
-              status: 0,
-              title: 0,
-              meta: 0,
-              h1: 0,
-              canonical: 0,
-              indexability: 0,
-              response_time: 0,
-            },
-            samples: [],
-          };
+          return cancelledCompareResult();
         }
         filePath = res.filePaths[0]!;
       }
-      // Open the *other* project read-only. Passing no options opened it in
-      // WRITER mode: node:sqlite CREATES a missing file (an arbitrary-file
-      // -create primitive reachable from the renderer/MCP) and, on an
-      // existing file, runs migrations + takes a write lock — silently
-      // rewriting a project the user only meant to diff against. readOnly
-      // requires the file to exist and never mutates it.
-      const otherDb = new ProjectDb(filePath, { readOnly: true });
-      try {
-        const summary = compareCrawls(getDb(), otherDb);
-        return {
-          filePath,
-          totalA: summary.totalA,
-          totalB: summary.totalB,
-          counts: summary.counts,
-          samples: summary.samples,
-        };
-      } finally {
-        otherDb.close();
-      }
+      // The picked file is "before", the open project "after"; it is opened
+      // read-only (see openCompareProject).
+      return compareWithOpenProject(getDb(), filePath);
     },
   );
 
