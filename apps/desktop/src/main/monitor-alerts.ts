@@ -137,6 +137,15 @@ async function deliver(
   );
 }
 
+/** True when the newest history row was written at or after `since` (a crawl's start). */
+export function crawlRunSaved(
+  db: Pick<ProjectDb, 'latestCrawlRunStartUrl' | 'listCrawlRuns'>,
+  since: string,
+): boolean {
+  const latest = latestAndPrevious(db);
+  return latest !== null && latest.current.finishedAt >= since;
+}
+
 /**
  * After a finished crawl: evaluates the project's rules on its newest
  * history row against the row before it of the same start URL, and sends
@@ -159,7 +168,7 @@ export async function alertAfterCrawl(
     if (!latest) return [];
     // The crawl's own row is missing (the history write failed): the newest
     // row is an older crawl, and alerting on it would report stale counts.
-    if (opts.since !== undefined && latest.current.finishedAt < opts.since) {
+    if (opts.since !== undefined && !crawlRunSaved(db, opts.since)) {
       deps.log('warn', 'Alerts skipped: this crawl was not saved to the history');
       return [];
     }

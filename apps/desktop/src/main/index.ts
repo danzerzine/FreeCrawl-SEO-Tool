@@ -425,7 +425,7 @@ import {
 import { runScheduledExport } from './scheduled-export.js';
 import { monitorHistory, monitorMetricNames } from './monitor-history.js';
 import { exportSelectedLinks, exportSetChoices, runSavedExportSet } from './export-sets.js';
-import { alertAfterCrawl, alertsState, saveAlertsConfig, sendTestAlert, type AlertDeps } from './monitor-alerts.js';
+import { alertAfterCrawl, alertsState, crawlRunSaved, saveAlertsConfig, sendTestAlert, type AlertDeps } from './monitor-alerts.js';
 import type { ProjectDb as ProjectDbType } from '@freecrawl/db';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -7588,7 +7588,10 @@ function registerIpc(): void {
       // the result so the dialog's "Last status" row reflects the outcome.
       if (sess.crawlerStartedByScheduler) {
         sess.crawlerStartedByScheduler = false;
-        recordFireResult(schedulerStore, sess.currentProjectPath, 'success');
+        // A crawl missing from the history was not monitored: no trend point
+        // and no alert, so the unattended run must not read as a success.
+        const saved = crawlRunSaved(sess.getDb(), attachedAt);
+        recordFireResult(schedulerStore, sess.currentProjectPath, saved ? 'success' : 'failure');
         const after = getSchedule(schedulerStore, sess.currentProjectPath)?.spec.afterCrawl;
         if (after) void runScheduledAfterCrawl(sess, after);
       }
