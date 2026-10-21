@@ -7706,7 +7706,7 @@ export class ProjectDb {
         blockedRobots: countCategory('indexability:blocked-robots'),
       },
       issues,
-      thresholds: this.clauseLimits(),
+      thresholds: this.getSeoThresholds(),
       site: {
         soft404Probe: this.readSoft404Probe(),
         botBlocked:
