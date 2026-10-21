@@ -11732,25 +11732,22 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '7';
+export const ISSUE_MATERIALISATION_VERSION = '8';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
  * External URL whose probe got no answer at network level: a NULL status
- * with a permanent DNS or connection error in the `formatFetchError` chain.
- * Our own request timeout (`aborted`, header and body timeouts), a reset
- * connection and a temporary DNS failure (EAI_AGAIN) are left out: a slow
- * site, one that drops our bot or a resolver hiccup is not a dead one.
+ * with a DNS miss or a refused connection in the `formatFetchError` chain.
+ * Timeouts of any kind, unreachable hosts, a reset connection and a
+ * temporary DNS failure (EAI_AGAIN) are left out: a slow site, one that
+ * drops our bot, a network that blocks the host or a resolver hiccup is not
+ * a dead one.
  */
 const EXTERNAL_NO_ANSWER_SQL = `(status_code IS NULL AND (${[
   'ENOTFOUND',
   'ENODATA',
   'ESERVFAIL',
   'ECONNREFUSED',
-  'ETIMEDOUT',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'UND_ERR_CONNECT_TIMEOUT',
 ]
   .map((code) => `status_text LIKE '%${code}%'`)
   .join(' OR ')}))`;

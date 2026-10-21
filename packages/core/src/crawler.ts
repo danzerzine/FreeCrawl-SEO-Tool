@@ -300,8 +300,7 @@ const NO_ANSWER_RETRY_PAUSE_MS = 1_500;
 const LARGE_CLUSTERS_LOGGED = 10;
 // Nothing on the host answered (the same list as the Dead External Domain
 // rule in project-db). EAI_AGAIN is left out: it is usually our own resolver.
-const NO_ANSWER_ERROR_RE =
-  /ENOTFOUND|ENODATA|ESERVFAIL|ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|UND_ERR_CONNECT_TIMEOUT/;
+const NO_ANSWER_ERROR_RE = /ENOTFOUND|ENODATA|ESERVFAIL|ECONNREFUSED/;
 function isHardTransportError(err: unknown): boolean {
   return HARD_TRANSPORT_ERROR_RE.test(formatFetchError(err));
 }
@@ -3256,26 +3255,21 @@ export class Crawler extends EventEmitter {
       }
     }
 
-    // 4) No answer at network level (DNS, refused, unreachable): a failure
-    //    seen on one try gets one more after a pause (a GET, the most
-    //    reliable request), so a resolver or network blip is not reported as
-    //    a dead domain; a timeout or unreachable host already had its GET
-    //    tries in step 2. A repeated failure is marked as confirmed — Dead
-    //    External Domain trusts a single URL only with that mark.
+    // 4) No answer at network level (DNS miss, refused): a failure seen on
+    //    one try gets one more after a pause (a GET, the most reliable
+    //    request), so a resolver or network blip is not reported as a dead
+    //    domain. A repeated failure is marked as confirmed — Dead External
+    //    Domain trusts a single URL only with that mark.
     let confirmedNoAnswer = false;
     if (!res && NO_ANSWER_ERROR_RE.test(formatFetchError(err)) && !this.stopped) {
-      if (isHardTransportError(err)) {
-        await new Promise((r) => setTimeout(r, NO_ANSWER_RETRY_PAUSE_MS));
-        const again = await attempt('GET', cfgUa);
-        if (again.res) {
-          res = again.res;
-          err = undefined;
-        } else {
-          confirmedNoAnswer = NO_ANSWER_ERROR_RE.test(formatFetchError(again.err));
-          err = again.err ?? err;
-        }
+      await new Promise((r) => setTimeout(r, NO_ANSWER_RETRY_PAUSE_MS));
+      const again = await attempt('GET', cfgUa);
+      if (again.res) {
+        res = again.res;
+        err = undefined;
       } else {
-        confirmedNoAnswer = true;
+        confirmedNoAnswer = NO_ANSWER_ERROR_RE.test(formatFetchError(again.err));
+        err = again.err ?? err;
       }
     }
 
