@@ -59,6 +59,7 @@ export interface MenuLabels {
   exportSheets: string;
   exportBigquery: string;
   compareWith: string;
+  trends: string;
   scheduledCrawl: string;
   scheduledCrawlTooltip: string;
   saveProject: string;

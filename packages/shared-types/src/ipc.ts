@@ -25,7 +25,13 @@ import type {
   UrlDetail,
 } from './crawl.js';
 import type { IntegrationsState } from './integrations.js';
-import type { AlertChannelId, AlertDelivery, MonitorAlertsConfig, MonitorAlertsState } from './monitor.js';
+import type {
+  AlertChannelId,
+  AlertDelivery,
+  MonitorAlertsConfig,
+  MonitorAlertsState,
+  MonitorHistoryRow,
+} from './monitor.js';
 import type {
   PagespeedRow,
   PagespeedRunStrategy,
@@ -318,6 +324,8 @@ export const IPC = {
   monitorAlertsGet: 'monitor-alerts:get',
   monitorAlertsSave: 'monitor-alerts:save',
   monitorAlertsTest: 'monitor-alerts:test',
+  monitorHistory: 'monitor:history',
+  monitorMetrics: 'monitor:metrics',
   /** Faz 7 — integration credential store (safeStorage-encrypted).
    *  `integrationsGetAll` returns the redacted state map (secret values
    *  never leave the main process); `set` merges the supplied fields;
@@ -652,6 +660,7 @@ export type MenuEvent =
   | 'export-seo-audit'
   | 'export-bulk'
   | 'open-export-sets'
+  | 'open-trends'
   | 'export-sheets'
   | 'export-bigquery'
   | 'delete-domain-data'
@@ -2248,6 +2257,10 @@ export interface FreeCrawlApi {
   monitorAlertsSave(config: MonitorAlertsConfig): Promise<MonitorAlertsState>;
   /** Send a sample alert to each listed channel. */
   monitorAlertsTest(channels: AlertChannelId[]): Promise<AlertDelivery[]>;
+  /** Trends view: the current site's crawl history, oldest first, one value per metric (`limit` = newest N). */
+  monitorHistory(metrics: string[], limit?: number): Promise<MonitorHistoryRow[]>;
+  /** Every metric name the Trends picker can offer. */
+  monitorMetrics(): Promise<string[]>;
   /** Faz 7 — read the redacted credential state of every integration.
    *  Secret field values are never returned, only a `set` flag. */
   integrationsGetAll(): Promise<IntegrationsState>;

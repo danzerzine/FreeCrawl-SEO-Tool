@@ -31,6 +31,7 @@ export const MENU_HI: MenuLabels = {
   exportSheets: 'Google Sheets में निर्यात करें…',
   exportBigquery: 'BigQuery में निर्यात करें…',
   compareWith: 'प्रोजेक्ट से तुलना करें…',
+  trends: 'रुझान…',
   scheduledCrawl: 'निर्धारित क्रॉल…',
   scheduledCrawlTooltip:
     'खुले हुए प्रोजेक्ट के लिए ऐप के भीतर दोहराया जाने वाला क्रॉल सेट करें। यह केवल तब चलता है जब FreeCrawl खुला हो; ऐसे ट्रिगर के लिए जो पुनरारंभ के बाद भी बने रहें, CLI और ऑपरेटिंग सिस्टम के शेड्यूलर का उपयोग करें।',

@@ -2510,5 +2510,12 @@
     "toolCount_one": "{{count}} outil",
     "toolCount_many": "{{count}} d'outils",
     "toolCount_other": "{{count}} outils"
+  },
+  "trends": {
+    "title": "Tendances",
+    "metrics": "Métriques",
+    "needTwo": "Il faut deux explorations de ce site. Explorez-le à nouveau pour voir l'évolution des totaux.",
+    "notComputed": "non calculé",
+    "loadFailed": "Impossible de charger l'historique des explorations"
   }
 }

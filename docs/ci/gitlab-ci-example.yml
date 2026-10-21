@@ -1,19 +1,18 @@
 # FreeCrawl SEO — example GitLab CI/CD pipeline
 #
 # Crawls your site with the headless FreeCrawl CLI, fails the pipeline when
-# broken links exceed BROKEN_LINK_THRESHOLD, validates the sitemap, and stores
+# a rule in freecrawl-rules.json fires, validates the sitemap, and stores
 # the crawl as a job artifact. Adapt TARGET_URL and the thresholds.
 #
 # Save this as `.gitlab-ci.yml` (or include it as a template). Schedule daily
 # runs via GitLab → CI/CD → Schedules.
 #
-# See docs/ci/README.md for the CLI exit-code contract, a zero-tolerance
+# See docs/ci/README.md for the CLI exit-code contract, the rule file format, a zero-tolerance
 # (no-script) gate variant, and how to add a regression-compare job.
 
 variables:
   TARGET_URL: 'https://example.com'
   MAX_URLS: '5000'
-  BROKEN_LINK_THRESHOLD: '10'
 
 stages:
   - audit
@@ -33,36 +32,24 @@ freecrawl-audit:
     - npm ci --ignore-scripts
     - npx tsc -b apps/cli
   script:
-    # --json → machine-readable summary on stdout (captured for the gate);
-    # --out → full per-URL dump for the artifact. `|| true` lets the gate
-    # below decide pass/fail (the CLI exits 1 on ANY 4xx/5xx on its own).
+    # The crawl writes a project (--db) and records itself in its history; the
+    # check judges it. `|| true`: the CLI exits 1 on ANY 4xx/5xx on its own,
+    # and the rules decide what fails the pipeline.
     - >-
       node apps/cli/dist/index.js "$TARGET_URL"
-      --max "$MAX_URLS" --json
-      --out "$CI_PROJECT_DIR/crawl.json"
-      > "$CI_PROJECT_DIR/summary.json" || true
-    - cat "$CI_PROJECT_DIR/summary.json"
-    # Count 4xx/5xx from the summary's byStatus map (robust + cheap).
-    - |
-      BROKEN=$(node -e "
-        const s = require('$CI_PROJECT_DIR/summary.json');
-        const by = (s.summary && s.summary.byStatus) || {};
-        let n = 0;
-        for (const [code, count] of Object.entries(by)) {
-          if (Number(code) >= 400) n += count;
-        }
-        console.log(n);
-      ")
-      echo "Broken-URL count $BROKEN (threshold $BROKEN_LINK_THRESHOLD)"
-      if [ "$BROKEN" -gt "$BROKEN_LINK_THRESHOLD" ]; then
-        echo "Broken-URL count $BROKEN exceeds threshold $BROKEN_LINK_THRESHOLD" >&2
-        exit 1
-      fi
+      --max "$MAX_URLS" --db "$CI_PROJECT_DIR/site.seoproject"
+      --out "$CI_PROJECT_DIR/crawl.json" || true
+    # freecrawl-rules.json lives in your repo (format: docs/ci/README.md).
+    # Exit 1 when a fail rule fired. Optional: --notify slack with
+    # FREECRAWL_SLACK_WEBHOOK_URL from CI/CD variables.
+    - >-
+      node apps/cli/dist/index.js check
+      --project "$CI_PROJECT_DIR/site.seoproject"
+      --rules "$CI_PROJECT_DIR/freecrawl-rules.json"
     # Sitemap validation is advisory — never fails the pipeline.
     - node apps/cli/dist/index.js validate-sitemap "$TARGET_URL/sitemap.xml" || true
   artifacts:
     paths:
       - crawl.json
-      - summary.json
     expire_in: 30 days
     when: always

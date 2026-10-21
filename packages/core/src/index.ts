@@ -225,6 +225,7 @@ export {
   sendSlack,
   sendTelegram,
   sendWebhook,
+  sendEmail,
   type SendResult,
   type SendOptions,
   type TelegramConfig,

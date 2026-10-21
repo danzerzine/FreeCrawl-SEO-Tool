@@ -16,6 +16,7 @@ import {
   listProjectRules,
   saveProjectRules,
   sendSlack,
+  sendEmail,
   sendTelegram,
   sendWebhook,
   type AlertRuleResult,
@@ -70,12 +71,7 @@ const SENDERS: Record<AlertChannelId, Sender> = {
     const smtpUrl = c['smtpUrl']?.trim();
     const to = c['to']?.trim();
     if (!smtpUrl || !to) return null;
-    // MERGE-B88F: the one email call site. When `sendEmail` (B88f) is in
-    // core, replace the next three lines with
-    //   return sendEmail(smtpUrl, to, results, { title, timeoutMs: deps.timeoutMs });
-    void results;
-    void title;
-    return Promise.resolve({ ok: false, detail: 'email sending is not available in this build yet' });
+    return sendEmail(smtpUrl, to, results, { title, timeoutMs: deps.timeoutMs });
   },
   webhook: (results, deps) => {
     const url = deps.webhookUrl?.trim();

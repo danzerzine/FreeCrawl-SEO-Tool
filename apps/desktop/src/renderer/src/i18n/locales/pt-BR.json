@@ -2510,5 +2510,12 @@
     "toolCount_one": "{{count}} ferramenta",
     "toolCount_many": "{{count}} de ferramentas",
     "toolCount_other": "{{count}} ferramentas"
+  },
+  "trends": {
+    "title": "Tendências",
+    "metrics": "Métricas",
+    "needTwo": "São necessários dois rastreamentos deste site. Rastreie de novo para ver como as contagens mudam.",
+    "notComputed": "não calculado",
+    "loadFailed": "Não foi possível carregar o histórico de rastreamentos"
   }
 }

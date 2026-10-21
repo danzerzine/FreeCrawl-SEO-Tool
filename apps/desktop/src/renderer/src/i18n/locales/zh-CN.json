@@ -2418,5 +2418,12 @@
     "stop": "停止",
     "send": "发送",
     "toolCount_other": "{{count}} 个工具"
+  },
+  "trends": {
+    "title": "趋势",
+    "metrics": "指标",
+    "needTwo": "需要对此站点进行两次抓取。再抓取一次即可查看各项计数的变化。",
+    "notComputed": "未计算",
+    "loadFailed": "无法加载抓取历史"
   }
 }

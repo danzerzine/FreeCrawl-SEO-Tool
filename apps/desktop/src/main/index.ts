@@ -423,6 +423,7 @@ import {
   type SchedulerStore,
 } from './scheduler.js';
 import { runScheduledExport } from './scheduled-export.js';
+import { monitorHistory, monitorMetricNames } from './monitor-history.js';
 import { exportSelectedLinks, exportSetChoices, runSavedExportSet } from './export-sets.js';
 import { alertAfterCrawl, alertsState, saveAlertsConfig, sendTestAlert, type AlertDeps } from './monitor-alerts.js';
 import type { ProjectDb as ProjectDbType } from '@freecrawl/db';
@@ -5595,6 +5596,11 @@ function registerIpc(): void {
     return setSchedule(schedulerStore, currentSession().currentProjectPath, spec);
   });
   // B14 — saved export sets live in the project, so a schedule can run one.
+  // B88e — Trends view data (crawl history of the current site).
+  registerHandle(IPC.monitorHistory, (_e, metrics: string[], limit?: number) =>
+    monitorHistory(currentSession().getDb(), metrics, limit),
+  );
+  registerHandle(IPC.monitorMetrics, () => monitorMetricNames());
   registerHandle(IPC.exportSetsList, () => listExportSets(currentSession().getDb()));
   registerHandle(IPC.exportSetsChoices, () => exportSetChoices());
   registerHandle(IPC.exportSetSave, (_e, set: ExportSet) => saveExportSet(currentSession().getDb(), set));

@@ -2418,5 +2418,12 @@
     "stop": "중지",
     "send": "보내기",
     "toolCount_other": "도구 {{count}}개"
+  },
+  "trends": {
+    "title": "추세",
+    "metrics": "지표",
+    "needTwo": "이 사이트를 두 번 크롤해야 합니다. 다시 크롤하면 수치가 어떻게 변하는지 볼 수 있습니다.",
+    "notComputed": "계산되지 않음",
+    "loadFailed": "크롤 기록을 불러오지 못했습니다"
   }
 }
