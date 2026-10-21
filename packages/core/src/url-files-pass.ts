@@ -63,14 +63,14 @@ async function writePass(
         ),
       );
   };
+  // Every category listed in one scan, before any `.part` is opened: a
+  // category that cannot be listed fails its file only, and leaves no
+  // `.part` open.
+  const listed = db.urlIdsByCategories(targets.map((t) => t.file.category).filter((c) => c !== 'all'));
   for (const { file, partPath } of targets) {
-    // Listed before the file's `.part` is opened: a category that cannot
-    // be listed fails its file only, and leaves no `.part` open.
-    let ids: Uint32Array | null;
-    try {
-      ids = file.category === 'all' ? null : db.urlIdsByCategory(file.category);
-    } catch (err) {
-      results.set(file, Promise.reject(err as Error));
+    const ids = file.category === 'all' ? null : listed.get(file.category)!;
+    if (ids instanceof Error) {
+      results.set(file, Promise.reject(ids));
       results.get(file)!.catch(() => undefined);
       continue;
     }
