@@ -1509,6 +1509,10 @@ export class ProjectDb {
       }
       return re.test(value) ? 1 : 0;
     });
+    // The Duplicate URL comparison key (see `urlDedupeKey`); NULL stays NULL.
+    this.db.function('fc_url_dedupe_key', { deterministic: true }, (url) =>
+      typeof url === 'string' ? urlDedupeKey(url) : null,
+    );
     if (!readOnly) {
       this.db.exec('PRAGMA journal_mode = WAL');
       this.db.exec('PRAGMA synchronous = NORMAL');
@@ -11596,6 +11600,13 @@ function validSortColumn(sortBy: string | undefined, allowed: ReadonlySet<string
 }
 
 /**
+ * Query parameters that carry a page number (`?page=2`). Shared by the
+ * pagination-sequence pass and the Duplicate URL key, so both agree on
+ * what a list page is.
+ */
+export const PAGINATION_QUERY_KEYS: readonly string[] = ['page', 'p', 'pg'];
+
+/**
  * Parse a paginated URL into a `(template, ordinal)` pair so the
  * pagination-sequence pass can group same-pattern pages and detect
  * missing numbers. Returns null when no recognised page-number token
@@ -11620,7 +11631,7 @@ function parsePaginationOrdinal(
     return null;
   }
   // Pattern A — `?page=N` (and common synonyms).
-  for (const key of ['page', 'p', 'pg']) {
+  for (const key of PAGINATION_QUERY_KEYS) {
     const v = url.searchParams.get(key);
     if (v && /^\d+$/.test(v)) {
       const n = Number.parseInt(v, 10);
@@ -11688,32 +11699,38 @@ function urlHostSql(col: string): string {
   )`;
 }
 
-/** Post-normalisation form of a URL column — query string stripped,
- *  lowercased, trailing slash trimmed — the identity two "duplicate
- *  URL" rows share. */
 /**
  * The key two URLs are compared on for the Duplicate URL check. Honours
  * Settings → Duplicates → "Normalise URLs before duplicate-URL check"
  * (`dedupePreNormalize`, mirrored into `project_meta` by the desktop):
- * on (default) compares the lower-cased, query-stripped, slash-trimmed
- * form; off compares the stored URL byte-for-byte. The uncorrelated
- * scalar subquery is evaluated once per statement, not per row.
+ * on (default) compares `urlDedupeKey` (via `fc_url_dedupe_key`); off
+ * compares the stored URL byte-for-byte. The uncorrelated scalar subquery
+ * is evaluated once per statement, not per row.
  */
 function urlDedupeKeySql(col: string): string {
   return `CASE WHEN (SELECT value FROM project_meta WHERE key = '${DEDUPE_PRE_NORMALIZE_META_KEY}') = '0'
-               THEN ${col} ELSE ${urlPostNormSql(col)} END`;
+               THEN ${col} ELSE fc_url_dedupe_key(${col}) END`;
 }
 
-function urlPostNormSql(col: string): string {
-  return `RTRIM(
-    LOWER(
-      CASE
-        WHEN INSTR(${col}, '?') > 0 THEN SUBSTR(${col}, 1, INSTR(${col}, '?') - 1)
-        ELSE ${col}
-      END
-    ),
-    '/'
-  )`;
+/**
+ * Normalised identity of a URL for the Duplicate URL check: lower-cased,
+ * query string cut, trailing `/` trimmed — except a page number
+ * (`PAGINATION_QUERY_KEYS`, numeric) stays, so page 2 of a list is not
+ * the list. Page 1 is dropped: it is the list under a second address.
+ */
+function urlDedupeKey(url: string): string {
+  const q = url.indexOf('?');
+  const base = (q >= 0 ? url.slice(0, q) : url).toLowerCase().replace(/\/+$/, '');
+  if (q < 0) return base;
+  const params = new URLSearchParams(url.slice(q + 1));
+  for (const key of PAGINATION_QUERY_KEYS) {
+    const v = params.get(key);
+    if (v && /^\d+$/.test(v)) {
+      const n = Number.parseInt(v, 10);
+      return n > 1 ? `${base}?${key}=${n}` : base;
+    }
+  }
+  return base;
 }
 
 /** A JS string as a single-quoted SQL literal. */
@@ -11732,7 +11749,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '8';
+export const ISSUE_MATERIALISATION_VERSION = '9';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -11829,12 +11846,14 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // compared computed strings, which no index can serve: a full scan
     // of `urls` for every row — 20k pages took ~150 s and froze the app
     // for that long on every mid-crawl recompute; this form takes ~20 ms.
-    `is_external = 0 AND content_kind = 'html'
+    // Only pages that answered 200 take part: a redirect and its target,
+    // or a queued link never fetched, are one page, not two answering.
+    `is_external = 0 AND content_kind = 'html' AND status_code = 200
      AND ${urlDedupeKeySql('url')} IN (
        SELECT norm_url FROM (
          SELECT ${urlDedupeKeySql('url')} AS norm_url
            FROM urls
-          WHERE is_external = 0 AND content_kind = 'html'
+          WHERE is_external = 0 AND content_kind = 'html' AND status_code = 200
           GROUP BY norm_url
          HAVING COUNT(*) > 1
        )

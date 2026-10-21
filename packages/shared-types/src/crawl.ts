@@ -1214,8 +1214,9 @@ export interface CrawlConfig {
   probePdfMetadata: boolean;
   /**
    * When the post-norm "Duplicate URL" issue filter runs, normalise
-   * URLs (lowercase, strip query, trim trailing slash) before
-   * comparing. Default `true` — the canonical SEO behaviour. Set to
+   * URLs (lowercase, strip query except a numeric `page`/`p`/`pg` above
+   * 1, trim trailing slash) before comparing. Only pages that answered
+   * 200 are compared. Default `true` — the canonical SEO behaviour. Set to
    * `false` for a byte-exact match (rarely useful; surfaces nothing
    * because URLs are already deduped at insert time, but kept as a
    * config knob for symmetry with the URL-rewrite preview).
