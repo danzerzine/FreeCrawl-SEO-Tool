@@ -884,7 +884,7 @@
       "intro": "Yakın-yinelenen tespit. Her crawl sonrası gövde metni 64-bit SimHash ile hash'lenir; hash'leri yapılandırılmış Hamming mesafesi içindeki sayfalar yakın-yinelenen olarak kümelenir. Şurada görünür:",
       "path": "Issues → Content → Near-Duplicate",
       "maxHamming": "Maks Hamming mesafesi (0 = sadece birebir, 12 = çok gevşek, 0 devre dışı bırakır)",
-      "thresholdHint": "Düşük = daha katı. 3 SF eşdeğeri varsayılan. Çok az gövde içeriği (<50 karakter) olan sayfalar eşikten bağımsız olarak kümeleme dışı kalır.",
+      "thresholdHint": "Yalnızca sayfanın metin imzası yoksa uygulanır (metin benzerliğinden önceki ya da kapalıyken yapılan taramalar); aksi halde aşağıdaki benzerlik karar verir. Düşük = daha katı. 3 SF eşdeğeri varsayılan. Çok az gövde içeriği (<50 karakter) olan sayfalar eşikten bağımsız olarak kümeleme dışı kalır.",
       "minSimilarity": "En düşük metin benzerliği % (0 kapatır)",
       "similarityHint": "Ana içerik metni en az bu oranda benzeyen sayfalar da kümelenir — SimHash'in kaçırdığı yeniden yazılmış ya da az değiştirilmiş kopyaları yakalar. 90, SF ile eşdeğer varsayılandır.",
       "onlyIndexable": "Yalnızca indekslenebilir sayfaları kümele",

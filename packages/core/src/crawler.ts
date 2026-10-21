@@ -1782,9 +1782,11 @@ export class Crawler extends EventEmitter {
     const similarity = this.config.nearDuplicateSimilarity ?? 0;
     if ((!threshold || threshold <= 0) && similarity <= 0) return;
     try {
-      const { clusters, clusteredUrls } = await this.dbCall<{
+      const { clusters, clusteredUrls, incomplete, largeClusters } = await this.dbCall<{
         clusters: number;
         clusteredUrls: number;
+        incomplete: { buckets: number; pages: number } | null;
+        largeClusters: { size: number; representative: string }[];
       }>('recomputeDuplicateClusters', [
         threshold > 0 ? threshold : -1,
         this.config.duplicatesOnlyIndexable,
@@ -1795,6 +1797,20 @@ export class Crawler extends EventEmitter {
           'info',
           `Duplicates: ${clusters} near-duplicate clusters across ${clusteredUrls} URLs ` +
             `(SimHash hamming ≤ ${threshold}, text similarity ≥ ${similarity}%)`,
+        );
+      }
+      for (const c of largeClusters) {
+        this.emit(
+          'warn',
+          `Duplicates: a near-duplicate cluster of ${c.size} pages around ${c.representative} — ` +
+            'usually shared template text; set the content area (Settings → Duplicates) to compare only the main text',
+        );
+      }
+      if (incomplete) {
+        this.emit(
+          'warn',
+          `Duplicates: ${incomplete.pages} pages in ${incomplete.buckets} oversized hash buckets were not compared ` +
+            'with every candidate, so some near-duplicates may be missing',
         );
       }
     } catch (err) {

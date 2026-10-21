@@ -3837,7 +3837,7 @@ function DuplicatesPanel({ form, update }: PanelProps) {
           example="3 = recommended; 5 catches looser duplicates (templated content with light variation); 0 turns the post-crawl pass off."
         />
         <p className="mt-1 text-[10px] text-surface-500">
-          {t('settingsPanels.duplicates.thresholdHint', { defaultValue: 'Lower = stricter. 3 is the SF-equivalent default. Pages with too little body content (<50 characters) are excluded from clustering regardless of threshold.' })}
+          {t('settingsPanels.duplicates.thresholdHint', { defaultValue: 'Applies only when a page has no text signature (crawls made before text similarity existed, or with it turned off); otherwise the similarity below decides. Lower = stricter. 3 is the SF-equivalent default. Pages with too little body content (<50 characters) are excluded from clustering regardless of threshold.' })}
         </p>
         <Num
           label={t('settingsPanels.duplicates.minSimilarity', { defaultValue: 'Minimum text similarity % (0 disables)' })}

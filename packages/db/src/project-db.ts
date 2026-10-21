@@ -117,6 +117,13 @@ export const REDIRECT_CHAINS_COMPUTED_META_KEY = 'redirectChainsComputed';
  * count followed links only, as before nofollow links were always stored.
  */
 export const COUNT_NOFOLLOW_META_KEY = 'countNofollowLinks';
+/**
+ * `project_meta` key set by `recomputeDuplicateClusters` when LSH buckets
+ * were over the cap: JSON `{ buckets, pages }`. Absent when nothing was left out.
+ */
+export const NEAR_DUPLICATE_INCOMPLETE_META_KEY = 'nearDuplicateIncomplete';
+/** Near-duplicate clusters above this many pages are named in the crawl log. */
+const LARGE_DUPLICATE_CLUSTER = 50;
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
 /** `project_meta` key holding the JSON list of path patterns the cross-source orphan report hides. */
@@ -3663,26 +3670,33 @@ export class ProjectDb {
 
   /**
    * Cluster near-duplicate pages and write `cluster_id` / `cluster_size`
-   * (and the best similarity found, `near_dup_similarity`) back to every
-   * URL. Two independent passes feed one Union-Find:
+   * (and each page's best direct match, `near_dup_similarity`) back to
+   * every URL.
    *
-   *   1. **SimHash** (`thresholdBits`, 0–64; negative skips the pass) —
-   *      near-identical copies. Each 64-bit hash is split into 4 × 16-bit
-   *      bands; by pigeonhole any two hashes within ≤ 3 bits share a band,
-   *      so only same-band pairs are compared.
-   *   2. **MinHash** (`minSimilarityPct`, 1–100; 0 skips the pass) — pages
-   *      whose main-content text is at least that similar, word for word.
-   *      21 LSH bands of 3 slots surface candidate pairs (a 90%-similar
-   *      pair collides in some band ~99% of the time); each candidate's
-   *      similarity is then estimated from the full 64-slot signature
-   *      (see shared-types/minhash.ts) and kept only above the threshold.
+   * One test per pair: when both pages carry a MinHash signature, their
+   * main-content text must be at least `minSimilarityPct` similar (1–100;
+   * 0 turns MinHash off); otherwise (projects crawled before MinHash, or
+   * MinHash off) their 64-bit SimHashes must lie within `thresholdBits`
+   * (0–64; negative turns SimHash off). Candidate pairs come from LSH
+   * bands: 4 × 16-bit SimHash bands (any two hashes within ≤ 3 bits share
+   * one) and 21 MinHash bands of 3 slots (a 90%-similar pair collides in
+   * some band ~99% of the time).
    *
-   * Connected components are the clusters, numbered from 1 (0 means
-   * "singleton" so the `cluster_id > 0` issue filter stays correct).
-   * Buckets are capped at BUCKET_LIMIT so a flood of empty template pages
-   * sharing one band value can't turn the pass quadratic.
+   * Clusters form around a representative, never by chaining: pages are
+   * taken most-matches-first (then by id), and an unassigned page takes
+   * every unassigned candidate that passes against it directly. Every
+   * member is within the threshold of its representative, so a chain
+   * A~B~C~D can't pull A and D together; two members are not guaranteed to
+   * pass against each other (checking every pair would be quadratic).
    *
-   * Memory: O(N) — the hashes plus 128 bytes of signature per page.
+   * Clusters are numbered from 1 (0 means "singleton" so the
+   * `cluster_id > 0` issue filter stays correct). Buckets hold at most
+   * `bucketLimit` pages so a flood of template pages sharing one band value
+   * can't turn the pass quadratic; what was left out is written to
+   * `project_meta` (`nearDuplicateIncomplete`) and returned, with clusters
+   * over 50 pages, for the crawl log.
+   *
+   * Memory: O(N) — the hashes, 128 bytes of signature and 25 band keys per page.
    *
    * `onlyIndexable=true` skips noindex / canonicalised / blocked-robots
    * pages — the duplicate report then surfaces only issues that actually
@@ -3692,74 +3706,44 @@ export class ProjectDb {
     thresholdBits: number,
     onlyIndexable: boolean,
     minSimilarityPct = 0,
-  ): { clusters: number; clusteredUrls: number } {
+    bucketLimit = 5000,
+  ): {
+    clusters: number;
+    clusteredUrls: number;
+    incomplete: { buckets: number; pages: number } | null;
+    largeClusters: { size: number; representative: string }[];
+  } {
     // Reset all clustering state first so a re-run with different
     // thresholds doesn't leave stale partitions behind.
     this.db.exec('UPDATE urls SET cluster_id = 0, cluster_size = 1 WHERE cluster_id != 0');
     this.db.exec('UPDATE urls SET near_dup_similarity = NULL WHERE near_dup_similarity IS NOT NULL');
+    this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(NEAR_DUPLICATE_INCOMPLETE_META_KEY);
+    const none = { clusters: 0, clusteredUrls: 0, incomplete: null, largeClusters: [] };
 
     const useSimhash = thresholdBits >= 0 && thresholdBits <= 64;
     const useMinhash = minSimilarityPct > 0 && minSimilarityPct <= 100;
-    if (!useSimhash && !useMinhash) return { clusters: 0, clusteredUrls: 0 };
+    if (!useSimhash && !useMinhash) return none;
 
     const indexClause = onlyIndexable ? "AND indexability = 'indexable'" : '';
     const rows = this.db
       .prepare(
-        `SELECT id, simhash, minhash FROM urls
+        `SELECT id, url, simhash, minhash FROM urls
            WHERE is_external = 0 AND content_kind = 'html'
-             AND (simhash IS NOT NULL OR minhash IS NOT NULL) ${indexClause}`,
+             AND (simhash IS NOT NULL OR minhash IS NOT NULL) ${indexClause}
+           ORDER BY id`,
       )
-      .all() as { id: number; simhash: string | null; minhash: Uint8Array | null }[];
+      .all() as { id: number; url: string; simhash: string | null; minhash: Uint8Array | null }[];
 
-    if (rows.length < 2) return { clusters: 0, clusteredUrls: 0 };
+    if (rows.length < 2) return none;
 
     const N = rows.length;
-    const ids = new Int32Array(N);
     const hashes: (bigint | null)[] = new Array<bigint | null>(N);
     const sigs: (Uint8Array | null)[] = new Array<Uint8Array | null>(N);
     for (let i = 0; i < N; i++) {
       const r = rows[i]!;
-      ids[i] = r.id;
       hashes[i] = r.simhash ? BigInt('0x' + r.simhash) : null;
       sigs[i] = r.minhash && r.minhash.length === MINHASH_SLOTS * 2 ? r.minhash : null;
     }
-
-    // Union-Find with path compression + union-by-rank.
-    const parent = new Int32Array(N);
-    const rank = new Int8Array(N);
-    for (let i = 0; i < N; i++) parent[i] = i;
-    const find = (x: number): number => {
-      let root = x;
-      while (parent[root] !== root) root = parent[root]!;
-      // Path-compress.
-      while (parent[x] !== root) {
-        const next = parent[x]!;
-        parent[x] = root;
-        x = next;
-      }
-      return root;
-    };
-    const union = (a: number, b: number): void => {
-      const ra = find(a);
-      const rb = find(b);
-      if (ra === rb) return;
-      if (rank[ra]! < rank[rb]!) parent[ra] = rb;
-      else if (rank[ra]! > rank[rb]!) parent[rb] = ra;
-      else {
-        parent[rb] = ra;
-        rank[ra]!++;
-      }
-    };
-    // Best similarity (0–1) each page reached against a cluster mate.
-    const best = new Float64Array(N).fill(-1);
-    const noteSimilarity = (a: number, b: number): void => {
-      const sa = sigs[a];
-      const sb = sigs[b];
-      if (!sa || !sb) return;
-      const s = minhashSimilarity(sa, sb);
-      if (s > best[a]!) best[a] = s;
-      if (s > best[b]!) best[b] = s;
-    };
 
     // Hamming distance over 64-bit BigInt — popcount via Brian Kernighan.
     const hamming = (a: bigint, b: bigint): number => {
@@ -3772,37 +3756,103 @@ export class ProjectDb {
       return c;
     };
 
-    const BUCKET_LIMIT = 5000;
+    const threshold = minSimilarityPct / 100;
+    const byMinhash = (a: number, b: number): boolean => useMinhash && !!sigs[a] && !!sigs[b];
+    // The pair's one test. Returns the MinHash similarity (0–1) when both
+    // pages have a signature, 1 for a SimHash pass without one, -1 on a miss.
+    const test = (a: number, b: number): number => {
+      if (byMinhash(a, b)) {
+        const s = minhashSimilarity(sigs[a]!, sigs[b]!);
+        return s >= threshold ? s : -1;
+      }
+      const ha = hashes[a];
+      const hb = hashes[b];
+      if (!useSimhash || ha === null || ha === undefined || hb === null || hb === undefined) return -1;
+      if (hamming(ha, hb) > thresholdBits) return -1;
+      const sa = sigs[a];
+      const sb = sigs[b];
+      return sa && sb ? minhashSimilarity(sa, sb) : 1;
+    };
 
-    // ── Pass 1: SimHash ────────────────────────────────────────────────
-    if (useSimhash) {
-      for (let band = 0; band < 4; band++) {
-        const shift = BigInt(band * 16);
-        const mask = 0xffffn;
-        const buckets = new Map<number, number[]>();
+    // ── LSH bands ──────────────────────────────────────────────────────
+    // A family's keys, page-major (keys[i * bands + band]; NaN = no key),
+    // and its buckets per band. A page past the cap is left out of that
+    // bucket and counted.
+    type Family = { bands: number; keys: Float64Array; buckets: Map<number, number[]>[]; simhash: boolean };
+    const families: Family[] = [];
+    const overCapBuckets = new Set<number[]>();
+    const overCapPages = new Uint8Array(N);
+    const family = (bands: number, simhash: boolean, keyOf: (i: number, band: number) => number | null): void => {
+      const keys = new Float64Array(N * bands).fill(Number.NaN);
+      const buckets: Map<number, number[]>[] = [];
+      for (let band = 0; band < bands; band++) {
+        const map = new Map<number, number[]>();
         for (let i = 0; i < N; i++) {
-          const h = hashes[i];
-          if (h === null || h === undefined) continue;
-          const v = Number((h >> shift) & mask);
-          let bucket = buckets.get(v);
+          const k = keyOf(i, band);
+          if (k === null) continue;
+          keys[i * bands + band] = k;
+          let bucket = map.get(k);
           if (!bucket) {
             bucket = [];
-            buckets.set(v, bucket);
+            map.set(k, bucket);
           }
-          if (bucket.length < BUCKET_LIMIT) bucket.push(i);
+          if (bucket.length < bucketLimit) bucket.push(i);
+          else {
+            overCapBuckets.add(bucket);
+            overCapPages[i] = 1;
+          }
         }
-        for (const bucket of buckets.values()) {
-          if (bucket.length < 2) continue;
-          for (let a = 0; a < bucket.length; a++) {
-            const ia = bucket[a]!;
-            for (let b = a + 1; b < bucket.length; b++) {
-              const ib = bucket[b]!;
-              // Skip pairs already in the same component — the same pair
-              // shows up again in the other bands and the DSU find is cheap.
-              if (find(ia) === find(ib)) continue;
-              if (hamming(hashes[ia]!, hashes[ib]!) <= thresholdBits) {
-                union(ia, ib);
-                noteSimilarity(ia, ib);
+        buckets.push(map);
+      }
+      families.push({ bands, keys, buckets, simhash });
+    };
+    if (useSimhash) {
+      family(4, true, (i, band) => {
+        const h = hashes[i];
+        return h === null || h === undefined ? null : Number((h >> BigInt(band * 16)) & 0xffffn);
+      });
+    }
+    if (useMinhash) {
+      family(MINHASH_BANDS, false, (i, band) => {
+        const sig = sigs[i];
+        if (!sig) return null;
+        const first = band * MINHASH_BAND_ROWS;
+        // Three 16-bit slots → one exact 48-bit key.
+        return (
+          minhashSlot(sig, first) +
+          minhashSlot(sig, first + 1) * 0x10000 +
+          minhashSlot(sig, first + 2) * 0x100000000
+        );
+      });
+    }
+    // A pair belongs to the family of its test (SimHash pairs where MinHash
+    // decides are skipped) and is visited once, in the first band it shares.
+    const firstShared = (f: Family, a: number, b: number, band: number): boolean => {
+      for (let earlier = 0; earlier < band; earlier++) {
+        if (f.keys[a * f.bands + earlier] === f.keys[b * f.bands + earlier]) return false;
+      }
+      return true;
+    };
+
+    // ── Pass 1: every candidate pair once — match counts and best match ──
+    const matches = new Int32Array(N);
+    const best = new Float64Array(N).fill(-1);
+    for (const f of families) {
+      for (let band = 0; band < f.bands; band++) {
+        for (const bucket of f.buckets[band]!.values()) {
+          for (let x = 0; x < bucket.length; x++) {
+            const a = bucket[x]!;
+            for (let y = x + 1; y < bucket.length; y++) {
+              const b = bucket[y]!;
+              if (f.simhash && byMinhash(a, b)) continue;
+              if (!firstShared(f, a, b, band)) continue;
+              const s = test(a, b);
+              if (s < 0) continue;
+              matches[a]!++;
+              matches[b]!++;
+              if (sigs[a] && sigs[b]) {
+                if (s > best[a]!) best[a] = s;
+                if (s > best[b]!) best[b] = s;
               }
             }
           }
@@ -3810,79 +3860,54 @@ export class ProjectDb {
       }
     }
 
-    // ── Pass 2: MinHash similarity ─────────────────────────────────────
-    if (useMinhash) {
-      const threshold = minSimilarityPct / 100;
-      for (let band = 0; band < MINHASH_BANDS; band++) {
-        const first = band * MINHASH_BAND_ROWS;
-        const buckets = new Map<number, number[]>();
-        for (let i = 0; i < N; i++) {
-          const sig = sigs[i];
-          if (!sig) continue;
-          // Three 16-bit slots → one exact 48-bit key.
-          const key =
-            minhashSlot(sig, first) +
-            minhashSlot(sig, first + 1) * 0x10000 +
-            minhashSlot(sig, first + 2) * 0x100000000;
-          let bucket = buckets.get(key);
-          if (!bucket) {
-            bucket = [];
-            buckets.set(key, bucket);
-          }
-          if (bucket.length < BUCKET_LIMIT) bucket.push(i);
-        }
-        for (const bucket of buckets.values()) {
-          if (bucket.length < 2) continue;
-          for (let a = 0; a < bucket.length; a++) {
-            const ia = bucket[a]!;
-            for (let b = a + 1; b < bucket.length; b++) {
-              const ib = bucket[b]!;
-              // Already clustered and both sides have a similarity on
-              // record: nothing left to learn from this pair. Keeps a
-              // flood of identical template pages linear per band.
-              if (find(ia) === find(ib) && best[ia]! >= threshold && best[ib]! >= threshold) continue;
-              const s = minhashSimilarity(sigs[ia]!, sigs[ib]!);
-              if (s < threshold) continue;
-              union(ia, ib);
-              if (s > best[ia]!) best[ia] = s;
-              if (s > best[ib]!) best[ib] = s;
-            }
+    // ── Pass 2: representatives, most matches first, then id ───────────
+    const order: number[] = [];
+    for (let i = 0; i < N; i++) if (matches[i]! > 0) order.push(i);
+    order.sort((a, b) => matches[b]! - matches[a]! || a - b);
+    const clusterOf = new Int32Array(N);
+    const seenBy = new Int32Array(N).fill(-1);
+    const sizes: number[] = [0];
+    const reps: number[] = [-1];
+    for (const r of order) {
+      if (clusterOf[r] !== 0) continue;
+      const cid = sizes.length;
+      let size = 1;
+      seenBy[r] = r;
+      for (const f of families) {
+        for (let band = 0; band < f.bands; band++) {
+          const key = f.keys[r * f.bands + band]!;
+          if (Number.isNaN(key)) continue;
+          const bucket = f.buckets[band]!.get(key);
+          if (!bucket || !bucket.includes(r)) continue;
+          for (const m of bucket) {
+            if (seenBy[m] === r || clusterOf[m] !== 0) continue;
+            if (f.simhash && byMinhash(r, m)) continue;
+            seenBy[m] = r;
+            if (test(r, m) < 0) continue;
+            clusterOf[m] = cid;
+            size++;
           }
         }
       }
-    }
-
-    // Materialise clusters: assign sequential cluster IDs starting at 1
-    // (0 is reserved for "singleton"). Members of a singleton component
-    // keep cluster_id = 0 so the `cluster_id > 0` filter does the right
-    // thing in the issue WHERE clause.
-    const rootToCluster = new Map<number, number>();
-    const clusterSize = new Map<number, number>();
-    for (let i = 0; i < N; i++) {
-      const root = find(i);
-      clusterSize.set(root, (clusterSize.get(root) ?? 0) + 1);
-    }
-    let nextClusterId = 1;
-    let clusteredUrls = 0;
-    for (const [root, size] of clusterSize) {
       if (size > 1) {
-        rootToCluster.set(root, nextClusterId++);
-        clusteredUrls += size;
+        clusterOf[r] = cid;
+        sizes.push(size);
+        reps.push(r);
       }
     }
 
+    let clusteredUrls = 0;
+    for (let c = 1; c < sizes.length; c++) clusteredUrls += sizes[c]!;
     const upd = this.db.prepare(
       'UPDATE urls SET cluster_id = ?, cluster_size = ?, near_dup_similarity = ? WHERE id = ?',
     );
     this.db.exec('BEGIN');
     try {
       for (let i = 0; i < N; i++) {
-        const root = find(i);
-        const cid = rootToCluster.get(root);
-        if (cid !== undefined) {
-          const sim = best[i]! >= 0 ? Math.round(best[i]! * 100) : null;
-          upd.run(cid, clusterSize.get(root)!, sim, ids[i]!);
-        }
+        const cid = clusterOf[i]!;
+        if (cid === 0) continue;
+        const sim = best[i]! >= 0 ? Math.round(best[i]! * 100) : null;
+        upd.run(cid, sizes[cid]!, sim, rows[i]!.id);
       }
       this.db.exec('COMMIT');
     } catch (err) {
@@ -3890,7 +3915,18 @@ export class ProjectDb {
       throw err;
     }
 
-    return { clusters: rootToCluster.size, clusteredUrls };
+    let leftOut = 0;
+    for (let i = 0; i < N; i++) leftOut += overCapPages[i]!;
+    const incomplete = overCapBuckets.size > 0 ? { buckets: overCapBuckets.size, pages: leftOut } : null;
+    if (incomplete) this.setMeta(NEAR_DUPLICATE_INCOMPLETE_META_KEY, JSON.stringify(incomplete));
+    const largeClusters: { size: number; representative: string }[] = [];
+    for (let c = 1; c < sizes.length; c++) {
+      if (sizes[c]! > LARGE_DUPLICATE_CLUSTER) {
+        largeClusters.push({ size: sizes[c]!, representative: rows[reps[c]!]!.url });
+      }
+    }
+    largeClusters.sort((a, b) => b.size - a.size);
+    return { clusters: sizes.length - 1, clusteredUrls, incomplete, largeClusters };
   }
 
   /**
@@ -4269,9 +4305,10 @@ export class ProjectDb {
    * Returns OTHER URLs in the same near-duplicate cluster as `urlId`.
    * Powers the URL Details panel's "Duplicates" sub-tab — the user
    * selects a URL and immediately sees which other pages SimHash + LSH
-   * grouped with it. Excludes the URL itself; sorted by hamming distance
-   * from the queried URL ascending (closest matches first), then URL
-   * alphabetically. Singleton clusters (cluster_id=0) return [].
+   * grouped with it. Excludes the URL itself; closest first: by MinHash
+   * text similarity to the queried URL when both have a signature, else by
+   * hamming distance, then URL alphabetically. Singleton clusters
+   * (cluster_id=0) return [].
    */
   urlClusterMembers(urlId: number): Array<{
     url: string;
@@ -4334,7 +4371,16 @@ export class ProjectDb {
             ? Math.round(minhashSimilarity(self.minhash, r.minhash) * 100)
             : null,
       }))
-      .sort((a, b) => a.hammingDistance - b.hammingDistance || a.url.localeCompare(b.url));
+      .sort(
+        (a, b) =>
+          // Text similarity when both have it (the test that clustered them),
+          // pages with it before pages without, else SimHash distance.
+          (a.similarity !== null && b.similarity !== null
+            ? b.similarity - a.similarity
+            : (a.similarity === null ? 1 : 0) - (b.similarity === null ? 1 : 0)) ||
+          a.hammingDistance - b.hammingDistance ||
+          a.url.localeCompare(b.url),
+      );
   }
 
   countDuplicateClusterMembers(): number {

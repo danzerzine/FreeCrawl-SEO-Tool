@@ -884,7 +884,7 @@
       "intro": "Yaxın dublikatların aşkarlanması. Hər taramadan sonra mətnin əsas hissəsi 64 bitlik SimHash ilə heşlənir və heşləri təyin olunmuş Hamming məsafəsi daxilində olan səhifələr yaxın dublikat kimi qruplaşdırılır. Burada görünürlər:",
       "path": "Problemlər → Məzmun → Yaxın dublikat",
       "maxHamming": "Maksimum Hamming məsafəsi (0 = yalnız tam eyni, 12 = çox geniş, 0 söndürür)",
-      "thresholdHint": "Nə qədər aşağı olsa, o qədər sərtdir. 3 Screaming Frog-un qarşılığı olan dəyərdir. Mətni çox az olan səhifələr (50 simvoldan az) hədd nə olursa olsun qruplaşmadan kənarda qalır.",
+      "thresholdHint": "Yalnız səhifənin mətn imzası olmadıqda tətbiq olunur (mətn oxşarlığından əvvəlki və ya onu söndürülmüş taramalar); əks halda aşağıdakı oxşarlıq qərar verir. Nə qədər aşağı olsa, o qədər sərtdir. 3 Screaming Frog-un qarşılığı olan dəyərdir. Mətni çox az olan səhifələr (50 simvoldan az) hədd nə olursa olsun qruplaşmadan kənarda qalır.",
       "minSimilarity": "Minimum mətn oxşarlığı % (0 söndürür)",
       "similarityHint": "Əsas məzmun mətni ən azı bu qədər oxşar olan səhifələr də qruplaşdırılır — SimHash-in qaçırdığı yenidən yazılmış və ya az dəyişdirilmiş nüsxələri tutur. 90 SF-ə ekvivalent standart dəyərdir.",
       "onlyIndexable": "Yalnız indekslənə bilən səhifələri qruplaşdır",

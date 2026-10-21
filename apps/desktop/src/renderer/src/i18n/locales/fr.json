@@ -907,7 +907,7 @@
       "intro": "Détection des quasi-doublons. Après chaque exploration, le texte du corps est haché avec un SimHash 64 bits, et les pages dont les hachages se situent dans la distance de Hamming configurée sont regroupées comme quasi-doublons. Visibles sous",
       "path": "Problèmes → Contenu → Quasi-doublon",
       "maxHamming": "Distance de Hamming maximale (0 = exacts uniquement, 12 = très permissif, 0 désactive)",
-      "thresholdHint": "Plus bas = plus strict. 3 est la valeur équivalente à Screaming Frog. Les pages dont le corps contient trop peu de texte (<50 caractères) sont exclues du regroupement quel que soit le seuil.",
+      "thresholdHint": "Ne s'applique que si une page n'a pas de signature de texte (explorations antérieures à la similarité de texte ou avec celle-ci désactivée) ; sinon, la similarité ci-dessous décide. Plus bas = plus strict. 3 est la valeur équivalente à Screaming Frog. Les pages dont le corps contient trop peu de texte (<50 caractères) sont exclues du regroupement quel que soit le seuil.",
       "minSimilarity": "Similarité textuelle minimale % (0 désactive)",
       "similarityHint": "Les pages dont le texte principal est au moins aussi similaire sont aussi regroupées — cela détecte les copies réécrites ou légèrement modifiées que SimHash manque. 90 est la valeur par défaut équivalente à SF.",
       "onlyIndexable": "Ne regrouper que les pages indexables",
