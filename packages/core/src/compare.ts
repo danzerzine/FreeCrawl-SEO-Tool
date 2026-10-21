@@ -1,11 +1,9 @@
 import {
   closeSync,
-  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   openSync,
-  renameSync,
   rmSync,
   writeFileSync,
   writeSync,
@@ -183,12 +181,12 @@ export interface CompareProject {
 /**
  * Open the other project of a comparison, for every consumer. An archive
  * `.seoproject` is unpacked to a temp working copy; a bare SQLite project is
- * read in place, read-only, and copied only when its stored (expensive)
- * checks predate the current definitions. Those checks are rebuilt in the
- * copy and written back into the file once, in its own format, so the next
- * comparison with it rebuilds nothing (B109); a file that cannot be written
- * is left as it was. Throws a user-facing message on a missing or
- * unrecognised file.
+ * read in place, read-only. When its stored (expensive) checks predate the
+ * current definitions they are rebuilt once and kept in the file, so the
+ * next comparison with it rebuilds nothing (B109): an archive is rebuilt in
+ * its copy and repacked, a bare project in place through SQLite. A file that
+ * cannot be written is left as it was and compared from a rebuilt copy.
+ * Throws a user-facing message on a missing or unrecognised file.
  */
 export async function openCompareProject(path: string): Promise<CompareProject> {
   if (!existsSync(path)) throw new Error(`Project not found: ${path}`);
@@ -220,19 +218,32 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
       db = new ProjectDb(path, { readOnly: true });
       if (db.issueMaterialisationStale()) {
         db.close();
-        dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
-        copy = join(dir, basename(path));
-        copyFileSync(path, copy);
-        db = new ProjectDb(copy);
+        db = null;
+        rebuiltSaved = rebuildInPlace(path);
+        if (rebuiltSaved) {
+          db = new ProjectDb(path, { readOnly: true });
+        } else {
+          dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
+          copy = join(dir, basename(path));
+          const source = new ProjectDb(path, { readOnly: true });
+          try {
+            // Through SQLite, not a file copy: rows still in the project's log are in the copy too.
+            source.vacuumInto(copy);
+          } finally {
+            source.close();
+          }
+          db = new ProjectDb(copy);
+          db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+        }
       } else {
         await warmOsCache(path);
       }
     }
-    if (dir && db.issueMaterialisationStale()) {
+    if (format === 'archive' && db.issueMaterialisationStale()) {
       db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
       // Closed so the copy is one complete file, then reopened for the compare.
       db.close();
-      rebuiltSaved = await saveRebuilt(copy, path, format === 'archive');
+      rebuiltSaved = await saveRebuilt(copy, path);
       db = new ProjectDb(copy);
     }
   } catch (err) {
@@ -263,18 +274,36 @@ async function warmOsCache(path: string): Promise<void> {
 }
 
 /**
- * Writes the rebuilt copy over the project file through a `.part` file and a
+ * Rebuilds the stale checks of a bare project in the file itself, through
+ * SQLite in one transaction, so a crawl still writing it or a log left by a
+ * crashed one is handled by SQLite's own locking and recovery. False when
+ * the file cannot be written (read-only folder or file, locked).
+ */
+function rebuildInPlace(path: string): boolean {
+  let db: ProjectDb | null = null;
+  try {
+    db = new ProjectDb(path);
+    if (db.issueMaterialisationStale()) db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      /* the rebuild committed or rolled back; nothing more to undo */
+    }
+  }
+}
+
+/**
+ * Packs the rebuilt copy over the archive through a `.part` file and a
  * rename, so a failure leaves the file as it was. False when it cannot be
  * written (read-only folder, file locked): the compare goes on from the copy.
  */
-async function saveRebuilt(copy: string, path: string, archive: boolean): Promise<boolean> {
+async function saveRebuilt(copy: string, path: string): Promise<boolean> {
   try {
-    if (archive) {
-      await packProject(copy, path);
-    } else {
-      copyFileSync(copy, `${path}.part`);
-      renameSync(`${path}.part`, path);
-    }
+    await packProject(copy, path);
     return true;
   } catch {
     rmSync(`${path}.part`, { force: true });

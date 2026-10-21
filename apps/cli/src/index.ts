@@ -157,6 +157,8 @@ Options:
   --compare-with <project>  After the crawl, compare with that saved project (before) the way
                         compare does: counts printed (--json: "compare"); with --export-dir the
                         compare-*.csv files go there too. Changes do not change the exit code.
+                        A crawl into an existing --db continues its queue; crawl into a new
+                        file to compare a fresh crawl.
 
 analyze-logs options:
   --project <file>    Project to merge log aggregates into (default: ./crawl.seoproject)

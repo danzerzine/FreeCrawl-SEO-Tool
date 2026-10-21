@@ -10848,8 +10848,8 @@ function registerIpc(): void {
         }
         filePath = res.filePaths[0]!;
       }
-      // The picked file is "before", the open project "after"; it is opened
-      // read-only (see openCompareProject).
+      // The picked file is "before", the open project "after". It is read
+      // in place, but stale checks are rebuilt into it once (see openCompareProject).
       return compareWithOpenProject(getDb(), filePath);
     },
   );
