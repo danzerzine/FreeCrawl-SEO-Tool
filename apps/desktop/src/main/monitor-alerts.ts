@@ -12,6 +12,7 @@
 import type { ProjectDb } from '@freecrawl/db';
 import {
   evaluateRules,
+  latestAndPrevious,
   listMetrics,
   listProjectRules,
   saveProjectRules,
@@ -19,6 +20,7 @@ import {
   sendEmail,
   sendTelegram,
   sendWebhook,
+  TELEGRAM_API_BASE,
   type AlertRuleResult,
   type SendResult,
 } from '@freecrawl/core';
@@ -32,8 +34,6 @@ import {
 
 /** `project_meta` key: JSON array of the {@link AlertChannelId}s turned on. */
 const CHANNELS_META_KEY = 'monitorChannels';
-
-const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
 export interface AlertDeps {
   /** Plaintext fields of one integration; main process only. */
@@ -152,16 +152,14 @@ export async function alertAfterCrawl(
     const { channels } = readAlertsConfig(db);
     const rules = listProjectRules(db);
     if (rules.length === 0 || channels.length === 0) return [];
-    const startUrl = db.latestCrawlRunStartUrl();
-    if (startUrl === null) return [];
-    const runs = db.listCrawlRuns(startUrl, 2);
-    const current = runs[runs.length - 1]!;
-    const previous = runs.length > 1 ? runs[0]!.snapshot : null;
-    const results = evaluateRules(rules, current.snapshot, previous);
+    const latest = latestAndPrevious(db);
+    if (!latest) return [];
+    const { startUrl } = latest.current;
+    const results = evaluateRules(rules, latest.current.snapshot, latest.previous?.snapshot ?? null);
     const fired = results.filter((r) => r.status === 'fired').length;
     if (fired === 0) return [];
     deps.log('info', `Alerts: ${fired} rule(s) fired for ${startUrl}`);
-    return await deliver(channels, results, deps, 'FreeCrawl alert');
+    return await deliver(channels, results, deps, `FreeCrawl alert for ${startUrl}`);
   } catch (err) {
     deps.log('warn', `Alerts skipped: ${err instanceof Error ? err.message : String(err)}`);
     return [];

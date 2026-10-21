@@ -32,9 +32,7 @@ export function TrendsDialog({ open, onClose }: TrendsDialogProps) {
 
   useEffect(() => {
     if (!open) return;
-    void window.freecrawl
-      .monitorMetrics()
-      .then((all) => setNames(all.filter((n) => !n.includes('<'))));
+    void window.freecrawl.monitorMetrics().then(setNames);
   }, [open]);
 
   useEffect(() => {

@@ -5595,12 +5595,12 @@ function registerIpc(): void {
   registerHandle(IPC.scheduleSet, (_e, spec: ScheduleSpec | null) => {
     return setSchedule(schedulerStore, currentSession().currentProjectPath, spec);
   });
-  // B14 — saved export sets live in the project, so a schedule can run one.
   // B88e — Trends view data (crawl history of the current site).
   registerHandle(IPC.monitorHistory, (_e, metrics: string[], limit?: number) =>
     monitorHistory(currentSession().getDb(), metrics, limit),
   );
-  registerHandle(IPC.monitorMetrics, () => monitorMetricNames());
+  registerHandle(IPC.monitorMetrics, () => monitorMetricNames(currentSession().getDb()));
+  // B14 — saved export sets live in the project, so a schedule can run one.
   registerHandle(IPC.exportSetsList, () => listExportSets(currentSession().getDb()));
   registerHandle(IPC.exportSetsChoices, () => exportSetChoices());
   registerHandle(IPC.exportSetSave, (_e, set: ExportSet) => saveExportSet(currentSession().getDb(), set));

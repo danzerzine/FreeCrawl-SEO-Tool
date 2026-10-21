@@ -2259,7 +2259,7 @@ export interface FreeCrawlApi {
   monitorAlertsTest(channels: AlertChannelId[]): Promise<AlertDelivery[]>;
   /** Trends view: the current site's crawl history, oldest first, one value per metric (`limit` = newest N). */
   monitorHistory(metrics: string[], limit?: number): Promise<MonitorHistoryRow[]>;
-  /** Every metric name the Trends picker can offer. */
+  /** Every metric name the Trends picker can offer; `status.<code>` as one name per code of the newest crawl. */
   monitorMetrics(): Promise<string[]>;
   /** Faz 7 — read the redacted credential state of every integration.
    *  Secret field values are never returned, only a `set` flag. */

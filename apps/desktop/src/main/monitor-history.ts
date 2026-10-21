@@ -5,8 +5,11 @@
  */
 
 import type { ProjectDb } from '@freecrawl/db';
-import { listMetrics, metricValue } from '@freecrawl/core';
+import { historyRows, latestAndPrevious, listMetrics } from '@freecrawl/core';
 import type { MonitorHistoryRow } from '@freecrawl/shared-types';
+
+/** How `listMetrics()` names the per-code family; the picker offers real codes instead. */
+const STATUS_CODE_PATTERN = 'status.<code>';
 
 /**
  * Rows of the current site, oldest first. The site is the newest history
@@ -19,15 +22,19 @@ export function monitorHistory(
   metrics: readonly string[],
   limit?: number,
 ): MonitorHistoryRow[] {
-  const startUrl = db.latestCrawlRunStartUrl();
-  if (startUrl === null) return [];
-  return db.listCrawlRuns(startUrl, limit).map((run) => ({
-    finishedAt: run.finishedAt,
-    values: Object.fromEntries(metrics.map((m) => [m, metricValue(run.snapshot, m)])),
-  }));
+  return historyRows(db, metrics, { limit }).rows;
 }
 
-/** Every metric name the picker can offer. */
-export function monitorMetricNames(): string[] {
-  return listMetrics();
+/**
+ * Every metric name the picker can offer: `status.<code>` becomes one
+ * `status.404`-style name per code the newest crawl saw, in code order;
+ * without history, none.
+ */
+export function monitorMetricNames(db: Pick<ProjectDb, 'latestCrawlRunStartUrl' | 'listCrawlRuns'>): string[] {
+  const byStatus = latestAndPrevious(db)?.current.snapshot.summary.byStatus ?? {};
+  const codes = Object.keys(byStatus)
+    .filter((c) => /^\d{3}$/.test(c))
+    .sort()
+    .map((c) => `status.${c}`);
+  return listMetrics().flatMap((m) => (m === STATUS_CODE_PATTERN ? codes : [m]));
 }
