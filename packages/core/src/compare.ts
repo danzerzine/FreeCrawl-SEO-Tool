@@ -1,4 +1,14 @@
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  closeSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  rmSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import {
@@ -8,7 +18,8 @@ import {
   ProjectDb,
   unpackProject,
 } from '@freecrawl/db';
-import { ISSUE_CATEGORIES } from '@freecrawl/shared-types';
+import { COMPARE_CATEGORIES, ISSUE_CATEGORIES } from '@freecrawl/shared-types';
+import { escapeCsv } from './spreadsheet.js';
 import type {
   CompareCategory,
   CompareDiffRow,
@@ -43,6 +54,8 @@ export interface CompareOptions {
    * fluctuations are network noise. Default 500 ms.
    */
   responseTimeThresholdMs?: number;
+  /** Called for every changed row, uncapped (the samples keep `perCategoryLimit`). */
+  onRow?: (row: CompareDiffRow) => void;
 }
 
 export type { CompareCategory, CompareDiffRow };
@@ -259,6 +272,7 @@ export function compareCrawls(
 
   const push = (row: CompareDiffRow): void => {
     counts[row.category]++;
+    options.onRow?.(row);
     if (sampleCounts[row.category] < limit) {
       samples.push(row);
       sampleCounts[row.category]++;
@@ -475,4 +489,48 @@ export function compareCrawls(
     issueChanges,
     notComparable,
   };
+}
+
+/**
+ * `compareCrawls` that also writes `compare-summary.json` and one
+ * `compare-<kind>.csv` (url, before, after) per kind into `dir`, every row,
+ * streamed in 64K blocks as the rows are found.
+ */
+export function compareToFiles(
+  a: ProjectDb,
+  b: ProjectDb,
+  dir: string,
+  options: CompareOptions = {},
+): CompareSummary {
+  mkdirSync(dir, { recursive: true });
+  const files = new Map<CompareCategory, { fd: number; buf: string }>();
+  for (const kind of COMPARE_CATEGORIES) {
+    const fd = openSync(join(dir, `compare-${kind}.csv`), 'w');
+    files.set(kind, { fd, buf: 'url,before,after\n' });
+  }
+  const flush = (f: { fd: number; buf: string }): void => {
+    writeSync(f.fd, f.buf);
+    f.buf = '';
+  };
+  try {
+    const summary = compareCrawls(a, b, {
+      ...options,
+      onRow: (row) => {
+        const f = files.get(row.category)!;
+        f.buf += `${[row.url, row.before, row.after].map((v) => escapeCsv(v)).join(',')}\n`;
+        if (f.buf.length >= 65536) flush(f);
+        options.onRow?.(row);
+      },
+    });
+    writeFileSync(join(dir, 'compare-summary.json'), JSON.stringify(summary, null, 2));
+    return summary;
+  } finally {
+    for (const f of files.values()) {
+      try {
+        flush(f);
+      } finally {
+        closeSync(f.fd);
+      }
+    }
+  }
 }

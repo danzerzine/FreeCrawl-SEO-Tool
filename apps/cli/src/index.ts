@@ -16,6 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  COMPARE_CATEGORIES,
   DEFAULT_CRAWL_CONFIG,
   type CrawlConfig,
   type CrawlSnapshot,
@@ -26,6 +27,9 @@ import {
 import {
   Crawler,
   compareCrawls,
+  compareToFiles,
+  openCompareProject,
+  type CompareProject,
   assertMetric,
   historyRows,
   latestAndPrevious,
@@ -78,8 +82,11 @@ Usage:
   freecrawl --list <file> [options]               List mode (one URL per line)
   freecrawl validate-sitemap <sitemap-url>        Fetch + validate a sitemap.xml
   freecrawl audit-robots <url> [--user-agent UA]  Test if a URL is allowed by robots.txt
-  freecrawl compare <before.seoproject> <after.seoproject>
-                                                  Cross-project diff (added / removed / status / title / meta / h1 / canonical / indexability / response_time)
+  freecrawl compare <before.seoproject> <after.seoproject> [--json] [--out <dir>]
+                                                  Cross-project diff, before = the older crawl (${COMPARE_CATEGORIES.join(' / ')}).
+                                                  --json: the summary with issueChanges and notComparable; --out: compare-summary.json
+                                                  and a compare-<kind>.csv (url, before, after) per kind with every row.
+                                                  Exit 0 nothing changed, 1 changes, 2 a project would not open.
   freecrawl history --project <file> --metrics <a,b,…> [--limit N] [--start-url <url>] [--json]
                                                   Print the project's crawl history, oldest first, one column per metric
                                                   (CSV with a finishedAt column; --json: {ok, runs: [...]}, not computed = null).
@@ -318,16 +325,19 @@ async function main(): Promise<void> {
   }
   if (positionals[0] === 'compare') {
     if (!positionals[1] || !positionals[2]) {
-      console.error(
-        'Usage: freecrawl compare <before.seoproject> <after.seoproject>',
+      process.exit(
+        usageFail(
+          Boolean(values.json),
+          'Usage: freecrawl compare <before.seoproject> <after.seoproject> [--json] [--out <dir>]',
+          'Two project files are required.',
+        ),
       );
-      process.exit(2);
     }
     exitOnInterrupt();
-    const exitCode = await runCompare(
-      resolve(positionals[1]),
-      resolve(positionals[2]),
-    );
+    const exitCode = await runCompare(resolve(positionals[1]), resolve(positionals[2]), {
+      json: Boolean(values.json),
+      outDir: values.out === undefined ? undefined : resolve(values.out),
+    });
     process.exit(exitCode);
   }
   if (positionals[0] === 'history') {
@@ -1077,47 +1087,63 @@ async function openProject(
 }
 
 /**
- * Cross-project diff. Opens two `.seoproject` files (read-only — never
- * mutates), runs the same `compareCrawls` engine the desktop Compare
- * dialog uses, and prints a category-grouped count + samples to stdout.
+ * Cross-project diff. Opens two `.seoproject` files (never written — see
+ * `openCompareProject`), runs the same `compareCrawls` engine the desktop
+ * Compare dialog uses, and prints the counts per kind (--json: the whole
+ * summary with samples, issueChanges and notComparable). With `--out <dir>`
+ * it also writes `compare-summary.json` and one CSV per kind with every row.
  *
- * Exit code: 0 when both projects load and diff completes; 1 when at
- * least one diff category had non-zero results (useful for CI gates that
- * want to fail on regressions); 2 on fatal load error.
+ * Exit code: 0 when both projects load and nothing changed; 1 when at least
+ * one kind or check had a change (useful for CI gates that want to fail on
+ * regressions); 2 on fatal load error.
  */
-async function runCompare(beforePath: string, afterPath: string): Promise<number> {
-  let before: OpenedProject;
-  let after: OpenedProject;
+async function runCompare(
+  beforePath: string,
+  afterPath: string,
+  opts: { json: boolean; outDir?: string },
+): Promise<number> {
+  const usage = 'Usage: freecrawl compare <before.seoproject> <after.seoproject> [--json] [--out <dir>]';
+  const opened: CompareProject[] = [];
+  const disposeAll = (): void => {
+    for (const p of opened) p.dispose();
+  };
+  pendingCleanups.add(disposeAll);
   try {
-    before = await openProject(beforePath);
-  } catch (err) {
-    console.error(`Cannot open before project: ${(err as Error).message}`);
-    return 2;
-  }
-  try {
-    after = await openProject(afterPath);
-  } catch (err) {
-    before.dispose();
-    console.error(`Cannot open after project: ${(err as Error).message}`);
-    return 2;
-  }
-  try {
-    const summary = compareCrawls(before.db, after.db);
-    console.log(`Compare: ${beforePath} → ${afterPath}`);
-    console.log(`  Total before: ${summary.totalA}`);
-    console.log(`  Total after:  ${summary.totalB}`);
-    console.log(`  Diff:`);
-    for (const [cat, count] of Object.entries(summary.counts)) {
-      console.log(`    ${cat.padEnd(15)} ${count}`);
+    for (const [label, path] of [['before', beforePath], ['after', afterPath]] as const) {
+      try {
+        opened.push(await openCompareProject(path));
+      } catch (err) {
+        return usageFail(opts.json, usage, `Cannot open ${label} project: ${(err as Error).message}`);
+      }
     }
-    const totalDiff = Object.values(summary.counts).reduce(
-      (a, b) => a + b,
-      0,
-    );
-    return totalDiff > 0 ? 1 : 0;
+    const [before, after] = opened as [CompareProject, CompareProject];
+    const summary = opts.outDir
+      ? compareToFiles(before.db, after.db, opts.outDir)
+      : compareCrawls(before.db, after.db);
+    if (opts.json) {
+      // Awaited: the caller exits right after, which would cut a long pipe write short.
+      await new Promise<void>((done) =>
+        process.stdout.write(JSON.stringify({ ok: true, before: beforePath, after: afterPath, ...summary }, null, 2) + '\n', () => done()),
+      );
+    } else {
+      console.log(`Compare: ${beforePath} → ${afterPath}`);
+      console.log(`  Total before: ${summary.totalA}`);
+      console.log(`  Total after:  ${summary.totalB}`);
+      console.log(`  Diff:`);
+      for (const [cat, count] of Object.entries(summary.counts)) {
+        console.log(`    ${cat.padEnd(15)} ${count}`);
+      }
+      for (const [kind, n] of Object.entries(summary.notComparable)) {
+        console.log(`  Not comparable: ${kind} (${n.urls} pages): ${n.reason}`);
+      }
+      if (opts.outDir) console.log(`  Written to ${opts.outDir}`);
+    }
+    const changed =
+      Object.values(summary.counts).some((n) => n > 0) || Object.keys(summary.issueChanges).length > 0;
+    return changed ? 1 : 0;
   } finally {
-    before.dispose();
-    after.dispose();
+    pendingCleanups.delete(disposeAll);
+    disposeAll();
   }
 }
 
