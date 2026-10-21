@@ -144,6 +144,7 @@ const ALLOWED_METHODS = new Set<string>([
   'reset',
   'deleteByDomain',
   'replaceMetricaResults',
+  'appendCrawlRun',
 ]);
 
 parentPort.on('message', async (msg: RequestMessage) => {

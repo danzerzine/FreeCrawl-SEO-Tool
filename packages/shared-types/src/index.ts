@@ -20,3 +20,4 @@ export * from './loganalyzer.js';
 export * from './export-datasets.js';
 export * from './theme.js';
 export * from './url-columns.js';
+export * from './monitor.js';

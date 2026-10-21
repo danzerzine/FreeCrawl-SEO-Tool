@@ -2552,6 +2552,26 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 106,
+    name: 'crawl_runs',
+    // One row per crawl that finished (not stopped): the counts it ended
+    // with, as JSON. The only table `reset()` leaves alone, so a project
+    // keeps its history across Clear and a change of start URL; readers
+    // filter by `start_url`.
+    up: `
+      CREATE TABLE IF NOT EXISTS crawl_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        finished_at TEXT NOT NULL,
+        start_url TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        tool_version TEXT,
+        snapshot_json TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_crawl_runs_start_url ON crawl_runs(start_url, id);
+    `,
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

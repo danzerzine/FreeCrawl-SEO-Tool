@@ -60,6 +60,7 @@ import {
   redactUrlSecrets,
 } from './http-client.js';
 import { setActiveDnsHook } from './dns-resolver.js';
+import { buildCrawlSnapshot } from './monitor/snapshot.js';
 import { probeAlpn } from './alpn-probe.js';
 import { discoverSitemapUrls, fetchSitemaps, type SitemapEntry } from './sitemap.js';
 import { runJsonExtractionRules } from './extraction.js';
@@ -667,6 +668,7 @@ export class Crawler extends EventEmitter {
    * re-spider updates rows in place, it does not start a new data set.
    */
   private readonly respiderSeeds: string[] | null;
+  private readonly toolVersion: string | null;
 
   /** True when this run resumes an interrupted crawl from a checkpoint. */
   private readonly resumeOnly: boolean;
@@ -797,10 +799,13 @@ export class Crawler extends EventEmitter {
        * the whole site again".
        */
       resumeOnly?: boolean;
+      /** App / CLI version, stored with the crawl's history row. */
+      toolVersion?: string;
     } = {},
   ) {
     super();
     this.respiderSeeds = opts.respiderSeeds ?? null;
+    this.toolVersion = opts.toolVersion ?? null;
     this.resumeOnly = opts.resumeOnly === true;
     // The watchdog's operation label doubles as the progress phase shown
     // in the status bar; a new op resets the per-phase counters.
@@ -1540,8 +1545,34 @@ export class Crawler extends EventEmitter {
     // Suppress 'done' if a stop() ran during teardown — otherwise the
     // zombie crawler's done-event clobbers the new crawl's UI state.
     if (!this.stopped) {
+      // Before 'done', so a listener reacting to the finish (alerts,
+      // trends) already sees this crawl in the history.
+      await this.recordCrawlRun();
       this.emit('done', this.db.getSummary());
       this.fireWebhook();
+    }
+  }
+
+  /**
+   * Appends this finished crawl to the project's `crawl_runs` history.
+   * Best effort like the webhook: a failed write is reported and never
+   * fails the crawl. Routed through `dbCall` so the desktop writes on its
+   * writer worker, the one connection that writes during a crawl.
+   */
+  private async recordCrawlRun(): Promise<void> {
+    try {
+      await this.dbCall<number>('appendCrawlRun', [
+        {
+          finishedAt: new Date().toISOString(),
+          startUrl: this.config.startUrl,
+          mode: this.config.mode,
+          durationMs: Date.now() - this.startedAt,
+          toolVersion: this.toolVersion,
+          snapshot: buildCrawlSnapshot(this.db, { disabledChecks: this.config.disabledIssues }),
+        },
+      ]);
+    } catch (err) {
+      this.emit('warn', `Crawl history not saved: ${(err as Error).message}`);
     }
   }
 

@@ -8199,6 +8199,7 @@ function registerIpc(): void {
       dbCall: (method, args) => dbCallViaPool(sess, method, args),
       renderUrl: renderHook,
       respiderSeeds: opts.respiderSeeds,
+      toolVersion: app.getVersion(),
     });
     sess.activeCrawler = crawler;
     attachCrawlerListeners(crawler, sess);
@@ -10559,6 +10560,7 @@ function registerIpc(): void {
         // start URL would read as "Start pressed again" and re-fetch the
         // pages that already completed before the crash.
         resumeOnly: true,
+        toolVersion: app.getVersion(),
       });
       sess.activeCrawler = crawler;
       attachCrawlerListeners(crawler, sess);

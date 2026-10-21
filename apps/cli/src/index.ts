@@ -438,7 +438,7 @@ async function main(): Promise<void> {
   // Opened only after every flag validated, so a bad argument leaves no
   // empty project file behind.
   const db = new ProjectDb(dbPath);
-  const crawler = new Crawler(config, db);
+  const crawler = new Crawler(config, db, { toolVersion: cliVersion() });
   const jsonMode = Boolean(values.json);
 
   if (!jsonMode) {

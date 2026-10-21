@@ -7,6 +7,9 @@ import type {
   BrokenLinkRow,
   BrokenLinkTargetExportRow,
   CrawlQueueExportRow,
+  CrawlMode,
+  CrawlRun,
+  CrawlSnapshot,
   IssueLongRow,
   IssueInlinkRow,
   SelectedInlinkRow,
@@ -1637,6 +1640,59 @@ export class ProjectDb {
     } catch {
       /* non-fatal — WAL checkpoint can fail if a reader is mid-query */
     }
+  }
+
+  /**
+   * Appends one finished crawl to the project's history. The table is
+   * outside `reset()`'s wipe on purpose: history must survive Clear and a
+   * change of start URL, which is why every row carries its start URL.
+   */
+  appendCrawlRun(run: Omit<CrawlRun, 'id'>): number {
+    const res = this.db
+      .prepare(
+        `INSERT INTO crawl_runs (finished_at, start_url, mode, duration_ms, tool_version, snapshot_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        run.finishedAt,
+        run.startUrl,
+        run.mode,
+        Math.max(0, Math.round(run.durationMs)),
+        run.toolVersion,
+        JSON.stringify(run.snapshot),
+      );
+    return Number(res.lastInsertRowid);
+  }
+
+  /**
+   * The latest `limit` runs of one start URL (all when omitted), oldest
+   * first — so the last element is the newest crawl and the one before
+   * it is "the previous crawl".
+   */
+  listCrawlRuns(startUrl: string, limit?: number): CrawlRun[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, finished_at, start_url, mode, duration_ms, tool_version, snapshot_json
+           FROM crawl_runs WHERE start_url = ? ORDER BY id DESC LIMIT ?`,
+      )
+      .all(startUrl, limit === undefined ? -1 : Math.max(0, Math.floor(limit))) as unknown as {
+      id: number;
+      finished_at: string;
+      start_url: string;
+      mode: string;
+      duration_ms: number;
+      tool_version: string | null;
+      snapshot_json: string;
+    }[];
+    return rows.reverse().map((r) => ({
+      id: r.id,
+      finishedAt: r.finished_at,
+      startUrl: r.start_url,
+      mode: r.mode as CrawlMode,
+      durationMs: r.duration_ms,
+      toolVersion: r.tool_version,
+      snapshot: JSON.parse(r.snapshot_json) as CrawlSnapshot,
+    }));
   }
 
   /**

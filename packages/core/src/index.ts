@@ -201,3 +201,9 @@ export {
   type MetricaFetchOptions,
   type MetricaPageMetrics,
 } from './metrica.js';
+export {
+  buildCrawlSnapshot,
+  listMetrics,
+  metricValue,
+  type MetricValue,
+} from './monitor/snapshot.js';
