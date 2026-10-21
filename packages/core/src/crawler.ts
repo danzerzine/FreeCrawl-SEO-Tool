@@ -1825,10 +1825,12 @@ export class Crawler extends EventEmitter {
    * Template set for this run (B98), decided once after the reset decision.
    * Only a run that follows a reset may learn: the flag is read and set to
    * '0' at once, so a resume, refresh or Re-Spider (or the run after a
-   * crash) never learns. Every other run parses with the stored set, if any.
+   * crash) never learns. A resume ignores a flag left at '1' by a killed
+   * run (it still clears it). Every other run parses with the stored set,
+   * if any.
    */
   private initTemplateSet(): void {
-    this.templateLearn = this.db.getMeta(TEMPLATE_LEARN_META_KEY) === '1';
+    this.templateLearn = !this.resumeOnly && this.db.getMeta(TEMPLATE_LEARN_META_KEY) === '1';
     this.db.setMeta(TEMPLATE_LEARN_META_KEY, '0');
     this.templateSet = null;
     this.templateHeld = [];
