@@ -11,7 +11,11 @@ import type {
   UncrawlableLink,
   ContentSource,
 } from '@freecrawl/shared-types';
-import { GENERIC_ANCHOR_TEXTS } from '@freecrawl/shared-types';
+import {
+  GENERIC_ANCHOR_TEXTS,
+  type ShingleHashes,
+  type TemplateSet,
+} from '@freecrawl/shared-types';
 import {
   normalizeUrl,
   isSameHost,
@@ -396,6 +400,15 @@ export interface ParsedPage {
   langMismatch: boolean;
   /** MinHash signature of the main content (near-duplicate similarity); null when too short. */
   minhash: Uint8Array | null;
+  /**
+   * Template set left out of `simhash` / `minhash` (B98), null when none.
+   * With a set, a page left with under three shingles has no fingerprint.
+   */
+  templateSetId: number | null;
+  /** SimHash of the whole main text, never minus a template set (calendar-trap input). */
+  textSimhash: string | null;
+  /** The main text's shingle hashes, only when parsed with `collectShingles`. */
+  shingles: ShingleHashes | null;
   /** Where the main text came from; see `ContentSource`. */
   contentSource: ContentSource;
   /** `<link rel="canonical">` elements inside `<body>` (not honoured — see `canonical`). */
@@ -820,6 +833,10 @@ export function parseHtml(
      *  extraction to a specific region. Empty / missing → heuristic
      *  (main/article/body-minus-chrome) is used. */
     contentAreaSelector?: string;
+    /** Template shingles to leave out of the near-duplicate fingerprint (B98). */
+    templateSet?: TemplateSet;
+    /** Return the main text's shingle hashes (the crawl is learning its template set). */
+    collectShingles?: boolean;
   } = {},
 ): ParsedPage {
   // Fast path: force the htmlparser2 backend and skip entity decoding.
@@ -1508,7 +1525,11 @@ export function parseHtml(
   // Computed from the main-content region (boilerplate stripped) so two
   // pages that share a big nav/footer template but differ in body
   // content aren't falsely clustered as near-duplicates.
-  const { simhash, contentHash, minhash } = computeContentFingerprint(mainText);
+  const { simhash, contentHash, minhash, templateSetId, textSimhash, shingles } =
+    computeContentFingerprint(mainText, {
+      set: opts.templateSet,
+      collectShingles: opts.collectShingles,
+    });
 
   // Custom Extraction — runs after all standard fields so the cheerio
   // tree is fully populated. Per-rule failures are isolated; the worst
@@ -2251,6 +2272,9 @@ export function parseHtml(
     contentLang: contentLanguage.detected,
     langMismatch: contentLanguage.mismatch,
     minhash,
+    templateSetId,
+    textSimhash,
+    shingles,
     contentSource,
     canonicalOutsideHead,
     hreflangOutsideHead,

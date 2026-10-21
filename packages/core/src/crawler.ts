@@ -11,7 +11,13 @@ import type {
   DiscoveredLink,
   Indexability,
 } from '@freecrawl/shared-types';
-import { EXTERNAL_NO_ANSWER_CONFIRMED } from '@freecrawl/shared-types';
+import {
+  EXTERNAL_NO_ANSWER_CONFIRMED,
+  makeTemplateSet,
+  unpackTemplateSet,
+  type ShingleHashes,
+  type TemplateSet,
+} from '@freecrawl/shared-types';
 import {
   type ProjectDb,
   type ProbeWrite,
@@ -19,6 +25,9 @@ import {
   SOFT404_PROBE_META_KEY,
   COUNT_NOFOLLOW_META_KEY,
   CHECK_EXTERNAL_META_KEY,
+  TEMPLATE_LEARN_META_KEY,
+  TEMPLATE_SET_ID_META_KEY,
+  TEMPLATE_SHINGLES_META_KEY,
 } from '@freecrawl/db';
 import {
   normalizeUrl,
@@ -298,6 +307,17 @@ const HARD_TRANSPORT_ERROR_RE =
 const NO_ANSWER_RETRY_PAUSE_MS = 1_500;
 /** Near-duplicate clusters over 50 pages named one per line in the crawl log; the rest are counted. */
 const LARGE_CLUSTERS_LOGGED = 10;
+/*
+ * Template set (B98): shingles on more than 30% of a sample of 2xx pages
+ * (at least 2) are left out of the near-duplicate fingerprint. The sample
+ * is the first 500 such pages; hashes held for the freeze are capped at
+ * 1,000,000 entries (≈ 14 MB). Under 50 sample pages: no set.
+ */
+const TEMPLATE_SAMPLE_PAGES = 500;
+const TEMPLATE_HELD_ENTRIES = 1_000_000;
+const TEMPLATE_MIN_SAMPLE_PAGES = 50;
+const TEMPLATE_PAGE_SHARE = 0.3;
+const TEMPLATE_MAX_SHINGLES = 20_000;
 // Nothing on the host answered (the same list as the Dead External Domain
 // rule in project-db). EAI_AGAIN is left out: it is usually our own resolver.
 const NO_ANSWER_ERROR_RE = /ENOTFOUND|ENODATA|ESERVFAIL|ECONNREFUSED/;
@@ -679,6 +699,21 @@ export class Crawler extends EventEmitter {
 
   /** True when this run resumes an interrupted crawl from a checkpoint. */
   private readonly resumeOnly: boolean;
+
+  /*
+   * Template set (B98). `templateLearn`: this run took the right to learn
+   * (see `initTemplateSet`) and has not frozen a set yet; while it holds,
+   * pages are parsed with `collectShingles`. `templateHeld`: hashes of every
+   * fingerprinted page parsed while learning, for the freeze to
+   * re-fingerprint; `sample` marks the 2xx ones the set is learned from.
+   * `templateSet`: the set new pages are parsed with.
+   */
+  private templateLearn = false;
+  private templateSet: TemplateSet | null = null;
+  private templateHeld: { url: string; shingles: ShingleHashes; sample: boolean }[] = [];
+  private templateHeldEntries = 0;
+  private templateSamplePages = 0;
+  private templateFreezeJob: Promise<void> | null = null;
 
   /**
    * V2 — Optional Playwright renderer. Returns the post-JS DOM dump for
@@ -1246,7 +1281,9 @@ export class Crawler extends EventEmitter {
     if (!isSameSite && !isRespider) {
       this.db.reset();
       this.db.setMeta('startUrl', start);
+      this.db.setMeta(TEMPLATE_LEARN_META_KEY, '1');
     }
+    this.initTemplateSet();
     // The missing-page probe describes the crawl that is starting; it is
     // re-run at the end (a stopped crawl simply has no verdict).
     if (!isRespider) this.db.setMeta(SOFT404_PROBE_META_KEY, '');
@@ -1634,6 +1671,8 @@ export class Crawler extends EventEmitter {
       this.setOp('post-crawl:recompute-hreflang-inconsistent');
       await this.runDbPass('recomputeHreflangInconsistent');
     }
+    // Before clustering: the set must be stored and the sample rows on it.
+    await this.finishTemplateLearning();
     if (this.config.analyseDuplicates) {
       await yieldToEventLoop();
       this.emit('info', 'Clustering duplicates…');
@@ -1782,22 +1821,150 @@ export class Crawler extends EventEmitter {
    * cluster count as an `info` event so the user can see the post-crawl
    * pass actually fired. Threshold = 0 disables clustering.
    */
+  /**
+   * Template set for this run (B98), decided once after the reset decision.
+   * Only a run that follows a reset may learn: the flag is read and set to
+   * '0' at once, so a resume, refresh or Re-Spider (or the run after a
+   * crash) never learns. Every other run parses with the stored set, if any.
+   */
+  private initTemplateSet(): void {
+    this.templateLearn = this.db.getMeta(TEMPLATE_LEARN_META_KEY) === '1';
+    this.db.setMeta(TEMPLATE_LEARN_META_KEY, '0');
+    this.templateSet = null;
+    this.templateHeld = [];
+    this.templateHeldEntries = 0;
+    this.templateSamplePages = 0;
+    this.templateFreezeJob = null;
+    if (this.templateLearn) return;
+    const id = this.db.getMeta(TEMPLATE_SET_ID_META_KEY);
+    const packed = this.db.getMeta(TEMPLATE_SHINGLES_META_KEY);
+    if (id === null || packed === null) return;
+    this.templateSet = { id: Number(id), hashes: unpackTemplateSet(Buffer.from(packed, 'base64')) };
+    this.emit(
+      'info',
+      `Duplicates: template text from the stored set (${this.templateSet.hashes.length} shingles) is left out of near-duplicate fingerprints`,
+    );
+  }
+
+  /** Keep a page's hashes for the freeze; freeze when the sample is full. */
+  private holdTemplateSample(url: string, shingles: ShingleHashes, sample: boolean): void {
+    const entries = shingles.h32.length;
+    if (this.templateHeldEntries + entries > TEMPLATE_HELD_ENTRIES) {
+      // No room to hold this page for the freeze: stop learning here. The
+      // page itself is reconciled by its own write (it carries its hashes).
+      this.freezeTemplateSample();
+      return;
+    }
+    this.templateHeld.push({ url, shingles, sample });
+    this.templateHeldEntries += entries;
+    if (sample && ++this.templateSamplePages >= TEMPLATE_SAMPLE_PAGES) this.freezeTemplateSample();
+  }
+
+  /**
+   * Learn the set from the sample and queue the freeze job behind the page
+   * writes already queued. From here on new pages are parsed with the set;
+   * pages parsed before it reconcile on write. Fewer than 50 sample pages:
+   * no set, nothing written.
+   */
+  private freezeTemplateSample(): void {
+    if (!this.templateLearn) return;
+    this.templateLearn = false;
+    const held = this.templateHeld;
+    this.templateHeld = [];
+    this.templateHeldEntries = 0;
+    const sample = held.filter((h) => h.sample);
+    const pages = sample.length;
+    if (pages < TEMPLATE_MIN_SAMPLE_PAGES) {
+      this.emit(
+        'info',
+        `Duplicates: no template set learned (${pages} sample pages, at least ${TEMPLATE_MIN_SAMPLE_PAGES} needed)`,
+      );
+      return;
+    }
+    // Document frequency without a Map: concatenate, sort, count runs.
+    let entries = 0;
+    for (const h of sample) entries += h.shingles.h32.length;
+    const all = new Uint32Array(entries);
+    let at = 0;
+    for (const h of sample) {
+      all.set(h.shingles.h32, at);
+      at += h.shingles.h32.length;
+    }
+    all.sort();
+    const minPages = Math.max(2, Math.floor(pages * TEMPLATE_PAGE_SHARE) + 1);
+    const found: { hash: number; pages: number }[] = [];
+    for (let i = 0; i < all.length; ) {
+      let j = i + 1;
+      while (j < all.length && all[j] === all[i]) j++;
+      if (j - i >= minPages) found.push({ hash: all[i]!, pages: j - i });
+      i = j;
+    }
+    if (found.length > TEMPLATE_MAX_SHINGLES) {
+      found.sort((a, b) => b.pages - a.pages || a.hash - b.hash);
+      found.length = TEMPLATE_MAX_SHINGLES;
+    }
+    const set = makeTemplateSet(Uint32Array.from(found, (f) => f.hash));
+    const inSet = new Set(set.hashes);
+    const removed = sample
+      .map((h) => {
+        let n = 0;
+        for (const x of h.shingles.h32) if (inSet.has(x)) n++;
+        return h.shingles.h32.length > 0 ? n / h.shingles.h32.length : 0;
+      })
+      .sort((a, b) => a - b);
+    const median = removed[Math.floor(removed.length / 2)] ?? 0;
+    this.emit(
+      'info',
+      `Duplicates: template set learned from ${pages} sample pages (${entries} shingle entries): ` +
+        `${set.hashes.length} template shingles, median ${Math.round(median * 100)}% of a page's shingles removed`,
+    );
+    if (median > 0.5) {
+      this.emit(
+        'warn',
+        'Duplicates: over half of a typical page is template text; the site may be mostly one text — check the content area (Settings → Duplicates)',
+      );
+    }
+    this.templateSet = set;
+    this.templateFreezeJob = this.dbCall<void>('freezeTemplateSet', [
+      {
+        id: set.id,
+        hashes: set.hashes,
+        sample: { pages, entries },
+        rows: held.map((h) => ({ url: h.url, shingles: h.shingles })),
+      },
+    ]).catch((err: unknown) => {
+      // Rolled back: no set, rows unchanged; the run goes on without one.
+      this.templateSet = null;
+      this.emit(
+        'warn',
+        `Duplicates: template set not stored: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+  }
+
+  /** Post-crawl: freeze what was sampled (≥ 50 pages) and wait for the job. */
+  private async finishTemplateLearning(): Promise<void> {
+    this.freezeTemplateSample();
+    if (this.templateFreezeJob) await this.templateFreezeJob;
+  }
+
   private async runDuplicateClustering(): Promise<void> {
     const threshold = this.config.nearDuplicateHammingThreshold;
     const similarity = this.config.nearDuplicateSimilarity ?? 0;
     if ((!threshold || threshold <= 0) && similarity <= 0) return;
     try {
-      const { clusters, clusteredUrls, incomplete, largeClusters, notCompared } = await this.dbCall<{
-        clusters: number;
-        clusteredUrls: number;
-        incomplete: { buckets: number; pages: number } | null;
-        largeClusters: { size: number; representative: string }[];
-        notCompared: number;
-      }>('recomputeDuplicateClusters', [
-        threshold > 0 ? threshold : -1,
-        this.config.duplicatesOnlyIndexable,
-        similarity,
-      ]);
+      const { clusters, clusteredUrls, incomplete, largeClusters, notCompared } =
+        await this.dbCall<{
+          clusters: number;
+          clusteredUrls: number;
+          incomplete: { buckets: number; pages: number } | null;
+          largeClusters: { size: number; representative: string }[];
+          notCompared: number;
+        }>('recomputeDuplicateClusters', [
+          threshold > 0 ? threshold : -1,
+          this.config.duplicatesOnlyIndexable,
+          similarity,
+        ]);
       if (clusters > 0) {
         this.emit(
           'info',
@@ -2746,9 +2913,11 @@ export class Crawler extends EventEmitter {
     if (!this.resumeOnly) {
       if (previousStart !== fingerprint) {
         this.db.reset();
+        this.db.setMeta(TEMPLATE_LEARN_META_KEY, '1');
       }
       this.db.setMeta('startUrl', fingerprint);
     }
+    this.initTemplateSet();
     if (afterReset) await afterReset();
 
     // Force exact-url scope so anything fetched in fetchAndProcess never
@@ -4720,7 +4889,18 @@ export class Crawler extends EventEmitter {
         urlRewrites: this.urlRewrites,
         customExtractionRules: this.config.customExtractionRules,
         contentAreaSelector: this.config.contentAreaSelector,
+        templateSet: this.templateSet ?? undefined,
+        collectShingles: this.templateLearn,
       });
+      // Hashes ride with the page to its write, so a set frozen meanwhile
+      // can be applied there (B98). A missed content area has no fingerprint.
+      const pageShingles =
+        parsed.shingles && parsed.contentSource !== 'selector-missed' && parsed.simhash !== null
+          ? parsed.shingles
+          : undefined;
+      if (pageShingles && this.templateLearn) {
+        this.holdTemplateSample(item.url, pageShingles, statusCode >= 200 && statusCode < 300);
+      }
 
       // Charset resolution — prefer the document's own declaration (HTML5
       // `<meta charset>` or legacy `<meta http-equiv>`); fall back to the
@@ -4870,7 +5050,8 @@ export class Crawler extends EventEmitter {
       // constructor.
       // Before the write, so a page that completes a calendar trap is
       // itself stored with the trap flag.
-      if (statusCode >= 200 && statusCode < 300) this.observeCalendarPage(item.url, parsed.simhash);
+      if (statusCode >= 200 && statusCode < 300)
+        this.observeCalendarPage(item.url, parsed.textSimhash);
       this.setOp(`crawl:write:${item.url}`);
       const { urlId } = await this.writeFetchedUrl({
         upsert: {
@@ -4990,6 +5171,7 @@ export class Crawler extends EventEmitter {
           // exact-content hash stays: an exact copy is still one.
           minhash: parsed.contentSource === 'selector-missed' ? null : parsed.minhash,
           simhash: parsed.contentSource === 'selector-missed' ? null : parsed.simhash,
+          templateSetId: parsed.templateSetId,
           contentSource: parsed.contentSource,
           extractionResults: parsed.extractionResults
             ? JSON.stringify(parsed.extractionResults)
@@ -5076,6 +5258,7 @@ export class Crawler extends EventEmitter {
         resources: parsed.resources,
         uncrawlableLinks: this.config.storeUncrawlableLinks ? parsed.uncrawlableLinks : undefined,
         fromDepth: item.depth,
+        shingles: pageShingles,
       });
       // V2 Faz 1 — Persist render artefacts inline so they finish before
       // the URL is considered done. Bug #8: previously these were

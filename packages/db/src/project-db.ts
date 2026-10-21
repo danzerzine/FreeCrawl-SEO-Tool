@@ -136,6 +136,11 @@ export const NEAR_DUPLICATE_INCOMPLETE_META_KEY = 'nearDuplicateIncomplete';
  * 0 after every normal run; non-zero only from crash leftovers.
  */
 export const NEAR_DUPLICATE_NOT_COMPARED_META_KEY = 'nearDuplicateNotCompared';
+/**
+ * '1' = the next crawl may learn a template set (B98). Written only right
+ * after a reset; the crawl reads it once and sets it to '0' at once.
+ */
+export const TEMPLATE_LEARN_META_KEY = 'templateLearn';
 /** Id of the project's current template set (B98); absent = no set. */
 export const TEMPLATE_SET_ID_META_KEY = 'templateSetId';
 /** The set's hashes, packed sorted uint32 little-endian, base64. */
@@ -3767,11 +3772,19 @@ export class ProjectDb {
     const setId = this.currentTemplateSetId();
     const notCompared = (
       this.db
-        .prepare(`SELECT COUNT(*) AS n FROM urls WHERE ${fingerprinted} AND template_set_id IS NOT ?`)
+        .prepare(
+          `SELECT COUNT(*) AS n FROM urls WHERE ${fingerprinted} AND template_set_id IS NOT ?`,
+        )
         .get(setId) as { n: number }
     ).n;
     this.setMeta(NEAR_DUPLICATE_NOT_COMPARED_META_KEY, String(notCompared));
-    const noClusters = { clusters: 0, clusteredUrls: 0, incomplete: null, largeClusters: [], notCompared };
+    const noClusters = {
+      clusters: 0,
+      clusteredUrls: 0,
+      incomplete: null,
+      largeClusters: [],
+      notCompared,
+    };
 
     const useSimhash = thresholdBits >= 0 && thresholdBits <= 64;
     const useMinhash = minSimilarityPct > 0 && minSimilarityPct <= 100;
@@ -3783,7 +3796,12 @@ export class ProjectDb {
            WHERE ${fingerprinted} AND template_set_id IS ?
            ORDER BY id`,
       )
-      .all(setId) as { id: number; url: string; simhash: string | null; minhash: Uint8Array | null }[];
+      .all(setId) as {
+      id: number;
+      url: string;
+      simhash: string | null;
+      minhash: Uint8Array | null;
+    }[];
 
     if (rows.length < 2) return noClusters;
 
@@ -3995,7 +4013,10 @@ export class ProjectDb {
    * the current id. Without hashes it is stored as it came: its id tells
    * the truth and clustering leaves it out.
    */
-  private reconcileTemplateSet(upsert: UpsertUrlInput, shingles: ShingleHashes | undefined): UpsertUrlInput {
+  private reconcileTemplateSet(
+    upsert: UpsertUrlInput,
+    shingles: ShingleHashes | undefined,
+  ): UpsertUrlInput {
     if (!shingles) return upsert;
     const current = this.currentTemplateSetId();
     if ((upsert.templateSetId ?? null) === current) return upsert;
@@ -4037,9 +4058,14 @@ export class ProjectDb {
     const set: TemplateSet = { id: input.id, hashes: input.hashes };
     this.runInTransaction(() => {
       this.setMeta(TEMPLATE_SET_ID_META_KEY, String(input.id));
-      this.setMeta(TEMPLATE_SHINGLES_META_KEY, Buffer.from(packTemplateSet(input.hashes)).toString('base64'));
+      this.setMeta(
+        TEMPLATE_SHINGLES_META_KEY,
+        Buffer.from(packTemplateSet(input.hashes)).toString('base64'),
+      );
       this.setMeta(TEMPLATE_SAMPLE_META_KEY, JSON.stringify(input.sample));
-      const upd = this.db.prepare('UPDATE urls SET simhash = ?, minhash = ?, template_set_id = ? WHERE url = ?');
+      const upd = this.db.prepare(
+        'UPDATE urls SET simhash = ?, minhash = ?, template_set_id = ? WHERE url = ?',
+      );
       for (const r of input.rows) {
         const fp = fingerprintFromShingles(r.shingles, set);
         upd.run(fp.simhash, fp.minhash, input.id, r.url);
