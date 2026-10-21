@@ -357,6 +357,19 @@ function renderSiteNotices(counts: OverviewCounts): string {
       `: they were not crawled, so this report has no data on them and leaves them out of the ` +
       `broken-link and sitemap checks. Lower the crawl speed or allowlist the crawler, then re-crawl.</p>`;
   }
+  const sitemaps = counts.site?.sitemapFindings;
+  const listFiles = (files: { url: string }[]) =>
+    files.map((f) => `<span class="mono">${escape(f.url)}</span>`).join(', ');
+  if (sitemaps?.overUrls.length) {
+    out +=
+      `<p><span class="sev-warn">WARN</span> Sitemap over 50,000 URLs: ${listFiles(sitemaps.overUrls)}. ` +
+      `Search engines read at most 50,000 URLs per sitemap file — split it and list the parts in a sitemap index.</p>`;
+  }
+  if (sitemaps?.overSize.length) {
+    out +=
+      `<p><span class="sev-warn">WARN</span> Sitemap over 50 MB: ${listFiles(sitemaps.overSize)}. ` +
+      `Search engines read at most 50 MB uncompressed per sitemap file — split it and list the parts in a sitemap index.</p>`;
+  }
   const probe = counts.site?.soft404Probe;
   if (!probe) return out;
   const via = probe.finalUrl

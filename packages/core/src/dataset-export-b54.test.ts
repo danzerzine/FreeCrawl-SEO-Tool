@@ -88,7 +88,7 @@ describe('B54 datasets', () => {
   });
   it('bulk lists the new datasets', () => {
     expect(BULK_EXPORT_DATASET_TASKS.map((t) => t.dataset)).toEqual([
-      'broken-links', 'broken-links-by-target', 'issues-long', 'response-headers', 'sitemap-urls', 'crawl-queue',
+      'broken-links', 'broken-links-by-target', 'issues-long', 'response-headers', 'sitemap-urls', 'sitemap-files', 'crawl-queue',
     ]);
   });
 });

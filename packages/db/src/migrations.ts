@@ -2710,6 +2710,24 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 116,
+    name: 'add_sitemap_files',
+    up: `
+      CREATE TABLE IF NOT EXISTS sitemap_files (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        url             TEXT NOT NULL UNIQUE,
+        status_code     INTEGER,
+        bytes           INTEGER,
+        inflated_bytes  INTEGER,
+        url_count       INTEGER,
+        child_count     INTEGER,
+        warnings        TEXT NOT NULL DEFAULT '[]',
+        error           TEXT,
+        reason          TEXT
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

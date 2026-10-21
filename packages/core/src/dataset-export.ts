@@ -101,6 +101,13 @@ export function datasetRows(
       return pageTexts(db);
     case 'sitemap-urls':
       return asRecords(db.iterateSitemapUrls());
+    case 'sitemap-files':
+      return asRecords(
+        (function* () {
+          for (const f of db.iterateSitemapFiles())
+            yield { ...f, warnings: f.warnings.join(' | ') };
+        })(),
+      );
     case 'crawl-queue':
       return asRecords(db.iterateCrawlQueue());
     case 'pagespeed':

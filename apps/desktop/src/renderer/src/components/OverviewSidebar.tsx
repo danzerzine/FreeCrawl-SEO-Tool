@@ -299,6 +299,27 @@ export function OverviewSidebar() {
   const totalForPercent = overview?.summary.totalInternalUrls ?? 0;
   const soft404Probe = overview?.site?.soft404Probe ?? null;
   const botBlocked = overview?.site?.botBlocked ?? null;
+  const sitemapFindings = overview?.site?.sitemapFindings ?? null;
+  const sitemapNotices = [
+    {
+      key: 'overUrls',
+      files: sitemapFindings?.overUrls ?? [],
+      title: t('sidebar.siteSitemapOverUrls', { defaultValue: 'Sitemap over 50,000 URLs' }),
+      hint: t('sidebar.siteSitemapOverUrlsHint', {
+        defaultValue:
+          'Search engines read at most 50,000 URLs per sitemap file. Split the file and list the parts in a sitemap index.',
+      }),
+    },
+    {
+      key: 'overSize',
+      files: sitemapFindings?.overSize ?? [],
+      title: t('sidebar.siteSitemapOverSize', { defaultValue: 'Sitemap over 50 MB' }),
+      hint: t('sidebar.siteSitemapOverSizeHint', {
+        defaultValue:
+          'Search engines read at most 50 MB uncompressed per sitemap file. Split the file and list the parts in a sitemap index.',
+      }),
+    },
+  ].filter((n) => n.files.length > 0);
 
   return (
     <div className="flex h-full flex-col bg-surface-900">
@@ -362,6 +383,25 @@ export function OverviewSidebar() {
           </div>
         </div>
       )}
+      {sitemapNotices.map((n) => (
+        // About sitemap files, not crawled URLs: the files are the list.
+        <div
+          key={n.key}
+          className="flex items-start gap-1.5 border-b border-amber-700/40 bg-amber-900/20 px-2 py-1.5 text-[11px] text-amber-200"
+          title={n.hint}
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="font-medium">{n.title}</div>
+            {n.files.map((f) => (
+              <div key={f.url} className="break-all font-mono text-[10px] text-amber-300/80">
+                {f.url}
+              </div>
+            ))}
+          </div>
+          <span className="shrink-0 font-mono tabular-nums">{n.files.length.toLocaleString()}</span>
+        </div>
+      ))}
       <div className="flex-1 overflow-auto">
         <div className="py-1 text-[11px]">
           {tree.map((node) => (

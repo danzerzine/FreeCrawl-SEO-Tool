@@ -16,6 +16,7 @@ import type {
   SelectedOutlinkRow,
   ResponseHeaderExportRow,
   PageSourceExportRow,
+  SitemapFileRow,
   SitemapUrlExportRow,
   ContentKind,
   ContentSource,
@@ -1737,6 +1738,7 @@ export class ProjectDb {
          DELETE FROM headers;
          DELETE FROM url_sources;
          DELETE FROM sitemap_urls;
+         DELETE FROM sitemap_files;
          DELETE FROM urls;
          DELETE FROM project_meta WHERE key NOT IN (${META_KEYS_KEPT_BY_RESET.map((k) => `'${k}'`).join(', ')});
          DELETE FROM urls_issues;
@@ -4918,6 +4920,32 @@ export class ProjectDb {
     }
   }
 
+  /** Replace the sitemap files a crawl read with `files`. */
+  setSitemapFiles(files: readonly SitemapFileRow[]): void {
+    this.runInTransaction(() => {
+      this.db.exec('DELETE FROM sitemap_files');
+      const insert = this.db.prepare(
+        `INSERT INTO sitemap_files
+           (url, status_code, bytes, inflated_bytes, url_count, child_count, warnings, error, reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(url) DO NOTHING`,
+      );
+      for (const f of files) {
+        insert.run(
+          f.url,
+          f.status,
+          f.bytes,
+          f.inflatedBytes,
+          f.urlCount,
+          f.childCount,
+          JSON.stringify(f.warnings),
+          f.error,
+          f.reason,
+        );
+      }
+    });
+  }
+
   countSitemapUrls(): number {
     return (this.db.prepare('SELECT COUNT(*) AS c FROM sitemap_urls').get() as { c: number }).c;
   }
@@ -7536,6 +7564,7 @@ export class ProjectDb {
             ? { count: botBlockedInternal, sample: this.botBlockedSample() }
             : null,
         siteWide: { pagesBase, checks: siteWideChecks },
+        sitemapFindings: this.sitemapFindings(),
       },
     };
   }
@@ -9283,6 +9312,58 @@ export class ProjectDb {
       source_sitemap: string;
     }>;
     for (const r of rows) yield { url: r.url, lastmod: r.lastmod, sourceSitemap: r.source_sitemap };
+  }
+
+  /** The sitemap files the last crawl read or listed, in the order met; `where` filters them. */
+  *iterateSitemapFiles(where = '1'): IterableIterator<SitemapFileRow> {
+    const rows = this.db
+      .prepare(
+        `SELECT url, status_code, bytes, inflated_bytes, url_count, child_count, warnings, error, reason
+           FROM sitemap_files WHERE ${where} ORDER BY id`,
+      )
+      .iterate() as unknown as Iterable<{
+      url: string;
+      status_code: number | null;
+      bytes: number | null;
+      inflated_bytes: number | null;
+      url_count: number | null;
+      child_count: number | null;
+      warnings: string;
+      error: string | null;
+      reason: SitemapFileRow['reason'];
+    }>;
+    for (const r of rows) {
+      yield {
+        url: r.url,
+        status: r.status_code,
+        bytes: r.bytes,
+        inflatedBytes: r.inflated_bytes,
+        urlCount: r.url_count,
+        childCount: r.child_count,
+        warnings: JSON.parse(r.warnings) as string[],
+        error: r.error,
+        reason: r.reason,
+      };
+    }
+  }
+
+  /**
+   * Sitemap files over the sitemaps.org limits (50,000 URLs or sitemaps;
+   * 50 MB as served or uncompressed, or too large to read). Null when the
+   * project holds no sitemap files: not checked, rather than none found.
+   */
+  private sitemapFindings(): { overUrls: SitemapFileRow[]; overSize: SitemapFileRow[] } | null {
+    const any = this.db.prepare('SELECT 1 FROM sitemap_files LIMIT 1').get();
+    if (!any) return null;
+    const maxBytes = 50 * 1024 * 1024;
+    return {
+      overUrls: [...this.iterateSitemapFiles('url_count > 50000 OR child_count > 50000')],
+      overSize: [
+        ...this.iterateSitemapFiles(
+          `reason = 'too-large' OR bytes > ${maxBytes} OR inflated_bytes > ${maxBytes}`,
+        ),
+      ],
+    };
   }
 
   /** The unfetched queue left by a stopped or crashed crawl. */

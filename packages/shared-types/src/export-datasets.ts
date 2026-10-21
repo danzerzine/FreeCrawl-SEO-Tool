@@ -26,6 +26,7 @@ export type ExportDatasetKey =
   | 'selected-inlinks'
   | 'selected-outlinks'
   | 'sitemap-urls'
+  | 'sitemap-files'
   | 'crawl-queue'
   | 'response-headers'
   | 'page-html'
@@ -190,6 +191,17 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'url', header: 'URL' },
     { key: 'lastmod', header: 'Last Modified' },
     { key: 'sourceSitemap', header: 'Source Sitemap' },
+  ],
+  'sitemap-files': [
+    { key: 'url', header: 'Sitemap' },
+    { key: 'status', header: 'Status' },
+    { key: 'bytes', header: 'Bytes' },
+    { key: 'inflatedBytes', header: 'Bytes Uncompressed' },
+    { key: 'urlCount', header: 'URLs' },
+    { key: 'childCount', header: 'Child Sitemaps' },
+    { key: 'warnings', header: 'Warnings' },
+    { key: 'error', header: 'Error' },
+    { key: 'reason', header: 'Note' },
   ],
   'crawl-queue': [
     { key: 'url', header: 'URL' },

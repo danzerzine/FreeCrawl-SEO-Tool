@@ -3,6 +3,7 @@ import { gunzipSync } from 'node:zlib';
 import { fetch as undiciFetch } from 'undici';
 import { normalizeUrl, type UrlRewriteOptions } from './url-utils.js';
 import { defaultRequestHeaders, formatFetchError } from './http-client.js';
+import type { SitemapFileRow } from '@freecrawl/shared-types';
 
 /**
  * sitemaps.org protocol limits. A sitemap breaching either is still parsed
@@ -82,6 +83,8 @@ export interface SitemapDiscoveryResult {
    * these are reported so the user can fix the generator.
    */
   warnings: { sitemap: string; warning: string }[];
+  /** Every sitemap file met while walking, in the order met, with its own numbers. */
+  files: SitemapFileRow[];
 }
 
 /**
@@ -199,8 +202,10 @@ interface FetchOpts {
  * BFS-walk the sitemap tree starting from `roots` (typically what
  * `discoverSitemapUrls` returns). Visited sitemap URLs are deduped so an
  * accidental cycle in `<sitemapindex>` can't loop forever. Caps total
- * entries at `maxUrls`; further finds are dropped silently and the
- * `truncated` flag flips on the result.
+ * entries at `maxUrls`; further finds are dropped and the `truncated` flag
+ * flips on the result, but the files after the cap are still read for their
+ * counts, so a breach in a later file is not missed. A file nested past
+ * `maxDepth` is listed in `files` without being fetched.
  */
 export async function fetchSitemaps(
   roots: string[],
@@ -213,6 +218,7 @@ export async function fetchSitemaps(
     entries: [],
     truncated: false,
     warnings: [],
+    files: [],
   };
   const visited = new Set<string>();
   type QueueItem = { url: string; depth: number };
@@ -222,13 +228,37 @@ export async function fetchSitemaps(
     const item = queue.shift();
     if (!item) break;
     if (visited.has(item.url)) continue;
-    if (item.depth > opts.maxDepth) continue;
-    if (result.entries.length >= opts.maxUrls) {
-      result.truncated = true;
-      break;
-    }
     visited.add(item.url);
+    const file: SitemapFileRow = {
+      url: item.url,
+      status: null,
+      bytes: null,
+      inflatedBytes: null,
+      urlCount: null,
+      childCount: null,
+      warnings: [],
+      error: null,
+      reason: null,
+    };
+    result.files.push(file);
+    if (item.depth > opts.maxDepth) {
+      file.reason = 'too-deep';
+      continue;
+    }
+    const countOnly = result.entries.length >= opts.maxUrls;
+    if (countOnly) {
+      result.truncated = true;
+      file.reason = 'counted-only';
+    }
     result.sitemapsTried.push(item.url);
+    const warn = (warning: string) => {
+      result.warnings.push({ sitemap: item.url, warning });
+      file.warnings.push(warning);
+    };
+    const fail = (error: string) => {
+      result.errors.push({ sitemap: item.url, error });
+      file.error = error;
+    };
 
     try {
       const res = await undiciFetch(item.url, {
@@ -237,13 +267,14 @@ export async function fetchSitemaps(
         redirect: 'follow',
         signal: opts.signal,
       });
+      file.status = res.status;
       if (!res.ok) {
         try {
           await res.body?.cancel();
         } catch {
           /* ignore */
         }
-        result.errors.push({ sitemap: item.url, error: `HTTP ${res.status}` });
+        fail(`HTTP ${res.status}`);
         continue;
       }
       const ct = (res.headers.get('content-type') ?? '').toLowerCase();
@@ -252,15 +283,15 @@ export async function fetchSitemaps(
       // does not decompress it for us). Decoding those bytes as UTF-8 would
       // yield mojibake that parses to zero URLs.
       const raw = new Uint8Array(await res.arrayBuffer());
+      file.bytes = raw.byteLength;
 
       // Protocol size cap. Measured on the bytes actually served; the spec's
       // 50 MB is the *uncompressed* limit, so for gzip we re-check after
       // inflating below.
       if (raw.byteLength > SITEMAP_MAX_BYTES) {
-        result.warnings.push({
-          sitemap: item.url,
-          warning: `Sitemap is ${(raw.byteLength / (1024 * 1024)).toFixed(1)} MB, over the sitemaps.org 50 MB limit.`,
-        });
+        warn(
+          `Sitemap is ${(raw.byteLength / (1024 * 1024)).toFixed(1)} MB, over the sitemaps.org 50 MB limit.`,
+        );
       }
 
       // Gzip detection by magic bytes rather than by header or extension:
@@ -274,18 +305,23 @@ export async function fetchSitemaps(
           const inflated = gunzipSync(raw, {
             maxOutputLength: SITEMAP_MAX_INFLATED_BYTES,
           });
+          file.inflatedBytes = inflated.byteLength;
           if (inflated.byteLength > SITEMAP_MAX_BYTES) {
-            result.warnings.push({
-              sitemap: item.url,
-              warning: `Sitemap is ${(inflated.byteLength / (1024 * 1024)).toFixed(1)} MB uncompressed, over the sitemaps.org 50 MB limit.`,
-            });
+            warn(
+              `Sitemap is ${(inflated.byteLength / (1024 * 1024)).toFixed(1)} MB uncompressed, over the sitemaps.org 50 MB limit.`,
+            );
           }
           xml = inflated.toString('utf8');
         } catch (err) {
-          result.errors.push({
-            sitemap: item.url,
-            error: `Corrupt gzip sitemap: ${err instanceof Error ? err.message : String(err)}`,
-          });
+          if ((err as { code?: string }).code === 'ERR_BUFFER_TOO_LARGE') {
+            // Far past the protocol limit: a breach of it, not a broken file.
+            file.reason = 'too-large';
+            fail(
+              `Sitemap is over ${SITEMAP_MAX_INFLATED_BYTES / (1024 * 1024)} MB uncompressed, far over the sitemaps.org 50 MB limit; not read.`,
+            );
+          } else {
+            fail(`Corrupt gzip sitemap: ${err instanceof Error ? err.message : String(err)}`);
+          }
           continue;
         }
       } else {
@@ -294,32 +330,29 @@ export async function fetchSitemaps(
         // inflated cleanly is self-evidently a sitemap whatever the header
         // claimed.
         if (ct && !SITEMAP_OK_CONTENT_TYPES.some((ok) => ct.includes(ok))) {
-          result.warnings.push({
-            sitemap: item.url,
-            warning: `Unexpected Content-Type "${ct}" (expected an XML type).`,
-          });
+          warn(`Unexpected Content-Type "${ct}" (expected an XML type).`);
         }
       }
 
       const parsed = parseSitemap(xml, item.url);
       if (parsed.type === 'unknown') {
-        result.errors.push({ sitemap: item.url, error: 'Unrecognized sitemap format' });
+        fail('Unrecognized sitemap format');
         continue;
       }
       result.sitemapsParsed.push(item.url);
+      file.urlCount = parsed.entries.length;
+      file.childCount = parsed.childSitemaps.length;
       // Per-file URL cap (sitemapindex children are counted individually,
       // which is exactly what the protocol limits).
       if (parsed.entries.length > SITEMAP_MAX_URLS) {
-        result.warnings.push({
-          sitemap: item.url,
-          warning: `Sitemap declares ${parsed.entries.length.toLocaleString()} URLs, over the sitemaps.org 50,000 limit.`,
-        });
+        warn(
+          `Sitemap declares ${parsed.entries.length.toLocaleString('en-US')} URLs, over the sitemaps.org 50,000 limit.`,
+        );
       }
       if (parsed.childSitemaps.length > SITEMAP_MAX_URLS) {
-        result.warnings.push({
-          sitemap: item.url,
-          warning: `Sitemap index references ${parsed.childSitemaps.length.toLocaleString()} sitemaps, over the sitemaps.org 50,000 limit.`,
-        });
+        warn(
+          `Sitemap index references ${parsed.childSitemaps.length.toLocaleString('en-US')} sitemaps, over the sitemaps.org 50,000 limit.`,
+        );
       }
       for (const entry of parsed.entries) {
         if (result.entries.length >= opts.maxUrls) {
@@ -334,8 +367,36 @@ export async function fetchSitemaps(
         queue.push({ url: child, depth: item.depth + 1 });
       }
     } catch (err) {
-      result.errors.push({ sitemap: item.url, error: formatFetchError(err) });
+      fail(formatFetchError(err));
     }
   }
   return result;
+}
+
+/**
+ * What the Validate Sitemap tools report for a walked tree: each file's own
+ * warnings, and a too-large file, named by file; then the first `<lastmod>`
+ * that is neither YYYY-MM-DD nor RFC 3339 among the first entries.
+ */
+export function validateFetchedSitemaps(result: SitemapDiscoveryResult): {
+  findings: string[];
+  lastmodSamples: string[];
+} {
+  const findings: string[] = [];
+  for (const f of result.files) {
+    for (const w of f.warnings) findings.push(`${f.url}: ${w}`);
+    if (f.reason === 'too-large' && f.error) findings.push(`${f.url}: ${f.error}`);
+  }
+  const lastmodSamples = result.entries
+    .slice(0, 50)
+    .map((e) => e.lastmod ?? '')
+    .filter(Boolean)
+    .slice(0, 10);
+  // The W3C subset Google accepts: YYYY-MM-DD, or full RFC 3339 / ISO 8601 with timezone.
+  const lastmodRe = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+  const bad = lastmodSamples.find((sample) => !lastmodRe.test(sample));
+  if (bad !== undefined) {
+    findings.push(`Invalid <lastmod> value: "${bad}" (expected YYYY-MM-DD or RFC 3339).`);
+  }
+  return { findings, lastmodSamples };
 }

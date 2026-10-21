@@ -299,7 +299,7 @@ import {
   aggregateTopWords,
   createTopWordsAggregator,
   fetchSitemaps,
-  validateSitemap,
+  validateFetchedSitemaps,
   normalizeUrl,
   compileUrlRegexRewrites,
   previewExtractionRules,
@@ -5287,16 +5287,7 @@ function registerIpc(): void {
           maxUrls: 100_000,
           maxDepth: 3,
         });
-        const lastmodSamples = result.entries
-          .slice(0, 50)
-          .map((e) => e.lastmod ?? '')
-          .filter(Boolean)
-          .slice(0, 10);
-        const validation = validateSitemap({
-          urlCount: result.entries.length,
-          fileBytes: 0,
-          lastmodSamples,
-        });
+        const validation = validateFetchedSitemaps(result);
         return {
           url: input.url,
           sitemapsTried: result.sitemapsTried,
@@ -5305,7 +5296,7 @@ function registerIpc(): void {
           urlCount: result.entries.length,
           truncated: result.truncated,
           findings: validation.findings,
-          lastmodSamples,
+          lastmodSamples: validation.lastmodSamples,
         };
       } finally {
         clearTimeout(timeout);
@@ -8602,16 +8593,7 @@ function registerIpc(): void {
           maxUrls: 100_000,
           maxDepth: 3,
         });
-        const lastmodSamples = result.entries
-          .slice(0, 50)
-          .map((e) => e.lastmod ?? '')
-          .filter(Boolean)
-          .slice(0, 10);
-        const validation = validateSitemap({
-          urlCount: result.entries.length,
-          fileBytes: 0,
-          lastmodSamples,
-        });
+        const validation = validateFetchedSitemaps(result);
         return {
           url: i.url,
           sitemapsTried: result.sitemapsTried,
@@ -8620,7 +8602,7 @@ function registerIpc(): void {
           urlCount: result.entries.length,
           truncated: result.truncated,
           findings: validation.findings,
-          lastmodSamples,
+          lastmodSamples: validation.lastmodSamples,
         };
       } finally {
         clearTimeout(timeout);

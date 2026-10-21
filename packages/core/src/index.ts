@@ -78,7 +78,6 @@ export {
 } from './top-words.js';
 export {
   exportSitemap,
-  validateSitemap,
   type SitemapOptions,
   type SitemapVariant,
   type SitemapExportResult,
@@ -124,6 +123,7 @@ export {
 export {
   discoverSitemapUrls,
   fetchSitemaps,
+  validateFetchedSitemaps,
   type SitemapEntry,
   type SitemapDiscoveryResult,
 } from './sitemap.js';

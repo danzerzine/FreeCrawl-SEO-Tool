@@ -1884,6 +1884,12 @@ export interface OverviewCounts {
      * exports stay per page.
      */
     siteWide?: { pagesBase: number; checks: { category: UrlCategory; pages: number }[] };
+    /**
+     * Sitemap files over the sitemaps.org limits: more than 50,000 URLs, or
+     * more than 50 MB uncompressed (a file too large to read counts here).
+     * Null when the crawl read no sitemap files, so "not checked", not zero.
+     */
+    sitemapFindings?: { overUrls: SitemapFileRow[]; overSize: SitemapFileRow[] } | null;
   };
   summary: {
     totalInternalUrls: number;
@@ -2669,6 +2675,28 @@ export interface SitemapUrlExportRow {
   url: string;
   lastmod: string | null;
   sourceSitemap: string;
+}
+
+/**
+ * One sitemap file a crawl read or listed. `reason` says why it was not read
+ * normally: `too-deep` nested past the depth limit, so listed and not fetched;
+ * `too-large` inflates past the reader's cap, so not read; `counted-only` read
+ * after the URL cap for its counts, its URLs not kept.
+ */
+export interface SitemapFileRow {
+  url: string;
+  /** HTTP status; null when not fetched or the request failed. */
+  status: number | null;
+  /** Bytes as served (compressed for a gzip file). */
+  bytes: number | null;
+  /** Bytes after inflating a gzip file; null for a plain one. */
+  inflatedBytes: number | null;
+  urlCount: number | null;
+  childCount: number | null;
+  /** Protocol breaches found while reading (over 50,000 URLs, over 50 MB, content type). */
+  warnings: string[];
+  error: string | null;
+  reason: 'too-deep' | 'too-large' | 'counted-only' | null;
 }
 
 /** One row of the `crawl-queue` export: a URL discovered but not fetched. */

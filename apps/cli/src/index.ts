@@ -51,7 +51,7 @@ import {
   exportUrlsToJson,
   testUrlAgainstRobots,
   fetchSitemaps,
-  validateSitemap,
+  validateFetchedSitemaps,
   analyzeLogFile,
   normalizeUrl,
   compileUrlRegexRewrites,
@@ -196,8 +196,9 @@ export options:
                                     one category CSV, e.g. tab:redirects, issues:title-missing
                         dataset:<key>
                                     one table as a file named after the key: issues-long, sitemap-urls,
-                                    crawl-queue, broken-links, broken-links-by-target, response-headers,
-                                    images, pagespeed, crux, spelling, ai:<provider>, seo:<provider>
+                                    sitemap-files, crawl-queue, broken-links, broken-links-by-target,
+                                    response-headers, images, pagespeed, crux, spelling, ai:<provider>,
+                                    seo:<provider>
                                     (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies
                                     exceed the CSV cell limit). issue-inlinks writes every issue into
                                     the issue-inlinks/ subfolder (not in bulk: every link into every
@@ -607,6 +608,7 @@ async function main(): Promise<void> {
   const soft404Probe = overview.site?.soft404Probe ?? null;
   const botBlocked = overview.site?.botBlocked ?? null;
   const siteWide = overview.site?.siteWide ?? null;
+  const sitemapFindings = overview.site?.sitemapFindings ?? null;
   // A crawl that fetched nothing (unreachable seed, everything filtered) is a
   // failure for CI purposes — a successful spider always fetches ≥1 page.
   const hasErrors =
@@ -628,6 +630,7 @@ async function main(): Promise<void> {
           summary,
           issues,
           site: { soft404Probe, botBlocked, siteWide },
+          sitemapFindings,
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
           ...(exported ? { exports: { ok: exported.errors.length === 0, ...exported } } : {}),
@@ -676,6 +679,12 @@ async function main(): Promise<void> {
         `Warning: missing pages return ${soft404Probe.status} (soft 404) — ${soft404Probe.url}` +
           (soft404Probe.finalUrl ? ` -> ${soft404Probe.finalUrl}` : ''),
       );
+    }
+    for (const f of sitemapFindings?.overUrls ?? []) {
+      console.log(`Warning: sitemap over 50,000 URLs — ${f.url}`);
+    }
+    for (const f of sitemapFindings?.overSize ?? []) {
+      console.log(`Warning: sitemap over 50 MB — ${f.url}`);
     }
   }
 
@@ -767,16 +776,7 @@ async function runValidateSitemap(rawUrl: string, userAgent: string): Promise<nu
       for (const e of result.errors) console.error(`  ${e.sitemap}: ${e.error}`);
       return 2;
     }
-    const lastmodSamples = result.entries
-      .slice(0, 50)
-      .map((e) => e.lastmod ?? '')
-      .filter(Boolean)
-      .slice(0, 10);
-    const validation = validateSitemap({
-      urlCount: result.entries.length,
-      fileBytes: 0, // Unknown without a head request; size cap is best-effort here.
-      lastmodSamples,
-    });
+    const validation = validateFetchedSitemaps(result);
     console.log(`Sitemap: ${rawUrl}`);
     console.log(`  Sitemaps tried: ${result.sitemapsTried.length}`);
     console.log(`  Sitemaps parsed: ${result.sitemapsParsed.length}`);

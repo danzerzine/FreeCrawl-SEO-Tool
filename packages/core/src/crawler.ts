@@ -10,6 +10,7 @@ import type {
   CrawlSummary,
   DiscoveredLink,
   Indexability,
+  SitemapFileRow,
 } from '@freecrawl/shared-types';
 import {
   EXTERNAL_NO_ANSWER_CONFIRMED,
@@ -2858,6 +2859,7 @@ export class Crawler extends EventEmitter {
       Math.max(30_000, this.config.requestTimeoutMs * 2),
     );
     let entries: SitemapEntry[] = [];
+    let files: SitemapFileRow[] = [];
     try {
       const sitemapMaxUrls = Math.max(50_000, this.config.maxUrls);
       const result = await fetchSitemaps([sitemapUrl], {
@@ -2869,6 +2871,7 @@ export class Crawler extends EventEmitter {
         rewrites: this.urlRewrites,
       });
       entries = result.entries;
+      files = result.files;
       this.emit(
         'info',
         `Sitemap mode: parsed ${result.sitemapsParsed.length}/${result.sitemapsTried.length} sitemap(s), ${entries.length} URL(s)${result.truncated ? ` (truncated at ${sitemapMaxUrls.toLocaleString()})` : ''}`,
@@ -2904,6 +2907,7 @@ export class Crawler extends EventEmitter {
       if (entries.length > 0) {
         await this.dbCall<void>('setSitemapUrls', [entries]);
       }
+      await this.dbCall<void>('setSitemapFiles', [files]);
     });
   }
 
@@ -3082,6 +3086,7 @@ export class Crawler extends EventEmitter {
 
         // (1) Auto-discovered sitemaps — recorded only.
         let autoEntries: SitemapEntry[] = [];
+        let autoFiles: SitemapFileRow[] = [];
         if (this.config.discoverSitemaps) {
           const roots = await discoverSitemapUrls(
             origin,
@@ -3095,6 +3100,7 @@ export class Crawler extends EventEmitter {
           const res = await fetchSitemaps(roots, fetchOpts);
           if (this.stopped) return;
           autoEntries = res.entries;
+          autoFiles = res.files;
           if (res.entries.length > 0) {
             this.emit(
               'info',
@@ -3115,10 +3121,12 @@ export class Crawler extends EventEmitter {
 
         // (2) User-supplied seed sitemaps — recorded AND enqueued.
         let seedEntries: SitemapEntry[] = [];
+        let seedFiles: SitemapFileRow[] = [];
         if (this.config.seedSitemapUrls.length > 0) {
           const res = await fetchSitemaps(this.config.seedSitemapUrls, fetchOpts);
           if (this.stopped) return;
           seedEntries = res.entries;
+          seedFiles = res.files;
           let seeded = 0;
           for (const e of res.entries) {
             const norm = normalizeUrl(e.url, undefined, this.urlRewrites);
@@ -3139,6 +3147,8 @@ export class Crawler extends EventEmitter {
         if (merged.length > 0) {
           await this.dbCall<void>('setSitemapUrls', [merged]);
         }
+        const files = [...seedFiles, ...autoFiles];
+        if (files.length > 0) await this.dbCall<void>('setSitemapFiles', [files]);
       } finally {
         clearTimeout(t);
         this.sitemapAbort = null;
