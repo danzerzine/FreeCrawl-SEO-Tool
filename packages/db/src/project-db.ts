@@ -7472,17 +7472,7 @@ export class ProjectDb {
          AND amp_validation_errors != '[]'`,
       ),
       canonicalConflictNearDuplicate: countWhere(
-        `${html} AND cluster_id > 0 AND cluster_size > 1
-         AND canonical IS NOT NULL AND canonical != ''
-         AND EXISTS (
-           SELECT 1 FROM urls u2
-           WHERE u2.cluster_id = urls.cluster_id
-             AND u2.is_external = 0 AND u2.content_kind = 'html'
-             AND u2.canonical IS NOT NULL AND u2.canonical != ''
-             AND COALESCE(NULLIF(u2.canonical_resolved, ''), u2.canonical)
-                 != ${CANONICAL_CMP_Q}
-             AND u2.url != urls.url
-         )`,
+        categoryWhereClause('issues:canonical-conflict-near-duplicate', new Set()) ?? '1 = 0',
       ),
       highBoilerplate: countWhere(
         `${html} AND boilerplate_coverage IS NOT NULL AND boilerplate_coverage > 50`,
@@ -12350,12 +12340,16 @@ export function categoryWhereClause(
       // page); this is cross-page within a near-duplicate cluster.
       // Excludes singletons (cluster_id = 0) and pages without a
       // declared canonical (those are caught by `issues:canonical-missing`).
+      // `u2.cluster_id > 0` repeats the partial index's own condition so the
+      // lookup uses idx_urls_cluster_id; without it every internal URL was
+      // scanned per page (312 s on 479k URLs, B97).
       return `is_external = 0 AND content_kind = 'html'
               AND cluster_id > 0 AND cluster_size > 1
               AND canonical IS NOT NULL AND canonical != ''
               AND EXISTS (
                 SELECT 1 FROM urls u2
                 WHERE u2.cluster_id = urls.cluster_id
+                  AND u2.cluster_id > 0
                   AND u2.is_external = 0 AND u2.content_kind = 'html'
                   AND u2.canonical IS NOT NULL AND u2.canonical != ''
                   AND COALESCE(NULLIF(u2.canonical_resolved, ''), u2.canonical)
