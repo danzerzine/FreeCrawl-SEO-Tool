@@ -685,5 +685,5 @@ export const TR_INFO_TIPS: Record<string, string> = {
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = önerilen (Screaming Frog varsayılanı); 80 daha gevşek yeniden yazımları yakalar; 0 bu adımı kapatır.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
-    "Kopya denetimi için ana metnin alındığı yer: selector (içerik alanı seçiciniz), selector-missed (seçici hiçbir şey bulamadı, sayfa yakın kopyaların dışında kalır), main, article, body-without-chrome veya body.",
+    "Yinelenen denetimi için ana metnin alındığı yer: selector (içerik alanı seçiciniz), selector-missed (seçici hiçbir şey bulamadı, sayfa yakın yinelenenlerin dışında kalır), main, article, body-without-chrome veya body.",
 };

@@ -775,19 +775,19 @@ function extractMainContentText(
       // Bad selector — fall through to heuristic.
     }
   }
-  const from = (source: ContentSource): ContentSource =>
+  const fallback = (source: ContentSource): ContentSource =>
     selector.length > 0 ? 'selector-missed' : source;
 
   const main = $('main, [role="main"]').first();
   if (main.length > 0) {
     const t = prose(main);
-    if (t.length > 0) return { text: t, source: from('main') };
+    if (t.length > 0) return { text: t, source: fallback('main') };
   }
 
   const article = $('article').first();
   if (article.length > 0) {
     const t = prose(article);
-    if (t.length > 0) return { text: t, source: from('article') };
+    if (t.length > 0) return { text: t, source: fallback('article') };
   }
 
   // Clone so `.remove()` doesn't mutate the live tree the rest of the
@@ -799,9 +799,9 @@ function extractMainContentText(
     )
     .remove();
   const stripped = collapse(body.text());
-  if (stripped.length > 0) return { text: stripped, source: from('body-without-chrome') };
+  if (stripped.length > 0) return { text: stripped, source: fallback('body-without-chrome') };
 
-  return { text: collapse($('body').text()), source: from('body') };
+  return { text: collapse($('body').text()), source: fallback('body') };
 }
 
 export function parseHtml(

@@ -122,6 +122,8 @@ export const COUNT_NOFOLLOW_META_KEY = 'countNofollowLinks';
  * were over the cap: JSON `{ buckets, pages }`. Absent when nothing was left out.
  */
 export const NEAR_DUPLICATE_INCOMPLETE_META_KEY = 'nearDuplicateIncomplete';
+/** The configured content-area selector matched nothing on the page (B8). */
+const CONTENT_AREA_MISSED_SQL = "content_source = 'selector-missed'";
 /** Near-duplicate clusters above this many pages are named in the crawl log. */
 const LARGE_DUPLICATE_CLUSTER = 50;
 /** project_meta: '0' when the crawl sends no request to external hosts. */
@@ -3718,11 +3720,11 @@ export class ProjectDb {
     this.db.exec('UPDATE urls SET cluster_id = 0, cluster_size = 1 WHERE cluster_id != 0');
     this.db.exec('UPDATE urls SET near_dup_similarity = NULL WHERE near_dup_similarity IS NOT NULL');
     this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(NEAR_DUPLICATE_INCOMPLETE_META_KEY);
-    const none = { clusters: 0, clusteredUrls: 0, incomplete: null, largeClusters: [] };
+    const noClusters = { clusters: 0, clusteredUrls: 0, incomplete: null, largeClusters: [] };
 
     const useSimhash = thresholdBits >= 0 && thresholdBits <= 64;
     const useMinhash = minSimilarityPct > 0 && minSimilarityPct <= 100;
-    if (!useSimhash && !useMinhash) return none;
+    if (!useSimhash && !useMinhash) return noClusters;
 
     const indexClause = onlyIndexable ? "AND indexability = 'indexable'" : '';
     const rows = this.db
@@ -3734,7 +3736,7 @@ export class ProjectDb {
       )
       .all() as { id: number; url: string; simhash: string | null; minhash: Uint8Array | null }[];
 
-    if (rows.length < 2) return none;
+    if (rows.length < 2) return noClusters;
 
     const N = rows.length;
     const hashes: (bigint | null)[] = new Array<bigint | null>(N);
@@ -3760,7 +3762,7 @@ export class ProjectDb {
     const byMinhash = (a: number, b: number): boolean => useMinhash && !!sigs[a] && !!sigs[b];
     // The pair's one test. Returns the MinHash similarity (0–1) when both
     // pages have a signature, 1 for a SimHash pass without one, -1 on a miss.
-    const test = (a: number, b: number): number => {
+    const pairScore = (a: number, b: number): number => {
       if (byMinhash(a, b)) {
         const s = minhashSimilarity(sigs[a]!, sigs[b]!);
         return s >= threshold ? s : -1;
@@ -3790,14 +3792,17 @@ export class ProjectDb {
         for (let i = 0; i < N; i++) {
           const k = keyOf(i, band);
           if (k === null) continue;
-          keys[i * bands + band] = k;
           let bucket = map.get(k);
           if (!bucket) {
             bucket = [];
             map.set(k, bucket);
           }
-          if (bucket.length < bucketLimit) bucket.push(i);
-          else {
+          if (bucket.length < bucketLimit) {
+            bucket.push(i);
+            keys[i * bands + band] = k;
+          } else {
+            // Left out: no key in this band, so the page is never taken as
+            // sharing it and is not looked up in it.
             overCapBuckets.add(bucket);
             overCapPages[i] = 1;
           }
@@ -3846,7 +3851,7 @@ export class ProjectDb {
               const b = bucket[y]!;
               if (f.simhash && byMinhash(a, b)) continue;
               if (!firstShared(f, a, b, band)) continue;
-              const s = test(a, b);
+              const s = pairScore(a, b);
               if (s < 0) continue;
               matches[a]!++;
               matches[b]!++;
@@ -3878,12 +3883,12 @@ export class ProjectDb {
           const key = f.keys[r * f.bands + band]!;
           if (Number.isNaN(key)) continue;
           const bucket = f.buckets[band]!.get(key);
-          if (!bucket || !bucket.includes(r)) continue;
+          if (!bucket) continue;
           for (const m of bucket) {
             if (seenBy[m] === r || clusterOf[m] !== 0) continue;
             if (f.simhash && byMinhash(r, m)) continue;
             seenBy[m] = r;
-            if (test(r, m) < 0) continue;
+            if (pairScore(r, m) < 0) continue;
             clusterOf[m] = cid;
             size++;
           }
@@ -7530,7 +7535,7 @@ export class ProjectDb {
       highBoilerplate: countWhere(
         `${html} AND boilerplate_coverage IS NOT NULL AND boilerplate_coverage > 50`,
       ),
-      contentAreaNotFound: countWhere(`${html} AND content_source = 'selector-missed'`),
+      contentAreaNotFound: countWhere(`${html} AND ${CONTENT_AREA_MISSED_SQL}`),
       brokenLinksInternal: this.countBrokenLinks('internal', 'targets'),
       brokenLinksExternal: this.countBrokenLinks('external', 'targets'),
       brokenLinksInternalLinks: this.countBrokenLinks('internal', 'links'),
@@ -12379,7 +12384,7 @@ export function categoryWhereClause(
       // The content-area selector is set but matched nothing with text on
       // the page: its main text fell back to the template, so it has no
       // near-duplicate fingerprint. Usually an older page layout.
-      return "is_external = 0 AND content_kind = 'html' AND content_source = 'selector-missed'";
+      return `is_external = 0 AND content_kind = 'html' AND ${CONTENT_AREA_MISSED_SQL}`;
     case 'issues:high-boilerplate':
       // V2 Faz 14 #5 — Page's unique 5-word shingles are >50%
       // boilerplate (shingles that repeat across >30% of the sampled

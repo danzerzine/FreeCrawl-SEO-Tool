@@ -686,5 +686,5 @@ export const ES_INFO_TIPS: Record<string, string> = {
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = recomendado (valor predeterminado de Screaming Frog); 80 detecta reescrituras más libres; 0 desactiva este paso.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
-    "De dónde salió el texto principal usado para los duplicados: selector (su selector de área de contenido), selector-missed (el selector no encontró nada y la página queda fuera de los casi duplicados), main, article, body-without-chrome o body.",
+    "De dónde salió el texto principal usado para los duplicados: selector (tu selector de área de contenido), selector-missed (el selector no encontró nada y la página queda fuera de los casi duplicados), main, article, body-without-chrome o body.",
 };

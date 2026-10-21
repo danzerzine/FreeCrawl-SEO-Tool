@@ -683,5 +683,5 @@ export const AZ_INFO_TIPS: Record<string, string> = {
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = tövsiyə olunan (Screaming Frog standartı); 80 daha sərbəst yenidən yazılmaları tutur; 0 bu mərhələni söndürür.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
-    "Dublikat yoxlaması üçün əsas mətnin götürüldüyü yer: selector (kontent sahəsi seçiciniz), selector-missed (seçici heç nə tapmadı, səhifə oxşar dublikatlardan kənarda qalır), main, article, body-without-chrome və ya body.",
+    "Dublikat yoxlaması üçün əsas mətnin götürüldüyü yer: selector (kontent sahəsi seçiciniz), selector-missed (seçici heç nə tapmadı, səhifə yaxın dublikatlardan kənarda qalır), main, article, body-without-chrome və ya body.",
 };
