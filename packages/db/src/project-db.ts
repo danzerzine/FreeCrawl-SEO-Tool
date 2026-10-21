@@ -3780,6 +3780,12 @@ export class ProjectDb {
    *  - Converges on L1 delta < 1e-6 or `iterations` cap, whichever first.
    *  - When the crawl has zero internal edges there is no equity to
    *    distribute, so every page is written 0 (not a misleading uniform 100).
+   *  - A redirect (3xx with a crawled internal target) and a page
+   *    canonicalised to another crawled page are not destinations: each
+   *    passes its whole score to that target through one edge (its own
+   *    links pass nothing), and stores NULL. Conflicting canonicals pass
+   *    nothing. Links marked ugc or sponsored pass nothing, like nofollow,
+   *    unless nofollow links are counted.
    */
   recomputeLinkScore(
     opts: { damping?: number; iterations?: number } = {},
@@ -3787,9 +3793,20 @@ export class ProjectDb {
     const damping = opts.damping ?? 0.85;
     const maxIterations = opts.iterations ?? 50;
 
+    // `pass_to`: where a redirect or a canonicalised page sends its score;
+    // NULL for an ordinary page, so most rows carry no second string.
     const nodeRows = this.db
-      .prepare('SELECT id, url FROM urls WHERE is_external = 0')
-      .all() as { id: number; url: string }[];
+      .prepare(
+        `SELECT id, url,
+                CASE
+                  WHEN status_code >= 300 AND status_code < 400 THEN redirect_target
+                  WHEN status_code >= 200 AND status_code < 300
+                       AND canonical_distinct_count <= 1
+                       AND NULLIF(canonical_resolved, '') != url THEN canonical_resolved
+                END AS pass_to
+           FROM urls WHERE is_external = 0`,
+      )
+      .all() as { id: number; url: string; pass_to: string | null }[];
     const n = nodeRows.length;
     if (n === 0) return { pages: 0, iterations: 0 };
 
@@ -3811,6 +3828,18 @@ export class ProjectDb {
     // in `urls`) and self-loops are dropped.
     const outTargets: number[][] = Array.from({ length: n }, () => []);
     let edgeCount = 0;
+    // -1: an ordinary page; else the node a redirect/canonicalised page passes to.
+    const passTo = new Int32Array(n).fill(-1);
+    for (let i = 0; i < n; i++) {
+      const to = nodeRows[i]!.pass_to;
+      const ti = to === null ? undefined : indexByUrl.get(to);
+      if (ti !== undefined && ti !== i) {
+        passTo[i] = ti;
+        outTargets[i]!.push(ti);
+        edgeCount++;
+      }
+    }
+    const countAllRel = this.getMeta(COUNT_NOFOLLOW_META_KEY) === '1';
     // Streamed, not `.all()`. This runs automatically at the end of every
     // crawl (`analyseLinkScore` defaults on), and materialising the whole
     // edge set first meant one `{source, to_url}` object per unique internal
@@ -3823,12 +3852,16 @@ export class ProjectDb {
     const edgeRows = this.db
       .prepare(
         `SELECT DISTINCT from_url_id AS source, to_url FROM links
-          WHERE is_internal = 1 AND ${this.countedLinkSql()}`,
+          WHERE is_internal = 1 AND ${
+            countAllRel
+              ? '1 = 1'
+              : `${FOLLOWED_LINK_SQL} AND (rel IS NULL OR (rel NOT LIKE '%ugc%' AND rel NOT LIKE '%sponsored%'))`
+          }`,
       )
       .iterate() as Iterable<{ source: number; to_url: string }>;
     for (const e of edgeRows) {
       const si = indexById.get(e.source);
-      if (si === undefined) continue;
+      if (si === undefined || passTo[si]! !== -1) continue;
       const ti = indexByUrl.get(e.to_url);
       if (ti === undefined || ti === si) continue;
       outTargets[si]!.push(ti);
@@ -3842,7 +3875,7 @@ export class ProjectDb {
     if (edgeCount === 0) {
       this.db.exec('BEGIN');
       try {
-        for (let i = 0; i < n; i++) upd.run(0, idByIndex[i]!);
+        for (let i = 0; i < n; i++) upd.run(passTo[i]! === -1 ? 0 : null, idByIndex[i]!);
         this.db.exec('COMMIT');
       } catch (err) {
         this.db.exec('ROLLBACK');
@@ -3883,13 +3916,13 @@ export class ProjectDb {
     }
 
     let maxPr = 0;
-    for (let i = 0; i < n; i++) if (pr[i]! > maxPr) maxPr = pr[i]!;
+    for (let i = 0; i < n; i++) if (passTo[i]! === -1 && pr[i]! > maxPr) maxPr = pr[i]!;
     const scale = maxPr > 0 ? 100 / maxPr : 0;
 
     this.db.exec('BEGIN');
     try {
       for (let i = 0; i < n; i++) {
-        upd.run(Math.round(pr[i]! * scale), idByIndex[i]!);
+        upd.run(passTo[i]! === -1 ? Math.round(pr[i]! * scale) : null, idByIndex[i]!);
       }
       this.db.exec('COMMIT');
     } catch (err) {
