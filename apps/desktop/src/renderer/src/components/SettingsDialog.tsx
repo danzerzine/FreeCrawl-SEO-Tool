@@ -3881,7 +3881,7 @@ function DuplicatesPanel({ form, update }: PanelProps) {
           })}
           value={form.contentAreaSelector}
           onChange={(v) => update('contentAreaSelector', v)}
-          info="CSS selector that pins the duplicate-fingerprint text extraction to a specific page region. When set, the heuristic (main / role=main / article / body-minus-chrome) is bypassed and the selector wins. Useful on sites where the heuristic misclassifies — e.g. CMSes that wrap navigation inside `<main>` or sites with no semantic landmarks at all. Empty = use the heuristic. Invalid selectors silently fall back to the heuristic so a typo doesn't break the crawl."
+          info="CSS selector that pins the duplicate-fingerprint text extraction to a specific page region. When set, the heuristic (main / role=main / article / body-minus-chrome) is bypassed and the selector wins. Useful on sites where the heuristic misclassifies — e.g. CMSes that wrap navigation inside `<main>` or sites with no semantic landmarks at all. Empty = use the heuristic. Different layouts on one site: list several selectors separated by commas; the first match on the page is used. A page where none matches (or the selector is invalid) falls back to the heuristic and is listed under Content Area Not Found, so a typo shows up instead of breaking the crawl."
           example="article.main-content, #post-body, .article-body, div[itemprop='articleBody']"
         />
         <p className="mt-1 text-[10px] text-surface-500">
