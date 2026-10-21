@@ -277,7 +277,7 @@ async function warmOsCache(path: string): Promise<void> {
  * Rebuilds the stale checks of a bare project in the file itself, through
  * SQLite in one transaction, so a crawl still writing it or a log left by a
  * crashed one is handled by SQLite's own locking and recovery. False when
- * the file cannot be written (read-only folder or file, locked).
+ * the file cannot be written (a read-only file, a lock held too long).
  */
 function rebuildInPlace(path: string): boolean {
   let db: ProjectDb | null = null;
