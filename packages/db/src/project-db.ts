@@ -7782,7 +7782,7 @@ export class ProjectDb {
       metaTooLong: gatedCount('issues:meta-too-long'),
       metaTooShort: gatedCount('issues:meta-too-short'),
       metaDuplicate: dup('meta_description'),
-      h1Missing: countWhere(`${indexable} AND (h1 IS NULL OR h1 = '')`),
+      h1Missing: countWhere(`${indexable} AND h1_count = 0 AND (h1 IS NULL OR h1 = '')`),
       h1Duplicate: dup('h1'),
       h2Missing: gatedCount('issues:h2-missing'),
       h2Duplicate: dup('h2_first'),
@@ -12695,9 +12695,10 @@ function baseCategoryWhereClause(
                 GROUP BY meta_description HAVING COUNT(*) > 1
               )`;
     case 'issues:h1-missing':
+      // No <h1> element at all; an empty <h1> is issues:h1-empty, never both.
       return `is_external = 0 AND content_kind = 'html'
               AND status_code >= 200 AND status_code < 300
-              AND (h1 IS NULL OR h1 = '')`;
+              AND h1_count = 0 AND (h1 IS NULL OR h1 = '')`;
     case 'issues:h1-duplicate':
       return `is_external = 0 AND content_kind = 'html' AND h1 IS NOT NULL AND h1 != ''
               AND h1 IN (
@@ -13244,9 +13245,9 @@ function baseCategoryWhereClause(
               AND status_code >= 300 AND status_code < 400
               AND EXISTS (SELECT 1 FROM sitemap_urls s WHERE s.url = urls.url)`;
     case 'issues:h1-empty':
-      // Document has at least one <h1> tag but its text content is empty —
-      // distinct from h1-missing (no <h1> at all). Common with image-only
-      // headers + missing alt.
+      // Document has at least one <h1> tag but its text content is empty;
+      // h1-missing excludes these pages, so each is counted once. Common
+      // with image-only headers + missing alt.
       return `is_external = 0 AND content_kind = 'html'
               AND h1_count > 0 AND (h1 IS NULL OR h1 = '')`;
     case 'issues:h1-too-long':
