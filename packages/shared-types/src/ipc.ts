@@ -1026,6 +1026,12 @@ export interface CompareLoadInput {
   filePath?: string;
 }
 
+/** URLs matched across http/https and `www.` changes: how many, and up to 20 pairs. */
+export interface CompareMapped {
+  count: number;
+  examples: { before: string; after: string }[];
+}
+
 export interface CompareLoadResult {
   /** Empty when the user cancelled the file dialog. */
   filePath: string;
@@ -1037,6 +1043,7 @@ export interface CompareLoadResult {
   issueChanges: Record<string, CompareIssueChange>;
   /** Kinds (or checks) the pair cannot be compared on: the reason and how many pages it touches. */
   notComparable: Record<string, CompareNotComparable>;
+  mapped: CompareMapped;
 }
 
 export interface GraphNode {

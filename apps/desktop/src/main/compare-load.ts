@@ -20,6 +20,7 @@ export function cancelledCompareResult(): CompareLoadResult {
     samples: [],
     issueChanges: {},
     notComparable: {},
+    mapped: { count: 0, examples: [] },
   };
 }
 
@@ -44,6 +45,7 @@ export async function compareWithOpenProject(
       samples: s.samples,
       issueChanges: s.issueChanges,
       notComparable: s.notComparable,
+      mapped: s.mapped ?? { count: 0, examples: [] },
     };
   } finally {
     picked.dispose();

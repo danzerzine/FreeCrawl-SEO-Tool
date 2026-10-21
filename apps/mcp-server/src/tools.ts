@@ -1556,7 +1556,7 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'compare_load',
       description:
-        `Compare the active project (the newer crawl, "after") with another \`.seoproject\` file (the older one, "before") — same as File → Compare With Project. Returns counts across ${COMPARE_CATEGORIES.length} categories (${COMPARE_CATEGORIES.join(' / ')}) plus sample rows (up to 5K per category), issueChanges (per check: pages that appeared / resolved) and notComparable (kinds the pair cannot be compared on).`,
+        `Compare the active project (the newer crawl, "after") with another \`.seoproject\` file (the older one, "before") — same as File → Compare With Project. Returns counts across ${COMPARE_CATEGORIES.length} categories (${COMPARE_CATEGORIES.join(' / ')}) plus sample rows (up to 5K per category), issueChanges (per check: pages that appeared / resolved) notComparable (kinds the pair cannot be compared on) and mapped (URLs paired across http/https and www changes: count and up to 20 before/after examples).`,
       inputSchema: {
         type: 'object',
         properties: {

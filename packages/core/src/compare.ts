@@ -30,6 +30,7 @@ import type {
   CompareCategory,
   CompareDiffRow,
   CompareIssueChange,
+  CompareMapped,
   CompareNotComparable,
   UrlCategory,
 } from '@freecrawl/shared-types';
@@ -78,6 +79,53 @@ export interface CompareSummary {
   issueChanges: Record<string, CompareIssueChange>;
   /** Kinds the pair cannot be compared on, with the reason. */
   notComparable: Record<string, CompareNotComparable>;
+  /** URLs of A matched to a URL of B that differs only by scheme, `www.`, host case or a default port. */
+  mapped: CompareMapped;
+}
+
+/** How many pairs `mapped.examples` lists. */
+const MAPPED_EXAMPLES = 20;
+
+/**
+ * The URL without what a migration changes: scheme, a leading `www.`, host
+ * case and a default port (`:80`, `:443`). A string that is no http(s) URL is
+ * its own key.
+ */
+export function urlMapKey(url: string): string {
+  const m = /^https?:\/\/([^/?#]*)([\s\S]*)$/i.exec(url);
+  if (!m) return url;
+  const host = m[1]!
+    .toLowerCase()
+    .replace(/:(80|443)$/, '')
+    .replace(/^www\./, '');
+  return `${host}${m[2] || '/'}`;
+}
+
+/**
+ * Pairs the URLs only one side has: those that share a key, when exactly one
+ * URL of each side has it. Returns A's URL -> B's URL.
+ */
+function pairUnmatched(
+  mapA: ReadonlyMap<string, unknown>,
+  mapB: ReadonlyMap<string, unknown>,
+): Map<string, string> {
+  const keyed = (own: ReadonlyMap<string, unknown>, other: ReadonlyMap<string, unknown>) => {
+    const byKey = new Map<string, string | null>();
+    for (const url of own.keys()) {
+      if (other.has(url)) continue;
+      const k = urlMapKey(url);
+      byKey.set(k, byKey.has(k) ? null : url);
+    }
+    return byKey;
+  };
+  const inA = keyed(mapA, mapB);
+  const inB = keyed(mapB, mapA);
+  const pairs = new Map<string, string>();
+  for (const [k, ua] of inA) {
+    const ub = inB.get(k);
+    if (ua && ub) pairs.set(ua, ub);
+  }
+  return pairs;
 }
 
 /**
@@ -426,9 +474,19 @@ export function compareCrawls(
     }
   };
 
+  // URLs only one side has are paired across scheme / www changes first, so a
+  // migration is not all removed plus all added.
+  const pairs = pairUnmatched(mapA, mapB);
+  const paired = new Set(pairs.values());
+  const mapped: CompareMapped = { count: pairs.size, examples: [] };
+  for (const [before, after] of pairs) {
+    if (mapped.examples.length >= MAPPED_EXAMPLES) break;
+    mapped.examples.push({ before, after });
+  }
+
   // Added: in B but not in A.
   for (const [url, r] of mapB) {
-    if (!mapA.has(url)) {
+    if (!mapA.has(url) && !paired.has(url)) {
       push({
         url,
         category: 'added',
@@ -441,7 +499,7 @@ export function compareCrawls(
   // Removed: in A but not in B. Scan the other direction so we don't
   // double-pass the larger of the two maps.
   for (const [url, r] of mapA) {
-    if (!mapB.has(url)) {
+    if (!mapB.has(url) && !pairs.has(url)) {
       push({
         url,
         category: 'removed',
@@ -488,9 +546,11 @@ export function compareCrawls(
   const usable = keys.map((_, i) => !flagsA.failed.has(i) && !flagsB.failed.has(i));
 
   // Field-level changes — present in both, value differs.
-  for (const [url, ra] of mapA) {
-    const rb = mapB.get(url);
+  for (const [urlA, ra] of mapA) {
+    const urlB = pairs.get(urlA) ?? urlA;
+    const rb = mapB.get(urlB);
     if (!rb) continue;
+    const url = urlB;
 
     if (ra.status_code !== rb.status_code) {
       push({
@@ -524,7 +584,7 @@ export function compareCrawls(
         after: rb.h1,
       });
     }
-    if ((ra.canonical ?? '') !== (rb.canonical ?? '')) {
+    if (urlMapKey(ra.canonical ?? '') !== urlMapKey(rb.canonical ?? '')) {
       push({
         url,
         category: 'canonical',
@@ -574,16 +634,21 @@ export function compareCrawls(
     const ja = outlinksA?.(ra.id) ?? '';
     const jb = outlinksB?.(rb.id) ?? '';
     if (ja !== jb) {
-      const ta = new Set(ja ? ja.split('\n') : []);
-      const tb = new Set(jb ? jb.split('\n') : []);
-      const dropped = [...ta].filter((t) => !tb.has(t)).sort();
-      const added = [...tb].filter((t) => !ta.has(t)).sort();
-      push({
-        url,
-        category: 'outlinks',
-        before: dropped.length > 0 ? dropped.join(' ') : null,
-        after: added.length > 0 ? added.join(' ') : null,
-      });
+      const ta = ja ? ja.split('\n') : [];
+      const tb = jb ? jb.split('\n') : [];
+      const keysA = new Set(ta.map(urlMapKey));
+      const keysB = new Set(tb.map(urlMapKey));
+      const dropped = ta.filter((t) => !keysB.has(urlMapKey(t))).sort();
+      const added = tb.filter((t) => !keysA.has(urlMapKey(t))).sort();
+      // Targets that differ only by scheme / www are no change.
+      if (dropped.length > 0 || added.length > 0) {
+        push({
+          url,
+          category: 'outlinks',
+          before: dropped.length > 0 ? dropped.join(' ') : null,
+          after: added.length > 0 ? added.join(' ') : null,
+        });
+      }
     }
     const resolved: number[] = [];
     const appeared: number[] = [];
@@ -670,6 +735,7 @@ export function compareCrawls(
     samples,
     issueChanges,
     notComparable,
+    mapped,
   };
 }
 

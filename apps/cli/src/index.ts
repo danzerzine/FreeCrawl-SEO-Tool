@@ -656,6 +656,7 @@ async function main(): Promise<void> {
                       counts: compared.counts,
                       issueChanges: compared.issueChanges,
                       notComparable: compared.notComparable,
+                      mapped: compared.mapped,
                     }
                   : { with: compareWith, error: compareError },
               }
@@ -1216,6 +1217,9 @@ async function runCompare(
       console.log(`Compare: ${beforePath} → ${afterPath}`);
       console.log(`  Total before: ${summary.totalA}`);
       console.log(`  Total after:  ${summary.totalB}`);
+      if (summary.mapped.count > 0) {
+        console.log(`  ${summary.mapped.count} URLs paired across scheme/www changes`);
+      }
       console.log(`  Diff:`);
       for (const [cat, count] of Object.entries(summary.counts)) {
         console.log(`    ${cat.padEnd(15)} ${count}`);

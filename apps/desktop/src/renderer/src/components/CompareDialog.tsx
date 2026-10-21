@@ -106,6 +106,14 @@ export function CompareDialog({ open, onClose }: Props) {
               {result.totalA.toLocaleString()} {t('compare.urlsUnit', { defaultValue: 'URLs' })} ·{' '}
               <span className="text-surface-500">{t('compare.afterOpen', { defaultValue: 'After (open project)' })}</span>{' '}
               {result.totalB.toLocaleString()} {t('compare.urlsUnit', { defaultValue: 'URLs' })} · {result.filePath}
+              {result.mapped?.count > 0 && (
+                <span className="ml-2 text-surface-500">
+                  {t('compare.mapped', {
+                    defaultValue: '{{count}} URLs paired across scheme/www changes',
+                    count: result.mapped.count,
+                  })}
+                </span>
+              )}
             </div>
           )}
           <div className="ml-auto flex items-center gap-1">
