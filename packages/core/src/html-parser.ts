@@ -1577,61 +1577,52 @@ export function parseHtml(
       ? runExtractionRules(html, $, opts.customExtractionRules)
       : null;
 
-  // Custom search — counts term occurrences in the visible body text
-  // (not raw HTML, to avoid attribute / inline-JS false positives).
+  // Custom search — counts term occurrences per page (B10 adds modes).
   //
-  // Two modes per term, switched by the entry's syntactic shape:
-  //   - `/pattern/flags`  — regex; `g` flag is forced so all matches count.
-  //                         Invalid patterns are recorded as count = -1 so
-  //                         the user can spot the typo in the detail panel
-  //                         instead of silently getting 0 hits forever.
-  //   - anything else      — literal case-insensitive substring (legacy).
+  // A term may start with a mode prefix no old term carries by accident:
+  //   - `[html] term`         — the raw HTML, attributes and scripts included;
+  //   - `[text] term`         — the visible body text (same as no prefix);
+  //   - `[element:css] term`  — the text of the elements the selector matches;
+  //   - `[!html] term` etc.   — «does not contain»: 1 when absent, 0 when present.
+  // Anything else (`[foo] bar` too) is the legacy visible-text search. The
+  // needle itself is `/pattern/flags` for a regex (`g` forced) or a literal
+  // case-insensitive substring. An invalid regex or selector stores -1 so the
+  // user can spot the typo in the detail panel. The hit key is the whole term,
+  // so it carries its mode.
   //
-  // Lowercase haystack is computed once per page in the literal path so
-  // cost stays linear in body size regardless of how many literal terms.
+  // Legacy terms are skipped on a page with no visible text, as before;
+  // «does not contain» and the other modes run on every HTML page.
   const customSearchHits: Record<string, number> = {};
-  if (opts.customSearchTerms && opts.customSearchTerms.length > 0 && text.length > 0) {
-    let haystackLower: string | null = null;
+  if (opts.customSearchTerms && opts.customSearchTerms.length > 0) {
+    let textLower: string | null = null;
+    let htmlLower: string | null = null;
     for (const raw of opts.customSearchTerms) {
       const term = raw.trim();
       if (!term) continue;
-      // Regex mode: /pattern/flags — last `/` separates pattern from flags.
-      // Require length ≥3 so `/` and `//` aren't mistaken for regexes.
-      if (term.length >= 3 && term.startsWith('/')) {
-        const lastSlash = term.lastIndexOf('/');
-        if (lastSlash > 0) {
-          const pattern = term.slice(1, lastSlash);
-          const userFlags = term.slice(lastSlash + 1);
-          // Force `g` so `.match()` returns every hit. Strip duplicate `g`
-          // from user input and validate the rest of the flag string.
-          const flagsClean = userFlags.replace(/g/g, '');
-          if (/^[imsuy]*$/.test(flagsClean)) {
-            try {
-              const re = new RegExp(pattern, flagsClean + 'g');
-              const matches = text.match(re);
-              customSearchHits[term] = matches ? matches.length : 0;
-              continue;
-            } catch {
-              // Invalid pattern — surface as -1 so the UI can flag it.
-              customSearchHits[term] = -1;
-              continue;
-            }
-          } else {
-            customSearchHits[term] = -1;
-            continue;
-          }
+      const mode = parseSearchMode(term);
+      let haystack: string;
+      let lowered: (() => string) | null = null;
+      if (!mode || mode.scope === 'text') {
+        if (!mode && text.length === 0) continue;
+        haystack = text;
+        lowered = () => (textLower ??= text.toLowerCase());
+      } else if (mode.scope === 'html') {
+        haystack = html;
+        lowered = () => (htmlLower ??= html.toLowerCase());
+      } else {
+        try {
+          haystack = $(mode.selector)
+            .map((_, el) => $(el).text())
+            .get()
+            .join(' ')
+            .replace(/\s+/g, ' ');
+        } catch {
+          customSearchHits[term] = -1;
+          continue;
         }
       }
-      // Literal substring (legacy path).
-      if (haystackLower === null) haystackLower = text.toLowerCase();
-      const needle = term.toLowerCase();
-      let count = 0;
-      let pos = 0;
-      while ((pos = haystackLower.indexOf(needle, pos)) !== -1) {
-        count++;
-        pos += needle.length;
-      }
-      customSearchHits[term] = count;
+      const count = countSearchHits(mode ? mode.needle : term, haystack, lowered);
+      customSearchHits[term] = mode?.negate && count >= 0 ? (count === 0 ? 1 : 0) : count;
     }
   }
 
@@ -3322,4 +3313,66 @@ function parseVideoEmbed(
     return null;
   }
   return null;
+}
+
+type SearchMode = {
+  negate: boolean;
+  scope: 'html' | 'text' | 'element';
+  selector: string;
+  needle: string;
+};
+
+/** `[html] x`, `[!text] x`, `[element:css] x`; null for a legacy term (B10). */
+function parseSearchMode(term: string): SearchMode | null {
+  if (!term.startsWith('[')) return null;
+  // The selector may hold its own brackets (`a[href]`): close at depth 0.
+  let depth = 0;
+  let close = -1;
+  for (let i = 1; i < term.length; i++) {
+    if (term[i] === '[') depth++;
+    else if (term[i] === ']') {
+      if (depth === 0) {
+        close = i;
+        break;
+      }
+      depth--;
+    }
+  }
+  if (close < 0) return null;
+  const needle = term.slice(close + 1).trim();
+  if (!needle) return null;
+  let spec = term.slice(1, close);
+  const negate = spec.startsWith('!');
+  if (negate) spec = spec.slice(1);
+  if (spec === 'html' || spec === 'text') return { negate, scope: spec, selector: '', needle };
+  if (spec.startsWith('element:') && spec.length > 'element:'.length) {
+    return { negate, scope: 'element', selector: spec.slice('element:'.length).trim(), needle };
+  }
+  return null;
+}
+
+/** Hits of a `/regex/flags` or literal case-insensitive needle; -1 for an invalid regex. */
+function countSearchHits(needle: string, haystack: string, lowered: (() => string) | null): number {
+  // Regex: last `/` separates pattern from flags; length ≥3 so `/` and `//` stay literal.
+  if (needle.length >= 3 && needle.startsWith('/')) {
+    const lastSlash = needle.lastIndexOf('/');
+    if (lastSlash > 0) {
+      const flags = needle.slice(lastSlash + 1).replace(/g/g, '');
+      if (!/^[imsuy]*$/.test(flags)) return -1;
+      try {
+        return haystack.match(new RegExp(needle.slice(1, lastSlash), flags + 'g'))?.length ?? 0;
+      } catch {
+        return -1;
+      }
+    }
+  }
+  const hay = lowered ? lowered() : haystack.toLowerCase();
+  const n = needle.toLowerCase();
+  let count = 0;
+  let pos = 0;
+  while ((pos = hay.indexOf(n, pos)) !== -1) {
+    count++;
+    pos += n.length;
+  }
+  return count;
 }

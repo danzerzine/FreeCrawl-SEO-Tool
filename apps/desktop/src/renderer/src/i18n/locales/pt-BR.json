@@ -729,7 +729,8 @@
       "intro1": "Sinaliza páginas cujo corpo contém qualquer um destes termos. Dois modos por linha:",
       "intro2": "para regex,",
       "anythingElse": "qualquer outra coisa",
-      "intro3": "para substring literal sem diferenciar maiúsculas."
+      "intro3": "para substring literal sem diferenciar maiúsculas.",
+      "modes": "Um prefixo no início da linha escolhe onde procurar: [html] o código-fonte, com atributos e scripts; [text] o texto visível (padrão); [element:h2] o texto dos elementos que um seletor CSS encontra. Adicione ! para páginas que não contêm o termo, ex. [!html] gtag."
     },
     "customExtraction": {
       "intro1": "Até 10 regras de extração personalizadas. CSS / XPath / regex rodam em cada página HTML rastreada; JSONPath roda nas respostas JSON. Os resultados são guardados na linha da URL e ficam visíveis no painel de detalhes da URL, em",

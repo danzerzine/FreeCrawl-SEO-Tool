@@ -13860,13 +13860,15 @@ function baseCategoryWhereClause(
               AND extraction_results != '{}'`;
     case 'tab:custom-search':
       // V1 Faz 3 — Custom Search tab. Pages with at least one custom
-      // search term hit (literal or regex). `custom_search_hits` is
-      // a JSON map of `{ term: count }` — non-`{}` content means a
-      // hit was recorded.
+      // search term hit. `custom_search_hits` is a JSON map of
+      // `{ term: count }`; zeros (and -1 for an invalid pattern) are
+      // stored too, so a page is listed only when some count is above
+      // zero. A «does not contain» term stores 1 when absent (B10).
       return `is_external = 0 AND content_kind = 'html'
               AND custom_search_hits IS NOT NULL
               AND custom_search_hits != ''
-              AND custom_search_hits != '{}'`;
+              AND custom_search_hits != '{}'
+              AND EXISTS (SELECT 1 FROM json_each(custom_search_hits) WHERE value > 0)`;
     case 'tab:security':
       // V1 Faz 3 — Security tab. Every internal HTML page so the user
       // can audit security posture wholesale (HSTS, CSP, X-Frame-

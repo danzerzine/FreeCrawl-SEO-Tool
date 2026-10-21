@@ -708,7 +708,8 @@
       "intro1": "Gövdesinde bu terimlerden herhangi birini içeren sayfaları işaretle. Satır başına iki mod:",
       "intro2": "regex için,",
       "anythingElse": "diğer her şey",
-      "intro3": "için harf duyarsız literal substring."
+      "intro3": "için harf duyarsız literal substring.",
+      "modes": "Satır başındaki önek nerede aranacağını seçer: [html] öznitelikler ve betikler dahil sayfa kaynağı; [text] görünür metin (varsayılan); [element:h2] bir CSS seçicinin bulduğu öğelerin metni. Terimi içermeyen sayfalar için ! ekleyin, ör. [!html] gtag."
     },
     "customExtraction": {
       "intro1": "10'a kadar özel çıkarım kuralı. CSS / XPath / regex her crawl edilmiş HTML sayfasında, JSONPath ise JSON yanıtlarında çalışır. Sonuçlar URL satırında saklanır ve URL Detayları panelinde",

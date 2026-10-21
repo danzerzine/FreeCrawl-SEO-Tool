@@ -594,7 +594,7 @@ const COL = {
     header: URL_COLUMN_HEADERS.customSearchHits,
     size: 220,
     kind: 'mono',
-    info: 'JSON map of `{ term: count }` literal-substring hits from the configured Custom Search terms.',
+    info: 'JSON map of `{ term: count }` from the configured Custom Search terms; the key carries its mode prefix ([html], [text], [element:css], [!…]), -1 marks an invalid pattern.',
     example: '{"pricing":3,"beta":1}',
   } as ColumnSpec,
   brokenBookmarks: {

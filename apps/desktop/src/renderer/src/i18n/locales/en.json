@@ -708,7 +708,8 @@
       "intro1": "Flag pages whose body contains any of these terms. Two modes per line:",
       "intro2": "for regex,",
       "anythingElse": "anything else",
-      "intro3": "for literal case-insensitive substring."
+      "intro3": "for literal case-insensitive substring.",
+      "modes": "Prefix a line to choose where to look: [html] the page source, attributes and scripts included; [text] the visible text (the default); [element:h2] the text of the elements a CSS selector matches. Add ! for pages that do not contain the term, e.g. [!html] gtag."
     },
     "customExtraction": {
       "intro1": "Up to 10 custom extraction rules. CSS / XPath / regex run on every crawled HTML page; JSONPath runs on JSON responses. Results are stored on the URL row and visible in the URL Details panel under",

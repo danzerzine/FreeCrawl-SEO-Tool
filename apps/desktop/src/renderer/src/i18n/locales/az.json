@@ -708,7 +708,8 @@
       "intro1": "Məzmununda bu ifadələrdən hər hansı biri olan səhifələri işarələ. Hər sətir üçün iki üsul:",
       "intro2": "regex üçün,",
       "anythingElse": "başqa hər şey",
-      "intro3": "böyük-kiçik hərf fərqi gözlənilmədən hərfi alt sətir uyğunluğu üçün."
+      "intro3": "böyük-kiçik hərf fərqi gözlənilmədən hərfi alt sətir uyğunluğu üçün.",
+      "modes": "Sətrin əvvəlindəki prefiks harada axtarılacağını seçir: [html] atributlar və skriptlər daxil səhifənin mənbə kodu; [text] görünən mətn (standart); [element:h2] CSS seçicinin tapdığı elementlərin mətni. Termini olmayan səhifələr üçün ! əlavə edin, məs. [!html] gtag."
     },
     "customExtraction": {
       "intro1": "Ən çox 10 xüsusi çıxarış qaydası. CSS / XPath / regex taranan hər HTML səhifəsində işləyir; JSONPath JSON cavablarında işləyir. Nəticələr URL-in sətrində saxlanılır və URL təfərrüat panelində burada görünür:",

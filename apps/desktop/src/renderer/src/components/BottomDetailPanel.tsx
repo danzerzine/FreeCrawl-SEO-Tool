@@ -3330,11 +3330,11 @@ function customSearchRows(
     const out: [string, number | string | null][] = [];
     for (const [term, raw] of Object.entries(obj)) {
       const count = typeof raw === 'number' ? raw : null;
-      // -1 is a sentinel for "regex pattern failed to compile" — surface
+      // -1 is a sentinel for "regex or selector failed to compile" — surface
       // it explicitly so the user can fix the typo. 0 is hidden to keep
       // the panel compact (users care about hits, not absences).
       if (count === -1) {
-        out.push([`Custom: "${term}"`, 'invalid regex']);
+        out.push([`Custom: "${term}"`, 'invalid pattern']);
       } else {
         out.push([`Custom: "${term}"`, count && count > 0 ? count : null]);
       }

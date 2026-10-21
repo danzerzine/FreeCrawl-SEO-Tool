@@ -2676,13 +2676,19 @@ function CustomSearchPanel({ form, update }: PanelProps) {
         <span className="ml-1 font-mono text-surface-200">{t('settingsPanels.customSearch.anythingElse', { defaultValue: 'anything else' })}</span>{' '}
         {t('settingsPanels.customSearch.intro3', { defaultValue: 'for literal case-insensitive substring.' })}
       </p>
+      <p className="mb-3 text-[11px] text-surface-400">
+        {t('settingsPanels.customSearch.modes', {
+          defaultValue:
+            'Prefix a line to choose where to look: [html] the page source, attributes and scripts included; [text] the visible text (the default); [element:h2] the text of the elements a CSS selector matches. Add ! for pages that do not contain the term, e.g. [!html] gtag.',
+        })}
+      </p>
       <Area
         label="Search Terms (one per line; /…/ = regex, plain = literal)"
         value={form.customSearchTermsText}
         onChange={(v) => update('customSearchTermsText', v)}
         rows={8}
-        placeholder={'pricing\nfree shipping\n/coming\\s+soon/i\n/(call|contact)\\s+us/i'}
-        info="Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. Each term's per-page hit count is surfaced in the URL Details panel."
+        placeholder={'pricing\nfree shipping\n/coming\\s+soon/i\n[html] data-price\n[!html] gtag'}
+        info="Two modes per line. (1) Wrap in slashes for a regex: /pattern/flags — supported flags imsuy (g is forced). Invalid patterns appear with count -1 in the detail panel so you can spot the typo. (2) Anything else is a literal case-insensitive substring — the legacy behaviour. A prefix picks where to look: [html] page source, [text] visible text, [element:css] text of matching elements; [!html] term lists pages without it (stored as 1). An invalid selector also shows -1. Each term's per-page hit count is surfaced in the URL Details panel."
         example={'free shipping\npricing\n/(?:^|\\s)beta(?:\\s|$)/i\n/coming\\s+soon/i'}
       />
     </>
