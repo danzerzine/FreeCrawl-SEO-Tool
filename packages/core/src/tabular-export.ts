@@ -14,7 +14,7 @@ import type {
 import { EXPORT_DATASET_COLUMNS, urlColumnHeader } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import { datasetRows, readCell, type DatasetExportContext } from './dataset-export.js';
-import { writeExportFile } from './export-file.js';
+import { inBlocks, writeExportFile } from './export-file.js';
 
 /** How a section selects its rows. `selectedIds` wins; otherwise category is
  *  narrowed by the active search/filter so the export matches the grid. */
@@ -168,7 +168,7 @@ async function writeCsvFile(
   // leading `=`/`+`/`-`/`@` would otherwise break the CSV or inject a
   // formula. The data rows below already go through escapeCsv.
   const header = headerLabels.map((c) => escapeCsv(c, cell)).join(',') + '\n';
-  const generator = async function* (): AsyncGenerator<string> {
+  const generator = function* (): Generator<string> {
     if (withBom) yield '﻿' + header;
     else yield header;
     for (const row of source) {
@@ -181,7 +181,7 @@ async function writeCsvFile(
     }
   };
   await pipeline(
-    Readable.from(generator()),
+    Readable.from(inBlocks(generator())),
     createWriteStream(filePath, { encoding: 'utf8' }),
   );
   return rowsWritten;

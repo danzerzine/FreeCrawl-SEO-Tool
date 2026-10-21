@@ -1389,6 +1389,22 @@ const CANONICAL_CMP_Q =
   "COALESCE(NULLIF(urls.canonical_resolved, ''), urls.canonical)";
 
 /**
+ * The page's near-duplicate cluster holds pages that point to different
+ * canonicals: among the cluster's internal HTML pages with a canonical,
+ * more than one distinct target. For a page that has a canonical itself
+ * this is "another such page in its cluster has a target other than
+ * mine". One GROUP BY over the clusters: the per-page correlated form
+ * walked every internal URL for each clustered page (a 6,000-page
+ * cluster on a 480k-URL crawl took ~10 minutes).
+ */
+const CANONICAL_CONFLICT_CLUSTER = `cluster_id IN (
+  SELECT cluster_id FROM urls
+   WHERE cluster_id > 0 AND is_external = 0 AND content_kind = 'html'
+     AND canonical IS NOT NULL AND canonical != ''
+   GROUP BY cluster_id
+  HAVING COUNT(DISTINCT ${CANONICAL_CMP}) > 1)`;
+
+/**
  * One post-crawl probe result, addressed to the setter that stores it.
  * The crawler buffers these and ships them through `applyProbeWrites`.
  */
@@ -7687,7 +7703,9 @@ export class ProjectDb {
          AND amp_validation_errors != '[]'`,
       ),
       canonicalConflictNearDuplicate: countWhere(
-        categoryWhereClause('issues:canonical-conflict-near-duplicate', new Set()) ?? '1 = 0',
+        `${html} AND cluster_id > 0 AND cluster_size > 1
+         AND canonical IS NOT NULL AND canonical != ''
+         AND ${CANONICAL_CONFLICT_CLUSTER}`,
       ),
       highBoilerplate: countWhere(
         `${html} AND boilerplate_coverage IS NOT NULL AND boilerplate_coverage > 50`,
@@ -8926,14 +8944,25 @@ export class ProjectDb {
       issueKey === undefined
         ? ISSUE_CATEGORIES
         : ISSUE_CATEGORIES.filter((c) => c === issueKey);
-    for (const key of keys) {
-      if (disabled.has(key)) continue;
-      // A check with no filter has no pages of its own: skip it rather
-      // than list every URL under it.
-      const where = categoryWhereClause(key, disabled);
-      if (where === null) continue;
+    // A check with no filter has no pages of its own: skip it rather
+    // than list every URL under it.
+    const checks = keys.filter((key) => !disabled.has(key) && categoryWhereClause(key, disabled) !== null);
+    if (checks.length > 1) {
+      // Many checks: every check's pages from one scan of the urls table.
+      const listed = this.urlIdsByCategories(checks);
+      const urlOf = new Map<number, string>();
+      for (const r of this.db.prepare('SELECT id, url FROM urls').iterate() as Iterable<{ id: number; url: string }>)
+        urlOf.set(r.id, r.url);
+      for (const key of checks) {
+        const ids = listed.get(key)!;
+        if (ids instanceof Error) throw ids;
+        for (const id of ids) yield { issueKey: key, url: urlOf.get(id)! };
+      }
+      return;
+    }
+    for (const key of checks) {
       const rows = this.db
-        .prepare(`SELECT url FROM urls WHERE ${where} ORDER BY id`)
+        .prepare(`SELECT url FROM urls WHERE ${categoryWhereClause(key, disabled)} ORDER BY id`)
         .iterate() as unknown as Iterable<{ url: string }>;
       for (const r of rows) yield { issueKey: key, url: r.url };
     }
@@ -9206,6 +9235,66 @@ export class ProjectDb {
 
   /** Running `withoutMmap` calls; the map comes back when it drops to 0. */
   private mmapOffCalls = 0;
+
+  /**
+   * {@link urlIdsByCategory} of many categories from one scan of the urls
+   * table: each category's filter becomes one bit of a per-row flag word,
+   * so the table is read once rather than once per category (a filter's
+   * own subqueries still run once). Same ids, same order. When the scan
+   * fails (a filter that cannot run), the categories are listed one by
+   * one, so only the failing one maps to its error.
+   */
+  urlIdsByCategories(categories: readonly UrlCategory[]): Map<UrlCategory, Uint32Array | Error> {
+    const disabled = this.getDisabledIssues();
+    const out = new Map<UrlCategory, Uint32Array | Error>();
+    const scanned: { category: UrlCategory; ids: number[] }[] = [];
+    // Categories with no filter: every URL.
+    const unfiltered: UrlCategory[] = [];
+    const all: number[] = [];
+    for (const category of new Set(categories)) {
+      const where = categoryWhereClause(category, disabled);
+      if (where === '1 = 0') out.set(category, new Uint32Array(0));
+      else if (where === null) unfiltered.push(category);
+      else scanned.push({ category, ids: [] });
+    }
+    // 30 flags per column: integer bits that stay exact as JS numbers.
+    const PER_WORD = 30;
+    const words: string[] = [];
+    for (let i = 0; i < scanned.length; i += PER_WORD) {
+      words.push(
+        scanned
+          .slice(i, i + PER_WORD)
+          .map((s, j) => `(CASE WHEN (${categoryWhereClause(s.category, disabled)}) THEN ${2 ** j} ELSE 0 END)`)
+          .join(' + '),
+      );
+    }
+    try {
+      const sql = `SELECT id${words.map((w, i) => `, ${w} AS w${i}`).join('')} FROM urls ORDER BY id`;
+      for (const r of this.db.prepare(sql).iterate() as Iterable<Record<string, number>>) {
+        const id = r.id!;
+        if (unfiltered.length > 0) all.push(id);
+        for (let w = 0; w < words.length; w++) {
+          for (let bits = r[`w${w}`]!, j = 0; bits !== 0; j++, bits >>>= 1) {
+            if (bits & 1) scanned[w * PER_WORD + j]!.ids.push(id);
+          }
+        }
+      }
+    } catch {
+      for (const { category } of scanned) {
+        try {
+          out.set(category, this.urlIdsByCategory(category));
+        } catch (err) {
+          out.set(category, err as Error);
+        }
+      }
+      for (const category of unfiltered) out.set(category, this.urlIdsByCategory(category));
+      return out;
+    }
+    for (const { category, ids } of scanned) out.set(category, Uint32Array.from(ids));
+    const allIds = Uint32Array.from(all);
+    for (const category of unfiltered) out.set(category, allIds);
+    return out;
+  }
 
   /**
    * Ids of the URLs `iterateUrlsByCategory(category)` yields, ascending,
@@ -12581,16 +12670,7 @@ export function categoryWhereClause(
       return `is_external = 0 AND content_kind = 'html'
               AND cluster_id > 0 AND cluster_size > 1
               AND canonical IS NOT NULL AND canonical != ''
-              AND EXISTS (
-                SELECT 1 FROM urls u2
-                WHERE u2.cluster_id = urls.cluster_id
-                  AND u2.cluster_id > 0
-                  AND u2.is_external = 0 AND u2.content_kind = 'html'
-                  AND u2.canonical IS NOT NULL AND u2.canonical != ''
-                  AND COALESCE(NULLIF(u2.canonical_resolved, ''), u2.canonical)
-                      != ${CANONICAL_CMP_Q}
-                  AND u2.url != urls.url
-              )`;
+              AND ${CANONICAL_CONFLICT_CLUSTER}`;
     case 'issues:content-thin':
       // 2xx only — a text/html 404 template is short by design and was
       // being counted as thin content. Indexable only: a noindexed cart or

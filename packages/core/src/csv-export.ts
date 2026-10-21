@@ -4,7 +4,7 @@ import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
 import { urlColumnHeader, type CrawlUrlRow, type UrlCategory } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
-import { writeExportFile } from './export-file.js';
+import { inBlocks, writeExportFile } from './export-file.js';
 
 const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'url',
@@ -43,6 +43,25 @@ const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
 // dialog used the guarded copy: two writers reachable from one grid, only
 // one of them safe.
 
+/**
+ * The URL CSV's first chunk (BOM + header row) and its row line, for
+ * `columns` (default CSV_COLUMNS). `headers: 'keys'` writes the raw
+ * `CrawlUrlRow` keys and turns the formula guard off (machine mode).
+ */
+export function urlCsvFormat(options: {
+  columns?: (keyof CrawlUrlRow)[];
+  headers?: 'labels' | 'keys';
+}): { head: string; line: (row: CrawlUrlRow) => string } {
+  const cols = options.columns && options.columns.length > 0 ? options.columns : CSV_COLUMNS;
+  const cell = { formulaGuard: options.headers !== 'keys' };
+  const header =
+    cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c), cell)).join(',') + '\n';
+  return {
+    head: '\ufeff' + header,
+    line: (row) => cols.map((col) => escapeCsv(row[col], cell)).join(',') + '\n',
+  };
+}
+
 export async function exportUrlsToCsv(
   db: ProjectDb,
   filePath: string,
@@ -61,10 +80,7 @@ export async function exportUrlsToCsv(
   } = {},
 ): Promise<{ rowsWritten: number }> {
   let rowsWritten = 0;
-  const cols = options.columns && options.columns.length > 0 ? options.columns : CSV_COLUMNS;
-  const cell = { formulaGuard: options.headers !== 'keys' };
-  const header =
-    cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c), cell)).join(',') + '\n';
+  const { head, line } = urlCsvFormat(options);
 
   const source: Iterable<CrawlUrlRow> =
     options.selectedIds && options.selectedIds.length > 0
@@ -74,11 +90,10 @@ export async function exportUrlsToCsv(
         : db.iterateAllUrls();
 
   const generator = async function* (): AsyncGenerator<string> {
-    yield '﻿' + header;
+    yield head;
     for (const row of source) {
-      const line = cols.map((col) => escapeCsv(row[col], cell)).join(',') + '\n';
       rowsWritten++;
-      yield line;
+      yield line(row);
     }
   };
 
@@ -142,7 +157,7 @@ export async function exportLinksToCsv(
   const cell = { formulaGuard: options.headers !== 'keys' };
   const header =
     LINKS_CSV_COLUMNS.map((c) => (options.headers === 'keys' ? c.key : c.label)).join(',') + '\n';
-  const generator = async function* (): AsyncGenerator<string> {
+  const generator = function* (): Generator<string> {
     yield '\ufeff' + header;
     for (const l of db.iterateLinks(options.scope)) {
       const cells = [
@@ -163,7 +178,7 @@ export async function exportLinksToCsv(
     }
   };
   await writeExportFile(filePath, (partPath) =>
-    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
+    pipeline(Readable.from(inBlocks(generator())), createWriteStream(partPath, { encoding: 'utf8' })),
   );
   return { rowsWritten };
 }

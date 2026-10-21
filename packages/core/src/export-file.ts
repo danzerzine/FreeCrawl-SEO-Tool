@@ -61,3 +61,20 @@ export function removePartialExportFiles(): void {
   }
   inFlight.clear();
 }
+
+/**
+ * The lines joined into blocks of about `size` characters, for
+ * `Readable.from`: one stream chunk per block rather than per line.
+ * Same bytes, in the same order.
+ */
+export async function* inBlocks(lines: Iterable<string>, size = 1 << 16): AsyncGenerator<string> {
+  let buf = '';
+  for (const line of lines) {
+    buf += line;
+    if (buf.length >= size) {
+      yield buf;
+      buf = '';
+    }
+  }
+  if (buf) yield buf;
+}

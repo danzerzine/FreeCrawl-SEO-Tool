@@ -960,6 +960,12 @@ export interface BulkExportFile {
   /** Dataset that drove this export (link, issue, sitemap and queue files). */
   dataset?: ExportDatasetKey;
   rowsWritten: number;
+  /** Wall time from the file's first write to its rename, ms (manifest.json). */
+  ms?: number;
+  /** The process's peak memory when the file was done, MB (manifest.json). */
+  peakRssMb?: number;
+  /** Written by the one pass over the urls table with the other category files: `ms` is that pass's time. */
+  sharedPass?: true;
 }
 
 export interface BulkExportResult {

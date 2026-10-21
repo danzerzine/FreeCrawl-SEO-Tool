@@ -1863,7 +1863,17 @@ async function runExport(opts: {
     const ok = error === null && outcome.errors.length === 0;
     if (opts.json) {
       process.stdout.write(
-        JSON.stringify({ ok, ...(error === null ? {} : { error }), ...outcome }, null, 2) + '\n',
+        JSON.stringify(
+          {
+            ok,
+            ...(error === null ? {} : { error }),
+            ...outcome,
+            // Write times stay in manifest.json; stdout keeps its shape.
+            files: outcome.files.map(({ ms: _ms, peakRssMb: _mb, sharedPass: _sp, ...f }) => f),
+          },
+          null,
+          2,
+        ) + '\n',
       );
       return;
     }

@@ -11,12 +11,20 @@ import { EXPENSIVE_ISSUE_DEFINITIONS, type ProjectDb } from '@freecrawl/db';
 import {
   EXPORT_DATASET_COLUMNS,
   ISSUE_CATEGORIES,
+  type BulkExportFile,
   type BulkExportResult,
   type ExportDatasetKey,
   type ExportSet,
   type LinkTargetReportKind,
 } from '@freecrawl/shared-types';
-import { BULK_EXPORT_TASKS, exportIssueInlinks, runBulkExport, type BulkExportTask } from './bulk-export.js';
+import {
+  BULK_EXPORT_TASKS,
+  exportIssueInlinks,
+  peakRssMb,
+  runBulkExport,
+  since,
+  type BulkExportTask,
+} from './bulk-export.js';
 import { writeExportFile } from './export-file.js';
 import { exportHtmlReport, type HtmlReportOptions } from './html-report.js';
 import { exportIssuesSummary, exportLinkTargetReport, LINK_TARGET_EXPORTS } from './report-export.js';
@@ -48,7 +56,12 @@ export const CLI_EXPORT_DATASETS = (Object.keys(EXPORT_DATASET_COLUMNS) as Expor
 const JSONL_DATASETS: readonly ExportDatasetKey[] = ['page-html', 'page-text'];
 
 export interface ExportOutcome {
-  files: { path: string; label: string; rows: number | null }[];
+  /** `ms`, `peakRssMb`, `sharedPass`: as in {@link BulkExportFile} (manifest.json only, not the CLI's JSON). */
+  files: (Pick<BulkExportFile, 'ms' | 'peakRssMb' | 'sharedPass'> & {
+    path: string;
+    label: string;
+    rows: number | null;
+  })[];
   errors: { label: string; error: string }[];
   /** Outputs that held no rows, so no file was written; not a failure. */
   skipped: { label: string; reason: string }[];
@@ -177,11 +190,22 @@ export async function runExportItems(
     }
   }
   const addBulk = (r: Pick<BulkExportResult, 'files' | 'errors'>): void => {
-    outcome.files.push(...r.files.map((f) => ({ path: f.filePath, label: f.label, rows: f.rowsWritten })));
+    outcome.files.push(
+      ...r.files.map((f) => ({
+        path: f.filePath,
+        label: f.label,
+        rows: f.rowsWritten,
+        ms: f.ms,
+        peakRssMb: f.peakRssMb,
+        sharedPass: f.sharedPass,
+      })),
+    );
     outcome.errors.push(...r.errors);
   };
   for (const item of items) {
     progress(`Exporting ${item.name}…`);
+    const t0 = performance.now();
+    const filesBefore = outcome.files.length;
     try {
       if (item.kind === 'bulk') {
         addBulk(
@@ -254,7 +278,8 @@ export async function runExportItems(
         }
       } else if (item.kind === 'link') {
         const path = join(outDir, `${item.report}.csv`);
-        const r = await exportLinkTargetReport(db, path, item.report, { headers });
+        // Through the page cache, like bulk: see `withoutMmap`.
+        const r = await db.withoutMmap(() => exportLinkTargetReport(db, path, item.report, { headers }));
         if (r === null) {
           outcome.errors.push({
             label: item.label,
@@ -274,6 +299,11 @@ export async function runExportItems(
       }
     } catch (err) {
       outcome.errors.push({ label: item.name, error: (err as Error).message });
+    }
+    // A single-file item: its file took the item's time.
+    for (const f of outcome.files.slice(filesBefore)) {
+      f.ms ??= since(t0);
+      f.peakRssMb ??= peakRssMb();
     }
   }
   await writeRunManifest(outDir, items, outcome, startedAt, options);
@@ -306,6 +336,9 @@ async function writeRunManifest(
         path: relative(outDir, f.path).split(sep).join('/'),
         label: f.label,
         rows: f.rows,
+        ms: f.ms,
+        peakRssMb: f.peakRssMb,
+        sharedPass: f.sharedPass,
       })),
       errors: outcome.errors,
       skipped: outcome.skipped,
