@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   openSync,
+  renameSync,
   rmSync,
   writeFileSync,
   writeSync,
@@ -15,6 +16,7 @@ import {
   categoryWhereClause,
   detectProjectFormat,
   EXPENSIVE_ISSUE_DEFINITIONS,
+  packProject,
   ProjectDb,
   unpackProject,
 } from '@freecrawl/db';
@@ -154,15 +156,19 @@ export interface CompareProject {
   db: ProjectDb;
   /** Closes the project and deletes the temp copy, if any. */
   dispose: () => void;
+  /** The stored checks were behind this build: rebuilt and written back into the file (B109). */
+  rebuiltSaved: boolean;
 }
 
 /**
  * Open the other project of a comparison, for every consumer. An archive
  * `.seoproject` is unpacked to a temp working copy; a bare SQLite project is
  * read in place, read-only, and copied only when its stored (expensive)
- * checks predate the current definitions: they are rebuilt in the copy, so
- * the file the user picked is never written. Throws a user-facing message on
- * a missing or unrecognised file.
+ * checks predate the current definitions. Those checks are rebuilt in the
+ * copy and written back into the file once, in its own format, so the next
+ * comparison with it rebuilds nothing (B109); a file that cannot be written
+ * is left as it was. Throws a user-facing message on a missing or
+ * unrecognised file.
  */
 export async function openCompareProject(path: string): Promise<CompareProject> {
   if (!existsSync(path)) throw new Error(`Project not found: ${path}`);
@@ -173,7 +179,9 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
     );
   }
   let dir: string | null = null;
+  let copy = '';
   let db: ProjectDb | null = null;
+  let rebuiltSaved = false;
   const dispose = (): void => {
     try {
       db?.close();
@@ -185,7 +193,7 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
   try {
     if (format === 'archive') {
       dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
-      const copy = join(dir, basename(path));
+      copy = join(dir, basename(path));
       await unpackProject(path, copy);
       db = new ProjectDb(copy);
     } else {
@@ -193,17 +201,43 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
       if (db.issueMaterialisationStale()) {
         db.close();
         dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
-        const copy = join(dir, basename(path));
+        copy = join(dir, basename(path));
         copyFileSync(path, copy);
         db = new ProjectDb(copy);
       }
     }
-    if (dir && db.issueMaterialisationStale()) db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+    if (dir && db.issueMaterialisationStale()) {
+      db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+      // Closed so the copy is one complete file, then reopened for the compare.
+      db.close();
+      rebuiltSaved = await saveRebuilt(copy, path, format === 'archive');
+      db = new ProjectDb(copy);
+    }
   } catch (err) {
     dispose();
     throw err;
   }
-  return { db, dispose };
+  return { db, dispose, rebuiltSaved };
+}
+
+/**
+ * Writes the rebuilt copy over the project file through a `.part` file and a
+ * rename, so a failure leaves the file as it was. False when it cannot be
+ * written (read-only folder, file locked): the compare goes on from the copy.
+ */
+async function saveRebuilt(copy: string, path: string, archive: boolean): Promise<boolean> {
+  try {
+    if (archive) {
+      await packProject(copy, path);
+    } else {
+      copyFileSync(copy, `${path}.part`);
+      renameSync(`${path}.part`, path);
+    }
+    return true;
+  } catch {
+    rmSync(`${path}.part`, { force: true });
+    return false;
+  }
 }
 
 const COMPARE_COPY_PREFIX = 'freecrawl-compare-';

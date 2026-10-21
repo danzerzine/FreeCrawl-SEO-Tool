@@ -1089,8 +1089,9 @@ async function openProject(
 }
 
 /**
- * Cross-project diff. Opens two `.seoproject` files (never written — see
- * `openCompareProject`), runs the same `compareCrawls` engine the desktop
+ * Cross-project diff. Opens two `.seoproject` files (`openCompareProject`:
+ * only a file whose stored checks predate this build is written, once, with
+ * them rebuilt), runs the same `compareCrawls` engine the desktop
  * Compare dialog uses, and prints the counts per kind (--json: the whole
  * summary with samples, issueChanges and notComparable). With `--out <dir>`
  * it also writes `compare-summary.json` and one CSV per kind with every row.
@@ -1113,7 +1114,11 @@ async function runCompare(
   try {
     for (const [label, path] of [['before', beforePath], ['after', afterPath]] as const) {
       try {
-        opened.push(await openCompareProject(path));
+        const project = await openCompareProject(path);
+        opened.push(project);
+        if (project.rebuiltSaved) {
+          process.stderr.write(`Checks of the ${label} project were brought up to date and saved in ${path}.\n`);
+        }
       } catch (err) {
         return usageFail(opts.json, usage, `Cannot open ${label} project: ${(err as Error).message}`);
       }
