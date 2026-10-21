@@ -7,8 +7,7 @@ import { ProjectDb } from '@freecrawl/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runSeoAuditExport } from './seo-audit-export.js';
 
-// Header rows copied verbatim from Screaming Frog 24's SEO Audit export
-// (docs/local/m2-e2e/b55/sf/), BOM stripped.
+// Header rows copied verbatim from Screaming Frog 24's SEO Audit export, BOM stripped.
 export const SF_HEADERS: Record<string, string> = {
   "amp_all.csv": "\"Address\",\"Content Type\",\"Status Code\",\"Status\",\"Indexability\",\"Indexability Status\",\"Title 1\",\"Title 1 Length\",\"Title 1 Pixel Width\",\"H1-1\",\"H1-1 Length\",\"Canonical Link Element 1\",\"Size (Bytes)\",\"Word Count\",\"Text Ratio\",\"Crawl Depth\",\"Link Score\",\"Response Time\"",
   "canonicals_all.csv": "\"Address\",\"Occurrences\",\"Indexability\",\"Indexability Status\",\"Canonical Link Element 1\",\"HTTP Canonical\",\"Meta Robots 1\",\"X-Robots-Tag 1\",\"rel=\"\"next\"\" 1\",\"rel=\"\"prev\"\" 1\",\"HTTP rel=\"\"next\"\" 1\",\"HTTP rel=\"\"prev\"\" 1\"",
