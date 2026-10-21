@@ -1275,8 +1275,11 @@ async function runCheck(opts: {
         if (detectProjectFormat(opts.baseline) === 'unknown') {
           const snap = JSON.parse(readFileSync(opts.baseline, 'utf8')) as CrawlSnapshot;
           if (snap?.version !== 1 || !snap.summary || !snap.counts) throw new Error('not a snapshot (version 1)');
-          // Older snapshot files carry no start URL; those are taken as they are.
-          if (snap.startUrl !== undefined && snap.startUrl !== current.startUrl) {
+          // Without a start URL the file could be any site's counts.
+          if (snap.startUrl === undefined) {
+            throw new Error('it does not name its site; write it again with --write-snapshot');
+          }
+          if (snap.startUrl !== current.startUrl) {
             throw new Error(`it is a snapshot of ${snap.startUrl}, not of ${current.startUrl}`);
           }
           previous = snap;
