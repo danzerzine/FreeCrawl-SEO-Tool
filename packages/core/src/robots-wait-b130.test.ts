@@ -12,7 +12,7 @@ import { Crawler } from './crawler.js';
  * default scope). Each robots.txt answers late or fails as a test sets it;
  * every request is logged so a test can tell what was never fetched.
  */
-type RobotsMode = { delayMs?: number; fails?: number; body: string };
+type RobotsMode = { delayMs?: number; fails?: number; hangAfterFails?: boolean; body: string };
 const servers: Server[] = [];
 let dir: string;
 let baseA: string;
@@ -30,6 +30,7 @@ function serve(name: 'A' | 'B', pages: () => Record<string, string>): Promise<st
       const call = ++robotsCalls[name];
       setTimeout(() => {
         if (call <= (r.fails ?? 0)) return void res.writeHead(503).end();
+        if (r.hangAfterFails) return; // never answers: the client times out
         res.writeHead(200, { 'content-type': 'text/plain' }).end(r.body);
       }, r.delayMs ?? 0);
       return;
@@ -127,6 +128,14 @@ it('robots.txt that keeps failing: the crawl goes on and the warning counts the 
   const { db, warnings } = await crawl('broken');
   expect(robotsCalls.A).toBe(3);
   expect(hits).toContain('A/private');
+  expect(warnings.some((w) => w.includes('robots.txt') && w.includes('3 attempts'))).toBe(true);
+  db.close();
+}, 30_000);
+
+it('a 503 and then timeouts still ends with the warning (B130)', async () => {
+  robots.A = { fails: 1, hangAfterFails: true, body: '' };
+  const { db, warnings } = await crawl('timeout');
+  expect(robotsCalls.A).toBe(3);
   expect(warnings.some((w) => w.includes('robots.txt') && w.includes('3 attempts'))).toBe(true);
   db.close();
 }, 30_000);
