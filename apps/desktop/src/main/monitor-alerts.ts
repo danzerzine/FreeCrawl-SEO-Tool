@@ -73,9 +73,9 @@ const SENDERS: Record<AlertChannelId, Sender> = {
     if (!smtpUrl || !to) return null;
     return sendEmail(smtpUrl, to, results, { title, timeoutMs: deps.timeoutMs });
   },
-  webhook: (results, deps) => {
+  webhook: (results, deps, title) => {
     const url = deps.webhookUrl?.trim();
-    return url ? sendWebhook(url, results, { timeoutMs: deps.timeoutMs }) : null;
+    return url ? sendWebhook(url, results, { title, timeoutMs: deps.timeoutMs }) : null;
   },
 };
 

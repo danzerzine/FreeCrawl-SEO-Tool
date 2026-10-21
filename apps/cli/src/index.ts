@@ -1201,7 +1201,7 @@ const NOTIFY_CHANNELS: Record<
     send: ([token = '', chatId = ''], r, title) =>
       sendTelegram({ apiBase: TELEGRAM_API_BASE, token, chatId }, r, { title }),
   },
-  webhook: { env: ['FREECRAWL_WEBHOOK_URL'], send: ([url = ''], r) => sendWebhook(url, r) },
+  webhook: { env: ['FREECRAWL_WEBHOOK_URL'], send: ([url = ''], r, title) => sendWebhook(url, r, { title }) },
   email: {
     env: ['FREECRAWL_SMTP_URL', 'FREECRAWL_ALERT_EMAIL_TO'],
     send: ([smtp = '', to = ''], r, title) => sendEmail(smtp, to, r, { title }),

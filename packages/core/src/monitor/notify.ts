@@ -141,13 +141,13 @@ export function sendTelegram(
   );
 }
 
-/** Generic webhook: the JSON results as they are. */
+/** Generic webhook: the JSON results as they are, with the alert title. */
 export function sendWebhook(
   url: string,
   results: AlertRuleResult[],
-  opts: SendOptions = {},
+  opts: SendOptions & { title?: string } = {},
 ): Promise<SendResult> {
-  return post(url, redactUrlSecrets(url), { results }, [url], opts);
+  return post(url, redactUrlSecrets(url), { title: opts.title ?? 'FreeCrawl alert', results }, [url], opts);
 }
 
 /**
