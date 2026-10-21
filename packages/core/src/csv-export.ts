@@ -4,7 +4,7 @@ import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
 import { urlColumnHeader, type CrawlUrlRow, type UrlCategory } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
-import { writeExportFile } from './export-file.js';
+import { inBlocks, writeExportFile } from './export-file.js';
 
 const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'url',
@@ -157,7 +157,7 @@ export async function exportLinksToCsv(
   const cell = { formulaGuard: options.headers !== 'keys' };
   const header =
     LINKS_CSV_COLUMNS.map((c) => (options.headers === 'keys' ? c.key : c.label)).join(',') + '\n';
-  const generator = async function* (): AsyncGenerator<string> {
+  const generator = function* (): Generator<string> {
     yield '\ufeff' + header;
     for (const l of db.iterateLinks(options.scope)) {
       const cells = [
@@ -178,7 +178,7 @@ export async function exportLinksToCsv(
     }
   };
   await writeExportFile(filePath, (partPath) =>
-    pipeline(Readable.from(generator()), createWriteStream(partPath, { encoding: 'utf8' })),
+    pipeline(Readable.from(inBlocks(generator())), createWriteStream(partPath, { encoding: 'utf8' })),
   );
   return { rowsWritten };
 }
