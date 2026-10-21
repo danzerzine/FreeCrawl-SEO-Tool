@@ -147,6 +147,7 @@ export const HI_LABELS: Record<string, string> = {
     'अधिक समानांतरता और robots की अवहेलना — केवल अपनी साइटों के लिए। दर-सीमा या WAF नियम सक्रिय कर सकता है; सावधानी से उपयोग करें।',
 
   // Issues parent
+  'Site-wide': 'पूरी साइट पर',
   'Page Titles': 'पृष्ठ शीर्षक',
   'Meta Descriptions': 'मेटा विवरण',
   H1: 'H1',

@@ -147,6 +147,7 @@ export const FR_LABELS: Record<string, string> = {
     'Fort parallélisme et robots ignorés — uniquement pour les sites qui vous appartiennent. Peut déclencher des limites de débit ou des règles WAF ; à utiliser avec prudence.',
 
   // Issues parent
+  'Site-wide': 'Sur tout le site',
   'Page Titles': 'Titres de page',
   'Meta Descriptions': 'Méta-descriptions',
   H1: 'H1',

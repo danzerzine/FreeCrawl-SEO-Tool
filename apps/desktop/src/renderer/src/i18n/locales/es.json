@@ -13,7 +13,9 @@
     "notComputedHint": "Los enlaces entrantes aún no se han calculado, por lo que no se pueden contar las páginas huérfanas. Se calculan al final de un rastreo con \"Recalcular enlaces entrantes\" activado.",
     "byTargetPages": "Destinos de enlace: {{targets}} · páginas que enlazan: {{sources}}. La lista muestra las páginas que enlazan.",
     "byTargetLinks": "Destinos de enlace: {{targets}} · enlaces hacia ellos: {{sources}}. La lista muestra los enlaces.",
-    "byTargetReport": "Una fila por destino: Informes → {{report}}."
+    "byTargetReport": "Una fila por destino: Informes → {{report}}.",
+    "siteWideHint": "Aparece en casi todas las páginas: se corrige una vez en la plantilla del sitio o en los ajustes del servidor.",
+    "siteWideShare": "{{pages}} de {{base}} páginas respondieron 200"
   },
   "integrations": {
     "intro": "Conecta servicios externos con tus propias credenciales. Las claves de API y los secretos se cifran en reposo mediante el almacenamiento seguro de tu sistema operativo y nunca salen de esta máquina.",

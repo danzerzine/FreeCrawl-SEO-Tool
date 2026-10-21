@@ -147,6 +147,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
     '高并行度 + 忽略 robots——仅用于你自己拥有的站点。可能触发限速或 WAF 规则；请谨慎使用。',
 
   // Issues parent
+  'Site-wide': '全站',
   'Page Titles': '页面标题',
   'Meta Descriptions': 'Meta description',
   H1: 'H1',

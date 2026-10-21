@@ -147,6 +147,7 @@ export const RU_LABELS: Record<string, string> = {
     'Высокий параллелизм и игнорирование robots — только для своих сайтов. Может сработать ограничение скорости или правила WAF; используйте осторожно.',
 
   // Issues parent
+  'Site-wide': 'На всём сайте',
   'Page Titles': 'Заголовки страниц',
   'Meta Descriptions': 'Meta description',
   H1: 'H1',

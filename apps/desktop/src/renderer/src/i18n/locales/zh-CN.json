@@ -13,7 +13,9 @@
     "notComputedHint": "尚未计算入链，因此无法统计孤立页面。入链会在开启“重新计算入链”的抓取结束时计算。",
     "byTargetPages": "链接目标：{{targets}} · 链接到它们的页面：{{sources}}。列表显示的是链接到它们的页面。",
     "byTargetLinks": "链接目标：{{targets}} · 指向它们的链接：{{sources}}。列表显示的是这些链接。",
-    "byTargetReport": "每个目标一行：报告 → {{report}}。"
+    "byTargetReport": "每个目标一行：报告 → {{report}}。",
+    "siteWideHint": "几乎每个页面都有：在网站模板或服务器设置中修复一次即可。",
+    "siteWideShare": "返回 200 的 {{base}} 个页面中有 {{pages}} 个"
   },
   "integrations": {
     "intro": "使用你自己的凭据连接外部服务。API 密钥和机密会通过操作系统的安全存储在本地加密保存，绝不会离开这台机器。",

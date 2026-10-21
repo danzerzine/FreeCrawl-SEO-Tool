@@ -13,7 +13,9 @@
     "notComputedHint": "Daxil olan keçidlər hələ hesablanmadığı üçün yetim səhifələri saymaq mümkün deyil. Onlar \"Daxil olan keçidləri yenidən hesabla\" aktiv olan taramanın sonunda hesablanır.",
     "byTargetPages": "Keçid hədəfləri: {{targets}} · keçid verən səhifələr: {{sources}}. Siyahı keçid verən səhifələri göstərir.",
     "byTargetLinks": "Keçid hədəfləri: {{targets}} · onlara keçidlər: {{sources}}. Siyahı keçidlərin özünü göstərir.",
-    "byTargetReport": "Hər hədəf üçün bir sətir: Hesabatlar → {{report}}."
+    "byTargetReport": "Hər hədəf üçün bir sətir: Hesabatlar → {{report}}.",
+    "siteWideHint": "Demək olar ki, hər səhifədə var: sayt şablonunda və ya server parametrlərində bir düzəliş kifayətdir.",
+    "siteWideShare": "200 cavabı verən {{base}} səhifədən {{pages}}"
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",

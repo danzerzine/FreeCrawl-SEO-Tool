@@ -13,7 +13,9 @@
     "notComputedHint": "Gelen bağlantılar henüz hesaplanmadığı için yetim sayfalar sayılamıyor. \"Inlink'leri yeniden hesapla\" açık olan bir taramanın sonunda hesaplanırlar.",
     "byTargetPages": "Bağlantı hedefleri: {{targets}} · bağlantı veren sayfalar: {{sources}}. Liste, bağlantı veren sayfaları gösterir.",
     "byTargetLinks": "Bağlantı hedefleri: {{targets}} · onlara giden bağlantılar: {{sources}}. Liste, bağlantıları gösterir.",
-    "byTargetReport": "Hedef başına bir satır: Raporlar → {{report}}."
+    "byTargetReport": "Hedef başına bir satır: Raporlar → {{report}}.",
+    "siteWideHint": "Neredeyse her sayfada var: site şablonunda veya sunucu ayarlarında tek bir düzeltme yeter.",
+    "siteWideShare": "200 yanıtı veren {{base}} sayfanın {{pages}} tanesi"
   },
   "integrations": {
     "intro": "Harici servisleri kendi kimlik bilgilerinle bağla. API anahtarları ve secret'lar işletim sisteminin güvenli depolaması ile şifreli saklanır ve bu makineden asla çıkmaz.",

@@ -155,6 +155,7 @@ export const AZ_LABELS: Record<string, string> = {
     'Yüksək paralellik + robots-a riayət etməmək — yalnız sizə məxsus saytlar üçün. Sürət limiti / WAF qaydalarını işə sala bilər; ehtiyatla istifadə edin.',
 
   // Issues parent
+  'Site-wide': 'Bütün saytda',
   'Page Titles': 'Səhifə başlıqları',
   'Meta Descriptions': 'Meta təsvirlər',
   H1: 'H1',

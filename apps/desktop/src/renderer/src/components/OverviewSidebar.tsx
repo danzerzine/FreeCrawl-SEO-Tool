@@ -31,11 +31,22 @@ interface Node {
   /** The count is link targets, not URLs: no share of the total, and this
    *  tooltip says what the number and the list (pages or links) are. */
   targetHint?: string;
+  /** Tooltip of a row that is not counted by target (site-wide group and its checks). */
+  hint?: string;
+  /** Site-wide check: its share of the pages answered 2xx, shown instead of
+   *  "% of Total" (its own count may include redirects or unfetched rows). */
+  share?: number;
   children?: Node[];
 }
 
 /** Tooltip of a check counted by target, for `buildTree`. */
 type TargetHint = (def: IssueCheckDef, targets: number | null, sources: number | null) => string;
+
+/** Tooltips of the site-wide group, for `buildTree`. */
+interface SiteWideText {
+  group: string;
+  share: (pages: number, base: number) => string;
+}
 
 export function OverviewSidebar() {
   const { t, i18n } = useTranslation();
@@ -210,9 +221,24 @@ export function OverviewSidebar() {
         : what;
     };
   }, [t]);
+  const siteWideText = useMemo<SiteWideText>(
+    () => ({
+      group: t('sidebar.siteWideHint', {
+        defaultValue:
+          'Found on almost every page: one fix in the site template or server settings.',
+      }),
+      share: (pages, base) =>
+        t('sidebar.siteWideShare', {
+          defaultValue: '{{pages}} of {{base}} pages answered 200',
+          pages: pages.toLocaleString(),
+          base: base.toLocaleString(),
+        }),
+    }),
+    [t],
+  );
   const tree = useMemo(
-    () => buildTree(overview, disabledSet, cookiesOff, targetHint),
-    [overview, disabledSet, cookiesOff, targetHint],
+    () => buildTree(overview, disabledSet, cookiesOff, targetHint, siteWideText),
+    [overview, disabledSet, cookiesOff, targetHint, siteWideText],
   );
   const offLabel = t('sidebar.checkOff', { defaultValue: 'Off' });
   const notComputedLabel = t('sidebar.notComputed', { defaultValue: 'Not computed' });
@@ -354,7 +380,7 @@ const TreeNode = memo(function TreeNode({
           isActive && 'bg-accent-500/20 text-surface-50',
         )}
         style={{ paddingLeft: 8 + depth * 12 }}
-        title={node.targetHint}
+        title={node.hint ?? node.targetHint}
         onClick={() => {
           if (hasChildren) toggle(node.key);
           if (node.category) onClick(node.category);
@@ -392,6 +418,7 @@ const TreeNode = memo(function TreeNode({
               {(() => {
                 // Targets are not a share of the site's URLs.
                 if (node.targetHint) return '';
+                if (node.share !== undefined) return (node.share * 100).toFixed(2) + '%';
                 const base = node.percentBase ?? total;
                 return base > 0 ? ((node.count / base) * 100).toFixed(2) + '%' : '—';
               })()}
@@ -426,6 +453,7 @@ function buildTree(
   disabled: ReadonlySet<string>,
   cookiesOff: boolean,
   targetHint: TargetHint,
+  siteWideText: SiteWideText,
 ): Node[] {
   if (!o) return [];
   // Response Codes and Security deliberately count external URLs too (that's
@@ -435,6 +463,22 @@ function buildTree(
   // "All 6,657 / 6,555 = 109.30%" reads as a broken crawl. Every other group
   // is internal-scoped and keeps the default (internal) base.
   const allUrls = o.summary.totalInternalUrls + o.summary.totalExternalUrls;
+  const checkNode = (i: IssueCheckDef): Node => ({
+    key: i.key,
+    label: i.label,
+    count: issueCount(o.issues, i),
+    category: i.category,
+    ...(i.percentBase === 'images' ? { percentBase: o.summary.totalImages } : {}),
+    ...(i.byTarget
+      ? { targetHint: targetHint(i, issueCount(o.issues, i), issueSourcesCount(o.issues, i)) }
+      : {}),
+    ...(cookiesOff && i.category.startsWith('issues:cookie-') ? { off: true } : {}),
+  });
+  // Checks on almost every page answered 2xx (`OverviewCounts.site.siteWide`).
+  const siteWideBase = o.site?.siteWide?.pagesBase ?? 0;
+  const siteWidePages = new Map<UrlCategory, number>(
+    (o.site?.siteWide?.checks ?? []).map((c) => [c.category, c.pages]),
+  );
   return [
     {
       key: 'summary',
@@ -597,24 +641,29 @@ function buildTree(
       // Generated from the shared issue catalog so the sidebar, the
       // Settings → Issues toggles and the database silence list can never
       // disagree about which checks exist. Disabled checks drop out of the
-      // tree; a group with nothing left drops out with them.
-      children: ISSUE_GROUPS.map((g) => ({
-        key: g.key,
-        label: g.label,
-        children: g.items
-          .filter((i) => !disabled.has(i.category))
-          .map((i) => ({
-            key: i.key,
-            label: i.label,
-            count: issueCount(o.issues, i),
-            category: i.category,
-            ...(i.percentBase === 'images' ? { percentBase: o.summary.totalImages } : {}),
-            ...(i.byTarget
-              ? { targetHint: targetHint(i, issueCount(o.issues, i), issueSourcesCount(o.issues, i)) }
-              : {}),
-            ...(cookiesOff && i.category.startsWith('issues:cookie-') ? { off: true } : {}),
-          })),
-      })).filter((g) => g.children.length > 0),
+      // tree; a group with nothing left drops out with them. Site-wide
+      // checks move out of their group into one group at the end.
+      children: [
+        ...ISSUE_GROUPS.map((g) => ({
+          key: g.key,
+          label: g.label,
+          children: g.items
+            .filter((i) => !disabled.has(i.category) && !siteWidePages.has(i.category))
+            .map(checkNode),
+        })),
+        {
+          key: 'issues-site-wide',
+          label: 'Site-wide',
+          hint: siteWideText.group,
+          children: ISSUE_GROUPS.flatMap((g) => g.items)
+            .filter((i) => !disabled.has(i.category) && siteWidePages.has(i.category))
+            .map((i) => ({
+              ...checkNode(i),
+              hint: siteWideText.share(siteWidePages.get(i.category)!, siteWideBase),
+              share: siteWidePages.get(i.category)! / siteWideBase,
+            })),
+        },
+      ].filter((g) => g.children.length > 0),
     },
   ];
 }

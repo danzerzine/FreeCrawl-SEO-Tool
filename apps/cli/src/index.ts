@@ -558,6 +558,7 @@ async function main(): Promise<void> {
   const issues = overview.issues;
   const soft404Probe = overview.site?.soft404Probe ?? null;
   const botBlocked = overview.site?.botBlocked ?? null;
+  const siteWide = overview.site?.siteWide ?? null;
   // A crawl that fetched nothing (unreachable seed, everything filtered) is a
   // failure for CI purposes — a successful spider always fetches ≥1 page.
   const hasErrors =
@@ -578,7 +579,7 @@ async function main(): Promise<void> {
           dbPath,
           summary,
           issues,
-          site: { soft404Probe, botBlocked },
+          site: { soft404Probe, botBlocked, siteWide },
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
           ...(exported ? { exports: { ok: exported.errors.length === 0, ...exported } } : {}),

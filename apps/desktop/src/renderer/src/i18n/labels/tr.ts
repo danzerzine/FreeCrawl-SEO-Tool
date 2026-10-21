@@ -146,6 +146,7 @@ export const TR_LABELS: Record<string, string> = {
     'Yüksek paralellik + robots yok sayılır — yalnızca sahip olduğunuz siteler için. Hız sınırı / WAF kurallarını tetikleyebilir; dikkatli kullanın.',
 
   // Issues parent
+  'Site-wide': 'Site genelinde',
   'Page Titles': 'Sayfa Başlıkları',
   'Meta Descriptions': 'Meta Açıklamalar',
   H1: 'H1',

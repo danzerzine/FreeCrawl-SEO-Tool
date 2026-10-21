@@ -458,3 +458,36 @@ export function normalizeDisabledIssues(list: readonly string[] | undefined): Ur
   const wanted = new Set(list);
   return ISSUE_CATEGORIES.filter((c) => wanted.has(c));
 }
+
+/** A check on at least this percent of the pages answered 2xx is site-wide. */
+export const SITE_WIDE_MIN_PERCENT = 95;
+/** Below this many pages answered 2xx nothing is site-wide (small or just-started crawls). */
+export const SITE_WIDE_MIN_PAGES = 100;
+
+/**
+ * Whether a check on `pages` of the `pagesBase` internal HTML pages answered
+ * 2xx is site-wide: found on almost every page, so one fix in the template
+ * or server settings. A grouping, not a rating of the site.
+ */
+export function isSiteWide(pages: number, pagesBase: number): boolean {
+  return pagesBase >= SITE_WIDE_MIN_PAGES && pages * 100 >= SITE_WIDE_MIN_PERCENT * pagesBase;
+}
+
+/**
+ * Checks that may be site-wide, judged on their own count before the
+ * 2xx-only recount: page checks only (not counted by link target, not by
+ * image), not switched off, own count already site-wide against `pagesBase`.
+ */
+export function siteWideCandidates(
+  issues: OverviewCounts['issues'],
+  pagesBase: number,
+  disabled: ReadonlySet<string>,
+): UrlCategory[] {
+  return ISSUE_GROUPS.flatMap((g) =>
+    g.items.filter((i) => {
+      if (i.byTarget || i.percentBase === 'images' || disabled.has(i.category)) return false;
+      const count = issueCount(issues, i);
+      return count !== null && isSiteWide(count, pagesBase);
+    }),
+  ).map((i) => i.category);
+}

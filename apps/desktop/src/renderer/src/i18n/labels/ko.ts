@@ -147,6 +147,7 @@ export const KO_LABELS: Record<string, string> = {
     '높은 병렬 처리와 robots 무시 — 본인이 소유한 사이트에만 사용하십시오. 속도 제한이나 WAF 규칙을 건드릴 수 있으니 주의해서 쓰십시오.',
 
   // Issues parent
+  'Site-wide': '사이트 전체',
   'Page Titles': '페이지 제목',
   'Meta Descriptions': '메타 설명',
   H1: 'H1',

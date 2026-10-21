@@ -147,6 +147,7 @@ export const PT_BR_LABELS: Record<string, string> = {
     'Alto paralelismo e robots ignorado — só para sites que são seus. Pode acionar limites de taxa ou regras de WAF; use com cautela.',
 
   // Issues parent
+  'Site-wide': 'Em todo o site',
   'Page Titles': 'Títulos de página',
   'Meta Descriptions': 'Meta descrições',
   H1: 'H1',

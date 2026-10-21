@@ -1842,6 +1842,13 @@ export interface OverviewCounts {
     soft404Probe: Soft404ProbeResult | null;
     /** URLs bot protection kept the crawler from, with one example of what answered. */
     botBlocked?: { count: number; sample: string | null } | null;
+    /**
+     * Page checks found on almost every internal HTML page answered 2xx
+     * (`isSiteWide`): `pages` counts only those pages, `pagesBase` is all
+     * of them. The sidebar groups these checks once; counts, filters and
+     * exports stay per page.
+     */
+    siteWide?: { pagesBase: number; checks: { category: UrlCategory; pages: number }[] };
   };
   summary: {
     totalInternalUrls: number;

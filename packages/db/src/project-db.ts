@@ -91,6 +91,8 @@ import {
   ISSUE_SOURCES_COUNT_KEY,
   issueCategoriesBySeverity,
   PAGE_ROLLUP_EXCLUDED,
+  isSiteWide,
+  siteWideCandidates,
   normalizeDisabledIssues,
   isValidHreflangCode,
   MINHASH_SLOTS,
@@ -7198,6 +7200,23 @@ export class ProjectDb {
     // and must not read as "your crawl is being blocked"; the Response
     // Codes row above keeps externals, like its siblings.
     const botBlockedInternal = countWhere("is_external = 0 AND indexability = 'unknown:bot-blocked'");
+    const issues = this.silenceDisabledIssues(this.getIssuesCounts());
+    // Site-wide checks: share judged on one population, internal HTML pages
+    // answered 2xx, on both sides, so no share exceeds 100% even when a
+    // check's own count includes redirects or unfetched rows. Only the few
+    // checks whose own count is already site-wide get the restricted
+    // recount; they depend on the data, so the clause-collect pass skips them.
+    const pagesClause = `${INTERNAL_HTML_SCOPE} AND status_code BETWEEN 200 AND 299`;
+    const pagesBase = countWhere(pagesClause);
+    const siteWideChecks: { category: UrlCategory; pages: number }[] = [];
+    if (!this.overviewCollect) {
+      for (const category of siteWideCandidates(issues, pagesBase, disabledIssues)) {
+        const clause = categoryWhereClause(category, disabledIssues);
+        if (!clause) continue;
+        const pages = countWhere(`${pagesClause} AND (${clause})`);
+        if (isSiteWide(pages, pagesBase)) siteWideChecks.push({ category, pages });
+      }
+    }
 
     return {
       summary: {
@@ -7246,13 +7265,14 @@ export class ProjectDb {
         canonicalised: countCategory('indexability:canonicalised'),
         blockedRobots: countCategory('indexability:blocked-robots'),
       },
-      issues: this.silenceDisabledIssues(this.getIssuesCounts()),
+      issues,
       site: {
         soft404Probe: this.readSoft404Probe(),
         botBlocked:
           botBlockedInternal > 0
             ? { count: botBlockedInternal, sample: this.botBlockedSample() }
             : null,
+        siteWide: { pagesBase, checks: siteWideChecks },
       },
     };
   }

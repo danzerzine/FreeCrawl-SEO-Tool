@@ -147,6 +147,7 @@ export const ES_LABELS: Record<string, string> = {
     'Paralelismo alto e ignorar robots — solo para sitios que sean tuyos. Puede activar límites de tasa o reglas del WAF; úsalo con precaución.',
 
   // Issues parent
+  'Site-wide': 'En todo el sitio',
   'Page Titles': 'Títulos de página',
   'Meta Descriptions': 'Meta descripciones',
   H1: 'H1',

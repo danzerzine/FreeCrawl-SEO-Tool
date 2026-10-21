@@ -13,7 +13,9 @@
     "notComputedHint": "Os links de entrada ainda não foram calculados, então as páginas órfãs não podem ser contadas. Eles são calculados no fim de um rastreamento com \"Recalcular links de entrada\" ativado.",
     "byTargetPages": "Destinos de link: {{targets}} · páginas que linkam: {{sources}}. A lista mostra as páginas que linkam.",
     "byTargetLinks": "Destinos de link: {{targets}} · links para eles: {{sources}}. A lista mostra os links.",
-    "byTargetReport": "Uma linha por destino: Relatórios → {{report}}."
+    "byTargetReport": "Uma linha por destino: Relatórios → {{report}}.",
+    "siteWideHint": "Aparece em quase todas as páginas: uma correção no template do site ou nas configurações do servidor.",
+    "siteWideShare": "{{pages}} de {{base}} páginas responderam 200"
   },
   "integrations": {
     "intro": "Conecte serviços externos com suas próprias credenciais. As chaves de API e os segredos são criptografados em repouso pelo armazenamento seguro do seu sistema operacional e nunca saem desta máquina.",

@@ -13,7 +13,9 @@
     "notComputedHint": "Les liens entrants n'ont pas encore été calculés, les pages orphelines ne peuvent donc pas être comptées. Ils sont calculés à la fin d'une exploration avec « Recalculer les liens entrants » activé.",
     "byTargetPages": "Cibles de liens : {{targets}} · pages qui les lient : {{sources}}. La liste montre les pages qui lient.",
     "byTargetLinks": "Cibles de liens : {{targets}} · liens vers elles : {{sources}}. La liste montre les liens.",
-    "byTargetReport": "Une ligne par cible : Rapports → {{report}}."
+    "byTargetReport": "Une ligne par cible : Rapports → {{report}}.",
+    "siteWideHint": "Présent sur presque toutes les pages : une seule correction dans le modèle du site ou les paramètres du serveur.",
+    "siteWideShare": "{{pages}} pages sur {{base}} ont répondu 200"
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",

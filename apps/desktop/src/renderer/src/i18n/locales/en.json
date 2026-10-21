@@ -13,7 +13,9 @@
     "notComputedHint": "Inlinks have not been computed yet, so orphan pages cannot be counted. They are computed at the end of a crawl that has \"Recompute inlinks\" on.",
     "byTargetPages": "Link targets: {{targets}} · linking pages: {{sources}}. The list shows the linking pages.",
     "byTargetLinks": "Link targets: {{targets}} · links to them: {{sources}}. The list shows the links.",
-    "byTargetReport": "One row per target: Reports → {{report}}."
+    "byTargetReport": "One row per target: Reports → {{report}}.",
+    "siteWideHint": "Found on almost every page: one fix in the site template or server settings.",
+    "siteWideShare": "{{pages}} of {{base}} pages answered 200"
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",
