@@ -7517,6 +7517,8 @@ function registerIpc(): void {
    * in the Start dialog again. Persisted across restarts via DB
    * project_meta so it survives the very crash we're recovering from. */
   function attachCrawlerListeners(crawler: Crawler, sess: ProjectSession): void {
+    // Alerts read only a history row written after this point (B88d).
+    const attachedAt = new Date().toISOString();
     // Keep the OS from suspending/App-Napping us while this crawl runs.
     // On macOS a backgrounded crawl otherwise gets App Nap's priority
     // reduction + timer throttling + disk-I/O throttling (and on Apple
@@ -7575,7 +7577,7 @@ function registerIpc(): void {
       sess.activeCrawler = null;
       // B88d — rules that fired on this crawl go to the project's channels.
       // Best effort: it logs its own failures and never throws.
-      void alertAfterCrawl(sess.getDb(), alertDeps(sess));
+      void alertAfterCrawl(sess.getDb(), alertDeps(sess), { since: attachedAt });
       // Free the MCP crawl lease so a queued agent start_crawl can proceed.
       releaseSessionLease(sess);
       // One fewer live crawl — give the survivors back their share of the

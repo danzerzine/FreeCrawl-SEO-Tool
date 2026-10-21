@@ -143,10 +143,13 @@ async function deliver(
  * one message per channel that is on when at least one rule fired. The
  * start URL is the crawler's resolved one from the newest row, not the
  * typed `lastStartUrl`, which can differ (redirect, missing slash).
+ * `since` is when the crawl started; a newest row older than it is not
+ * this crawl's.
  */
 export async function alertAfterCrawl(
   db: Pick<ProjectDb, 'getMeta' | 'latestCrawlRunStartUrl' | 'listCrawlRuns'>,
   deps: AlertDeps,
+  opts: { since?: string } = {},
 ): Promise<AlertDelivery[]> {
   try {
     const { channels } = readAlertsConfig(db);
@@ -154,6 +157,12 @@ export async function alertAfterCrawl(
     if (rules.length === 0 || channels.length === 0) return [];
     const latest = latestAndPrevious(db);
     if (!latest) return [];
+    // The crawl's own row is missing (the history write failed): the newest
+    // row is an older crawl, and alerting on it would report stale counts.
+    if (opts.since !== undefined && latest.current.finishedAt < opts.since) {
+      deps.log('warn', 'Alerts skipped: this crawl was not saved to the history');
+      return [];
+    }
     const { startUrl } = latest.current;
     const results = evaluateRules(rules, latest.current.snapshot, latest.previous?.snapshot ?? null);
     const fired = results.filter((r) => r.status === 'fired').length;
