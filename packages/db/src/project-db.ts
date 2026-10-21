@@ -1340,6 +1340,22 @@ const CANONICAL_CMP_Q =
   "COALESCE(NULLIF(urls.canonical_resolved, ''), urls.canonical)";
 
 /**
+ * The page's near-duplicate cluster holds pages that point to different
+ * canonicals: among the cluster's internal HTML pages with a canonical,
+ * more than one distinct target. For a page that has a canonical itself
+ * this is "another such page in its cluster has a target other than
+ * mine". One GROUP BY over the clusters: the per-page correlated form
+ * walked every internal URL for each clustered page (a 6,000-page
+ * cluster on a 480k-URL crawl took ~10 minutes).
+ */
+const CANONICAL_CONFLICT_CLUSTER = `cluster_id IN (
+  SELECT cluster_id FROM urls
+   WHERE cluster_id > 0 AND is_external = 0 AND content_kind = 'html'
+     AND canonical IS NOT NULL AND canonical != ''
+   GROUP BY cluster_id
+  HAVING COUNT(DISTINCT ${CANONICAL_CMP}) > 1)`;
+
+/**
  * One post-crawl probe result, addressed to the setter that stores it.
  * The crawler buffers these and ships them through `applyProbeWrites`.
  */
@@ -7385,15 +7401,7 @@ export class ProjectDb {
       canonicalConflictNearDuplicate: countWhere(
         `${html} AND cluster_id > 0 AND cluster_size > 1
          AND canonical IS NOT NULL AND canonical != ''
-         AND EXISTS (
-           SELECT 1 FROM urls u2
-           WHERE u2.cluster_id = urls.cluster_id
-             AND u2.is_external = 0 AND u2.content_kind = 'html'
-             AND u2.canonical IS NOT NULL AND u2.canonical != ''
-             AND COALESCE(NULLIF(u2.canonical_resolved, ''), u2.canonical)
-                 != ${CANONICAL_CMP_Q}
-             AND u2.url != urls.url
-         )`,
+         AND ${CANONICAL_CONFLICT_CLUSTER}`,
       ),
       highBoilerplate: countWhere(
         `${html} AND boilerplate_coverage IS NOT NULL AND boilerplate_coverage > 50`,
@@ -12264,15 +12272,7 @@ export function categoryWhereClause(
       return `is_external = 0 AND content_kind = 'html'
               AND cluster_id > 0 AND cluster_size > 1
               AND canonical IS NOT NULL AND canonical != ''
-              AND EXISTS (
-                SELECT 1 FROM urls u2
-                WHERE u2.cluster_id = urls.cluster_id
-                  AND u2.is_external = 0 AND u2.content_kind = 'html'
-                  AND u2.canonical IS NOT NULL AND u2.canonical != ''
-                  AND COALESCE(NULLIF(u2.canonical_resolved, ''), u2.canonical)
-                      != ${CANONICAL_CMP_Q}
-                  AND u2.url != urls.url
-              )`;
+              AND ${CANONICAL_CONFLICT_CLUSTER}`;
     case 'issues:content-thin':
       // 2xx only — a text/html 404 template is short by design and was
       // being counted as thin content. Indexable only: a noindexed cart or
