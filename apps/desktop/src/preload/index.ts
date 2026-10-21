@@ -471,7 +471,7 @@ const api: FreeCrawlApi = {
   monitorHistory: (metrics: string[], limit?: number): Promise<MonitorHistoryRow[]> =>
     ipcRenderer.invoke(IPC.monitorHistory, metrics, limit),
   monitorMetrics: (): Promise<string[]> => ipcRenderer.invoke(IPC.monitorMetrics),
-  issueTrend: (): Promise<IssueTrend | null> => ipcRenderer.invoke(IPC.issueTrend),
+  monitorIssueTrend: (): Promise<IssueTrend | null> => ipcRenderer.invoke(IPC.monitorIssueTrend),
   pickDirectory: (input?: { title?: string; defaultPath?: string }): Promise<string | null> =>
     ipcRenderer.invoke(IPC.pickDirectory, input),
   defaultProjectDir: (): Promise<string> => ipcRenderer.invoke(IPC.defaultProjectDir),

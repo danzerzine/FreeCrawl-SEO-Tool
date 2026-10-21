@@ -183,7 +183,8 @@ export options:
                         bulk        one CSV per tab / issue check with rows, plus links-internal/external.csv
                         seo-audit   Screaming Frog-style SEO Audit files in <dir>/seo-audit
                         html        single-file HTML report (report.html)
-                        issues      issues-summary.csv: check key, label, group, severity, URL count
+                        issues      issues-summary.csv: check key, label, group, severity, URLs, items,
+                                    previous crawl's count, change since
                         tab:<key> / issues:<key>
                                     one category CSV, e.g. tab:redirects, issues:title-missing
                         dataset:<key>

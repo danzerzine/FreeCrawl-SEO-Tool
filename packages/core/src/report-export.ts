@@ -99,6 +99,8 @@ export async function exportLinkTargetReport(
  * else. Previous and Change compare the two latest finished crawls of the
  * site in the sidebar's unit (Items where there are Items, else URLs);
  * both are empty without a previous crawl or when either did not count it.
+ * They come from the crawl history, URLs and Items from the project as it
+ * stands, so after a stopped crawl or an edit they need not add up.
  */
 export async function exportIssuesSummary(
   db: ProjectDb,
@@ -107,7 +109,6 @@ export async function exportIssuesSummary(
 ): Promise<{ rowsWritten: number }> {
   const disabled = db.getDisabledIssues();
   const issues = db.getOverviewCounts().issues;
-  // Previous crawl's count and the change since (B23); empty without one.
   const trend = issueTrend(db)?.checks ?? {};
   const rows = ISSUE_GROUPS.flatMap((g) =>
     g.items

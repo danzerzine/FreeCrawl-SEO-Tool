@@ -39,6 +39,12 @@ export interface CrawlRun {
   snapshot: CrawlSnapshot;
 }
 
+/** One check's count in the previous crawl and the newest minus it. */
+export interface CheckTrend {
+  previous: number;
+  change: number;
+}
+
 /**
  * Each check's count in the newest crawl against the previous crawl of the
  * same start URL (Overview sidebar ▲N/▼N, `issues-summary.csv`). Read from
@@ -50,7 +56,7 @@ export interface IssueTrend {
   /** The two crawls ran on different app versions: a change may come from the check, not the site. */
   toolVersionChanged: boolean;
   /** `issues:<key>` → its previous count and newest minus previous; a check off or not computed in either crawl is absent. */
-  checks: Record<string, { previous: number; change: number }>;
+  checks: Record<string, CheckTrend>;
 }
 
 /**

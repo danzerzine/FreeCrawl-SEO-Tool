@@ -7,6 +7,7 @@ import {
   issueCount,
   issueSourcesCount,
   type IssueCheckDef,
+  type CheckTrend,
   type IssueTrend,
   type OverviewCounts,
   type UrlCategory,
@@ -38,7 +39,7 @@ interface Node {
    *  "% of Total" (its own count may include redirects or unfetched rows). */
   share?: number;
   /** The check's count in the previous crawl and the change since (B23). */
-  trend?: { previous: number; change: number };
+  trend?: CheckTrend;
   children?: Node[];
 }
 
@@ -181,9 +182,12 @@ export function OverviewSidebar() {
   }, [progressCrawled, progressRunning, setOverview]);
 
   // B23 — each check against the previous crawl. Hidden while a crawl runs:
-  // the live counts are not a finished crawl. Refetched when it ends and on
-  // every data change (a project opened, a crawl recorded).
+  // the live counts are not a finished crawl. Refetched on every data change
+  // (a project opened) and on crawl done: the crawler records the run after
+  // its last progress frame, so the frame alone would read the old pair.
   const [trend, setTrend] = useState<IssueTrend | null>(null);
+  const [crawlsDone, setCrawlsDone] = useState(0);
+  useEffect(() => window.freecrawl.onDone(() => setCrawlsDone((n) => n + 1)), []);
   useEffect(() => {
     if (progressRunning) {
       setTrend(null);
@@ -191,7 +195,7 @@ export function OverviewSidebar() {
     }
     let cancelled = false;
     void window.freecrawl
-      .issueTrend()
+      .monitorIssueTrend()
       .then((tr) => {
         if (!cancelled) setTrend(tr);
       })
@@ -201,7 +205,7 @@ export function OverviewSidebar() {
     return () => {
       cancelled = true;
     };
-  }, [dataVersion, progressRunning]);
+  }, [dataVersion, progressRunning, crawlsDone]);
 
   const toggle = (k: string) => {
     setExpanded((prev) => {
