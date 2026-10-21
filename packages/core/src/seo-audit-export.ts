@@ -1,13 +1,11 @@
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { createWriteStream, type WriteStream } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { STATUS_CODES } from 'node:http';
-import { once } from 'node:events';
 import type { ProjectDb } from '@freecrawl/db';
 import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
-import { writeExportFile } from './export-file.js';
+import { writeUrlFilesInOnePass } from './url-files-pass.js';
 
 /**
  * "SEO Audit" folder export in Screaming Frog's layout: the same file
@@ -827,119 +825,18 @@ function quoted(value: Cell): string {
   return s.startsWith('"') ? s : `"${s}"`;
 }
 
-/** One output file of the shared pass: its rows, its open `.part` stream. */
-interface AuditSink {
-  f: AuditFile;
-  /** Ids of the file's category, ascending; null when it is every URL. */
-  ids: Uint32Array | null;
-  next: number;
-  out: WriteStream;
-  buf: string;
-  rows: number;
-  failed: boolean;
-}
-
-const FLUSH_CHARS = 1 << 16;
-
-/**
- * Every file draws its rows from the urls table in id order, so one pass
- * over all URLs feeds them all: each file keeps a row when its category's
- * id list holds it (the same rows `iterateUrlsByCategory` would yield).
- */
-async function writeAuditFiles(
-  db: ProjectDb,
-  targets: { f: AuditFile; partPath: string }[],
+/** A file's CSV line for `row`, or null when the file leaves the row out. */
+function auditLine(
+  f: AuditFile,
+  row: CrawlUrlRow,
   ctx: SeoAuditContext,
-): Promise<Map<AuditFile, Promise<number>>> {
-  const results = new Map<AuditFile, Promise<number>>();
-  const sinks: AuditSink[] = [];
-  const pendingDrains: Promise<void>[] = [];
-  const write = (sink: AuditSink, flushAt: number): void => {
-    if (sink.failed || sink.buf.length < flushAt) return;
-    const ok = sink.out.write(sink.buf);
-    sink.buf = '';
-    if (!ok)
-      pendingDrains.push(
-        once(sink.out, 'drain').then(
-          () => undefined,
-          () => undefined,
-        ),
-      );
-  };
-  // Listed before any `.part` is opened, so a failure here leaves none open.
-  const ids = targets.map(({ f }) =>
-    f.category === 'all' ? null : db.urlIdsByCategory(f.category),
+  bodyOf: (row: CrawlUrlRow) => BodyFacts | undefined,
+): string | null {
+  if (f.keep && !f.keep(row)) return null;
+  const cells = f.headers.map((c) =>
+    c === 'Occurrences' ? occurrences(f.occurrences, row, bodyOf(row)) : cell(c, row, ctx),
   );
-  for (const [i, { f, partPath }] of targets.entries()) {
-    const out = createWriteStream(partPath, { encoding: 'utf8' });
-    const sink: AuditSink = {
-      f,
-      ids: ids[i]!,
-      next: 0,
-      out,
-      buf: '﻿' + f.headers.map(quoted).join(',') + '\r\n',
-      rows: 0,
-      failed: false,
-    };
-    results.set(
-      f,
-      new Promise<number>((resolve, reject) => {
-        out.on('error', (err) => {
-          sink.failed = true;
-          reject(err);
-        });
-        out.on('finish', () => resolve(sink.rows));
-      }),
-    );
-    // A failed file must not stop the others; its error is read from `results`.
-    results.get(f)!.catch(() => undefined);
-    sinks.push(sink);
-  }
-  try {
-    for (const row of db.iterateUrlsByCategory('all')) {
-      let body: BodyFacts | undefined;
-      let bodyRead = false;
-      for (const sink of sinks) {
-        if (sink.failed) continue;
-        if (sink.ids) {
-          const ids = sink.ids;
-          while (sink.next < ids.length && ids[sink.next]! < row.id) sink.next++;
-          if (sink.next >= ids.length || ids[sink.next] !== row.id) continue;
-          sink.next++;
-        }
-        const f = sink.f;
-        if (!bodyRead) {
-          body = ctx.bodies.get(row.id);
-          bodyRead = true;
-        }
-        let line: string;
-        try {
-          if (f.keep && !f.keep(row)) continue;
-          const cells = f.headers.map((c) =>
-            c === 'Occurrences' ? occurrences(f.occurrences, row, body) : cell(c, row, ctx),
-          );
-          line = cells.map(quoted).join(',') + '\r\n';
-        } catch (err) {
-          // A row this file cannot build fails this file only.
-          sink.failed = true;
-          sink.out.destroy(err as Error);
-          continue;
-        }
-        sink.rows++;
-        sink.buf += line;
-        write(sink, FLUSH_CHARS);
-      }
-      if (pendingDrains.length) await Promise.all(pendingDrains.splice(0));
-    }
-  } catch (err) {
-    for (const sink of sinks) if (!sink.failed) sink.out.destroy(err as Error);
-    return results;
-  }
-  for (const sink of sinks) {
-    write(sink, 0);
-    sink.out.end();
-  }
-  return results;
+  return cells.map(quoted).join(',') + '\r\n';
 }
 
 /**
@@ -960,32 +857,25 @@ async function writeSeoAudit(db: ProjectDb, outputDir: string): Promise<SeoAudit
   const ctx = loadSeoAuditContext(db);
   for (const legacy of LEGACY_FILES) await rm(join(outputDir, legacy), { force: true });
   const wanted = SEO_AUDIT_FILES.filter((f) => !disabled.has(f.category));
-  // Each file keeps its own `.part` + rename; the writes share one pass,
-  // started once every file's `.part` path is known.
-  const targets: { f: AuditFile; partPath: string }[] = [];
-  let ready!: () => void;
-  const allReady = new Promise<void>((resolve) => (ready = resolve));
-  let pass: Promise<Map<AuditFile, Promise<number>>> | undefined;
-  let waiting = wanted.length;
-  const settle = (): void => {
-    if (--waiting === 0) ready();
+  // The body facts of the row being written, read once for all its files.
+  let bodyRow: CrawlUrlRow | undefined;
+  let body: BodyFacts | undefined;
+  const bodyOf = (row: CrawlUrlRow): BodyFacts | undefined => {
+    if (bodyRow !== row) {
+      bodyRow = row;
+      body = ctx.bodies.get(row.id);
+    }
+    return body;
   };
-  const runs = wanted.map((f) =>
-    writeExportFile(join(outputDir, f.file), async (partPath) => {
-      targets.push({ f, partPath });
-      settle();
-      await allReady;
-      pass ??= writeAuditFiles(db, targets, ctx);
-      return (await pass).get(f)!;
-    }).catch((err: unknown) => {
-      // Failed before its write started (folder not creatable): the pass
-      // must not wait for it.
-      if (!targets.some((t) => t.f === f)) settle();
-      throw err;
-    }),
+  const settled = await writeUrlFilesInOnePass(
+    db,
+    wanted.map((f) => ({
+      filePath: join(outputDir, f.file),
+      category: f.category,
+      head: '\ufeff' + f.headers.map(quoted).join(',') + '\r\n',
+      line: (row: CrawlUrlRow) => auditLine(f, row, ctx, bodyOf),
+    })),
   );
-  if (wanted.length === 0) ready();
-  const settled = await Promise.allSettled(runs);
   settled.forEach((r, i) => {
     const f = wanted[i]!;
     if (r.status === 'fulfilled') {

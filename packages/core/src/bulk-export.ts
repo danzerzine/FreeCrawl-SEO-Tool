@@ -19,7 +19,8 @@ import type {
   ExportDatasetKey,
   UrlCategory,
 } from '@freecrawl/shared-types';
-import { exportLinksToCsv, exportUrlsToCsv } from './csv-export.js';
+import { exportLinksToCsv, urlCsvFormat } from './csv-export.js';
+import { writeUrlFilesInOnePass } from './url-files-pass.js';
 import { exportDatasetFile } from './tabular-export.js';
 import { writeExportFile } from './export-file.js';
 
@@ -293,26 +294,35 @@ export async function runBulkExport(
   // Silenced checks (Settings → Issues) get no file at all — an empty CSV
   // for a check the user turned off would read as "nothing found".
   const disabled = db.getDisabledIssues();
-  for (const task of options.tasks ?? BULK_EXPORT_TASKS) {
-    if (disabled.has(task.category)) continue;
-    const filePath = join(outputDir, task.file);
-    const t0 = performance.now();
-    try {
-      const { rowsWritten } = await writeExportFile(
-        filePath,
-        (partPath) => exportUrlsToCsv(db, partPath, {
-            category: task.category,
-            columns: task.columns,
-            headers: options.headers,
-          }),
-        hasRows,
-      );
-      if (rowsWritten === 0) continue;
-      files.push({ filePath, label: task.label, category: task.category, rowsWritten, ms: since(t0) });
-    } catch (err) {
-      errors.push({ label: task.label, error: (err as Error).message });
+  // Every category file in one pass over the urls table.
+  const tasks = (options.tasks ?? BULK_EXPORT_TASKS).filter((t) => !disabled.has(t.category));
+  const t0 = performance.now();
+  const settled = await writeUrlFilesInOnePass(
+    db,
+    tasks.map((task) => ({
+      filePath: join(outputDir, task.file),
+      category: task.category,
+      ...urlCsvFormat({ columns: task.columns, headers: options.headers }),
+      keep: (rows: number) => rows > 0,
+    })),
+  );
+  const passMs = since(t0);
+  settled.forEach((r, i) => {
+    const task = tasks[i]!;
+    if (r.status === 'rejected') {
+      const err = r.reason;
+      errors.push({ label: task.label, error: err instanceof Error ? err.message : String(err) });
+    } else if (r.value > 0) {
+      files.push({
+        filePath: join(outputDir, task.file),
+        label: task.label,
+        category: task.category,
+        rowsWritten: r.value,
+        // Files of one pass finish together: each took the pass's time.
+        ms: passMs,
+      });
     }
-  }
+  });
   if (options.tasks) return { outputDir, files, errors };
   // Link-level files: one row per edge rather than per page.
   for (const scope of ['internal', 'external'] as const) {

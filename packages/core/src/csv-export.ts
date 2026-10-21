@@ -43,6 +43,25 @@ const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
 // dialog used the guarded copy: two writers reachable from one grid, only
 // one of them safe.
 
+/**
+ * The URL CSV's first chunk (BOM + header row) and its row line, for
+ * `columns` (default CSV_COLUMNS). `headers: 'keys'` writes the raw
+ * `CrawlUrlRow` keys and turns the formula guard off (machine mode).
+ */
+export function urlCsvFormat(options: {
+  columns?: (keyof CrawlUrlRow)[];
+  headers?: 'labels' | 'keys';
+}): { head: string; line: (row: CrawlUrlRow) => string } {
+  const cols = options.columns && options.columns.length > 0 ? options.columns : CSV_COLUMNS;
+  const cell = { formulaGuard: options.headers !== 'keys' };
+  const header =
+    cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c), cell)).join(',') + '\n';
+  return {
+    head: '\ufeff' + header,
+    line: (row) => cols.map((col) => escapeCsv(row[col], cell)).join(',') + '\n',
+  };
+}
+
 export async function exportUrlsToCsv(
   db: ProjectDb,
   filePath: string,
@@ -61,10 +80,7 @@ export async function exportUrlsToCsv(
   } = {},
 ): Promise<{ rowsWritten: number }> {
   let rowsWritten = 0;
-  const cols = options.columns && options.columns.length > 0 ? options.columns : CSV_COLUMNS;
-  const cell = { formulaGuard: options.headers !== 'keys' };
-  const header =
-    cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c), cell)).join(',') + '\n';
+  const { head, line } = urlCsvFormat(options);
 
   const source: Iterable<CrawlUrlRow> =
     options.selectedIds && options.selectedIds.length > 0
@@ -74,11 +90,10 @@ export async function exportUrlsToCsv(
         : db.iterateAllUrls();
 
   const generator = async function* (): AsyncGenerator<string> {
-    yield '﻿' + header;
+    yield head;
     for (const row of source) {
-      const line = cols.map((col) => escapeCsv(row[col], cell)).join(',') + '\n';
       rowsWritten++;
-      yield line;
+      yield line(row);
     }
   };
 
