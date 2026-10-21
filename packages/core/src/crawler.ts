@@ -1363,7 +1363,7 @@ export class Crawler extends EventEmitter {
 
     const origin = new URL(start).origin;
     // The start origin's robots.txt is read before the first URL is queued
-    // (awaited below, after the timers start): checking against a file
+    // (awaited just before hydrateFromDb, once the timers run): checking against a file
     // still loading let disallowed pages through. Sitemap discovery stays
     // in the background and is awaited at end-of-crawl so post-crawl
     // recompute and sitemap-derived issue counts use the full data set.

@@ -1640,8 +1640,9 @@ export function parseHtml(
 
   // Text/code ratio — visible body text characters divided by raw HTML
   // characters, rounded to integer percent. Characters, not UTF-8 bytes:
-  // a Cyrillic letter is two bytes, which doubled the share of Russian text. Reuses the script/style/noscript-stripped
-  // `text` computed above: their inner text isn't user-facing content and
+  // a Cyrillic letter is two bytes, which doubled the share of Russian
+  // text. Reuses the script/style/noscript-stripped `text` computed
+  // above: their inner text isn't user-facing content and
   // would inflate the ratio on JS-heavy SPAs that ship a 200 KB script tag
   // with no markup. Null when the HTML is empty.
   let textCodeRatio: number | null = null;

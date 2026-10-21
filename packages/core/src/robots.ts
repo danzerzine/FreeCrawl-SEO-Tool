@@ -144,6 +144,7 @@ export async function loadRobots(
   let failure: string | null = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     if (attempt > 1) await new Promise((r) => setTimeout(r, retryDelaysMs[attempt - 2]));
+    const earlier = failure;
     failure = null;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -172,6 +173,8 @@ export async function loadRobots(
     } catch (err) {
       const code = retryableNetError(err);
       if (code) failure = `could not be fetched (${code})`;
+      // A timeout after a server error is still a failing robots.txt, not a silent allow.
+      else if (earlier) failure = 'could not be fetched';
     } finally {
       clearTimeout(timeout);
     }

@@ -187,7 +187,7 @@ export const CHECKS_FILLED_META_KEY = 'checksFilled';
  * absent on older projects, which then use the defaults.
  */
 export const SEO_THRESHOLDS_META_KEY = 'seoThresholds';
-/** Page checks added since module 5; this build fills every one of them. */
+/** Page checks added or changed since module 5; this build fills every one of them. */
 export const LATER_CHECKS: readonly UrlCategory[] = [
   // Pixel widths: Cyrillic is measured per letter since B77, so an older crawl's widths differ.
   'issues:title-pixel-width-too-long',
