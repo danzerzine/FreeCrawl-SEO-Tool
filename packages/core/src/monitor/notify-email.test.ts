@@ -82,6 +82,14 @@ describe('sendEmail', () => {
     void sendSlack;
   });
 
+  it('appends the footer block after the rules (B81 change report)', async () => {
+    const port = await smtp();
+    const footer = 'Changes since the previous crawl: title 2, removed 1.';
+    const res = await sendEmail(`smtp://bot:s3cret@127.0.0.1:${port}`, 'ops@example.com', [rule], { footer });
+    expect(res.ok).toBe(true);
+    expect(bodyText(mails[0]!.data).replaceAll('\r\n', '\n')).toContain(`${formatAlert([rule])}\n\n${footer}`);
+  });
+
   it('answers ok:false with the server reply on bad credentials, no password', async () => {
     const port = await smtp('535 5.7.8 Authentication credentials invalid');
     const res = await sendEmail(`smtp://bot:s3cret@127.0.0.1:${port}`, 'ops@example.com', [rule]);
