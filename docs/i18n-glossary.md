@@ -89,6 +89,11 @@ noun and the second the verb.
 | report | informe | relatório | rapport | report | отчёт | rapor | hesabat | 报告 | 보고서 | रिपोर्ट |
 | bot | bot | bot | bot | bot | бот | bot | bot | 机器人 | 봇 | बॉट |
 | threat / suspicious request | solicitud sospechosa | solicitação suspeita | requête suspecte | richiesta sospetta | подозрительный запрос | şüpheli istek | şübhəli sorğu | 可疑请求 | 의심스러운 요청 | संदिग्ध अनुरोध |
+| alert (monitoring) | alerta | alerta | alerte | avviso | оповещение | uyarı | bildiriş | 提醒 | 알림 | अलर्ट |
+| rule (monitoring) | regla | regra | règle | regola | правило | kural | qayda | 规则 | 규칙 | नियम |
+| threshold | umbral | limite | seuil | soglia | порог | eşik | hədd | 阈值 | 임계값 | सीमा |
+| trend / Trends (view) | tendencia | tendência | tendance | tendenza | динамика | eğilim | trend | 趋势 | 추세 | रुझान |
+| release gate (`freecrawl check`) | control previo a la publicación | verificação antes da publicação | contrôle avant mise en production | controllo pre-rilascio | проверка перед выпуском | yayın öncesi kontrol | buraxılışdan əvvəl yoxlama | 发布前检查 | 출시 전 점검 | रिलीज़ से पहले जाँच |
 
 ---
 
