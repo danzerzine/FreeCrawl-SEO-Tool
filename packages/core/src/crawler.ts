@@ -25,6 +25,8 @@ import {
   SOFT404_PROBE_META_KEY,
   COUNT_NOFOLLOW_META_KEY,
   CHECK_EXTERNAL_META_KEY,
+  CHECKS_FILLED_META_KEY,
+  LATER_CHECKS,
   TEMPLATE_LEARN_META_KEY,
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
@@ -1296,6 +1298,12 @@ export class Crawler extends EventEmitter {
     // insertLinks reads this to skip External rows nothing will request.
     this.db.setMeta(CHECK_EXTERNAL_META_KEY, this.config.checkExternalLinks ? '1' : '0');
     const isRefresh = isSameSite && !isRespider && !this.resumeOnly;
+    // A fresh crawl or a refresh fills every later check; a continued crawl
+    // keeps only those the earlier part filled too.
+    const before = this.db.checksFilled();
+    const continued = isRespider || (isSameSite && !isRefresh);
+    const filled = continued ? LATER_CHECKS.filter((k) => before.has(k)) : LATER_CHECKS;
+    this.db.setMeta(CHECKS_FILLED_META_KEY, JSON.stringify(filled));
     // Change markers describe the run that is starting now, so anything
     // a previous refresh flagged is cleared first. A wiped project has
     // nothing to clear, and a targeted re-spider clears only its own
@@ -5194,6 +5202,7 @@ export class Crawler extends EventEmitter {
           metaCharset,
           canonicalOutsideHead: this.config.storeCanonicals ? parsed.canonicalOutsideHead : 0,
           hreflangOutsideHead: this.config.storeHreflang ? parsed.hreflangOutsideHead : 0,
+          ogNameAttr: parsed.ogNameAttr,
           contentLang: parsed.contentLang,
           langMismatch: parsed.langMismatch ? 1 : 0,
           soft404: parsed.soft404Signal && statusCode >= 200 && statusCode < 300 ? 1 : 0,

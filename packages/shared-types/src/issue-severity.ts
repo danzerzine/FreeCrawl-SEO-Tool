@@ -181,6 +181,7 @@ const INFO: UrlCategory[] = [
   'issues:url-non-ascii',
   'issues:lang-missing',
   'issues:og-missing',
+  'issues:og-name-attribute',
   'issues:twitter-missing',
   'issues:csp-missing',
   'issues:structured-data-missing',

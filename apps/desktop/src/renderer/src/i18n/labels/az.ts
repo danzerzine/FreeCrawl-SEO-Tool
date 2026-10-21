@@ -332,6 +332,7 @@ export const AZ_LABELS: Record<string, string> = {
 
   // Social / OG
   'OpenGraph Tags Missing': 'OpenGraph teqləri yoxdur',
+  'OG Tag Uses name=': 'OG teqi name= ilə',
   'OG Image Not Absolute': 'OG şəkli mütləq deyil',
   'OG Image >5MB': 'OG şəkli > 5 MB',
   'Twitter Card Missing': 'Twitter Card yoxdur',

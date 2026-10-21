@@ -15,6 +15,7 @@ import {
   categoryWhereClause,
   detectProjectFormat,
   EXPENSIVE_ISSUE_DEFINITIONS,
+  LATER_CHECKS,
   packProject,
   ProjectDb,
   unpackProject,
@@ -448,7 +449,14 @@ export function compareCrawls(
 
   // Checks silenced in either project are left out of the comparison.
   const silenced = new Set([...a.getDisabledIssues(), ...b.getDisabledIssues()]);
-  const keys = ISSUE_CATEGORIES.filter((k) => !silenced.has(k) && categoryWhereClause(k) !== null);
+  // A later check the older crawl's build did not fill has zeros that mean
+  // "not checked": listed as not comparable instead of "appeared".
+  const filledA = a.checksFilled();
+  const filledB = b.checksFilled();
+  const unfilled = new Set(LATER_CHECKS.filter((k) => !filledA.has(k) || !filledB.has(k)));
+  const keys = ISSUE_CATEGORIES.filter(
+    (k) => !silenced.has(k) && !unfilled.has(k) && categoryWhereClause(k) !== null,
+  );
   const flagsA = flaggedChecks(a, keys);
   const flagsB = flaggedChecks(b, keys);
   const issueChanges: Record<string, CompareIssueChange> = {};
@@ -620,6 +628,13 @@ export function compareCrawls(
     };
   }
 
+  for (const k of unfilled) {
+    if (silenced.has(k)) continue;
+    notComparable[k] = {
+      reason: 'not checked by the build that made one of the crawls',
+      urls: compared,
+    };
+  }
   for (const failed of [flagsA.failed, flagsB.failed]) {
     for (const [i, reason] of failed) {
       notComparable[keys[i]!] ??= { reason, urls: compared };

@@ -324,6 +324,7 @@ export const FR_LABELS: Record<string, string> = {
 
   // Social / OG
   'OpenGraph Tags Missing': 'Balises OpenGraph absentes',
+  'OG Tag Uses name=': 'Balise OG avec name=',
   'OG Image Not Absolute': 'Image OG non absolue',
   'OG Image >5MB': 'Image OG >5 Mo',
   'Twitter Card Missing': 'Twitter Card absente',

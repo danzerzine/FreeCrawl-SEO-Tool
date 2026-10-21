@@ -415,6 +415,8 @@ export interface ParsedPage {
   canonicalOutsideHead: number;
   /** `<link rel="alternate" hreflang>` elements inside `<body>` (not honoured — see `hreflangs`). */
   hreflangOutsideHead: number;
+  /** 1 when an `og:*` tag is given only with `name=` (B25). */
+  ogNameAttr: number;
   /** "Not found" wording in the title/H1 of a page with almost no content. */
   soft404Signal: boolean;
   /** An inline script assigns `document.title`. */
@@ -1002,26 +1004,28 @@ export function parseHtml(
   const metaRobots = robotsMetaContents.length > 0 ? robotsMetaContents.join(', ') : null;
   const lang = ($('html').attr('lang') ?? '').trim() || null;
   const viewport = ($('meta[name="viewport"]').attr('content') ?? '').trim() || null;
-  const ogTitle =
-    decodeEntities(($('meta[property="og:title"]').attr('content') ?? '').trim()) || null;
-  const ogDescription =
-    decodeEntities(
-      ($('meta[property="og:description"]').attr('content') ?? '').trim(),
-    ) || null;
-  const ogImage = ($('meta[property="og:image"]').attr('content') ?? '').trim() || null;
+  // OpenGraph asks for `property=`; many sites write `name=`, which readers
+  // like Facebook still take. Property wins; a name-only tag is read and
+  // marked (B25).
+  let ogNameAttr = 0;
+  const og = (prop: string): string => {
+    const byProperty = ($(`meta[property="${prop}"]`).attr('content') ?? '').trim();
+    if (byProperty) return byProperty;
+    const byName = ($(`meta[name="${prop}"]`).attr('content') ?? '').trim();
+    if (byName) ogNameAttr = 1;
+    return byName;
+  };
+  const ogTitle = decodeEntities(og('og:title')) || null;
+  const ogDescription = decodeEntities(og('og:description')) || null;
+  const ogImage = og('og:image') || null;
   // Remaining OpenGraph metas. `og:url` we leave as the raw content for
   // downstream comparison with the canonical (the spec says it should
   // be absolute, but many sites ship a relative value — surfacing it
   // verbatim is more useful than silently resolving).
-  const ogType =
-    ($('meta[property="og:type"]').attr('content') ?? '').trim().toLowerCase() ||
-    null;
-  const ogUrl = ($('meta[property="og:url"]').attr('content') ?? '').trim() || null;
-  const ogSiteName =
-    decodeEntities(($('meta[property="og:site_name"]').attr('content') ?? '').trim()) ||
-    null;
-  const ogLocale =
-    ($('meta[property="og:locale"]').attr('content') ?? '').trim() || null;
+  const ogType = og('og:type').toLowerCase() || null;
+  const ogUrl = og('og:url') || null;
+  const ogSiteName = decodeEntities(og('og:site_name')) || null;
+  const ogLocale = og('og:locale') || null;
 
   // Twitter Cards use `name=` (not `property=`) per Twitter's spec. Many
   // sites leave one set missing and rely on the other — we capture both.
@@ -2278,6 +2282,7 @@ export function parseHtml(
     contentSource,
     canonicalOutsideHead,
     hreflangOutsideHead,
+    ogNameAttr,
     soft404Signal,
     jsTitleWrite: headWrites.titleWrite,
     jsTitle: headWrites.title,

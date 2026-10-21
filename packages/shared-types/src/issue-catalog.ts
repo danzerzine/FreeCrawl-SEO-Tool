@@ -213,6 +213,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     items: [
       { key: 'issues-og-missing', label: 'OpenGraph Tags Missing', category: 'issues:og-missing', count: 'ogMissing' },
       { key: 'issues-twitter-missing', label: 'Twitter Card Missing', category: 'issues:twitter-missing', count: 'twitterMissing' },
+      { key: 'issues-og-name-attribute', label: 'OG Tag Uses name=', category: 'issues:og-name-attribute', count: 'ogNameAttribute' },
       { key: 'issues-og-image-not-absolute', label: 'OG Image Not Absolute', category: 'issues:og-image-not-absolute', count: 'ogImageNotAbsolute' },
       { key: 'issues-twitter-image-not-absolute', label: 'Twitter Image Not Absolute', category: 'issues:twitter-image-not-absolute', count: 'twitterImageNotAbsolute' },
       { key: 'issues-og-image-too-large', label: 'OG Image >5MB', category: 'issues:og-image-too-large', count: 'ogImageTooLarge' },

@@ -324,6 +324,7 @@ export const KO_LABELS: Record<string, string> = {
 
   // Social / OG
   'OpenGraph Tags Missing': 'OpenGraph 태그 없음',
+  'OG Tag Uses name=': 'name=을 쓰는 OG 태그',
   'OG Image Not Absolute': 'OG 이미지가 절대 주소가 아님',
   'OG Image >5MB': 'OG 이미지 5 MB 초과',
   'Twitter Card Missing': 'Twitter Card 없음',

@@ -324,6 +324,7 @@ export const HI_LABELS: Record<string, string> = {
 
   // Social / OG
   'OpenGraph Tags Missing': 'OpenGraph टैग नहीं',
+  'OG Tag Uses name=': 'OG टैग name= का उपयोग करता है',
   'OG Image Not Absolute': 'OG छवि पूर्ण पता नहीं',
   'OG Image >5MB': 'OG छवि >5 MB',
   'Twitter Card Missing': 'Twitter Card नहीं',

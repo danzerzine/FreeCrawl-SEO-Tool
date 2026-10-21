@@ -323,6 +323,7 @@ export const TR_LABELS: Record<string, string> = {
 
   // Social / OG
   'OpenGraph Tags Missing': 'OpenGraph Etiketleri Eksik',
+  'OG Tag Uses name=': 'OG Etiketi name= Kullanıyor',
   'OG Image Not Absolute': 'OG Image Mutlak Değil',
   'OG Image >5MB': 'OG Image >5MB',
   'Twitter Card Missing': 'Twitter Card Eksik',

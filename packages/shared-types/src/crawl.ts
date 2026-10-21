@@ -120,6 +120,7 @@ export type UrlCategory =
   | 'issues:charset-mismatch'
   | 'issues:canonical-outside-head'
   | 'issues:hreflang-outside-head'
+  | 'issues:og-name-attribute'
   | 'issues:lang-content-mismatch'
   | 'issues:soft-404'
   | 'issues:redirect-chain'
@@ -617,6 +618,8 @@ export interface CrawlUrlRow {
   canonicalOutsideHead: number;
   /** `<link rel="alternate" hreflang>` elements placed inside `<body>` — ignored likewise. */
   hreflangOutsideHead: number;
+  /** 1 when an `og:*` tag is given only with `name=`, not the `property=` OpenGraph asks for (B25). */
+  ogNameAttr: number;
   /** Primary language the main-content prose is written in (`tr`, `en`, …); null when unclear. */
   contentLang: string | null;
   /** `html[lang]` declares a language the prose is clearly not written in. */
@@ -1984,6 +1987,8 @@ export interface OverviewCounts {
     canonicalOutsideHead: number;
     /** hreflang `<link>` elements placed inside `<body>`, where search engines ignore them. */
     hreflangOutsideHead: number;
+    /** `og:*` tags given with `name=` instead of `property=` (B25). */
+    ogNameAttribute: number;
     /** `html[lang]` declares a language the main content isn't written in. */
     langContentMismatch: number;
     /** 2xx pages that present themselves as "not found". */

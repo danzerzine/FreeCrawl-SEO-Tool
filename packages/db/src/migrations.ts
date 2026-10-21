@@ -2617,6 +2617,19 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 110,
+    name: 'add_og_name_attr',
+    // 1 when an og:* tag is given only with name=, not property= (B25).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'og_name_attr')) {
+        db.exec('ALTER TABLE urls ADD COLUMN og_name_attr INTEGER NOT NULL DEFAULT 0');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

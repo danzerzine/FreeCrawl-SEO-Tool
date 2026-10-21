@@ -324,6 +324,7 @@ export const RU_LABELS: Record<string, string> = {
 
   // Social / OG
   'OpenGraph Tags Missing': 'Нет тегов OpenGraph',
+  'OG Tag Uses name=': 'OG-тег через name=',
   'OG Image Not Absolute': 'Изображение OG не абсолютное',
   'OG Image >5MB': 'Изображение OG >5 МБ',
   'Twitter Card Missing': 'Нет Twitter Card',
