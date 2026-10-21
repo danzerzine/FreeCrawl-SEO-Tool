@@ -155,12 +155,15 @@ export interface SeoAuditContext {
   /** Keyed by URL id. */
   headers: Map<number, { lastModified?: string; contentLength?: number }>;
   external: Map<number, { total: number; unique: number }>;
+  /** Distinct internal link targets per page, keyed by URL id. */
+  uniqueOutlinks: Map<number, number>;
 }
 
 const EMPTY_CONTEXT: SeoAuditContext = {
   bodies: new Map(),
   headers: new Map(),
   external: new Map(),
+  uniqueOutlinks: new Map(),
 };
 
 // Same names html-parser.ts reads as robots directives.
@@ -238,7 +241,8 @@ export function loadSeoAuditContext(db: ProjectDb): SeoAuditContext {
     headers.set(h.urlId, entry);
   }
   const external = db.externalOutlinkCounts();
-  return { bodies, headers, external };
+  const uniqueOutlinks = db.internalUniqueOutlinkCounts();
+  return { bodies, headers, external, uniqueOutlinks };
 }
 
 /** Membership test over an ascending id list. */
@@ -447,12 +451,15 @@ function cell(column: string, row: CrawlUrlRow, ctx: SeoAuditContext): Cell {
       return folderDepth(row.url);
     case 'Link Score':
       return row.linkScore;
+    // The link graph keeps one row per source and target, so `inlinks`
+    // already counts distinct source pages.
     case 'Inlinks':
     case 'Unique Inlinks':
       return row.inlinks;
     case 'Outlinks':
-    case 'Unique Outlinks':
       return row.outlinks;
+    case 'Unique Outlinks':
+      return ctx.uniqueOutlinks.get(row.id) ?? 0;
     case 'External Outlinks':
       return external?.total ?? 0;
     case 'Unique External Outlinks':

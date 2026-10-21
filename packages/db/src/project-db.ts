@@ -9274,6 +9274,23 @@ export class ProjectDb {
   }
 
   /**
+   * Distinct internal pages each page links to, keyed by the source URL's
+   * id, counted like inlinks (followed rel, no link to itself). Pages
+   * without internal links are absent.
+   */
+  internalUniqueOutlinkCounts(): Map<number, number> {
+    const rows = this.db
+      .prepare(
+        `SELECT l.from_url_id AS id, COUNT(DISTINCT l.to_url) AS n
+           FROM links l JOIN urls s ON s.id = l.from_url_id
+          WHERE l.is_internal = 1 AND ${this.countedLinkSql()} AND l.to_url != s.url
+          GROUP BY l.from_url_id`,
+      )
+      .all() as { id: number; n: number }[];
+    return new Map(rows.map((r) => [r.id, r.n]));
+  }
+
+  /**
    * Runs `fn` with SQLite reading through its own page cache instead of
    * the memory map. A long read-everything export otherwise maps every
    * page it touches (urls, links) into the process, and Windows counts
