@@ -234,9 +234,11 @@ const INLINKS_NON_INDEXABLE_ONLY_SQL = `is_external = 0 AND content_kind = 'html
  * Pages with a link-like element a crawler cannot follow, aimed at the site.
  * A page with no stored rows falls back to its per-page count: projects
  * crawled before the rows existed have only the count, and it cannot tell
- * internal from external, so it counts as before.
+ * internal from external, so it counts as before. Pages answered 2xx only
+ * (B79; INDEXABLE_HTML_SCOPE is declared further down, so it is spelled out).
  */
 const UNCRAWLABLE_INTERNAL_OUTLINKS_SQL = `is_external = 0 AND content_kind = 'html'
+  AND status_code >= 200 AND status_code < 300
   AND (
     EXISTS (
       SELECT 1 FROM uncrawlable_links u WHERE u.from_url_id = urls.id AND u.is_internal = 1
@@ -11963,7 +11965,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // ≥1 image > 200 KB AND the page is missing lazy-loading on at least
     // one image (images_lazy < images_count). The size join is on the
     // per-image probed `byte_size`; lazy adoption stays page-level.
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND images_count > 0 AND images_lazy < images_count
      AND id IN (
        SELECT iu.from_url_id
@@ -11976,7 +11978,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     'issues:image-too-large',
     // Pages referencing at least one internal image whose probed
     // Content-Length is > 100 KB (the PageSpeed Insights threshold).
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND id IN (
        SELECT iu.from_url_id
          FROM image_usages iu
@@ -11986,19 +11988,19 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   ],
   [
     'issues:og-image-too-large',
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND og_image IS NOT NULL AND og_image != ''
      AND og_image IN (SELECT src FROM images WHERE byte_size > 5242880)`,
   ],
   [
     'issues:twitter-image-too-large',
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND twitter_image IS NOT NULL AND twitter_image != ''
      AND twitter_image IN (SELECT src FROM images WHERE byte_size > 5242880)`,
   ],
   [
     'issues:canonical-chain-multi-hop',
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND canonical IS NOT NULL AND canonical != ''
      AND ${CANONICAL_CMP} != url
      AND EXISTS (
