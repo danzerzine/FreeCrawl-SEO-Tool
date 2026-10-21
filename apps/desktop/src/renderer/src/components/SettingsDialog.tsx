@@ -3866,7 +3866,7 @@ function DuplicatesPanel({ form, update }: PanelProps) {
           label={t('settingsPanels.duplicates.preNormalize', { defaultValue: 'Normalise URLs before duplicate-URL check' })}
           checked={form.dedupePreNormalize}
           onChange={(v) => update('dedupePreNormalize', v)}
-          info="When ON (default), the Duplicate URL filter compares URLs after lowercasing the whole URL (host and path), dropping the query string, and trimming the trailing slash — case variants such as /Page and /page count as duplicates. When OFF, comparison is byte-exact, so the filter only fires on rows that share an identical raw URL string (rare since URLs are deduped at insert time)."
+          info="When ON (default), the Duplicate URL filter compares pages that answered 200 after lowercasing the whole URL (host and path), dropping the query string except a page number (page, p or pg above 1, so page 2 of a list is not a duplicate of the list), and trimming the trailing slash — case variants such as /Page and /page count as duplicates. Redirects and unfetched URLs are never compared, so /tag/1 → /tag/1/ is not flagged. When OFF, comparison is byte-exact, so the filter only fires on rows that share an identical raw URL string (rare since URLs are deduped at insert time)."
           example="ON for SEO audits. OFF only when you specifically need to inspect raw-URL collisions (e.g. case-sensitive filesystem CMSes)."
         />
       </div>
