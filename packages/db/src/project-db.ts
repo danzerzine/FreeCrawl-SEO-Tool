@@ -125,6 +125,14 @@ export const COUNT_NOFOLLOW_META_KEY = 'countNofollowLinks';
  * were over the cap: JSON `{ buckets, pages }`. Absent when nothing was left out.
  */
 export const NEAR_DUPLICATE_INCOMPLETE_META_KEY = 'nearDuplicateIncomplete';
+/**
+ * Pages whose near-duplicate fingerprint was made with another template
+ * set than the project's current one, so clustering skipped them (B98).
+ * 0 after every normal run; non-zero only from crash leftovers.
+ */
+export const NEAR_DUPLICATE_NOT_COMPARED_META_KEY = 'nearDuplicateNotCompared';
+/** Id of the project's current template set (B98); absent = no set. */
+export const TEMPLATE_SET_ID_META_KEY = 'templateSetId';
 /** The configured content-area selector matched nothing on the page (B8). */
 const CONTENT_AREA_MISSED_SQL = "content_source = 'selector-missed'";
 /** Near-duplicate clusters above this many pages are named in the crawl log. */
@@ -3721,27 +3729,39 @@ export class ProjectDb {
     clusteredUrls: number;
     incomplete: { buckets: number; pages: number } | null;
     largeClusters: { size: number; representative: string }[];
+    notCompared: number;
   } {
     // Reset all clustering state first so a re-run with different
     // thresholds doesn't leave stale partitions behind.
     this.db.exec('UPDATE urls SET cluster_id = 0, cluster_size = 1 WHERE cluster_id != 0');
     this.db.exec('UPDATE urls SET near_dup_similarity = NULL WHERE near_dup_similarity IS NOT NULL');
     this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(NEAR_DUPLICATE_INCOMPLETE_META_KEY);
-    const noClusters = { clusters: 0, clusteredUrls: 0, incomplete: null, largeClusters: [] };
+
+    const indexClause = onlyIndexable ? "AND indexability = 'indexable'" : '';
+    const fingerprinted = `is_external = 0 AND content_kind = 'html'
+             AND (simhash IS NOT NULL OR minhash IS NOT NULL) ${indexClause}`;
+    // Only fingerprints made with the project's current template set are
+    // comparable (B98); the rest are counted, never paired.
+    const setId = this.currentTemplateSetId();
+    const notCompared = (
+      this.db
+        .prepare(`SELECT COUNT(*) AS n FROM urls WHERE ${fingerprinted} AND template_set_id IS NOT ?`)
+        .get(setId) as { n: number }
+    ).n;
+    this.setMeta(NEAR_DUPLICATE_NOT_COMPARED_META_KEY, String(notCompared));
+    const noClusters = { clusters: 0, clusteredUrls: 0, incomplete: null, largeClusters: [], notCompared };
 
     const useSimhash = thresholdBits >= 0 && thresholdBits <= 64;
     const useMinhash = minSimilarityPct > 0 && minSimilarityPct <= 100;
     if (!useSimhash && !useMinhash) return noClusters;
 
-    const indexClause = onlyIndexable ? "AND indexability = 'indexable'" : '';
     const rows = this.db
       .prepare(
         `SELECT id, url, simhash, minhash FROM urls
-           WHERE is_external = 0 AND content_kind = 'html'
-             AND (simhash IS NOT NULL OR minhash IS NOT NULL) ${indexClause}
+           WHERE ${fingerprinted} AND template_set_id IS ?
            ORDER BY id`,
       )
-      .all() as { id: number; url: string; simhash: string | null; minhash: Uint8Array | null }[];
+      .all(setId) as { id: number; url: string; simhash: string | null; minhash: Uint8Array | null }[];
 
     if (rows.length < 2) return noClusters;
 
@@ -3938,7 +3958,13 @@ export class ProjectDb {
       }
     }
     largeClusters.sort((a, b) => b.size - a.size);
-    return { clusters: sizes.length - 1, clusteredUrls, incomplete, largeClusters };
+    return { clusters: sizes.length - 1, clusteredUrls, incomplete, largeClusters, notCompared };
+  }
+
+  /** The project's current template set id (B98), read from `project_meta` every time. */
+  private currentTemplateSetId(): number | null {
+    const v = this.getMeta(TEMPLATE_SET_ID_META_KEY);
+    return v === null || v === '' ? null : Number(v);
   }
 
   /**

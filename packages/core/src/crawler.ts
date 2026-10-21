@@ -1787,11 +1787,12 @@ export class Crawler extends EventEmitter {
     const similarity = this.config.nearDuplicateSimilarity ?? 0;
     if ((!threshold || threshold <= 0) && similarity <= 0) return;
     try {
-      const { clusters, clusteredUrls, incomplete, largeClusters } = await this.dbCall<{
+      const { clusters, clusteredUrls, incomplete, largeClusters, notCompared } = await this.dbCall<{
         clusters: number;
         clusteredUrls: number;
         incomplete: { buckets: number; pages: number } | null;
         largeClusters: { size: number; representative: string }[];
+        notCompared: number;
       }>('recomputeDuplicateClusters', [
         threshold > 0 ? threshold : -1,
         this.config.duplicatesOnlyIndexable,
@@ -1822,6 +1823,12 @@ export class Crawler extends EventEmitter {
           'warn',
           `Duplicates: ${incomplete.pages} pages in ${incomplete.buckets} oversized hash buckets were not compared ` +
             'with every candidate, so some near-duplicates may be missing',
+        );
+      }
+      if (notCompared > 0) {
+        this.emit(
+          'warn',
+          `Duplicates: ${notCompared} pages not compared: fingerprinted with an older template set; re-crawl them`,
         );
       }
     } catch (err) {

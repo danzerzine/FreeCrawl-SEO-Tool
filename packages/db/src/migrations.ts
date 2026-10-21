@@ -2587,6 +2587,21 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 108,
+    name: 'add_template_set_id',
+    // Which template set a row's near-duplicate fingerprint was made with
+    // (B98): NULL = no template text subtracted, as on every older row.
+    // Clustering compares only rows made with the project's current set.
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'template_set_id')) {
+        db.exec('ALTER TABLE urls ADD COLUMN template_set_id INTEGER');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {
