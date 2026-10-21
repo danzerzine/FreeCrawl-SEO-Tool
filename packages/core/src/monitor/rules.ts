@@ -105,9 +105,11 @@ export function evaluateRules(
       changeUnit: rule.change,
       threshold: { op: rule.op, value: rule.value },
     };
-    // Not computed now (check off or never filled): an error, so a silenced
-    // check cannot pass a gate. Nothing to compare against: skipped.
+    // Not computed now, or in the previous crawl a rule compares with (check
+    // off or never filled): an error, so a silenced check cannot pass a gate.
+    // No previous crawl at all: skipped.
     if (cur === null) return { ...result, status: 'error' };
+    if (rule.vs === 'previous' && previous && prev === null) return { ...result, status: 'error' };
     const measured = rule.vs === 'absolute' ? cur : change;
     if (measured === null) return { ...result, status: 'skipped' };
     return { ...result, status: OPS[rule.op](measured, rule.value) ? 'fired' : 'pass' };
