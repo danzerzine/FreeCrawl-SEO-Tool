@@ -2602,6 +2602,21 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 109,
+    name: 'add_cluster_rep_id',
+    // urls.id of the representative page of the row's near-duplicate cluster
+    // (B99). Written by recomputeDuplicateClusters, reset with cluster_id.
+    // No similarity column: it is computed from the stored minhash on read.
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'cluster_rep_id')) {
+        db.exec('ALTER TABLE urls ADD COLUMN cluster_rep_id INTEGER');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

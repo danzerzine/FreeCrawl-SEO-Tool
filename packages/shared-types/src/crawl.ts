@@ -790,10 +790,12 @@ export interface CrawlUrlRow {
 }
 
 /**
- * One row in the post-crawl near-duplicate clustering view. A cluster is a
- * connected component of pages whose pairwise SimHash hamming distance is
- * ≤ `nearDuplicateHammingThreshold`. We surface each member page with
- * the cluster size for the dedicated "Duplicates" tab.
+ * One row in the post-crawl near-duplicate clustering view. A cluster is
+ * built around a representative page (the one with the most matches); every
+ * member passed the pair test (MinHash text similarity, or SimHash distance
+ * for pages without a signature) against it, not against each other. The
+ * representative is stored in `urls.cluster_rep_id`. We surface each member
+ * page with the cluster size for the dedicated "Duplicates" tab.
  */
 export interface DuplicateClusterRow {
   /** Internal URL row id — required by the grouped Duplicates view to
@@ -810,8 +812,18 @@ export interface DuplicateClusterRow {
   clusterSize: number;
   /** SimHash hex of this URL — useful for spot-checking cluster cohesion. */
   simhash: string | null;
-  /** Hamming distance to the cluster representative (0 for the rep itself). */
-  hammingFromRep: number;
+  /** urls.id of the cluster representative; null when it is not stored
+   *  (clustered by an older build) or its row was deleted. */
+  repUrlId: number | null;
+  /** URL of the cluster representative; null together with `repUrlId`. */
+  repUrl: string | null;
+  /** MinHash text similarity to the representative, 0-100 (100 for the
+   *  representative itself); null without a representative or when either
+   *  page has no MinHash signature (SimHash-only pairs). */
+  similarityToRep: number | null;
+  /** SimHash Hamming distance to the representative (0 for the rep itself);
+   *  null without a representative. */
+  hammingFromRep: number | null;
 }
 
 /** Input for {@link FreeCrawlApi.duplicateClustersList}. */

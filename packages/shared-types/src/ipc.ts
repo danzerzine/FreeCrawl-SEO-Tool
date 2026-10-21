@@ -263,8 +263,9 @@ export const IPC = {
   urlRewritePreview: 'url:rewrite-preview',
   urlClusterMembers: 'urls:cluster-members',
   /** Faz 7 — grouped Duplicates tab view: paginates near-duplicate cluster
-   *  members ordered by cluster size DESC. Cluster headers / hamming
-   *  distance to the representative are derived in {@link
+   *  members ordered by cluster size DESC. Each row carries the stored
+   *  representative (`cluster_rep_id`), the text similarity to it and the
+   *  Hamming distance to it, read in {@link
    *  packages/db/src/project-db.ts#listDuplicateClusters}. */
   duplicateClustersList: 'duplicates:clusters-list',
   /** Faz 7 — total cluster-member row count, used by the grouped view to

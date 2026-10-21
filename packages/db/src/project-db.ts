@@ -3749,6 +3749,9 @@ export class ProjectDb {
    * A~B~C~D can't pull A and D together; two members are not guaranteed to
    * pass against each other (checking every pair would be quadratic).
    *
+   * Each member's `cluster_rep_id` is the urls.id of its representative (the
+   * representative's own id for itself), reset with `cluster_id` (B99).
+   *
    * Clusters are numbered from 1 (0 means "singleton" so the
    * `cluster_id > 0` issue filter stays correct). Buckets hold at most
    * `bucketLimit` pages so a flood of template pages sharing one band value
@@ -3776,7 +3779,9 @@ export class ProjectDb {
   } {
     // Reset all clustering state first so a re-run with different
     // thresholds doesn't leave stale partitions behind.
-    this.db.exec('UPDATE urls SET cluster_id = 0, cluster_size = 1 WHERE cluster_id != 0');
+    this.db.exec(
+      'UPDATE urls SET cluster_id = 0, cluster_size = 1, cluster_rep_id = NULL WHERE cluster_id != 0 OR cluster_rep_id IS NOT NULL',
+    );
     this.db.exec('UPDATE urls SET near_dup_similarity = NULL WHERE near_dup_similarity IS NOT NULL');
     this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(NEAR_DUPLICATE_INCOMPLETE_META_KEY);
 
@@ -3987,7 +3992,7 @@ export class ProjectDb {
     let clusteredUrls = 0;
     for (let c = 1; c < sizes.length; c++) clusteredUrls += sizes[c]!;
     const upd = this.db.prepare(
-      'UPDATE urls SET cluster_id = ?, cluster_size = ?, near_dup_similarity = ? WHERE id = ?',
+      'UPDATE urls SET cluster_id = ?, cluster_size = ?, near_dup_similarity = ?, cluster_rep_id = ? WHERE id = ?',
     );
     this.db.exec('BEGIN');
     try {
@@ -3995,7 +4000,7 @@ export class ProjectDb {
         const cid = clusterOf[i]!;
         if (cid === 0) continue;
         const sim = best[i]! >= 0 ? Math.round(best[i]! * 100) : null;
-        upd.run(cid, sizes[cid]!, sim, rows[i]!.id);
+        upd.run(cid, sizes[cid]!, sim, rows[reps[cid]!]!.id, rows[i]!.id);
       }
       this.db.exec('COMMIT');
     } catch (err) {
@@ -4382,13 +4387,32 @@ export class ProjectDb {
    * Page through near-duplicate clusters for the dedicated Duplicates tab.
    * Members are returned grouped: ORDER BY cluster_size DESC, cluster_id,
    * then by URL within the cluster. Singletons (cluster_id=0) are excluded.
+   *
+   * The representative is the one `recomputeDuplicateClusters` stored in
+   * `cluster_rep_id`, found by LEFT JOIN: members whose representative is
+   * missing (clustered by a build before B99, or the row was deleted) stay
+   * in the list with `repUrlId`, `repUrl`, `similarityToRep` and
+   * `hammingFromRep` all null. A project that has no such column yet (read-only
+   * open skips migrations) is listed the same way. `similarityToRep` is
+   * the MinHash similarity of both pages (null without both signatures).
    */
   listDuplicateClusters(offset: number, limit: number): DuplicateClusterRow[] {
+    const hasRepColumn = (
+      this.db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[]
+    ).some((c) => c.name === 'cluster_rep_id');
+    const repSelect = hasRepColumn
+      ? 'r.id AS rep_id, r.url AS rep_url, r.simhash AS rep_simhash, r.minhash AS rep_minhash'
+      : 'NULL AS rep_id, NULL AS rep_url, NULL AS rep_simhash, NULL AS rep_minhash';
+    const repJoin = hasRepColumn
+      ? 'LEFT JOIN urls r ON r.id = u.cluster_rep_id AND r.cluster_id = u.cluster_id'
+      : '';
     const rows = this.db
       .prepare(
         `SELECT u.id, u.url, u.status_code, u.indexability, u.title, u.word_count,
-                u.inlinks, u.cluster_id, u.cluster_size, u.simhash
+                u.inlinks, u.cluster_id, u.cluster_size, u.simhash, u.minhash,
+                ${repSelect}
            FROM urls u
+           ${repJoin}
           WHERE u.is_external = 0 AND u.content_kind = 'html'
             AND u.cluster_id > 0
           ORDER BY u.cluster_size DESC, u.cluster_id ASC, u.url ASC
@@ -4405,29 +4429,12 @@ export class ProjectDb {
       cluster_id: number;
       cluster_size: number;
       simhash: string | null;
+      minhash: Uint8Array | null;
+      rep_id: number | null;
+      rep_url: string | null;
+      rep_simhash: string | null;
+      rep_minhash: Uint8Array | null;
     }[];
-
-    // Cluster representative = first URL alphabetically per cluster_id.
-    // Reps are not stored explicitly; derive on the fly so the column
-    // remains accurate after re-clustering.
-    const reps = new Map<number, string>();
-    for (const r of rows) {
-      const existing = reps.get(r.cluster_id);
-      if (existing === undefined || r.url < existing) reps.set(r.cluster_id, r.url);
-    }
-    const repHashes = new Map<number, string>();
-    if (reps.size > 0) {
-      const repList = Array.from(reps.values());
-      const placeholders = repList.map(() => '?').join(',');
-      const repRows = this.db
-        .prepare(`SELECT url, simhash FROM urls WHERE url IN (${placeholders})`)
-        .all(...repList) as { url: string; simhash: string | null }[];
-      const urlToHash = new Map(repRows.map((r) => [r.url, r.simhash]));
-      for (const [cid, url] of reps) {
-        const h = urlToHash.get(url);
-        if (h) repHashes.set(cid, h);
-      }
-    }
 
     const popcount = (x: bigint): number => {
       let c = 0;
@@ -4439,10 +4446,18 @@ export class ProjectDb {
     };
 
     return rows.map((r) => {
-      let hammingFromRep = 0;
-      const repHash = repHashes.get(r.cluster_id);
-      if (repHash && r.simhash && repHash !== r.simhash) {
-        hammingFromRep = popcount(BigInt('0x' + repHash) ^ BigInt('0x' + r.simhash));
+      const hasRep = r.rep_id !== null;
+      let hammingFromRep: number | null = null;
+      if (hasRep) {
+        hammingFromRep =
+          r.rep_simhash && r.simhash && r.rep_simhash !== r.simhash
+            ? popcount(BigInt('0x' + r.rep_simhash) ^ BigInt('0x' + r.simhash))
+            : 0;
+      }
+      let similarityToRep: number | null = null;
+      if (hasRep && r.minhash && r.rep_minhash) {
+        similarityToRep =
+          r.rep_id === r.id ? 100 : Math.round(minhashSimilarity(r.rep_minhash, r.minhash) * 100);
       }
       return {
         urlId: r.id,
@@ -4455,11 +4470,13 @@ export class ProjectDb {
         clusterId: r.cluster_id,
         clusterSize: r.cluster_size,
         simhash: r.simhash,
+        repUrlId: r.rep_id,
+        repUrl: r.rep_url,
+        similarityToRep,
         hammingFromRep,
       };
     });
   }
-
 
   /**
    * Returns OTHER URLs in the same near-duplicate cluster as `urlId`.
