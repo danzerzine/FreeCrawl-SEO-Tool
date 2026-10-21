@@ -58,6 +58,7 @@ describe('target=_blank without noopener stays out of page totals (B66)', () => 
       .readFileSync(out, 'utf8')
       .split('\n')
       .find((r) => r.startsWith('issues:target-blank-no-noopener,'));
-    expect(row?.split(',').slice(-3)).toEqual(['info', '2', '1']);
+    // Severity, URLs, Items: before the trailing Previous and Change (B23).
+    expect(row?.split(',').slice(-5, -2)).toEqual(['info', '2', '1']);
   });
 });
