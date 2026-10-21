@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { packProject, ProjectDb } from '@freecrawl/db';
+import { EXPENSIVE_ISSUE_DEFINITIONS, packProject, ProjectDb } from '@freecrawl/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { compareCrawls, compareWithoutMmap, openCompareProject } from './compare.js';
 
@@ -275,8 +275,12 @@ describe('openCompareProject (B22)', () => {
     expect(compareTemps()).toEqual(before);
   });
 
-  it('a bare SQLite project is read as it is: the file is not changed, nothing is left behind', async () => {
+  it('a bare SQLite project with current checks is read as it is: the file is not changed, nothing is left behind', async () => {
     const file = closedProject('bare');
+    // Stale checks are rebuilt and saved back (B109); current ones leave the file alone.
+    const current = new ProjectDb(file);
+    current.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+    current.close();
     const bytes = fs.readFileSync(file);
     const before = compareTemps();
 
