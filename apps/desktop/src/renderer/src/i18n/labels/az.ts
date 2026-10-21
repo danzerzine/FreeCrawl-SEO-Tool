@@ -22,6 +22,10 @@ export const AZ_LABELS: Record<string, string> = {
   // Settings — Integration categories
   AI: 'Süni intellekt',
   'SEO Data': 'SEO məlumatı',
+  Notifications: 'Xəbərdarlıq kanalları',
+  // Settings — Alerts (B88d)
+  Alerts: 'Bildirişlər',
+  Email: 'E-poçt',
 
   // Settings — Integration auth types
   'API Key': 'API açarı',

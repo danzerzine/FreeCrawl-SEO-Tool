@@ -17,6 +17,10 @@ export const RU_LABELS: Record<string, string> = {
   // Settings — Integration categories
   AI: 'ИИ',
   'SEO Data': 'SEO-данные',
+  Notifications: 'Уведомления',
+  // Settings — Alerts (B88d)
+  Alerts: 'Оповещения',
+  Email: 'Email',
   // Settings — Integration auth types
   'API Key': 'API-ключ',
   'OAuth (your own client)': 'OAuth (свой клиент)',

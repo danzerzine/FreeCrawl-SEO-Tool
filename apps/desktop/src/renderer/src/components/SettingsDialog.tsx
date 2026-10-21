@@ -29,6 +29,7 @@ import {
   Code2,
   Cookie,
   Webhook,
+  Bell,
   Download,
   Play,
   Plus,
@@ -85,6 +86,7 @@ import { GscSettingsSection } from './GscSettingsSection.js';
 import { Ga4SettingsSection } from './Ga4SettingsSection.js';
 import { McpServersSection } from './McpServersSection.js';
 import { GoogleAccountsSection } from './GoogleAccountsSection.js';
+import { AlertsSettingsSection } from './AlertsSettingsSection.js';
 
 interface Props {
   open: boolean;
@@ -279,6 +281,7 @@ export type SettingsSectionKey =
   | 'network'
   | 'hardware'
   | 'webhook'
+  | 'alerts'
   | 'crawl-analysis'
   | 'issues'
   | 'advanced'
@@ -338,6 +341,7 @@ const INTEGRATION_CATEGORY_ICON: Record<IntegrationDef['category'], LucideIcon> 
   performance: Gauge,
   seo: Target,
   google: Chrome,
+  notify: Bell,
 };
 
 const SECTIONS: SectionDef[] = [
@@ -436,6 +440,13 @@ const SECTIONS: SectionDef[] = [
     keywords: 'webhook notify slack discord zapier post crawl complete',
   },
   {
+    key: 'alerts',
+    label: 'Alerts',
+    icon: Bell,
+    keywords:
+      'alerts alert monitoring monitor rules rule threshold metric previous crawl drop notify notification slack telegram email smtp',
+  },
+  {
     key: 'content',
     label: 'Content',
     icon: FileText,
@@ -479,7 +490,7 @@ const SECTIONS: SectionDef[] = [
     label: 'Integrations',
     icon: Plug,
     keywords:
-      'integrations api key oauth google search console analytics gsc ga4 pagespeed ahrefs moz semrush majestic openai anthropic claude ollama sheets bigquery credentials',
+      'integrations api key oauth google search console analytics gsc ga4 pagespeed ahrefs moz semrush majestic openai anthropic claude ollama sheets bigquery slack telegram email smtp credentials',
     group: true,
   },
   // One sub-page per integration, generated from the shared catalog so a
@@ -1294,6 +1305,9 @@ export function SettingsDialog({ open, onClose }: Props) {
               )}
               {active === 'webhook' && (
                 <WebhookPanel form={form} update={update} />
+              )}
+              {active === 'alerts' && (
+                <AlertsSettingsSection onOpenSection={(key) => setActive(key as SectionKey)} />
               )}
               {active === 'content' && (
                 <ContentPanel form={form} update={update} />
@@ -4584,6 +4598,7 @@ const INTEGRATION_CATEGORIES: { key: IntegrationDef['category']; label: string }
   { key: 'performance', label: 'Performance' },
   { key: 'seo', label: 'SEO Data' },
   { key: 'google', label: 'Google' },
+  { key: 'notify', label: 'Notifications' },
 ];
 
 const AUTH_TYPE_LABEL: Record<IntegrationDef['authType'], string> = {
@@ -4591,6 +4606,8 @@ const AUTH_TYPE_LABEL: Record<IntegrationDef['authType'], string> = {
   'oauth-byoc': 'OAuth (your own client)',
   'service-account': 'Service Account',
   local: 'Local',
+  webhook: 'Webhook',
+  smtp: 'SMTP',
 };
 
 function RenderingPanel({ form, update }: PanelProps) {

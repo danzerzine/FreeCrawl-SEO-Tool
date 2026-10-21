@@ -17,6 +17,10 @@ export const KO_LABELS: Record<string, string> = {
   // Settings — Integration categories
   AI: 'AI',
   'SEO Data': 'SEO 데이터',
+  Notifications: '알림 채널',
+  // Settings — Alerts (B88d)
+  Alerts: '알림',
+  Email: '이메일',
   // Settings — Integration auth types
   'API Key': 'API 키',
   'OAuth (your own client)': 'OAuth(직접 만든 클라이언트)',

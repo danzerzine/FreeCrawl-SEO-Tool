@@ -17,6 +17,10 @@ export const HI_LABELS: Record<string, string> = {
   // Settings — Integration categories
   AI: 'AI',
   'SEO Data': 'SEO डेटा',
+  Notifications: 'सूचनाएँ',
+  // Settings — Alerts (B88d)
+  Alerts: 'अलर्ट',
+  Email: 'ईमेल',
   // Settings — Integration auth types
   'API Key': 'API कुंजी',
   'OAuth (your own client)': 'OAuth (आपका अपना क्लाइंट)',

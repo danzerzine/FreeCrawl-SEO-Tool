@@ -17,6 +17,10 @@ export const TR_LABELS: Record<string, string> = {
   // Settings — Integration categories (Performance is defined below with the sub-tab labels)
   AI: 'Yapay Zeka',
   'SEO Data': 'SEO Verisi',
+  Notifications: 'Bildirimler',
+  // Settings — Alerts (B88d)
+  Alerts: 'Uyarılar',
+  Email: 'E-posta',
   // Settings — Integration auth types
   'API Key': 'API Anahtarı',
   'OAuth (your own client)': 'OAuth (kendi istemciniz)',

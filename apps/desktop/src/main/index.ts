@@ -137,6 +137,8 @@ import {
   type UrlBulkContextMenuInput,
   type UrlGridContextMenuInput,
   type ExportSet,
+  type AlertChannelId,
+  type MonitorAlertsConfig,
   type UrlGridCopyEvent,
   type UrlContextMenuInput,
   type UrlDetail,
@@ -422,6 +424,7 @@ import {
 } from './scheduler.js';
 import { runScheduledExport } from './scheduled-export.js';
 import { exportSelectedLinks, exportSetChoices, runSavedExportSet } from './export-sets.js';
+import { alertAfterCrawl, alertsState, saveAlertsConfig, sendTestAlert, type AlertDeps } from './monitor-alerts.js';
 import type { ProjectDb as ProjectDbType } from '@freecrawl/db';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -5611,6 +5614,28 @@ function registerIpc(): void {
     return { outputDir, files: r.files.length, errors: r.errors.length };
   });
 
+  // B88d — Settings → Alerts: the project's monitoring rules and channels.
+  // Secrets stay here: the renderer only learns which channels are set up.
+  function alertDeps(sess: ProjectSession): AlertDeps {
+    return {
+      credentials: resolveCredentials,
+      webhookUrl: sess.lastCrawlConfig?.webhookUrl,
+      log: (level, message) => logger.log(level, 'main', message, undefined, sess.logTag),
+    };
+  }
+  registerHandle(IPC.monitorAlertsGet, () => {
+    const sess = currentSession();
+    return alertsState(sess.getDb(), alertDeps(sess));
+  });
+  registerHandle(IPC.monitorAlertsSave, (_e, config: MonitorAlertsConfig) => {
+    const sess = currentSession();
+    saveAlertsConfig(sess.getDb(), config);
+    return alertsState(sess.getDb(), alertDeps(sess));
+  });
+  registerHandle(IPC.monitorAlertsTest, (_e, channels: AlertChannelId[]) =>
+    sendTestAlert(channels, alertDeps(currentSession())),
+  );
+
   // V1 Faz 9 — directory picker for Settings → Storage. Returns the chosen
   // absolute path, or null if the user cancelled.
   registerHandle(
@@ -7542,6 +7567,9 @@ function registerIpc(): void {
       );
       sess.send(IPC.crawlDone, summary);
       sess.activeCrawler = null;
+      // B88d — rules that fired on this crawl go to the project's channels.
+      // Best effort: it logs its own failures and never throws.
+      void alertAfterCrawl(sess.getDb(), alertDeps(sess));
       // Free the MCP crawl lease so a queued agent start_crawl can proceed.
       releaseSessionLease(sess);
       // One fewer live crawl — give the survivors back their share of the

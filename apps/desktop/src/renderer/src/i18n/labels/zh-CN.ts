@@ -17,6 +17,10 @@ export const ZH_CN_LABELS: Record<string, string> = {
   // Settings — Integration categories
   AI: 'AI',
   'SEO Data': 'SEO 数据',
+  Notifications: '通知',
+  // Settings — Alerts (B88d)
+  Alerts: '提醒',
+  Email: '电子邮件',
   // Settings — Integration auth types
   'API Key': 'API 密钥',
   'OAuth (your own client)': 'OAuth（你自己的客户端）',

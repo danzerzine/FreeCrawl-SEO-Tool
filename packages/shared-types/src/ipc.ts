@@ -25,6 +25,7 @@ import type {
   UrlDetail,
 } from './crawl.js';
 import type { IntegrationsState } from './integrations.js';
+import type { AlertChannelId, AlertDelivery, MonitorAlertsConfig, MonitorAlertsState } from './monitor.js';
 import type {
   PagespeedRow,
   PagespeedRunStrategy,
@@ -314,6 +315,9 @@ export const IPC = {
   exportSetSave: 'export-sets:save',
   exportSetDelete: 'export-sets:delete',
   exportSetRun: 'export-sets:run',
+  monitorAlertsGet: 'monitor-alerts:get',
+  monitorAlertsSave: 'monitor-alerts:save',
+  monitorAlertsTest: 'monitor-alerts:test',
   /** Faz 7 — integration credential store (safeStorage-encrypted).
    *  `integrationsGetAll` returns the redacted state map (secret values
    *  never leave the main process); `set` merges the supplied fields;
@@ -2238,6 +2242,12 @@ export interface FreeCrawlApi {
   exportSetDelete(name: string): Promise<boolean>;
   /** Ask for a folder, run the set into it and show the result; `outputDir` is '' when cancelled. */
   exportSetRun(name: string): Promise<{ outputDir: string; files: number; errors: number }>;
+  /** B88d — the current project's alert rules and channels, plus the metric list and which channels have credentials. */
+  monitorAlertsGet(): Promise<MonitorAlertsState>;
+  /** Save the project's rules and channels; rejects naming `rules[<index>]` on a bad rule, saving nothing. */
+  monitorAlertsSave(config: MonitorAlertsConfig): Promise<MonitorAlertsState>;
+  /** Send a sample alert to each listed channel. */
+  monitorAlertsTest(channels: AlertChannelId[]): Promise<AlertDelivery[]>;
   /** Faz 7 — read the redacted credential state of every integration.
    *  Secret field values are never returned, only a `set` flag. */
   integrationsGetAll(): Promise<IntegrationsState>;

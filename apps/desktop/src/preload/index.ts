@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
   IPC,
+  type AlertChannelId,
+  type AlertDelivery,
+  type MonitorAlertsConfig,
+  type MonitorAlertsState,
   type BridgeSessionInfo,
   type BrowserInstallState,
   type ConfirmClearResult,
@@ -457,6 +461,11 @@ const api: FreeCrawlApi = {
   exportSetDelete: (name: string): Promise<boolean> => ipcRenderer.invoke(IPC.exportSetDelete, name),
   exportSetRun: (name: string): Promise<{ outputDir: string; files: number; errors: number }> =>
     ipcRenderer.invoke(IPC.exportSetRun, name),
+  monitorAlertsGet: (): Promise<MonitorAlertsState> => ipcRenderer.invoke(IPC.monitorAlertsGet),
+  monitorAlertsSave: (config: MonitorAlertsConfig): Promise<MonitorAlertsState> =>
+    ipcRenderer.invoke(IPC.monitorAlertsSave, config),
+  monitorAlertsTest: (channels: AlertChannelId[]): Promise<AlertDelivery[]> =>
+    ipcRenderer.invoke(IPC.monitorAlertsTest, channels),
   pickDirectory: (input?: { title?: string; defaultPath?: string }): Promise<string | null> =>
     ipcRenderer.invoke(IPC.pickDirectory, input),
   defaultProjectDir: (): Promise<string> => ipcRenderer.invoke(IPC.defaultProjectDir),

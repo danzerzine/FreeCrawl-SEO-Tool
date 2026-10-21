@@ -17,6 +17,10 @@ export const PT_BR_LABELS: Record<string, string> = {
   // Settings — Integration categories
   AI: 'IA',
   'SEO Data': 'Dados de SEO',
+  Notifications: 'Notificações',
+  // Settings — Alerts (B88d)
+  Alerts: 'Alertas',
+  Email: 'E-mail',
   // Settings — Integration auth types
   'API Key': 'Chave de API',
   'OAuth (your own client)': 'OAuth (seu próprio cliente)',

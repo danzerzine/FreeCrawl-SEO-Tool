@@ -12,6 +12,8 @@
  *                        owned OAuth app, no Google verification needed.
  *  - `service-account` — paste a Google service-account JSON key.
  *  - `local`           — no secret; a local endpoint URL (Ollama).
+ *  - `webhook`         — a secret incoming-webhook URL (Slack).
+ *  - `smtp`            — a secret `smtps://user:pass@host:port` URL (email).
  *
  * Secrets never leave the main process in plaintext — they are
  * encrypted at rest with Electron `safeStorage` (OS-backed: DPAPI /
@@ -26,9 +28,12 @@ export type IntegrationAuthType =
   | 'api-key'
   | 'oauth-byoc'
   | 'service-account'
-  | 'local';
+  | 'local'
+  | 'webhook'
+  | 'smtp';
 
-export type IntegrationCategory = 'ai' | 'seo' | 'google' | 'performance';
+/** `notify`: the channels the monitoring alerts send to (Settings → Alerts). */
+export type IntegrationCategory = 'ai' | 'seo' | 'google' | 'performance' | 'notify';
 
 /** One credential field a user fills in for an integration. */
 export interface IntegrationField {
@@ -327,6 +332,59 @@ export const INTEGRATIONS: IntegrationDef[] = [
     ],
     helpUrl: 'https://cloud.google.com/iam/docs/service-accounts-create',
     setupHint: 'Create a service account in Google Cloud Console with BigQuery Data Editor role, generate a JSON key, and paste it here along with the project ID.',
+  },
+
+  // ---- Alert channels (Settings → Alerts) ----
+  {
+    id: 'slack',
+    name: 'Slack',
+    category: 'notify',
+    authType: 'webhook',
+    description: 'Post an alert to a Slack channel when a monitoring rule fires after a crawl.',
+    fields: [
+      {
+        key: 'webhookUrl',
+        label: 'Incoming webhook URL',
+        secret: true,
+        placeholder: 'https://hooks.slack.com/services/…',
+      },
+    ],
+    helpUrl: 'https://api.slack.com/messaging/webhooks',
+    setupHint:
+      'Create a Slack app with "Incoming Webhooks" turned on, add a webhook to the channel that should get the alerts, and paste its URL here. Anyone with the URL can post to that channel, so it is stored encrypted.',
+  },
+  {
+    id: 'telegram',
+    name: 'Telegram',
+    category: 'notify',
+    authType: 'api-key',
+    description: 'Send an alert to a Telegram chat when a monitoring rule fires after a crawl.',
+    fields: [
+      { key: 'botToken', label: 'Bot token', secret: true, placeholder: '123456:ABC-…' },
+      { key: 'chatId', label: 'Chat ID', secret: false, placeholder: '-1001234567890' },
+    ],
+    helpUrl: 'https://core.telegram.org/bots/tutorial',
+    setupHint:
+      'Create a bot with @BotFather and paste its token. Add the bot to the chat, send it a message, and read the chat ID from https://api.telegram.org/bot<token>/getUpdates.',
+  },
+  {
+    id: 'email',
+    name: 'Email',
+    category: 'notify',
+    authType: 'smtp',
+    description: 'Email an alert when a monitoring rule fires after a crawl.',
+    fields: [
+      {
+        key: 'smtpUrl',
+        label: 'SMTP server URL',
+        secret: true,
+        placeholder: 'smtps://user:password@smtp.example.com:465',
+      },
+      { key: 'to', label: 'Send to', secret: false, placeholder: 'seo-team@example.com' },
+    ],
+    helpUrl: 'https://nodemailer.com/smtp/',
+    setupHint:
+      'The SMTP server URL carries the login: smtps://user:password@host:465 (or smtp://…:587 for STARTTLS). Percent-encode special characters in the password. The URL is stored encrypted.',
   },
 ];
 

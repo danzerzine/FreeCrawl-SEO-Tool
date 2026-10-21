@@ -17,6 +17,10 @@ export const ES_LABELS: Record<string, string> = {
   // Settings — Integration categories
   AI: 'IA',
   'SEO Data': 'Datos SEO',
+  Notifications: 'Notificaciones',
+  // Settings — Alerts (B88d)
+  Alerts: 'Alertas',
+  Email: 'Correo',
   // Settings — Integration auth types
   'API Key': 'Clave de API',
   'OAuth (your own client)': 'OAuth (tu propio cliente)',
