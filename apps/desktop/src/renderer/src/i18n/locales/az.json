@@ -1058,6 +1058,7 @@
     "title": "Taramaları müqayisə et",
     "afterOpen": "Sonra (açıq layihə)",
     "urlsUnit": "URL",
+    "mapped": "Protokol və ya www dəyişikliyi üzrə uyğunlaşdırılıb: {{count}} URL",
     "pickDifferent": "Başqa layihə faylı seçin",
     "comparing": "Müqayisə edilir…",
     "openOther": "Başqa layihəni aç",

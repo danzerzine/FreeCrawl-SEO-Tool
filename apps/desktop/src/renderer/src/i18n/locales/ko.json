@@ -1035,6 +1035,7 @@
     "title": "크롤 비교",
     "afterOpen": "이후(열린 프로젝트)",
     "urlsUnit": "URL",
+    "mapped": "프로토콜 또는 www 변경을 넘어 짝지은 URL: {{count}}개",
     "pickDifferent": "다른 프로젝트 파일을 선택하십시오",
     "comparing": "비교 중…",
     "openOther": "다른 프로젝트 열기",

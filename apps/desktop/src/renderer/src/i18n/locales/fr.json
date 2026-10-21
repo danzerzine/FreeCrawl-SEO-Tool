@@ -1081,6 +1081,7 @@
     "title": "Comparer les explorations",
     "afterOpen": "Après (projet ouvert)",
     "urlsUnit": "URL",
+    "mapped": "Appariées malgré un changement de protocole ou de www : {{count}} URL",
     "pickDifferent": "Choisissez un autre fichier de projet",
     "comparing": "Comparaison…",
     "openOther": "Ouvrir un autre projet",

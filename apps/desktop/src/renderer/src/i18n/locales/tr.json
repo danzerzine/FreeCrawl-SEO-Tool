@@ -1058,6 +1058,7 @@
     "title": "Crawl'ları Karşılaştır",
     "afterOpen": "Sonra (açık proje)",
     "urlsUnit": "URL",
+    "mapped": "Protokol veya www değişikliği üzerinden eşleştirildi: {{count}} URL",
     "pickDifferent": "Farklı bir proje dosyası seç",
     "comparing": "Karşılaştırılıyor…",
     "openOther": "Başka Proje Aç",

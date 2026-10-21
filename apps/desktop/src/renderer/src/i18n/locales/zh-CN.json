@@ -1035,6 +1035,7 @@
     "title": "比较抓取结果",
     "afterOpen": "之后（已打开的项目）",
     "urlsUnit": "URL",
+    "mapped": "跨协议或 www 变更配对的 URL：{{count}} 个",
     "pickDifferent": "选择另一个项目文件",
     "comparing": "比较中…",
     "openOther": "打开其他项目",

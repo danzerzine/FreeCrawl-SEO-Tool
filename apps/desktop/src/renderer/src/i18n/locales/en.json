@@ -1058,6 +1058,7 @@
     "title": "Compare Crawls",
     "afterOpen": "After (open project)",
     "urlsUnit": "URLs",
+    "mapped": "{{count}} URLs paired across scheme/www changes",
     "pickDifferent": "Pick a different project file",
     "comparing": "Comparing…",
     "openOther": "Open Other Project",

@@ -1081,6 +1081,7 @@
     "title": "Comparar rastreos",
     "afterOpen": "Después (proyecto abierto)",
     "urlsUnit": "URL",
+    "mapped": "Emparejadas por cambio de protocolo o www: {{count}} URL",
     "pickDifferent": "Elige otro archivo de proyecto",
     "comparing": "Comparando…",
     "openOther": "Abrir otro proyecto",

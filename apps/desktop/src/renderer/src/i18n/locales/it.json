@@ -1081,6 +1081,7 @@
     "title": "Confronta scansioni",
     "afterOpen": "Dopo (progetto aperto)",
     "urlsUnit": "URL",
+    "mapped": "Abbinati tra cambi di protocollo o www: {{count}} URL",
     "pickDifferent": "Scegli un altro file di progetto",
     "comparing": "Confronto…",
     "openOther": "Apri un altro progetto",
