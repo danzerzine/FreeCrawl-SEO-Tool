@@ -12,23 +12,9 @@
 import nodemailer from 'nodemailer';
 import { redactUrlSecrets } from '../http-client.js';
 import { postWebhookJson } from '../webhook.js';
+import type { AlertRuleResult } from './rules.js';
 
-/**
- * One evaluated rule. Deliberately small; the rule engine may adopt or
- * replace it.
- */
-export interface AlertRuleResult {
-  name: string;
-  metric: string;
-  level: 'fail' | 'warn';
-  status: 'pass' | 'fired' | 'skipped' | 'error';
-  previous: number | null;
-  current: number | null;
-  change: number | null;
-  /** How `change` is expressed; defaults to a plain count. */
-  changeUnit?: 'count' | 'percent';
-  threshold: { op: string; value: number };
-}
+export type { AlertRuleResult };
 
 export interface SendResult {
   ok: boolean;

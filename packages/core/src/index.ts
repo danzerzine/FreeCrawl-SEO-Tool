@@ -207,3 +207,11 @@ export {
   metricValue,
   type MetricValue,
 } from './monitor/snapshot.js';
+export {
+  parseRules,
+  evaluateRules,
+  gateFails,
+  type Rule,
+  type RuleOp,
+  type AlertRuleResult,
+} from './monitor/rules.js';
