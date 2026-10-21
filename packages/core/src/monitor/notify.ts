@@ -1,14 +1,15 @@
 /**
  * Alert channels for the monitoring rules: one formatter and one sender
  * per channel (Slack incoming webhook, Telegram Bot API, generic JSON
- * webhook). Senders take their base URL as an argument so tests can point
+ * webhook, SMTP email). Senders take their base URL as an argument so tests can point
  * them at a local server, and follow the best-effort contract of
  * `webhook.ts`: they never throw, a failure comes back as `ok: false`.
  *
- * Secrets (Slack webhook URL, bot token) are never put into `detail`:
+ * Secrets (Slack webhook URL, bot token, SMTP URL and password) are never put into `detail`:
  * URLs are shown through `redactUrlSecrets` and the secret strings are
  * scrubbed from any server reply or error text.
  */
+import nodemailer from 'nodemailer';
 import { redactUrlSecrets } from '../http-client.js';
 import { postWebhookJson } from '../webhook.js';
 
@@ -158,4 +159,48 @@ export function sendWebhook(
   opts: SendOptions = {},
 ): Promise<SendResult> {
   return post(url, redactUrlSecrets(url), { results }, [url], opts);
+}
+
+/**
+ * Email over SMTP (`smtps://user:pass@host:port`), same body as Slack. The
+ * sender address is the SMTP user when it is an address, else
+ * `freecrawl@<host>`.
+ */
+export async function sendEmail(
+  smtpUrl: string,
+  to: string,
+  results: AlertRuleResult[],
+  opts: SendOptions & { title?: string } = {},
+): Promise<SendResult> {
+  let shown = '[unparseable url]';
+  const secrets = [smtpUrl];
+  try {
+    const u = new URL(smtpUrl);
+    shown = `${u.protocol}//${u.host}`;
+    // WHATWG keeps userinfo percent-encoded; scrub both forms and the raw login.
+    secrets.push(u.password, decodeURIComponent(u.password));
+    const user = decodeURIComponent(u.username);
+    const timeout = opts.timeoutMs ?? 10_000;
+    const transport = nodemailer.createTransport({
+      url: smtpUrl,
+      connectionTimeout: timeout,
+      greetingTimeout: timeout,
+      socketTimeout: timeout,
+    });
+    const fired = results.filter((r) => r.status === 'fired').length;
+    try {
+      await transport.sendMail({
+        from: user.includes('@') ? user : `freecrawl@${u.hostname}`,
+        to,
+        subject: `${opts.title ?? 'FreeCrawl alert'}: ${fired} rule(s) fired`,
+        text: formatAlert(results, { title: opts.title }),
+      });
+    } finally {
+      transport.close();
+    }
+    return { ok: true, detail: `mail sent via ${shown}` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, detail: `${shown}: ${scrub(msg, secrets)}` };
+  }
 }
