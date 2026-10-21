@@ -265,7 +265,8 @@ export async function runExportItems(
         }
       } else if (item.kind === 'link') {
         const path = join(outDir, `${item.report}.csv`);
-        const r = await exportLinkTargetReport(db, path, item.report, { headers });
+        // Through the page cache, like bulk: see `withoutMmap`.
+        const r = await db.withoutMmap(() => exportLinkTargetReport(db, path, item.report, { headers }));
         if (r === null) {
           outcome.errors.push({
             label: item.label,
