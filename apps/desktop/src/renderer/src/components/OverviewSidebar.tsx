@@ -460,7 +460,7 @@ const TreeNode = memo(function TreeNode({
         )}
         {!node.off && node.count != null && node.trend && node.trend.change !== 0 && (
           <span
-            className="shrink-0 font-mono tabular-nums text-surface-400"
+            className="mr-1 shrink-0 font-mono tabular-nums text-surface-400"
             title={trendHint(node.trend.previous)}
           >
             {node.trend.change > 0 ? '▲' : '▼'}
