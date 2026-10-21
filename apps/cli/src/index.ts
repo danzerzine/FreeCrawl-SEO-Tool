@@ -24,6 +24,8 @@ import {
 import {
   Crawler,
   compareCrawls,
+  listMetrics,
+  metricValue,
   exportUrlsToCsv,
   exportUrlsToJson,
   testUrlAgainstRobots,
@@ -64,6 +66,10 @@ Usage:
   freecrawl audit-robots <url> [--user-agent UA]  Test if a URL is allowed by robots.txt
   freecrawl compare <before.seoproject> <after.seoproject>
                                                   Cross-project diff (added / removed / status / title / meta / h1 / canonical / indexability / response_time)
+  freecrawl history --project <file> --metrics <a,b,…> [--limit N] [--start-url <url>] [--json]
+                                                  Print the project's crawl history, oldest first, one column per metric
+                                                  (CSV with a finishedAt column; --json: {ok, runs: [...]}, not computed = null).
+                                                  Metrics: indexable, status.404, status.4xx, issues:<key>, … (a wrong name lists them)
   freecrawl analyze-logs <access.log> [more.log …] [--project file]
                                                   Parse one or more server access logs (Apache / Nginx / IIS / custom), detect bots,
                                                   and merge the aggregates into a project for crawl × log analysis
@@ -222,6 +228,9 @@ function parseCliArgs() {
       'verify-bots': { type: 'boolean' },
       counter: { type: 'string' },
       days: { type: 'string' },
+      metrics: { type: 'string' },
+      limit: { type: 'string' },
+      'start-url': { type: 'string' },
       what: { type: 'string' },
       urls: { type: 'string' },
       set: { type: 'string' },
@@ -288,6 +297,16 @@ async function main(): Promise<void> {
       resolve(positionals[1]),
       resolve(positionals[2]),
     );
+    process.exit(exitCode);
+  }
+  if (positionals[0] === 'history') {
+    const exitCode = await runHistory({
+      projectPath: values.project === undefined ? undefined : resolve(values.project),
+      metrics: values.metrics,
+      limit: values.limit,
+      startUrl: values['start-url'],
+      json: Boolean(values.json),
+    });
     process.exit(exitCode);
   }
   if (positionals[0] === 'analyze-logs') {
@@ -1055,6 +1074,69 @@ async function runCompare(beforePath: string, afterPath: string): Promise<number
   } finally {
     before.dispose();
     after.dispose();
+  }
+}
+
+/**
+ * Crawl history of one start URL (the project's own unless `--start-url`),
+ * oldest first, one column per metric. Read-only. Exit 0 also for a project
+ * with no crawls yet (an empty list); 2 on bad arguments or project.
+ */
+async function runHistory(opts: {
+  projectPath: string | undefined;
+  metrics: string | undefined;
+  limit: string | undefined;
+  startUrl: string | undefined;
+  json: boolean;
+}): Promise<number> {
+  const fail = (message: string): number => {
+    if (opts.json) process.stdout.write(JSON.stringify({ ok: false, error: message }, null, 2) + '\n');
+    else {
+      console.error(
+        'Usage: freecrawl history --project <file> --metrics <a,b,…> [--limit N] [--start-url <url>] [--json]',
+      );
+      console.error(message);
+    }
+    return 2;
+  };
+  if (!opts.projectPath) return fail('--project <file> is required.');
+  if (!opts.metrics) return fail('--metrics <a,b,…> is required.');
+  const metrics = opts.metrics.split(',').map((m) => m.trim()).filter((m) => m.length > 0);
+  const valid = listMetrics();
+  const unknown = metrics.find((m) => !valid.includes(m) && !/^status\.\d{3}$/.test(m));
+  if (unknown !== undefined) {
+    return fail(`Unknown metric: ${unknown}. Valid metrics: ${valid.join(', ')}`);
+  }
+  let limit: number | undefined;
+  if (opts.limit !== undefined) {
+    limit = Number(opts.limit);
+    if (!Number.isInteger(limit) || limit < 1) return fail('--limit must be a whole number, 1 or more.');
+  }
+  let project: OpenedProject;
+  try {
+    project = await openProject(opts.projectPath);
+  } catch (err) {
+    return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
+  }
+  try {
+    // Default: the site of the newest crawl, as stored in its history row.
+    const startUrl = opts.startUrl ?? project.db.latestCrawlRunStartUrl() ?? '';
+    const rows = project.db.listCrawlRuns(startUrl, limit).map((run) => ({
+      finishedAt: run.finishedAt,
+      ...Object.fromEntries(metrics.map((m) => [m, metricValue(run.snapshot, m)])),
+    }));
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ ok: true, startUrl, runs: rows }, null, 2) + '\n');
+    } else {
+      const columns = ['finishedAt', ...metrics];
+      console.log(columns.join(','));
+      for (const row of rows) {
+        console.log(columns.map((c) => String((row as Record<string, unknown>)[c] ?? '')).join(','));
+      }
+    }
+    return 0;
+  } finally {
+    project.dispose();
   }
 }
 

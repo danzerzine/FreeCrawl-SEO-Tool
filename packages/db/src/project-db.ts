@@ -1665,6 +1665,18 @@ export class ProjectDb {
   }
 
   /**
+   * Start URL of the newest history row: the site the project was last
+   * crawled for, as the crawler resolved it (the typed URL in project meta
+   * may differ, e.g. before a redirect). Null when there is no history.
+   */
+  latestCrawlRunStartUrl(): string | null {
+    const row = this.db.prepare('SELECT start_url FROM crawl_runs ORDER BY id DESC LIMIT 1').get() as
+      | { start_url: string }
+      | undefined;
+    return row?.start_url ?? null;
+  }
+
+  /**
    * The latest `limit` runs of one start URL (all when omitted), oldest
    * first — so the last element is the newest crawl and the one before
    * it is "the previous crawl".
