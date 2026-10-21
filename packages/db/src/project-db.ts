@@ -90,6 +90,7 @@ import {
   ISSUE_COUNT_KEY,
   ISSUE_SOURCES_COUNT_KEY,
   issueCategoriesBySeverity,
+  PAGE_ROLLUP_EXCLUDED,
   normalizeDisabledIssues,
   isValidHreflangCode,
   MINHASH_SLOTS,
@@ -12889,7 +12890,8 @@ export function categoryWhereClause(
       // of every issue category mapped to this tier in ISSUE_SEVERITY, so
       // a single category yields the deduped set of URLs flagged by any
       // issue of that severity. Members whose clause is null (none) are
-      // skipped; an empty tier matches nothing rather than everything.
+      // skipped, so are PAGE_ROLLUP_EXCLUDED checks; an empty tier matches
+      // nothing rather than everything.
       const tier =
         cat === 'issues:severity-critical'
           ? 'critical'
@@ -12897,7 +12899,7 @@ export function categoryWhereClause(
             ? 'warning'
             : 'info';
       const clauses = issueCategoriesBySeverity(tier)
-        .filter((c) => !disabledIssues?.has(c))
+        .filter((c) => !disabledIssues?.has(c) && !PAGE_ROLLUP_EXCLUDED.has(c))
         .map((c) => categoryWhereClause(c, disabledIssues))
         .filter((c): c is string => c !== null)
         .map((c) => `(${c})`);

@@ -247,6 +247,17 @@ export function issueCategoriesBySeverity(tier: IssueSeverity): UrlCategory[] {
   return INFO;
 }
 
+/**
+ * Checks kept out of the page rollups (`issues:severity-*`): they keep
+ * their tier, count, page list and summary row, but a page they alone
+ * flag is not counted as a page with a problem of that tier.
+ * `target-blank-no-noopener`: browsers already treat `target=_blank` as
+ * `noopener`, and it is on nearly every page of a site with share links.
+ */
+export const PAGE_ROLLUP_EXCLUDED: ReadonlySet<UrlCategory> = new Set<UrlCategory>([
+  'issues:target-blank-no-noopener',
+]);
+
 /** Maps a severity tier to its virtual rollup UrlCategory. */
 export const SEVERITY_CATEGORY: Record<IssueSeverity, UrlCategory> = {
   critical: 'issues:severity-critical',
