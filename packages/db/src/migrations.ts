@@ -2690,6 +2690,26 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 115,
+    name: 'add_pagination_loop_hreflang_canonical',
+    // Post-crawl flags: a rel=next loop, hreflang on a non-canonical page,
+    // and noindex hreflang targets (B82).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      for (const name of [
+        'pagination_loop',
+        'hreflang_not_canonical',
+        'hreflang_noindex_targets',
+      ]) {
+        if (!cols.some((c) => c.name === name)) {
+          db.exec(`ALTER TABLE urls ADD COLUMN ${name} INTEGER NOT NULL DEFAULT 0`);
+        }
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

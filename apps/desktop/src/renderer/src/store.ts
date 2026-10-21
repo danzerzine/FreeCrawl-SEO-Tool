@@ -300,6 +300,8 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
   pagination: [
     { label: 'All', category: 'tab:pagination' },
     { label: 'Broken Next/Prev Target', category: 'issues:pagination-broken' },
+    { label: 'Paginated Page Not Indexable', category: 'issues:pagination-non-indexable' },
+    { label: 'Pagination Loop', category: 'issues:pagination-loop' },
     { label: 'Sequence Break', category: 'issues:pagination-sequence-break' },
     { label: 'Canonical Conflict', category: 'issues:pagination-canonical-conflict' },
   ],
@@ -312,6 +314,8 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Self-Ref Missing', category: 'issues:hreflang-self-ref-missing' },
     { label: 'Reciprocity Missing', category: 'issues:hreflang-reciprocity-missing' },
     { label: 'Target Issues', category: 'issues:hreflang-target-issues' },
+    { label: 'Noindex Alternate', category: 'issues:hreflang-noindex-target' },
+    { label: 'Hreflang on Non-Canonical Page', category: 'issues:hreflang-not-canonical' },
     { label: 'Inconsistent Lang', category: 'issues:hreflang-inconsistent-lang' },
     { label: 'Hreflang Outside <head>', category: 'issues:hreflang-outside-head' },
   ],

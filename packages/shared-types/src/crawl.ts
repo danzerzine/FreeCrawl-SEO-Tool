@@ -126,6 +126,10 @@ export type UrlCategory =
   | 'issues:url-template-junk'
   | 'issues:url-internal-search'
   | 'issues:link-utm-internal'
+  | 'issues:pagination-non-indexable'
+  | 'issues:pagination-loop'
+  | 'issues:hreflang-not-canonical'
+  | 'issues:hreflang-noindex-target'
   | 'issues:og-name-attribute'
   | 'issues:noindex-other-bot'
   | 'issues:lang-content-mismatch'
@@ -2009,6 +2013,10 @@ export interface OverviewCounts {
     urlTemplateJunk: number;
     urlInternalSearch: number;
     linkUtmInternal: number;
+    paginationNonIndexable: number;
+    paginationLoop: number;
+    hreflangNotCanonical: number;
+    hreflangNoindexTarget: number;
     /** `og:*` tags given with `name=` instead of `property=` (B25). */
     ogNameAttribute: number;
     /** Pages with a noindex meant for another search engine than the one the crawl acts as (B75). */

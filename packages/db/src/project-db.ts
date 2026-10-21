@@ -174,6 +174,9 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:description-outside-head',
   'issues:meta-robots-outside-head',
   'issues:link-utm-internal',
+  'issues:pagination-loop',
+  'issues:hreflang-not-canonical',
+  'issues:hreflang-noindex-target',
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -3248,13 +3251,13 @@ export class ProjectDb {
   recomputePaginationSequence(): void {
     const rows = this.db
       .prepare(
-        `SELECT id, url
+        `SELECT id, url, pagination_next
            FROM urls
           WHERE is_external = 0
             AND content_kind = 'html'
             AND (pagination_next IS NOT NULL OR pagination_prev IS NOT NULL)`,
       )
-      .all() as { id: number; url: string }[];
+      .all() as { id: number; url: string; pagination_next: string | null }[];
 
     interface ParsedPage {
       id: number;
@@ -3289,8 +3292,31 @@ export class ProjectDb {
       }
     }
 
+    // Loops: following rel=next from a page comes back to a page already on
+    // the way; every page of the cycle is flagged (B82).
+    const idOf = new Map(rows.map((r) => [r.url, r.id]));
+    const nextOf = new Map(rows.map((r) => [r.url, r.pagination_next]));
+    const walked = new Map<string, 'on-path' | 'done'>();
+    const loopIds: number[] = [];
+    for (const r of rows) {
+      const path: string[] = [];
+      let cur: string | null | undefined = r.url;
+      while (cur && idOf.has(cur) && !walked.has(cur)) {
+        walked.set(cur, 'on-path');
+        path.push(cur);
+        cur = nextOf.get(cur);
+      }
+      if (cur && walked.get(cur) === 'on-path') {
+        for (const u of path.slice(path.indexOf(cur))) loopIds.push(idOf.get(u)!);
+      }
+      for (const u of path) walked.set(u, 'done');
+    }
+
     this.runInTransaction(() => {
       this.db.exec('UPDATE urls SET pagination_sequence_break = 0 WHERE pagination_sequence_break = 1');
+      this.db.exec('UPDATE urls SET pagination_loop = 0 WHERE pagination_loop = 1');
+      const loopStmt = this.db.prepare('UPDATE urls SET pagination_loop = 1 WHERE id = ?');
+      for (const id of loopIds) loopStmt.run(id);
       if (flaggedIds.length === 0) return;
       const stmt = this.db.prepare(
         'UPDATE urls SET pagination_sequence_break = 1 WHERE id = ?',
@@ -4664,7 +4690,9 @@ export class ProjectDb {
              hreflang_self_ref_missing = 0,
              hreflang_reciprocity_missing = 0,
              hreflang_target_issues = 0,
-             hreflang_unlinked = 0
+             hreflang_unlinked = 0,
+             hreflang_not_canonical = 0,
+             hreflang_noindex_targets = 0
        WHERE is_external = 0 AND content_kind = 'html'`,
     );
 
@@ -4673,10 +4701,11 @@ export class ProjectDb {
       url: string;
       hreflangs: string | null;
       hreflang_count: number;
+      canonical: string | null;
     }
     const rows = this.db
       .prepare(
-        `SELECT id, url, hreflangs, hreflang_count FROM urls
+        `SELECT id, url, hreflangs, hreflang_count, ${CANONICAL_CMP} AS canonical FROM urls
           WHERE is_external = 0 AND content_kind = 'html'
             AND hreflang_count > 0 AND hreflangs IS NOT NULL`,
       )
@@ -4771,7 +4800,9 @@ export class ProjectDb {
          hreflang_self_ref_missing = ?,
          hreflang_reciprocity_missing = ?,
          hreflang_target_issues = ?,
-         hreflang_unlinked = ?
+         hreflang_unlinked = ?,
+         hreflang_not_canonical = ?,
+         hreflang_noindex_targets = ?
        WHERE id = ?`,
     );
 
@@ -4784,6 +4815,7 @@ export class ProjectDb {
         let reciprocityMissing = 0;
         let targetIssues = 0;
         let unlinked = 0;
+        let noindexTargets = 0;
         for (const e of entries) {
           if (!e.langValid) invalidCount++;
           if (e.href === r.url) selfRef = true;
@@ -4819,6 +4851,7 @@ export class ProjectDb {
               meta.canonical !== '' &&
               meta.canonical !== e.href;
             if (badStatus || isNoindex || isCanonAway) targetIssues++;
+            if (isNoindex && e.href !== r.url) noindexTargets++;
             // Unlinked: crawled, but no page links to it — only the
             // annotation reaches the alternate, so bots may never fetch it.
             if (e.href !== r.url && meta.inlinks === 0) unlinked++;
@@ -4830,6 +4863,9 @@ export class ProjectDb {
           reciprocityMissing,
           targetIssues,
           unlinked,
+          // Google reads hreflang only on canonical pages (B82).
+          r.canonical && r.canonical !== r.url ? 1 : 0,
+          noindexTargets,
           r.id,
         );
       }
@@ -7697,6 +7733,10 @@ export class ProjectDb {
       urlTemplateJunk: gatedCount('issues:url-template-junk'),
       urlInternalSearch: gatedCount('issues:url-internal-search'),
       linkUtmInternal: gatedCount('issues:link-utm-internal'),
+      paginationNonIndexable: gatedCount('issues:pagination-non-indexable'),
+      paginationLoop: gatedCount('issues:pagination-loop'),
+      hreflangNotCanonical: gatedCount('issues:hreflang-not-canonical'),
+      hreflangNoindexTarget: gatedCount('issues:hreflang-noindex-target'),
       ogNameAttribute: gatedCount('issues:og-name-attribute'),
       noindexOtherBot: gatedCount('issues:noindex-other-bot'),
       langContentMismatch: gatedCount('issues:lang-content-mismatch'),
@@ -12249,7 +12289,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -12642,6 +12682,15 @@ function baseCategoryWhereClause(
               AND microdata_count = 0 AND rdfa_count = 0`;
     case 'issues:structured-data-invalid':
       return `is_external = 0 AND content_kind = 'html' AND schema_invalid_count > 0`;
+    case 'issues:pagination-non-indexable':
+      // A page in a paginated series that search engines will not index:
+      // noindex, or canonicalised to another page (often page 1) (B82).
+      return `is_external = 0 AND content_kind = 'html'
+              AND (pagination_next IS NOT NULL OR pagination_prev IS NOT NULL)
+              AND indexability LIKE 'non-indexable%'`;
+    case 'issues:pagination-loop':
+      // Following rel=next returns to a page already in the chain (B82).
+      return "is_external = 0 AND content_kind = 'html' AND pagination_loop = 1";
     case 'issues:pagination-broken':
       // Page declares a rel=next/prev whose target was crawled and came
       // back as 4xx/5xx — actionable: the pagination chain is broken.
@@ -12870,6 +12919,13 @@ function baseCategoryWhereClause(
       return "is_external = 0 AND content_kind = 'html' AND hreflang_unlinked > 0";
     case 'issues:orphan-page':
       return ORPHAN_PAGE_SQL;
+    case 'issues:hreflang-not-canonical':
+      // The page declares hreflang but its canonical points elsewhere;
+      // Google reads hreflang only on canonical pages (B82).
+      return "is_external = 0 AND content_kind = 'html' AND hreflang_not_canonical = 1";
+    case 'issues:hreflang-noindex-target':
+      // An hreflang alternate (other than the page itself) is noindex (B82).
+      return "is_external = 0 AND content_kind = 'html' AND hreflang_noindex_targets > 0";
     case 'issues:hreflang-target-issues':
       // Hreflang target resolves to a non-200 / noindex / canonical-away
       // page. Aggregated: any kind of broken target trips this filter.

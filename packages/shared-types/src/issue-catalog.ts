@@ -330,6 +330,8 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     label: 'Pagination',
     items: [
       { key: 'issues-pagination-broken', label: 'Broken Next/Prev Target', category: 'issues:pagination-broken', count: 'paginationBroken' },
+      { key: 'issues-pagination-non-indexable', label: 'Paginated Page Not Indexable', category: 'issues:pagination-non-indexable', count: 'paginationNonIndexable' },
+      { key: 'issues-pagination-loop', label: 'Pagination Loop', category: 'issues:pagination-loop', count: 'paginationLoop' },
       { key: 'issues-pagination-sequence-break', label: 'Sequence Break (gap in numbering)', category: 'issues:pagination-sequence-break', count: 'paginationSequenceBreak' },
       { key: 'issues-pagination-canonical-conflict', label: 'Canonical Conflict', category: 'issues:pagination-canonical-conflict', count: 'paginationCanonicalConflict' },
     ],
@@ -343,6 +345,8 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-hreflang-self-ref-missing', label: 'Self-Ref Missing', category: 'issues:hreflang-self-ref-missing', count: 'hreflangSelfRefMissing' },
       { key: 'issues-hreflang-reciprocity-missing', label: 'Reciprocity Missing', category: 'issues:hreflang-reciprocity-missing', count: 'hreflangReciprocityMissing' },
       { key: 'issues-hreflang-target-issues', label: 'Target Issues', category: 'issues:hreflang-target-issues', count: 'hreflangTargetIssues' },
+      { key: 'issues-hreflang-noindex-target', label: 'Noindex Alternate', category: 'issues:hreflang-noindex-target', count: 'hreflangNoindexTarget' },
+      { key: 'issues-hreflang-not-canonical', label: 'Hreflang on Non-Canonical Page', category: 'issues:hreflang-not-canonical', count: 'hreflangNotCanonical' },
       { key: 'issues-hreflang-unlinked', label: 'Unlinked Targets', category: 'issues:hreflang-unlinked', count: 'hreflangUnlinked' },
       { key: 'issues-hreflang-inconsistent-lang', label: 'Inconsistent Lang (same lang, two hrefs)', category: 'issues:hreflang-inconsistent-lang', count: 'hreflangInconsistentLang' },
       { key: 'issues-hreflang-outside-head', label: 'Hreflang Outside <head>', category: 'issues:hreflang-outside-head', count: 'hreflangOutsideHead' },
