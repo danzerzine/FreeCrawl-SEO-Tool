@@ -26,8 +26,9 @@ type Item =
       clusterId: number;
       clusterSize: number;
       memberCount: number;
-      repUrl: string;
-      maxHamming: number;
+      /** Stored representative; null when none is recorded (old build, row deleted). */
+      repUrl: string | null;
+      maxHamming: number | null;
     }
   | { kind: 'member'; clusterId: number; row: DuplicateClusterRow };
 
@@ -86,9 +87,10 @@ export function DuplicatesGroupedView() {
    *  Rows are pre-sorted by the DB query (cluster_size DESC, cluster_id
    *  ASC, url ASC), so a single pass detects cluster boundaries.
    *  Collapsed clusters keep their header and drop their members.
-   *  Header carries derived stats — representative URL (alphabetically
-   *  first) and the max Hamming distance present in the cluster, which
-   *  is a quick "how tight is this cluster" signal. */
+   *  Header carries the stored representative URL (the same on every row of
+   *  a cluster, so a page cut does not change it) and the max Hamming
+   *  distance from it, a quick "how tight is this cluster" signal. Both are
+   *  null when no representative is recorded: nothing is guessed. */
   const items = useMemo<Item[]>(() => {
     const list: Item[] = [];
     let i = 0;
@@ -96,12 +98,13 @@ export function DuplicatesGroupedView() {
       const head = rows[i]!;
       const cid = head.clusterId;
       let j = i;
-      let repUrl = head.url;
-      let maxHamming = 0;
+      const repUrl = head.repUrl;
+      let maxHamming: number | null = repUrl === null ? null : 0;
       while (j < rows.length && rows[j]!.clusterId === cid) {
         const m = rows[j]!;
-        if (m.url < repUrl) repUrl = m.url;
-        if (m.hammingFromRep > maxHamming) maxHamming = m.hammingFromRep;
+        if (maxHamming !== null && m.hammingFromRep !== null && m.hammingFromRep > maxHamming) {
+          maxHamming = m.hammingFromRep;
+        }
         j++;
       }
       list.push({
@@ -187,7 +190,7 @@ export function DuplicatesGroupedView() {
           <div>
             {t('duplicates.noClustersHint', {
               defaultValue:
-                'Run a crawl and let post-crawl analysis finish — clusters appear once two or more pages share enough content to fall under the SimHash Hamming threshold (Settings → Duplicates).',
+                'Run a crawl and let post-crawl analysis finish — clusters appear once two or more pages are near-duplicates of a representative page (Settings → Duplicates).',
             })}
           </div>
         </div>
@@ -275,23 +278,31 @@ export function DuplicatesGroupedView() {
                     })}
                   </span>
                   <span className="text-surface-400">·</span>
-                  <span
-                    className="truncate text-surface-300"
-                    title={it.repUrl}
-                  >
-                    {it.repUrl}
-                  </span>
-                  <span className="ml-auto shrink-0 rounded bg-surface-800 px-1.5 py-0.5 font-mono text-[10px] text-surface-300">
-                    {t('duplicates.maxHamming', {
-                      defaultValue: 'max Δ {{n}} bits',
-                      n: it.maxHamming,
-                    })}
-                  </span>
+                  {it.repUrl === null ? (
+                    <span className="truncate font-normal text-surface-500">
+                      {t('duplicates.repUnknown', {
+                        defaultValue: 'Representative not recorded — it appears after the next crawl with duplicate analysis',
+                      })}
+                    </span>
+                  ) : (
+                    <span className="truncate text-surface-300" title={it.repUrl}>
+                      {it.repUrl}
+                    </span>
+                  )}
+                  {it.maxHamming !== null && (
+                    <span className="ml-auto shrink-0 rounded bg-surface-800 px-1.5 py-0.5 font-mono text-[10px] text-surface-300">
+                      {t('duplicates.maxHamming', {
+                        defaultValue: 'max Δ {{n}} bits',
+                        n: it.maxHamming,
+                      })}
+                    </span>
+                  )}
                 </div>
               );
             }
             const row = it.row;
             const isSelected = selectedUrlId === row.urlId;
+            const isRep = row.repUrlId !== null && row.repUrlId === row.urlId;
             return (
               <div
                 key={vi.key}
@@ -335,6 +346,11 @@ export function DuplicatesGroupedView() {
                 >
                   {row.indexability === 'indexable' ? 'Indexable' : 'Non-Indexable'}
                 </span>
+                {isRep && (
+                  <span className="shrink-0 rounded bg-accent-500/20 px-1 text-[10px] font-semibold text-accent-300">
+                    {t('duplicates.repBadge', { defaultValue: 'rep' })}
+                  </span>
+                )}
                 <span className="flex-1 truncate font-mono text-surface-200">
                   {row.url}
                 </span>
@@ -350,18 +366,25 @@ export function DuplicatesGroupedView() {
                 <span
                   className={clsx(
                     'w-14 shrink-0 text-right font-mono tabular-nums',
-                    row.hammingFromRep === 0
-                      ? 'text-emerald-400'
-                      : row.hammingFromRep <= 3
-                        ? 'text-amber-300'
-                        : 'text-orange-300',
+                    distanceClass(row),
                   )}
-                  title={t('duplicates.hammingFromRepTitle', {
-                    defaultValue:
-                      'SimHash Hamming distance from the cluster representative — 0 means the rep itself, higher = further from the rep',
-                  })}
+                  title={
+                    row.similarityToRep !== null
+                      ? t('duplicates.similarityToRepTitle', {
+                          defaultValue:
+                            'Text similarity to the cluster representative (100% = the representative itself)',
+                        })
+                      : t('duplicates.hammingFromRepTitle', {
+                          defaultValue:
+                            'SimHash Hamming distance from the cluster representative — 0 means the rep itself, higher = further from the rep',
+                        })
+                  }
                 >
-                  Δ{row.hammingFromRep}
+                  {row.similarityToRep !== null
+                    ? `${row.similarityToRep}%`
+                    : row.hammingFromRep !== null
+                      ? `Δ${row.hammingFromRep}`
+                      : '—'}
                 </span>
               </div>
             );
@@ -370,6 +393,22 @@ export function DuplicatesGroupedView() {
       </div>
     </div>
   );
+}
+
+function distanceClass(row: DuplicateClusterRow): string {
+  if (row.similarityToRep !== null) {
+    return row.similarityToRep >= 95
+      ? 'text-emerald-400'
+      : row.similarityToRep >= 90
+        ? 'text-amber-300'
+        : 'text-orange-300';
+  }
+  if (row.hammingFromRep === null) return 'text-surface-600';
+  return row.hammingFromRep === 0
+    ? 'text-emerald-400'
+    : row.hammingFromRep <= 3
+      ? 'text-amber-300'
+      : 'text-orange-300';
 }
 
 function statusClasses(code: number | null): string {

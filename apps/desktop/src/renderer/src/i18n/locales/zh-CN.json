@@ -1088,18 +1088,21 @@
     "missing": "缺少 {{n}} 项"
   },
   "duplicates": {
-    "notInCluster": "此 URL 不属于任何近似重复分组。请对已完成的抓取运行抓取分析，或在“设置 → 重复内容”中降低汉明距离阈值，以放宽近似重复的判定范围。",
+    "notInCluster": "此 URL 不属于任何近似重复分组。分组是在开启重复内容分析的抓取中围绕代表页面建立的；如需放宽近似重复的判定范围，请在“设置 → 重复内容”中调整阈值后重新抓取。",
     "noOtherMembers": "此分组中没有其他成员。（分组大小：{{n}}。）",
     "cluster": "分组",
     "hammingHint": "（与此 URL 的汉明距离——越小表示越相似）",
     "loadingClusters": "正在加载近似重复分组…",
     "noClustersTitle": "没有近似重复分组",
-    "noClustersHint": "运行一次抓取并等待抓取后分析完成——当两个或更多页面的内容相似度足以落入 SimHash 汉明距离阈值（设置 → 重复内容）时，分组就会出现。",
+    "noClustersHint": "运行一次抓取并等待抓取后分析完成——当页面按文本相似度或 SimHash 距离与某个代表页面高度吻合时，分组就会出现（设置 → 重复内容）。",
     "statusClusters": "{{clusters}} 个分组 · {{members}} 个页面",
     "truncated": "已截断为前 {{cap}} 行",
     "toggleClusterTitle": "点击以展开或折叠此分组",
     "headerSize": "{{n}} 个页面",
     "maxHamming": "最大 Δ {{n}} 位",
+    "repBadge": "代表",
+    "repUnknown": "未记录代表页面——在下一次开启重复内容分析的抓取后会显示",
+    "similarityToRepTitle": "与分组代表页面的文本相似度（100% = 代表页面本身）",
     "hammingFromRepTitle": "与分组代表页面的 SimHash 汉明距离——0 表示代表页面本身，数值越大离它越远",
     "membersTotal_other": "共 {{count}} 个成员"
   },

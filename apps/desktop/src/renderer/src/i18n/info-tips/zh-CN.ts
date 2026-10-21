@@ -233,8 +233,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     '状态为 3xx 时的 Location 响应头值。服务器指向的下一个 URL；链长度见“URL 详情”面板。',
   ['Lowercases the URL path component. Host is already case-insensitive per the URL spec, so this only affects the path.']:
     '将 URL 路径部分转为小写。按 URL 规范主机已不区分大小写，因此这只影响路径。',
-  ['Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.']:
-    '由抓取后的 SimHash 处理分配的近似重复组 ID。0 = 单独页面（在配置的汉明阈值内无近似重复）。共享同一非零组 ID 的页面彼此相似。',
+  ['Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.']:
+    '抓取后重复内容分析分配的近似重复分组 ID。0 = 单独页面（未发现近似重复）。分组 ID 相同且非零的页面围绕一个代表页面分组：每个页面都与代表页面匹配，但不一定与其他页面匹配。',
   ['noindex, canonicalised, redirected, blocked-by-robots']:
     'noindex、已规范化、已重定向、被 robots 阻止',
   ['None for fastest crawl. Above-the-fold for SERP-thumbnail-style preview. Full page when you need long-page snapshots.']:

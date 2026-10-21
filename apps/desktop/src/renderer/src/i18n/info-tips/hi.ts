@@ -239,8 +239,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
     'स्टेटस 3xx होने पर Location हेडर का मान। वह URL जिस पर सर्वर आगे भेजता है; चेन की लंबाई URL विवरण पैनल में है।',
   ['Lowercases the URL path component. Host is already case-insensitive per the URL spec, so this only affects the path.']:
     'URL के पथ भाग को लोअरकेस करता है। URL विनिर्देश के अनुसार होस्ट पहले से केस-असंवेदनशील है, इसलिए यह केवल पथ को प्रभावित करता है।',
-  ['Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.']:
-    'क्रॉल के बाद SimHash चरण द्वारा दी गई निकट-डुप्लिकेट क्लस्टर ID। 0 = अकेला (कॉन्फ़िगर की गई Hamming सीमा में कोई निकट-डुप्लिकेट नहीं)। गैर-शून्य क्लस्टर ID साझा करने वाले पेज परस्पर समान हैं।',
+  ['Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.']:
+    'क्रॉल के बाद के प्रतिलिपि विश्लेषण द्वारा दिया गया निकट-प्रतिलिपि समूह ID। 0 = अकेला (कोई निकट-प्रतिलिपि नहीं मिली)। समान गैर-शून्य समूह ID वाले पृष्ठ एक प्रतिनिधि पृष्ठ के आसपास समूहित होते हैं: हर पृष्ठ प्रतिनिधि से मेल खाता है, ज़रूरी नहीं कि एक-दूसरे से भी।',
   ['noindex, canonicalised, redirected, blocked-by-robots']:
     'noindex, कैनोनिकल किया गया, रीडायरेक्ट किया गया, robots द्वारा अवरुद्ध',
   ['None for fastest crawl. Above-the-fold for SERP-thumbnail-style preview. Full page when you need long-page snapshots.']:

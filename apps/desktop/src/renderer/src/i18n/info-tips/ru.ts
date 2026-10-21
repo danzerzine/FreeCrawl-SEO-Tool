@@ -238,8 +238,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
     'Значение заголовка Location при статусе 3xx. URL, куда сервер указывает далее; длина цепочки — в панели «Детали URL».',
   ['Lowercases the URL path component. Host is already case-insensitive per the URL spec, so this only affects the path.']:
     'Переводит компонент пути URL в нижний регистр. Хост по спецификации URL и так регистронезависим, поэтому это затрагивает только путь.',
-  ['Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.']:
-    'ID кластера почти дубликатов, присвоенный проходом SimHash после сканирования. 0 = одиночка (нет почти дубликатов в пределах настроенного порога Хэмминга). Страницы с одним ненулевым ID кластера взаимно похожи.',
+  ['Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.']:
+    'ID кластера почти дубликатов, присвоенный анализом дубликатов после обхода. 0 = одиночка (почти дубликатов не найдено). Страницы с одним ненулевым ID кластера сгруппированы вокруг страницы-представителя: каждая совпадает с представителем, но не обязательно с остальными.',
   ['noindex, canonicalised, redirected, blocked-by-robots']:
     'noindex, канонизирована, перенаправлена, заблокирована robots',
   ['None for fastest crawl. Above-the-fold for SERP-thumbnail-style preview. Full page when you need long-page snapshots.']:

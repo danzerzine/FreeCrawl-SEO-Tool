@@ -295,7 +295,7 @@ const COL = {
     size: 72,
     kind: 'number',
     align: 'right',
-    info: 'Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.',
+    info: 'Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.',
     example: '0 (no duplicates), 7 (member of cluster #7)',
   } as ColumnSpec,
   clusterSize: {

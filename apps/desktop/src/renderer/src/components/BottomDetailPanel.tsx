@@ -1644,7 +1644,7 @@ function DuplicatesView({
   if (row.clusterId === 0 || (row.clusterSize ?? 1) <= 1) {
     return (
       <div className="p-3 text-[11px] text-surface-500">
-        {t('duplicates.notInCluster', { defaultValue: 'This URL is not part of a near-duplicate cluster. Run Crawl Analysis on a finished crawl, or lower the Hamming threshold in Settings → Duplicates, to widen what counts as a near-duplicate.' })}
+        {t('duplicates.notInCluster', { defaultValue: 'This URL is not part of a near-duplicate cluster. Clusters are grouped around a representative page by a crawl with duplicate analysis on; to widen what counts as a near-duplicate, adjust the thresholds in Settings → Duplicates and crawl again.' })}
       </div>
     );
   }

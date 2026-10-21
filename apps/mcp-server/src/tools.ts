@@ -1051,7 +1051,7 @@ export function buildTools(): Tool[] {
     {
       name: 'list_duplicate_clusters',
       description:
-        'Paginated view of near-duplicate clusters with each cluster\'s members — same data the Cluster view on the Duplicates tab renders. Members are pre-grouped: rows sharing a cluster_id form one cluster, sorted by cluster_size DESC then alphabetic. Hamming distance from the cluster representative is included per row.',
+        'Paginated view of near-duplicate clusters with each cluster\'s members — same data the Cluster view on the Duplicates tab renders. Members are pre-grouped: rows sharing a cluster_id form one cluster, sorted by cluster_size DESC then alphabetic. Each row names the cluster\'s stored representative (repUrlId, repUrl) and its closeness to it: similarityToRep (MinHash text similarity 0-100, 100 for the representative itself; null for SimHash-only pairs) and hammingFromRep (SimHash distance in bits). All four are null when no representative is recorded (project clustered by an older build, or the representative was deleted).',
       inputSchema: {
         type: 'object',
         properties: {

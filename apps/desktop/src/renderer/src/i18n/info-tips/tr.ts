@@ -239,8 +239,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "Durum 3xx olduğunda Location başlığının değeri. Sunucunun işaret ettiği bir sonraki URL'dir; zincir uzunluğu URL Detayları panelindedir.",
   ['Lowercases the URL path component. Host is already case-insensitive per the URL spec, so this only affects the path.']:
     "URL'in yol bileşenini küçük harfe çevirir. Host, URL standardına göre zaten büyük/küçük harf duyarsızdır, bu yüzden bu yalnızca yolu etkiler.",
-  ['Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.']:
-    'Crawl sonrası SimHash geçişinin atadığı yakın-yinelenen küme kimliği. 0 = tekil (yapılandırılan Hamming eşiği içinde yakın yinelenen yok). Sıfır olmayan aynı küme kimliğini paylaşan sayfalar karşılıklı olarak benzerdir.',
+  ['Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.']:
+    'Post-crawl yinelenen analizinin atadığı yakın-yinelenen küme kimliği. 0 = tekil (yakın-yinelenen bulunamadı). Sıfırdan farklı aynı küme kimliğini paylaşan sayfalar bir temsilci sayfanın çevresinde gruplanır: her biri temsilciyle eşleşir, diğerleriyle eşleşmesi şart değildir.',
   ['noindex, canonicalised, redirected, blocked-by-robots']:
     'noindex, canonical edilmiş, yönlendirildi, robots.txt tarafından engellendi',
   ['None for fastest crawl. Above-the-fold for SERP-thumbnail-style preview. Full page when you need long-page snapshots.']:

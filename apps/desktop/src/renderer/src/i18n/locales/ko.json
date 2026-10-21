@@ -1088,18 +1088,21 @@
     "missing": "{{n}}개 누락"
   },
   "duplicates": {
-    "notInCluster": "이 URL은 어떤 유사 중복 묶음에도 속하지 않습니다. 완료된 크롤에서 크롤 분석을 실행하거나, 설정 → 중복에서 해밍 임계값을 낮춰 유사 중복으로 인정되는 범위를 넓히십시오.",
+    "notInCluster": "이 URL은 어떤 유사 중복 묶음에도 속하지 않습니다. 묶음은 중복 분석을 켠 크롤에서 대표 페이지를 중심으로 만들어집니다. 유사 중복으로 인정되는 범위를 넓히려면 설정 → 중복에서 임계값을 조정한 뒤 다시 크롤하십시오.",
     "noOtherMembers": "이 묶음에는 다른 구성원이 없습니다. (묶음 크기: {{n}}.)",
     "cluster": "묶음",
     "hammingHint": "(이 URL로부터의 해밍 거리 — 작을수록 더 비슷합니다)",
     "loadingClusters": "유사 중복 묶음을 불러오는 중…",
     "noClustersTitle": "유사 중복 묶음이 없습니다",
-    "noClustersHint": "크롤을 실행하고 크롤 후 분석이 끝나기를 기다리십시오 — 두 개 이상의 페이지가 SimHash 해밍 임계값(설정 → 중복) 안에 들 만큼 내용을 공유하면 묶음이 나타납니다.",
+    "noClustersHint": "크롤을 실행하고 크롤 후 분석이 끝나기를 기다리십시오 — 페이지가 텍스트 유사도나 SimHash 거리 기준으로 하나의 대표 페이지와 가깝게 일치하면 묶음이 나타납니다(설정 → 중복).",
     "statusClusters": "묶음 {{clusters}}개 · 페이지 {{members}}개",
     "truncated": "처음 {{cap}}행으로 잘림",
     "toggleClusterTitle": "클릭하면 이 묶음을 펼치거나 접습니다",
     "headerSize": "페이지 {{n}}개",
     "maxHamming": "최대 Δ {{n}}비트",
+    "repBadge": "대표",
+    "repUnknown": "대표 페이지가 기록되지 않았습니다 — 중복 분석을 켠 다음 크롤 후에 표시됩니다",
+    "similarityToRepTitle": "묶음 대표 페이지와의 텍스트 유사도(100% = 대표 페이지 자신)",
     "hammingFromRepTitle": "묶음 대표 페이지로부터의 SimHash 해밍 거리 — 0은 대표 페이지 자신이며, 클수록 더 멉니다",
     "membersTotal_other": "전체 구성원 {{count}}개"
   },

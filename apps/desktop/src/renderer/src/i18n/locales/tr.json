@@ -1111,7 +1111,7 @@
     "missing": "{{n}} eksik"
   },
   "duplicates": {
-    "notInCluster": "Bu URL bir yakın-yinelenen kümesinin parçası değil. Bitmiş bir crawl üzerinde Crawl Analysis çalıştır veya Settings → Duplicates'da Hamming eşiğini düşürerek yakın-yinelenen sınırını genişlet.",
+    "notInCluster": "Bu URL bir yakın-yinelenen kümesinin parçası değil. Kümeler, yinelenen analizi açık bir crawl sırasında bir temsilci sayfanın çevresinde oluşturulur; yakın-yinelenen sınırını genişletmek için Settings → Duplicates'daki eşikleri ayarla ve yeniden crawl et.",
     "noOtherMembers": "Bu kümede başka üye yok. (Küme boyutu {{n}}.)",
     "cluster": "Küme",
     "membersTotal_one": "toplam {{count}} üye",
@@ -1119,12 +1119,15 @@
     "hammingHint": "(Bu URL'den Hamming mesafesi — düşük = daha benzer)",
     "loadingClusters": "Yakın-yinelenen kümeleri yükleniyor…",
     "noClustersTitle": "Yakın-yinelenen küme yok",
-    "noClustersHint": "Bir crawl çalıştır ve post-crawl analizi tamamlansın — iki ya da daha fazla sayfa SimHash Hamming eşiğinin altında yeterli içerik paylaştığında kümeler görünür (Settings → Duplicates).",
+    "noClustersHint": "Bir crawl çalıştır ve post-crawl analizi tamamlansın — sayfalar metin benzerliği ya da SimHash mesafesi açısından tek bir temsilci sayfayla yakından eşleştiğinde kümeler görünür (Settings → Duplicates).",
     "statusClusters": "{{clusters}} küme · {{members}} sayfa",
     "truncated": "ilk {{cap}} satırla sınırlı",
     "toggleClusterTitle": "Bu kümeyi açmak/kapatmak için tıkla",
     "headerSize": "{{n}} sayfa",
     "maxHamming": "maks. Δ {{n}} bit",
+    "repBadge": "temsilci",
+    "repUnknown": "Temsilci kaydedilmedi — yinelenen analizi açık bir sonraki crawl'dan sonra görünür",
+    "similarityToRepTitle": "Küme temsilcisiyle metin benzerliği (%100 = temsilcinin kendisi)",
     "hammingFromRepTitle": "Küme temsilcisinden SimHash Hamming mesafesi — 0 temsilcinin kendisi, yüksek = temsilciden daha uzak"
   },
   "resources": {

@@ -238,8 +238,8 @@ export const PT_BR_INFO_TIPS: Record<string, string> = {
     'Valor do cabeçalho Location quando o status é 3xx. A URL para a qual o servidor aponta a seguir; o comprimento da cadeia está no painel Detalhes da URL.',
   ['Lowercases the URL path component. Host is already case-insensitive per the URL spec, so this only affects the path.']:
     'Converte para minúsculas o componente de caminho da URL. O host já é insensível a maiúsculas pela especificação de URL, então isso afeta apenas o caminho.',
-  ['Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.']:
-    'ID do grupo de quase duplicatas atribuído pela etapa SimHash pós-rastreamento. 0 = singleton (sem quase duplicatas dentro do limite de Hamming configurado). Páginas que compartilham um ID diferente de zero são mutuamente semelhantes.',
+  ['Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.']:
+    'ID do grupo de quase duplicados atribuído pela análise de duplicados pós-rastreamento. 0 = única (nenhum quase duplicado encontrado). Páginas com o mesmo ID de grupo diferente de zero são agrupadas em torno de uma página representante: cada uma corresponde ao representante, não necessariamente às demais.',
   ['noindex, canonicalised, redirected, blocked-by-robots']:
     'noindex, canonicalizada, redirecionada, bloqueada por robots',
   ['None for fastest crawl. Above-the-fold for SERP-thumbnail-style preview. Full page when you need long-page snapshots.']:

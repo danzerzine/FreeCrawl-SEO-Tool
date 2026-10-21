@@ -238,8 +238,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     'Status 3xx olduqda Location başlığının dəyəri. Serverin növbəti göstərdiyi URL; zəncir uzunluğu URL detalları panelindədir.',
   ['Lowercases the URL path component. Host is already case-insensitive per the URL spec, so this only affects the path.']:
     'URL-in yol komponentini kiçik hərflərə çevirir. Host URL spesifikasiyasına görə onsuz da hərf registrinə həssas deyil, ona görə bu yalnız yola təsir edir.',
-  ['Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.']:
-    'Tarama sonrası SimHash mərhələsi tərəfindən təyin edilən oxşar-təkrar qrup ID-si. 0 = tək (konfiqurasiya edilmiş Hamming həddi daxilində oxşar-təkrar yoxdur). Sıfırdan fərqli eyni qrup ID-sini paylaşan səhifələr qarşılıqlı oxşardır.',
+  ['Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.']:
+    'Taramadan sonrakı dublikat təhlilinin təyin etdiyi yaxın dublikat qrupunun ID-si. 0 = tək (yaxın dublikat tapılmadı). Sıfırdan fərqli eyni qrup ID-sinə malik səhifələr nümayəndə səhifənin ətrafında qruplaşdırılır: hər biri nümayəndəyə uyğun gəlir, digərlərinə mütləq yox.',
   ['noindex, canonicalised, redirected, blocked-by-robots']:
     'noindex, kanonikləşdirilib, yönləndirilib, robots tərəfindən bloklanıb',
   ['None for fastest crawl. Above-the-fold for SERP-thumbnail-style preview. Full page when you need long-page snapshots.']:

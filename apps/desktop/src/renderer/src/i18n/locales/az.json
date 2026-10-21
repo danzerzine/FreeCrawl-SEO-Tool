@@ -1111,18 +1111,21 @@
     "missing": "{{n}} çatışmır"
   },
   "duplicates": {
-    "notInCluster": "Bu URL heç bir yaxın dublikat qrupuna daxil deyil. Tamamlanmış tarama üzərində tarama təhlilini işə salın, ya da yaxın dublikat sayılanları genişləndirmək üçün Parametrlər → Dublikatlar bölməsində Hamming həddini aşağı salın.",
+    "notInCluster": "Bu URL heç bir yaxın dublikat qrupuna daxil deyil. Qruplar dublikat təhlili aktiv olan tarama zamanı nümayəndə səhifənin ətrafında yaradılır; yaxın dublikat sayılanları genişləndirmək üçün Parametrlər → Dublikatlar bölməsindəki hədləri dəyişin və yenidən tarayın.",
     "noOtherMembers": "Bu qrupda başqa üzv yoxdur. (Qrupun ölçüsü: {{n}}.)",
     "cluster": "Qrup",
     "hammingHint": "(bu URL-dən Hamming məsafəsi — nə qədər az olsa, o qədər bənzərdir)",
     "loadingClusters": "Yaxın dublikat qrupları yüklənir…",
     "noClustersTitle": "Yaxın dublikat qrupu yoxdur",
-    "noClustersHint": "Bir tarama işə salın və taramadan sonraki təhlilin bitməsini gözləyin — iki və daha çox səhifə SimHash Hamming həddi (Parametrlər → Dublikatlar) daxilinə düşəcək qədər məzmun paylaşdıqda qruplar görünür.",
+    "noClustersHint": "Bir tarama işə salın və taramadan sonraki təhlilin bitməsini gözləyin — səhifələr mətn oxşarlığına və ya SimHash məsafəsinə görə bir nümayəndə səhifəyə yaxından uyğun gələndə qruplar görünür (Parametrlər → Dublikatlar).",
     "statusClusters": "{{clusters}} qrup · {{members}} səhifə",
     "truncated": "ilk {{cap}} sətirlə məhdudlaşdırıldı",
     "toggleClusterTitle": "Bu qrupu açmaq ya yığmaq üçün klikləyin",
     "headerSize": "{{n}} səhifə",
     "maxHamming": "maksimum Δ {{n}} bit",
+    "repBadge": "nüm.",
+    "repUnknown": "Nümayəndə qeyd olunmayıb — dublikat təhlili aktiv olan növbəti taramadan sonra görünəcək",
+    "similarityToRepTitle": "Qrup nümayəndəsi ilə mətn oxşarlığı (100% = nümayəndənin özü)",
     "hammingFromRepTitle": "Qrup nümayəndəsindən SimHash Hamming məsafəsi — 0 nümayəndənin özü deməkdir, nə qədər böyükdürsə, o qədər uzaqdır",
     "membersTotal_one": "cəmi {{count}} üzv",
     "membersTotal_other": "cəmi {{count}} üzv"

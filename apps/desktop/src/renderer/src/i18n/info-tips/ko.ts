@@ -235,8 +235,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
     '상태가 3xx일 때의 Location 헤더 값. 서버가 다음으로 가리키는 URL이며, 체인 길이는 URL 상세 패널에 있습니다.',
   ['Lowercases the URL path component. Host is already case-insensitive per the URL spec, so this only affects the path.']:
     'URL 경로 부분을 소문자로 바꿉니다. 호스트는 URL 규격상 이미 대소문자를 구분하지 않으므로 경로에만 영향을 줍니다.',
-  ['Near-duplicate cluster ID assigned by the post-crawl SimHash pass. 0 = singleton (no near-duplicates within the configured Hamming threshold). Pages sharing a non-zero cluster ID are mutually similar.']:
-    '크롤링 후 SimHash 단계에서 할당된 유사 중복 클러스터 ID. 0 = 단독(설정된 해밍 임계값 내 유사 중복 없음). 0이 아닌 같은 클러스터 ID를 공유하는 페이지는 서로 유사합니다.',
+  ['Near-duplicate cluster ID assigned by the post-crawl duplicate analysis. 0 = singleton (no near-duplicates found). Pages sharing a non-zero cluster ID are grouped around a representative page: each one matches the representative, not necessarily the others.']:
+    '크롤 후 중복 분석이 부여한 유사 중복 묶음 ID입니다. 0 = 단독 페이지(유사 중복 없음). 0이 아닌 같은 묶음 ID를 가진 페이지는 대표 페이지를 중심으로 묶입니다. 각 페이지는 대표 페이지와 일치하며, 서로 일치한다고는 할 수 없습니다.',
   ['noindex, canonicalised, redirected, blocked-by-robots']:
     'noindex, 표준화됨, 리디렉션됨, robots에 의해 차단됨',
   ['None for fastest crawl. Above-the-fold for SERP-thumbnail-style preview. Full page when you need long-page snapshots.']:
