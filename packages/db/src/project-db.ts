@@ -158,6 +158,14 @@ export const TEMPLATE_SAMPLE_META_KEY = 'templateSample';
 const CONTENT_AREA_MISSED_SQL = "content_source = 'selector-missed'";
 /** Words thin and empty content are judged on: the content area's when the crawl had one, else the page's (B74). */
 const JUDGED_WORDS_SQL = 'COALESCE(main_word_count, word_count)';
+
+/**
+ * Limits for the category clauses, plus what the project's schema lacks: a
+ * read-only open skips migrations, so a project last written by an older
+ * build may have no `main_word_count` column (`wordsSql` is then plain
+ * `word_count`, which is what such a build judged by).
+ */
+type ClauseLimits = SeoThresholds & { readonly wordsSql?: string };
 /** The URL up to its query, with a trailing slash so a last path segment ends like the others (B28). */
 const URL_PATH_SLASH_SQL =
   "((CASE WHEN instr(url, '?') > 0 THEN substr(url, 1, instr(url, '?') - 1) ELSE url END) || '/')";
@@ -2276,7 +2284,20 @@ export class ProjectDb {
 
   /** `categoryWhereClause` with this project's thresholds. */
   private clauseFor(cat: UrlCategory, disabledIssues?: ReadonlySet<string>): string | null {
-    return categoryWhereClause(cat, disabledIssues, this.getSeoThresholds());
+    return categoryWhereClause(cat, disabledIssues, this.clauseLimits());
+  }
+
+  /** This project's thresholds, adjusted to its schema (see `ClauseLimits`). */
+  private clauseLimits(): ClauseLimits {
+    const t = this.getSeoThresholds();
+    return this.urlSortColumns().has('main_word_count') ? t : { ...t, wordsSql: 'word_count' };
+  }
+
+  private hasTable(name: string): boolean {
+    return (
+      this.db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).get(name) !==
+      undefined
+    );
   }
 
   /** The silenced issue categories, as a set. Empty when none. */
@@ -7353,7 +7374,7 @@ export class ProjectDb {
       search: params.search,
       filter: params.filter,
       disabledIssues: this.getDisabledIssues(),
-      thresholds: this.getSeoThresholds(),
+      thresholds: this.clauseLimits(),
     });
     const sortCol = validSortColumn(params.sortBy, this.urlSortColumns());
     const sortDir = params.sortDir === 'desc' ? 'DESC' : 'ASC';
@@ -7660,7 +7681,7 @@ export class ProjectDb {
         blockedRobots: countCategory('indexability:blocked-robots'),
       },
       issues,
-      thresholds: this.getSeoThresholds(),
+      thresholds: this.clauseLimits(),
       site: {
         soft404Probe: this.readSoft404Probe(),
         botBlocked:
@@ -8024,7 +8045,7 @@ export class ProjectDb {
       targetBlankNoNoopenerPages: issueCount('issues:target-blank-no-noopener'),
       pageEmpty: countWhere(
         `${html} AND status_code BETWEEN 200 AND 299 AND indexability = 'indexable'
-         AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < 30`,
+         AND word_count IS NOT NULL AND ${this.clauseLimits().wordsSql ?? JUDGED_WORDS_SQL} < 30`,
       ),
       ogImageNotAbsolute: gatedCount('issues:og-image-not-absolute'),
       twitterImageNotAbsolute: gatedCount('issues:twitter-image-not-absolute'),
@@ -8952,7 +8973,9 @@ export class ProjectDb {
         : ISSUE_CATEGORIES.filter((c) => c === issueKey);
     // A check with no filter has no pages of its own: skip it rather
     // than list every URL under it.
-    const checks = keys.filter((key) => !disabled.has(key) && this.clauseFor(key, disabled) !== null);
+    const checks = keys.filter(
+      (key) => !disabled.has(key) && this.clauseFor(key, disabled) !== null,
+    );
     if (checks.length > 1) {
       // Many checks: every check's pages from one scan of the urls table.
       const listed = this.urlIdsByCategories(checks);
@@ -9246,7 +9269,9 @@ export class ProjectDb {
   checksFilled(): Set<string> {
     try {
       const list: unknown = JSON.parse(this.getMeta(CHECKS_FILLED_META_KEY) ?? '[]');
-      return new Set(Array.isArray(list) ? list.filter((k): k is string => typeof k === 'string') : []);
+      return new Set(
+        Array.isArray(list) ? list.filter((k): k is string => typeof k === 'string') : [],
+      );
     } catch {
       return new Set();
     }
@@ -9280,7 +9305,10 @@ export class ProjectDb {
       words.push(
         scanned
           .slice(i, i + PER_WORD)
-          .map((s, j) => `(CASE WHEN (${this.clauseFor(s.category, disabled)}) THEN ${2 ** j} ELSE 0 END)`)
+          .map(
+            (s, j) =>
+              `(CASE WHEN (${this.clauseFor(s.category, disabled)}) THEN ${2 ** j} ELSE 0 END)`,
+          )
           .join(' + '),
       );
     }
@@ -9473,6 +9501,8 @@ export class ProjectDb {
    * project holds no sitemap files: not checked, rather than none found.
    */
   private sitemapFindings(): NonNullable<OverviewCounts['site']>['sitemapFindings'] {
+    // A read-only open of a project from an older build has no such table.
+    if (!this.hasTable('sitemap_files')) return null;
     const any = this.db.prepare('SELECT 1 FROM sitemap_files LIMIT 1').get();
     if (!any) return null;
     const maxBytes = 50 * 1024 * 1024;
@@ -9660,7 +9690,7 @@ export class ProjectDb {
     const { whereSql, args: baseArgs } = buildUrlsWhere({
       ...params,
       disabledIssues: this.getDisabledIssues(),
-      thresholds: this.getSeoThresholds(),
+      thresholds: this.clauseLimits(),
     });
     const BATCH = 2000;
     const sql = whereSql
@@ -12354,7 +12384,7 @@ function buildUrlsWhere(params: {
   search?: string;
   /** Silenced checks — their categories match no rows. */
   disabledIssues?: ReadonlySet<string>;
-  thresholds?: SeoThresholds;
+  thresholds?: ClauseLimits;
   filter?: AdvancedFilter;
 }): { whereSql: string; args: (string | number)[] } {
   const where: string[] = [];
@@ -12500,7 +12530,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -12515,7 +12545,7 @@ export function categoryWhereClause(
   /** Silenced issue checks (Settings → Issues): their filter matches nothing. */
   disabledIssues?: ReadonlySet<string>,
   /** Length, pixel-width and thin-content limits (B77); the defaults when omitted. */
-  t: SeoThresholds = DEFAULT_SEO_THRESHOLDS,
+  t: ClauseLimits = DEFAULT_SEO_THRESHOLDS,
 ): string | null {
   const clause = baseCategoryWhereClause(cat, disabledIssues, t);
   return clause !== null && STATUS_GATED_ISSUES.has(cat) ? gateToPages(clause) : clause;
@@ -12525,7 +12555,7 @@ function baseCategoryWhereClause(
   cat: UrlCategory,
   /** Silenced issue checks (Settings → Issues): their filter matches nothing. */
   disabledIssues?: ReadonlySet<string>,
-  t: SeoThresholds = DEFAULT_SEO_THRESHOLDS,
+  t: ClauseLimits = DEFAULT_SEO_THRESHOLDS,
 ): string | null {
   if (disabledIssues?.has(cat)) return '1 = 0';
   switch (cat) {
@@ -12818,7 +12848,7 @@ function baseCategoryWhereClause(
       // a page canonicalised elsewhere never competes in search, so its
       // word count says nothing about content quality.
       return `${INDEXABLE_HTML_SCOPE} AND indexability = 'indexable'
-              AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < ${t.thinContentWords}`;
+              AND word_count IS NOT NULL AND ${t.wordsSql ?? JUDGED_WORDS_SQL} < ${t.thinContentWords}`;
     case 'issues:spelling-grammar':
       return `is_external = 0 AND content_kind = 'html' AND EXISTS (
                 SELECT 1 FROM spelling_results s
@@ -13591,7 +13621,7 @@ function baseCategoryWhereClause(
               AND status_code BETWEEN 200 AND 299
               AND indexability = 'indexable'
               AND word_count IS NOT NULL
-              AND ${JUDGED_WORDS_SQL} < 30`;
+              AND ${t.wordsSql ?? JUDGED_WORDS_SQL} < 30`;
     case 'issues:og-image-not-absolute':
       // OpenGraph requires absolute URLs for og:image. Relative paths
       // simply don't render in Facebook / LinkedIn share cards.
