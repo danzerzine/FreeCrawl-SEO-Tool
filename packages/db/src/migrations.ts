@@ -2622,9 +2622,7 @@ const MIGRATIONS: Migration[] = [
     name: 'add_og_name_attr',
     // 1 when an og:* tag is given only with name=, not property= (B25).
     up: (db) => {
-      const cols = db
-        .prepare('PRAGMA table_info(urls)')
-        .all() as unknown as { name: string }[];
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[];
       if (!cols.some((c) => c.name === 'og_name_attr')) {
         db.exec('ALTER TABLE urls ADD COLUMN og_name_attr INTEGER NOT NULL DEFAULT 0');
       }
@@ -2636,9 +2634,7 @@ const MIGRATIONS: Migration[] = [
     // Meta names (bingbot, yandex, ...) whose noindex the crawl's own bot
     // does not follow, comma-joined; NULL when none (B75).
     up: (db) => {
-      const cols = db
-        .prepare('PRAGMA table_info(urls)')
-        .all() as unknown as { name: string }[];
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[];
       if (!cols.some((c) => c.name === 'meta_noindex_bots')) {
         db.exec('ALTER TABLE urls ADD COLUMN meta_noindex_bots TEXT');
       }
@@ -2650,9 +2646,7 @@ const MIGRATIONS: Migration[] = [
     // Words in the content area, when the crawl had one; NULL in older
     // crawls, which keep judging thin content on the whole page (B74).
     up: (db) => {
-      const cols = db
-        .prepare('PRAGMA table_info(urls)')
-        .all() as unknown as { name: string }[];
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[];
       if (!cols.some((c) => c.name === 'main_word_count')) {
         db.exec('ALTER TABLE urls ADD COLUMN main_word_count INTEGER');
       }
@@ -2663,9 +2657,7 @@ const MIGRATIONS: Migration[] = [
     name: 'add_head_tags_outside_head',
     // <title>, description and robots metas found inside <body> (B26).
     up: (db) => {
-      const cols = db
-        .prepare('PRAGMA table_info(urls)')
-        .all() as unknown as { name: string }[];
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[];
       for (const name of [
         'title_outside_head',
         'description_outside_head',
@@ -2682,9 +2674,7 @@ const MIGRATIONS: Migration[] = [
     name: 'add_internal_utm_links',
     // Internal links whose raw href carries utm_* (B28).
     up: (db) => {
-      const cols = db
-        .prepare('PRAGMA table_info(urls)')
-        .all() as unknown as { name: string }[];
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[];
       if (!cols.some((c) => c.name === 'internal_utm_links')) {
         db.exec('ALTER TABLE urls ADD COLUMN internal_utm_links INTEGER NOT NULL DEFAULT 0');
       }
@@ -2696,9 +2686,7 @@ const MIGRATIONS: Migration[] = [
     // Post-crawl flags: a rel=next loop, hreflang on a non-canonical page,
     // and noindex hreflang targets (B82).
     up: (db) => {
-      const cols = db
-        .prepare('PRAGMA table_info(urls)')
-        .all() as unknown as { name: string }[];
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[];
       for (const name of [
         'pagination_loop',
         'hreflang_not_canonical',

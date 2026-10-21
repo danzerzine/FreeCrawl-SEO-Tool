@@ -282,7 +282,8 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   viewportMissing: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> for mobile rendering.',
   langMissing: 'Set the html lang attribute so browsers, screen readers and search engines know the page language.',
   ogMissing: 'Add Open Graph title, description and image so shares render a rich preview.',
-  ogNameAttribute: 'Write og:* tags with property=, as the OpenGraph protocol asks; some readers ignore name=.',
+  ogNameAttribute:
+    'Write og:* tags with property=, as the OpenGraph protocol asks; some readers ignore name=.',
   noindexOtherBot:
     'Check that the noindex is meant only for that search engine: the engine this crawl acts as indexes the page.',
   twitterMissing: 'Add Twitter Card tags (card type + image) for X/Twitter previews.',
@@ -304,14 +305,15 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   canonicalOutsideHead: 'Move rel=canonical into <head>; search engines ignore it in <body>.',
   hreflangOutsideHead: 'Move hreflang <link> tags into <head>; search engines ignore them in <body>.',
   titleOutsideHead: 'Move <title> into <head>; in <body> it is read only when <head> has none.',
-  descriptionOutsideHead: 'Move the meta description into <head>; in <body> it is read only when <head> has none.',
-  metaRobotsOutsideHead: 'Move the robots meta into <head>; search engines may ignore it in <body>.',
+  descriptionOutsideHead:
+    'Move the meta description into <head>; in <body> it is read only when <head> has none.',
+  metaRobotsOutsideHead:
+    'Move the robots meta into <head>; search engines may ignore it in <body>.',
   urlTemplateJunk:
     'Fix the script or template that writes the link; the URL holds an unfilled value.',
   urlInternalSearch:
     'Keep site search results out of the crawl: noindex them or stop linking to them.',
-  linkUtmInternal:
-    'Drop utm_* from internal links; they restart the visit in analytics.',
+  linkUtmInternal: 'Drop utm_* from internal links; they restart the visit in analytics.',
   langContentMismatch: 'Set html[lang] to the language the page is actually written in.',
   soft404: 'Return 404/410 for pages that no longer exist instead of a 200 "not found" page.',
   redirectChain: 'Point links and redirects straight at the final URL.',
@@ -361,7 +363,10 @@ function renderRecommendations(counts: OverviewCounts): string {
     .map(
       (r) =>
         `<li><span class="sev-${r.severity}">${escape(r.label)}</span> <span class="muted">(${fmtNum(r.count)} URL${r.count === 1 ? '' : 's'})</span><br>${escape(
-          fillThresholdLabel(RECOMMENDATIONS[r.key] ?? SEVERITY_FALLBACK[r.severity], counts.thresholds),
+          fillThresholdLabel(
+            RECOMMENDATIONS[r.key] ?? SEVERITY_FALLBACK[r.severity],
+            counts.thresholds,
+          ),
         )}</li>`,
     )
     .join('');
