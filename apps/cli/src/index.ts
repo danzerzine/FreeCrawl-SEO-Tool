@@ -66,6 +66,7 @@ import {
   saveExportSet,
   findExportSet,
   removePartialExportFiles,
+  invalidUrlPatterns,
   type ExportItem,
   type ExportOutcome,
   type LogAnalysisResult,
@@ -524,6 +525,16 @@ async function main(): Promise<void> {
   }
   if (compareWith !== null && !existsSync(compareWith)) {
     console.error(`Project not found: ${compareWith}`);
+    process.exit(2);
+  }
+
+  // A pattern that is not a regular expression would leave the crawl
+  // unscoped; refuse before the project file exists.
+  const badPattern = invalidUrlPatterns(config)[0];
+  if (badPattern !== undefined) {
+    if (values.json)
+      process.stdout.write(JSON.stringify({ ok: false, error: badPattern }, null, 2) + '\n');
+    else console.error(badPattern);
     process.exit(2);
   }
 

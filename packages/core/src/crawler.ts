@@ -618,6 +618,8 @@ export class Crawler extends EventEmitter {
   private sitemapAbort: AbortController | null = null;
   private readonly includeRegexes: RegExp[];
   private readonly excludeRegexes: RegExp[];
+  /** Include/exclude patterns that failed to compile; `start()` refuses to crawl with any. */
+  private readonly invalidPatterns: string[];
   /** Parameter names exempt from the query-string filter, folded once
    *  because the filter runs on every discovered URL. */
   private readonly queryStringExceptions: Set<string>;
@@ -946,14 +948,12 @@ export class Crawler extends EventEmitter {
     this.externalQueue = new PQueue({
       concurrency: Math.max(2, Math.min(10, concurrency)),
     });
-    // Compile include/exclude patterns once — an invalid pattern should
-    // surface to the user as a crawler error, not a silent miss.
-    this.includeRegexes = compilePatterns(config.includePatterns, (p, err) => {
-      this.emit('error', `Invalid include pattern "${p}": ${err}`);
-    });
-    this.excludeRegexes = compilePatterns(config.excludePatterns, (p, err) => {
-      this.emit('error', `Invalid exclude pattern "${p}": ${err}`);
-    });
+    // Compile include/exclude patterns once. An invalid one is kept for
+    // `start()` to report: emitting here would throw (no listener yet), and
+    // dropping it would turn "crawl only /blog" into a crawl of everything.
+    this.invalidPatterns = invalidUrlPatterns(config);
+    this.includeRegexes = compilePatterns(config.includePatterns, () => {});
+    this.excludeRegexes = compilePatterns(config.excludePatterns, () => {});
     // Case-folded once: the filter runs on every discovered URL.
     this.queryStringExceptions = new Set(
       (config.crawlQueryStringExceptions ?? [])
@@ -1182,6 +1182,14 @@ export class Crawler extends EventEmitter {
 
   async start(): Promise<void> {
     this.startedAt = Date.now();
+    if (this.invalidPatterns.length > 0) {
+      // Before any request or project write: the crawl the user asked for
+      // cannot be scoped, so none runs.
+      this.emit('error', this.invalidPatterns[0]!);
+      this.emitProgressFinal();
+      this.emit('done', this.db.getSummary());
+      return;
+    }
     this.stopped = false;
     this.running = true;
 
@@ -6350,6 +6358,20 @@ export function parseRetryAfterMs(header: string | null): number | null {
 
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+/** One message per include/exclude pattern that is not a valid regular expression. */
+export function invalidUrlPatterns(
+  config: Pick<CrawlConfig, 'includePatterns' | 'excludePatterns'>,
+): string[] {
+  const out: string[] = [];
+  compilePatterns(config.includePatterns ?? [], (p, err) =>
+    out.push(`Invalid include pattern "${p}": ${err}`),
+  );
+  compilePatterns(config.excludePatterns ?? [], (p, err) =>
+    out.push(`Invalid exclude pattern "${p}": ${err}`),
+  );
+  return out;
 }
 
 function compilePatterns(
