@@ -105,49 +105,82 @@ export async function readBodyCapped(
   return { text: new TextDecoder('utf-8').decode(merged), truncated };
 }
 
+/** Pauses before the 2nd and 3rd robots.txt attempt: a 5xx or a refused or
+ *  reset connection is often a server restarting, not a site without
+ *  robots.txt. Timeouts and DNS failures are not retried. */
+export const ROBOTS_RETRY_DELAYS_MS: readonly number[] = [1000, 3000];
+
+const RETRYABLE_NET_CODES = new Set(['ECONNREFUSED', 'ECONNRESET']);
+
+function retryableNetError(err: unknown): string | null {
+  const seen = new Set<unknown>();
+  let current: unknown = err;
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current);
+    const code = (current as { code?: string }).code;
+    if (code && RETRYABLE_NET_CODES.has(code)) return code;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
 export async function loadRobots(
   origin: string,
   userAgent: string,
   /** Optional notice sink. Called when robots.txt returns a server error
-   *  (5xx): RFC 9309 says a crawler SHOULD then treat the whole site as
-   *  disallowed, but we keep crawling (allow-all) so a transient 503 — very
-   *  common behind Cloudflare — doesn't silently nuke the entire crawl. The
-   *  caller surfaces this so the choice is visible rather than hidden. */
+   *  (5xx) on every attempt: RFC 9309 says a crawler SHOULD then treat the
+   *  whole site as disallowed, but we keep crawling (allow-all) so a
+   *  transient 503 — very common behind Cloudflare — doesn't silently nuke
+   *  the entire crawl. The caller surfaces this so the choice is visible
+   *  rather than hidden. */
   onNotice?: (message: string) => void,
+  retryDelaysMs: readonly number[] = ROBOTS_RETRY_DELAYS_MS,
 ): Promise<RobotsChecker> {
   // The header goes on the wire; only the token goes to the matcher.
   const uaToken = robotsUserAgentToken(userAgent);
   const robotsUrl = new URL('/robots.txt', origin).toString();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  try {
-    const res = await undiciFetch(robotsUrl, {
-      method: 'GET',
-      headers: { 'user-agent': userAgent },
-      signal: controller.signal,
-    });
-    if (res.ok) {
-      const { text: body, truncated } = await readBodyCapped(res.body);
-      if (truncated && onNotice) {
-        onNotice(
-          `robots.txt for ${origin} is larger than ${Math.round(MAX_ROBOTS_BYTES / 1024)} KB; only the first ${Math.round(MAX_ROBOTS_BYTES / 1024)} KB were parsed (RFC 9309 §2.5).`,
-        );
+  const attempts = retryDelaysMs.length + 1;
+  // Why the last attempt failed in a way worth retrying; null = do not retry.
+  let failure: string | null = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, retryDelaysMs[attempt - 2]));
+    failure = null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await undiciFetch(robotsUrl, {
+        method: 'GET',
+        headers: { 'user-agent': userAgent },
+        signal: controller.signal,
+      });
+      if (res.ok) {
+        const { text: body, truncated } = await readBodyCapped(res.body);
+        if (truncated && onNotice) {
+          onNotice(
+            `robots.txt for ${origin} is larger than ${Math.round(MAX_ROBOTS_BYTES / 1024)} KB; only the first ${Math.round(MAX_ROBOTS_BYTES / 1024)} KB were parsed (RFC 9309 §2.5).`,
+          );
+        }
+        const parser = robotsParser(robotsUrl, body);
+        return {
+          isAllowed: (url: string) => parser.isAllowed(url, uaToken) ?? true,
+          getCrawlDelay: () => parser.getCrawlDelay(uaToken),
+        };
       }
-      const parser = robotsParser(robotsUrl, body);
-      return {
-        isAllowed: (url: string) => parser.isAllowed(url, uaToken) ?? true,
-        getCrawlDelay: () => parser.getCrawlDelay(uaToken),
-      };
+      if (res.status >= 500) failure = `returned HTTP ${res.status}`;
+      // Free the socket; the body of an error page is not needed.
+      await res.body?.cancel().catch(() => undefined);
+    } catch (err) {
+      const code = retryableNetError(err);
+      if (code) failure = `could not be fetched (${code})`;
+    } finally {
+      clearTimeout(timeout);
     }
-    if (res.status >= 500 && onNotice) {
-      onNotice(
-        `robots.txt for ${origin} returned HTTP ${res.status}. Per RFC 9309 a 5xx should be treated as "disallow all", but FreeCrawl continues crawling to avoid a transient server error blocking the whole run — verify the site is reachable if results look off.`,
-      );
-    }
-  } catch {
-    // ignore — default allow
-  } finally {
-    clearTimeout(timeout);
+    if (!failure) break;
+  }
+  if (failure && onNotice) {
+    onNotice(
+      `robots.txt for ${origin} ${failure} on all ${attempts} attempts. FreeCrawl crawls this origin as if robots.txt allowed everything (RFC 9309 says a 5xx means "disallow all", but a transient server error should not block the whole run) — verify the site is reachable if results look off.`,
+    );
   }
   return NOOP;
 }

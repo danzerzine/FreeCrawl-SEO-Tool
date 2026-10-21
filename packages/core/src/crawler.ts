@@ -57,7 +57,13 @@ import {
   type ParsedPage,
 } from './html-parser.js';
 import { analyseCookies, extractSetCookies } from './cookies.js';
-import { loadRobots, robotsMetaBot, robotsUserAgentToken, type RobotsChecker } from './robots.js';
+import {
+  loadRobots,
+  ROBOTS_RETRY_DELAYS_MS,
+  robotsMetaBot,
+  robotsUserAgentToken,
+  type RobotsChecker,
+} from './robots.js';
 import {
   BROWSER_FALLBACK_UA,
   buildDigestAuthHeader,
@@ -440,8 +446,13 @@ export class Crawler extends EventEmitter {
    * its own checker, loaded lazily and cached.
    */
   private robotsByOrigin = new Map<string, RobotsChecker>();
-  /** Origins whose robots.txt fetch is in flight (load-once guard). */
-  private robotsLoadingOrigins = new Set<string>();
+  /** robots.txt loads in flight, by origin (load-once guard; a fetch of a
+   *  URL on that origin waits for it). */
+  private robotsLoading = new Map<string, Promise<void>>();
+  /** Pauses between robots.txt attempts (injectable so tests run fast). */
+  private readonly robotsRetryDelaysMs: readonly number[];
+  /** Resolvers of waits that Stop must cut short (see `untilStopped`). */
+  private stopWaiters = new Set<() => void>();
   /** robots.txt `Crawl-delay` for the start origin, in ms (0 = none). */
   private robotsCrawlDelayMs = 0;
   /** Monotonic dispatch clock for the maxRps gate (see acquireRateSlot). */
@@ -801,6 +812,8 @@ export class Crawler extends EventEmitter {
         definitions: ReadonlyArray<readonly [string, string]>,
       ) => Promise<void>;
       runDbPass?: (methodName: string) => Promise<void>;
+      /** Pauses between robots.txt attempts; defaults to 1 s and 3 s. */
+      robotsRetryDelaysMs?: readonly number[];
       dbCall?: <T>(method: string, args: unknown[]) => Promise<T>;
       /**
        * Optional Playwright-based renderer. When `config.renderingMode ===
@@ -878,6 +891,7 @@ export class Crawler extends EventEmitter {
     this.resumeOnly = opts.resumeOnly === true;
     // The watchdog's operation label doubles as the progress phase shown
     // in the status bar; a new op resets the per-phase counters.
+    this.robotsRetryDelaysMs = opts.robotsRetryDelaysMs ?? ROBOTS_RETRY_DELAYS_MS;
     const hostSetOp = opts.setOp ?? ((): void => undefined);
     this.setOp = (op: string): void => {
       this.phase = op;
@@ -1348,18 +1362,15 @@ export class Crawler extends EventEmitter {
     }
 
     const origin = new URL(start).origin;
-    // robots.txt + sitemap discovery used to block the crawl start
-    // sequentially (~1–4 s before the first row appeared). Both are now
-    // fire-and-forget. The robots check in enqueue() short-circuits when
-    // `this.robots === null`; by the time the start URL has been fetched
-    // (~500 ms) and outlinks are enqueued, robots.txt has typically
-    // loaded. Both promises are awaited at end-of-crawl so post-crawl
+    // The start origin's robots.txt is read before the first URL is queued
+    // (awaited below, after the timers start): checking against a file
+    // still loading let disallowed pages through. Sitemap discovery stays
+    // in the background and is awaited at end-of-crawl so post-crawl
     // recompute and sitemap-derived issue counts use the full data set.
     const robotsPromise = this.config.respectRobotsTxt
-      ? loadRobots(origin, this.config.userAgent, (msg) => {
-          if (!this.stopped) this.emit('warn', msg);
-        }).then((r) => {
-          if (!this.stopped) {
+      ? this.loadOriginRobots(origin).then(() => {
+          const r = this.robotsByOrigin.get(origin);
+          if (!this.stopped && r) {
             this.robots = r;
             // Seed the per-origin cache so the start origin uses the same
             // checker (and its Crawl-delay) as every other origin.
@@ -1482,6 +1493,11 @@ export class Crawler extends EventEmitter {
     // than the crawler itself does.
     this.startIssueRecomputeTimer();
     this.startQueueCheckpointTimer();
+
+    if (this.config.respectRobotsTxt && !this.robotsByOrigin.has(origin)) {
+      this.emit('info', `Reading robots.txt for ${origin} before the first request…`);
+      await this.untilStopped(robotsPromise);
+    }
 
     // Hydrate in-memory state from the DB so resume starts from the right
     // point; then queue whatever work is still pending.
@@ -3657,6 +3673,9 @@ export class Crawler extends EventEmitter {
     // prompt on the next launch.
     this.stopQueueCheckpointTimer();
     this.stopIssueRecomputeTimer();
+    // Release fetches waiting on a robots.txt load.
+    for (const release of this.stopWaiters) release();
+    this.stopWaiters.clear();
     // Cancel any in-flight sitemap discovery so its 'info' / 'done'
     // events don't leak into the next crawl.
     if (this.sitemapAbort) {
@@ -3999,10 +4018,9 @@ export class Crawler extends EventEmitter {
   /**
    * Is `url` allowed by the robots.txt of ITS OWN origin? Caller guards on
    * `respectRobotsTxt`. Loads and caches a per-origin checker on first sight;
-   * while a fetch is in flight the URL is allowed optimistically — the same
-   * window the start origin already has before its own robots.txt finishes
-   * loading (see `start`), so behaviour is consistent, just now correct for
-   * additional origins instead of skipping them entirely.
+   * while that load is in flight the answer is "allowed" — the URL is queued,
+   * and the fetch step asks again once the load is done
+   * (`robotsAllowsAfterLoad`), so nothing is requested unchecked.
    */
   private robotsAllows(url: string): boolean {
     let origin: string;
@@ -4013,16 +4031,84 @@ export class Crawler extends EventEmitter {
     }
     const checker = this.robotsByOrigin.get(origin);
     if (checker) return checker.isAllowed(url);
-    if (!this.robotsLoadingOrigins.has(origin)) {
-      this.robotsLoadingOrigins.add(origin);
-      void loadRobots(origin, this.config.userAgent)
+    void this.loadOriginRobots(origin);
+    return true;
+  }
+
+  /** The fetch step's robots check: waits for the origin's robots.txt. */
+  private async robotsAllowsAfterLoad(url: string): Promise<boolean> {
+    let origin: string;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      return true;
+    }
+    if (!this.robotsByOrigin.has(origin)) {
+      await this.untilStopped(this.loadOriginRobots(origin));
+    }
+    return this.robotsAllows(url);
+  }
+
+  /** Load an origin's robots.txt once; every caller shares the one load. */
+  private loadOriginRobots(origin: string): Promise<void> {
+    if (this.stopped) return Promise.resolve();
+    let load = this.robotsLoading.get(origin);
+    if (!load) {
+      load = loadRobots(
+        origin,
+        this.config.userAgent,
+        (msg) => {
+          if (!this.stopped) this.emit('warn', msg);
+        },
+        this.robotsRetryDelaysMs,
+      )
         .then((r) => {
           if (!this.stopped) this.robotsByOrigin.set(origin, r);
         })
         .catch(() => undefined)
-        .finally(() => this.robotsLoadingOrigins.delete(origin));
+        .finally(() => this.robotsLoading.delete(origin));
+      this.robotsLoading.set(origin, load);
     }
-    return true;
+    return load;
+  }
+
+  /** Resolves when `p` settles or the crawl is stopped, whichever is first. */
+  private untilStopped(p: Promise<unknown>): Promise<void> {
+    if (this.stopped) return Promise.resolve();
+    let release = (): void => undefined;
+    const stopped = new Promise<void>((r) => {
+      release = r;
+      this.stopWaiters.add(r);
+    });
+    return Promise.race([p.then(() => undefined), stopped]).finally(() =>
+      this.stopWaiters.delete(release),
+    );
+  }
+
+  /** The row of a URL robots.txt disallows: recorded, never fetched. */
+  private recordRobotsBlocked(item: QueueItem): Promise<void> {
+    return this.dbCall<number>('upsertUrl', [
+      {
+        url: item.url,
+        urlMalformed: isUrlMalformed(item.url) ? 1 : 0,
+        urlTrap: this.trapKind(item.url),
+        // Never fetched, so the extension is all there is to go on. A
+        // flat 'html' put blocked scripts, styles and images in the HTML
+        // / Non-Indexable counts (40 of 58 robots-blocked URLs on one
+        // site were assets).
+        contentKind: detectContentKind(item.url, null),
+        statusCode: null,
+        statusText: null,
+        indexability: 'non-indexable:robots-blocked',
+        indexabilityReason: 'Blocked by robots.txt',
+        depth: item.depth,
+      },
+    ]).then(
+      () => undefined,
+      () => {
+        /* best-effort — a failed record must not break the crawl */
+      },
+    );
   }
 
   private enqueue(item: QueueItem): void {
@@ -4067,25 +4153,7 @@ export class Crawler extends EventEmitter {
       // write paths.
       if (!this.seen.has(item.url) && this.seen.size < this.config.maxUrls) {
         this.seen.add(item.url);
-        void this.dbCall<number>('upsertUrl', [
-          {
-            url: item.url,
-            urlMalformed: isUrlMalformed(item.url) ? 1 : 0,
-            urlTrap: this.trapKind(item.url),
-            // Never fetched, so the extension is all there is to go on. A
-            // flat 'html' put blocked scripts, styles and images in the HTML
-            // / Non-Indexable counts (40 of 58 robots-blocked URLs on one
-            // site were assets).
-            contentKind: detectContentKind(item.url, null),
-            statusCode: null,
-            statusText: null,
-            indexability: 'non-indexable:robots-blocked',
-            indexabilityReason: 'Blocked by robots.txt',
-            depth: item.depth,
-          },
-        ]).catch(() => {
-          /* best-effort — a failed record must not break the crawl */
-        });
+        void this.recordRobotsBlocked(item);
       }
       return;
     }
@@ -4411,6 +4479,13 @@ export class Crawler extends EventEmitter {
       this.calendarTrapDropped++;
       return;
     }
+    // Queued while its origin's robots.txt was still loading: ask again
+    // now that it has loaded, and record it instead of fetching if blocked.
+    if (this.config.respectRobotsTxt && !(await this.robotsAllowsAfterLoad(item.url))) {
+      if (!this.stopped) await this.recordRobotsBlocked(item);
+      return;
+    }
+    if (this.stopped) return;
     this.setOp(`crawl:fetch:${item.url}`);
 
     // I-1 — Cooperative yield BEFORE we start work on this URL. The
