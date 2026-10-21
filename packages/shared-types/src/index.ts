@@ -3,6 +3,7 @@ export * from './issue-severity.js';
 export * from './issue-catalog.js';
 export * from './hreflang.js';
 export * from './minhash.js';
+export * from './shingles.js';
 export * from './languages.js';
 export * from './ipc.js';
 export * from './project.js';

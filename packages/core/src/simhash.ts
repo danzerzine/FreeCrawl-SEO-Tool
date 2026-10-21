@@ -23,20 +23,15 @@
  * numbers because Node's BigInt is fast enough at this scale (millions of
  * shingles per crawl total) and the code stays trivially correct.
  */
-import { computeMinHash } from '@freecrawl/shared-types';
-
-const FNV_OFFSET = 0xcbf29ce484222325n;
-const FNV_PRIME = 0x100000001b3n;
-const MASK64 = (1n << 64n) - 1n;
-
-function fnv1a64(input: string): bigint {
-  let hash = FNV_OFFSET;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= BigInt(input.charCodeAt(i));
-    hash = (hash * FNV_PRIME) & MASK64;
-  }
-  return hash;
-}
+import {
+  fingerprintFromShingles,
+  fnv1a64,
+  shingleHashes,
+  simhashFromShingles,
+  tokenizeContent,
+  type ShingleHashes,
+  type TemplateSet,
+} from '@freecrawl/shared-types';
 
 /** Hex helper — pads to 16 chars (64 bits) so DB rows are fixed-width. */
 function toHex64(n: bigint): string {
@@ -44,76 +39,59 @@ function toHex64(n: bigint): string {
 }
 
 const SHINGLE_SIZE = 3;
-const MIN_TOKEN_LEN = 2;
 
 /**
- * Tokenizer: lowercase + split on non-word boundary, drop tokens shorter
- * than MIN_TOKEN_LEN. We don't strip stopwords — for near-duplicate
- * detection their presence/absence is signal, not noise.
+ * Compute the near-duplicate fingerprint (SimHash + MinHash) and the exact
+ * content hash for a chunk of body text. Returns null fingerprints when
+ * the page has no usable content (so the caller stores NULL in the DB and
+ * the URL is excluded from clustering).
+ *
+ * `set`: template shingles left out of the near-duplicate fingerprint
+ * (B98); the content hash and `textSimhash` (full text, read by the
+ * calendar-trap detector) never skip anything. `collectShingles` returns
+ * the page's shingle hashes so the fingerprint can be recomputed later
+ * against a set learned after this page was parsed.
  */
-function tokenize(text: string): string[] {
-  if (!text) return [];
-  return text
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((t) => t.length >= MIN_TOKEN_LEN);
-}
-
-/**
- * Compute SimHash + exact content hash for a chunk of body text.
- * Returns null fingerprint when the page has no usable content (so the
- * caller stores NULL in the DB and the URL is excluded from clustering).
- */
-export function computeContentFingerprint(text: string): {
+export function computeContentFingerprint(
+  text: string,
+  opts: { set?: TemplateSet | null; collectShingles?: boolean } = {},
+): {
   simhash: string | null;
   contentHash: string | null;
   minhash: Uint8Array | null;
+  textSimhash: string | null;
+  templateSetId: number | null;
+  shingles: ShingleHashes | null;
 } {
-  if (!text || text.length < 50) {
-    return { simhash: null, contentHash: null, minhash: null };
-  }
+  const set = opts.set ?? null;
+  const templateSetId = set ? set.id : null;
+  const none = {
+    simhash: null,
+    contentHash: null,
+    minhash: null,
+    textSimhash: null,
+    templateSetId,
+    shingles: null,
+  };
+  if (!text || text.length < 50) return none;
 
-  const tokens = tokenize(text);
-  if (tokens.length < SHINGLE_SIZE) {
-    return { simhash: null, contentHash: null, minhash: null };
-  }
+  const tokens = tokenizeContent(text);
+  if (tokens.length < SHINGLE_SIZE) return none;
 
-  // Aggregate shingle frequencies first — duplicate shingles within the
-  // same document shouldn't multiply their own influence linearly.
-  const shingleFreq = new Map<string, number>();
-  for (let i = 0; i <= tokens.length - SHINGLE_SIZE; i++) {
-    const shingle = tokens[i] + ' ' + tokens[i + 1] + ' ' + tokens[i + 2];
-    shingleFreq.set(shingle, (shingleFreq.get(shingle) ?? 0) + 1);
-  }
-
-  // 64 signed accumulators, one per bit position.
-  const v = new Int32Array(64);
-  for (const [shingle, freq] of shingleFreq) {
-    let h = fnv1a64(shingle);
-    // Use Math.log to dampen frequency dominance — a banner that repeats
-    // 100× shouldn't drown out the body 1000× more than a single mention.
-    const weight = 1 + Math.floor(Math.log2(freq + 1));
-    for (let bit = 0; bit < 64; bit++) {
-      if ((h & 1n) === 1n) v[bit]! += weight;
-      else v[bit]! -= weight;
-      h >>= 1n;
-    }
-  }
-
-  let sim = 0n;
-  for (let bit = 0; bit < 64; bit++) {
-    if (v[bit]! > 0) sim |= 1n << BigInt(bit);
-  }
+  const hashes = shingleHashes(tokens);
+  const { simhash, minhash } = fingerprintFromShingles(hashes, set);
 
   // Exact content hash — same FNV-1a but over the full token stream so
   // identical body text always collides regardless of shingle order.
-  // Cheap, deterministic, no native deps.
   const exact = fnv1a64(tokens.join(' '));
 
   return {
-    simhash: toHex64(sim),
+    simhash,
     contentHash: toHex64(exact),
-    minhash: computeMinHash(shingleFreq.keys()),
+    minhash,
+    textSimhash: set ? simhashFromShingles(hashes) : simhash,
+    templateSetId,
+    shingles: opts.collectShingles ? hashes : null,
   };
 }
 

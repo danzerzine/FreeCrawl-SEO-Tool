@@ -39,7 +39,7 @@ const SEEDS: Uint32Array = (() => {
   return out;
 })();
 
-function fnv1a32(s: string): number {
+export function fnv1a32(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -57,17 +57,22 @@ function mix32(h: number): number {
 
 /** Signature of a set of shingles, or null when the set is empty. */
 export function computeMinHash(shingles: Iterable<string>): Uint8Array | null {
+  const hashes: number[] = [];
+  for (const sh of shingles) hashes.push(fnv1a32(sh));
+  return computeMinHashFromHashes(hashes);
+}
+
+/** Signature from the shingles' FNV-1a 32 hashes, or null when there are none. */
+export function computeMinHashFromHashes(hashes: ArrayLike<number>): Uint8Array | null {
+  if (hashes.length === 0) return null;
   const mins = new Uint32Array(MINHASH_SLOTS).fill(0xffffffff);
-  let any = false;
-  for (const sh of shingles) {
-    any = true;
-    const base = fnv1a32(sh);
+  for (let k = 0; k < hashes.length; k++) {
+    const base = hashes[k]!;
     for (let i = 0; i < MINHASH_SLOTS; i++) {
       const v = mix32(base ^ SEEDS[i]!);
       if (v < mins[i]!) mins[i] = v;
     }
   }
-  if (!any) return null;
   const out = new Uint8Array(MINHASH_SLOTS * 2);
   for (let i = 0; i < MINHASH_SLOTS; i++) {
     out[i * 2] = mins[i]! & 0xff;
