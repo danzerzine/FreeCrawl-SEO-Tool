@@ -220,6 +220,8 @@ export const TR_LABELS: Record<string, string> = {
   'Noindex Added by JavaScript': 'JavaScript ile Eklenen Noindex',
   'Title Changed by JavaScript': 'JavaScript ile Değişen Başlık',
   'AMP Validation Errors': 'AMP Doğrulama Hataları',
+  'AMP Version Broken': 'AMP sürümü bozuk',
+  'AMP Version Redirects': 'AMP sürümü yönlendiriyor',
   'Canonical Conflict (Near-Duplicate)': 'Canonical Çakışması (Yakın-Yinelenen)',
   'High Boilerplate (>50%)': 'Yüksek Şablon İçerik (>%50)',
   'Content Area Not Found': 'İçerik alanı bulunamadı',

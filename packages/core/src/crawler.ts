@@ -379,6 +379,19 @@ interface ProbeProgress {
   lastEmitAt: number;
 }
 
+/**
+ * A 3xx answer's Location resolved against the URL asked, so a probed row
+ * shows "→ target" the way internal redirects do.
+ */
+function redirectTargetOf(
+  res: { status: number; headers: { get(name: string): string | null } },
+  url: string,
+): string | null {
+  if (res.status < 300 || res.status >= 400) return null;
+  const loc = res.headers.get('location');
+  return loc ? (normalizeUrl(loc, url) ?? loc) : null;
+}
+
 export class Crawler extends EventEmitter {
   private config: CrawlConfig;
   private readonly db: ProjectDb;
@@ -386,6 +399,8 @@ export class Crawler extends EventEmitter {
   private externalQueue: PQueue;
   private seen = new Set<string>();
   private externalSeen = new Set<string>();
+  /** AMP versions probed (or queued) in this crawl, B24. */
+  private ampSeen = new Set<string>();
   private pending = 0;
   private crawled = 0;
   private failed = 0;
@@ -1307,6 +1322,10 @@ export class Crawler extends EventEmitter {
     const continued = isRespider || (isSameSite && !isRefresh);
     const filled = continued ? LATER_CHECKS.filter((k) => before.has(k)) : LATER_CHECKS;
     this.db.setMeta(CHECKS_FILLED_META_KEY, JSON.stringify(filled));
+    // A continued crawl keeps the AMP answers its earlier part got and
+    // does not ask again; any other crawl probes afresh (B24).
+    if (continued) for (const t of this.db.listAmpTargets()) this.ampSeen.add(t.url);
+    else this.db.clearAmpTargets();
     // Change markers describe the run that is starting now, so anything
     // a previous refresh flagged is cleared first. A wiped project has
     // nothing to clear, and a targeted re-spider clears only its own
@@ -3367,6 +3386,44 @@ export class Crawler extends EventEmitter {
       return;
     }
 
+    const { res, err, confirmedNoAnswer, responseTimeMs } = await this.requestStatus(url);
+    if (res) {
+      const botBlock = detectBotProtection(res.status, res.headers);
+      await this.dbCall<void>('updateExternalProbe', [
+        url,
+        {
+          statusCode: res.status,
+          statusText: botBlock ?? (res.statusText || null),
+          botBlocked: botBlock,
+          contentType: res.headers.get('content-type'),
+          contentLength: parseIntSafe(res.headers.get('content-length')),
+          responseTimeMs,
+          redirectTarget: redirectTargetOf(res, url),
+        },
+      ]);
+    } else {
+      await this.dbCall<void>('updateExternalProbe', [
+        url,
+        {
+          statusCode: null,
+          statusText: formatFetchError(err) + (confirmedNoAnswer ? EXTERNAL_NO_ANSWER_CONFIRMED : ''),
+          responseTimeMs,
+        },
+      ]);
+    }
+  }
+
+  /**
+   * Ask `url` for its status without reading the body: HEAD, then GET (and
+   * a browser UA, a relaxed TLS check, one retry on no answer) before an
+   * error stands. Shared by the external-link probe and the AMP probe (B24).
+   */
+  private async requestStatus(url: string): Promise<{
+    res?: Awaited<ReturnType<typeof undiciFetch>>;
+    err?: unknown;
+    confirmedNoAnswer: boolean;
+    responseTimeMs: number;
+  }> {
     // Only attach the crawl's Authorization / custom headers when the probe
     // host is within the crawl's own scope. Sending the start site's Basic
     // auth or a bypass header (`X-Vercel-Protection-Bypass`, …) to an
@@ -3507,42 +3564,57 @@ export class Crawler extends EventEmitter {
     }
 
     const responseTimeMs = Date.now() - t0;
-    if (res) {
-      try {
-        await res.body?.cancel();
-      } catch {
-        /* ignore */
-      }
-      // On a 3xx, resolve the Location so the row shows "→ target" the way
-      // internal redirects do, instead of a bare status.
-      let redirectTarget: string | null = null;
-      if (res.status >= 300 && res.status < 400) {
-        const loc = res.headers.get('location');
-        if (loc) redirectTarget = normalizeUrl(loc, url) ?? loc;
-      }
-      const botBlock = detectBotProtection(res.status, res.headers);
-      await this.dbCall<void>('updateExternalProbe', [
-        url,
-        {
-          statusCode: res.status,
-          statusText: botBlock ?? (res.statusText || null),
-          botBlocked: botBlock,
-          contentType: res.headers.get('content-type'),
-          contentLength: parseIntSafe(res.headers.get('content-length')),
-          responseTimeMs,
-          redirectTarget,
-        },
-      ]);
-    } else {
-      await this.dbCall<void>('updateExternalProbe', [
-        url,
-        {
-          statusCode: null,
-          statusText: formatFetchError(err) + (confirmedNoAnswer ? EXTERNAL_NO_ANSWER_CONFIRMED : ''),
-          responseTimeMs,
-        },
-      ]);
+    try {
+      await res?.body?.cancel();
+    } catch {
+      /* ignore */
     }
+    return { res, err, confirmedNoAnswer, responseTimeMs };
+  }
+
+  /**
+   * Probe a page's declared AMP version once per crawl (B24): only with
+   * "store AMP" on and AMP crawling off (a crawled target is read from
+   * `urls`). It goes to external hosts even with "check external links"
+   * off: the user asked for AMP data, and it is one request per target.
+   */
+  private enqueueAmpTarget(url: string): void {
+    if (this.stopped || this.ampSeen.has(url)) return;
+    this.ampSeen.add(url);
+    this.externalQueue
+      .add(() => this.probeAmpTarget(url))
+      .catch((err: unknown) => {
+        this.emit('error', `AMP probe error: ${err instanceof Error ? err.message : String(err)}`);
+      });
+  }
+
+  private async probeAmpTarget(url: string): Promise<void> {
+    if (this.stopped) return;
+    const notRequested = (error: string) =>
+      this.dbCall<void>('setAmpTarget', [
+        { url, status: null, redirectTarget: null, error, blocked: true },
+      ]);
+    const inScope = isInScope(this.config.startUrl, url, this.config.scope);
+    if (inScope && this.config.respectRobotsTxt && !this.robotsAllows(url)) {
+      return notRequested('Blocked by robots.txt');
+    }
+    if (!inScope && isPrivateHost(url) && !isPrivateHost(this.config.startUrl)) {
+      return notRequested('Skipped: private/internal address (SSRF guard)');
+    }
+    await this.acquireRateSlot();
+    if (this.stopped) return;
+    const { res, err, confirmedNoAnswer } = await this.requestStatus(url);
+    await this.dbCall<void>('setAmpTarget', [
+      {
+        url,
+        status: res?.status ?? null,
+        redirectTarget: res ? redirectTargetOf(res, url) : null,
+        error: res
+          ? null
+          : formatFetchError(err) + (confirmedNoAnswer ? EXTERNAL_NO_ANSWER_CONFIRMED : ''),
+        blocked: false,
+      },
+    ]);
   }
 
   stop(): void {
@@ -5528,6 +5600,9 @@ export class Crawler extends EventEmitter {
           for (const h of parsed.hreflangs) followDeclared(h.href);
         }
         if (this.config.crawlAmp) followDeclared(parsed.amphtml);
+        else if (this.config.storeAmp && parsed.amphtml && parsed.amphtml !== item.url) {
+          this.enqueueAmpTarget(parsed.amphtml);
+        }
         if (this.config.crawlMobileAlternate) followDeclared(parsed.mobileAlternate);
       }
     } catch (err) {

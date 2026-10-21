@@ -229,6 +229,8 @@ export const AZ_LABELS: Record<string, string> = {
   'Noindex Added by JavaScript': 'JavaScript ilə əlavə edilən noindex',
   'Title Changed by JavaScript': 'JavaScript ilə dəyişdirilən başlıq',
   'AMP Validation Errors': 'AMP yoxlama xətaları',
+  'AMP Version Broken': 'AMP versiyası xarabdır',
+  'AMP Version Redirects': 'AMP versiyası yönləndirir',
   'Canonical Conflict (Near-Duplicate)': 'Canonical ziddiyyəti (yaxın dublikat)',
   'High Boilerplate (>50%)': 'Çox şablon mətn (> 50 %)',
   'Content Area Not Found': 'Kontent sahəsi tapılmadı',

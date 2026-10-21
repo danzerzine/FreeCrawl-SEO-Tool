@@ -17,6 +17,7 @@ import type {
   ResponseHeaderExportRow,
   PageSourceExportRow,
   SitemapFileRow,
+  AmpTargetRow,
   SitemapUrlExportRow,
   ContentKind,
   ContentSource,
@@ -178,6 +179,8 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:pagination-loop',
   'issues:hreflang-not-canonical',
   'issues:hreflang-noindex-target',
+  'issues:amp-target-broken',
+  'issues:amp-target-redirect',
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -1740,6 +1743,7 @@ export class ProjectDb {
          DELETE FROM sitemap_urls;
          DELETE FROM sitemap_files;
          DELETE FROM sitemap_url_sources;
+         DELETE FROM amp_targets;
          DELETE FROM urls;
          DELETE FROM project_meta WHERE key NOT IN (${META_KEYS_KEPT_BY_RESET.map((k) => `'${k}'`).join(', ')});
          DELETE FROM urls_issues;
@@ -4955,6 +4959,42 @@ export class ProjectDb {
     });
   }
 
+  /** Forget the AMP versions probed so far: a new crawl probes them again (B24). */
+  clearAmpTargets(): void {
+    this.db.exec('DELETE FROM amp_targets');
+  }
+
+  /** Store what a declared AMP version answered; the first answer for a URL stays (B24). */
+  setAmpTarget(t: AmpTargetRow): void {
+    this.db
+      .prepare(
+        `INSERT INTO amp_targets (url, status_code, redirect_target, error, blocked)
+         VALUES (?, ?, ?, ?, ?) ON CONFLICT(url) DO NOTHING`,
+      )
+      .run(t.url, t.status, t.redirectTarget, t.error, t.blocked ? 1 : 0);
+  }
+
+  listAmpTargets(): AmpTargetRow[] {
+    const rows = this.db
+      .prepare(
+        'SELECT url, status_code, redirect_target, error, blocked FROM amp_targets ORDER BY rowid',
+      )
+      .all() as {
+      url: string;
+      status_code: number | null;
+      redirect_target: string | null;
+      error: string | null;
+      blocked: number;
+    }[];
+    return rows.map((r) => ({
+      url: r.url,
+      status: r.status_code,
+      redirectTarget: r.redirect_target,
+      error: r.error,
+      blocked: r.blocked === 1,
+    }));
+  }
+
   countSitemapUrls(): number {
     return (this.db.prepare('SELECT COUNT(*) AS c FROM sitemap_urls').get() as { c: number }).c;
   }
@@ -7792,6 +7832,8 @@ export class ProjectDb {
          AND (charset IS NULL OR charset = '')`,
       ),
       ampValidationErrors: gatedCount('issues:amp-validation-errors'),
+      ampTargetBroken: gatedCount('issues:amp-target-broken'),
+      ampTargetRedirect: gatedCount('issues:amp-target-redirect'),
       canonicalConflictNearDuplicate: gatedCount('issues:canonical-conflict-near-duplicate'),
       highBoilerplate: gatedCount('issues:high-boilerplate'),
       contentAreaNotFound: gatedCount('issues:content-area-not-found'),
@@ -12396,7 +12438,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -13033,6 +13075,19 @@ function baseCategoryWhereClause(
     case 'issues:hreflang-noindex-target':
       // An hreflang alternate (other than the page itself) is noindex (B82).
       return "is_external = 0 AND content_kind = 'html' AND hreflang_noindex_targets > 0";
+    case 'issues:amp-target-broken':
+      // The declared AMP version (rel=amphtml) answers 4xx/5xx or not at
+      // all: probed (amp_targets) or crawled when AMP crawling is on (B24).
+      return `is_external = 0 AND content_kind = 'html'
+              AND amphtml IS NOT NULL AND amphtml != '' AND amphtml != url
+              AND (EXISTS (SELECT 1 FROM amp_targets a WHERE a.url = urls.amphtml AND a.blocked = 0 AND (a.status_code IS NULL OR a.status_code >= 400))
+                OR EXISTS (SELECT 1 FROM urls t WHERE t.url = urls.amphtml AND ${brokenTargetSql('t')}))`;
+    case 'issues:amp-target-redirect':
+      // The declared AMP version redirects (B24).
+      return `is_external = 0 AND content_kind = 'html'
+              AND amphtml IS NOT NULL AND amphtml != '' AND amphtml != url
+              AND (EXISTS (SELECT 1 FROM amp_targets a WHERE a.url = urls.amphtml AND a.status_code >= 300 AND a.status_code < 400)
+                OR EXISTS (SELECT 1 FROM urls t WHERE t.url = urls.amphtml AND t.status_code >= 300 AND t.status_code < 400))`;
     case 'issues:hreflang-target-issues':
       // Hreflang target resolves to a non-200 / noindex / canonical-away
       // page. Aggregated: any kind of broken target trips this filter.

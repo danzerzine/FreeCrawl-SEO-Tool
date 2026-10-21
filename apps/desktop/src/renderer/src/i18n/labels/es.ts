@@ -221,6 +221,8 @@ export const ES_LABELS: Record<string, string> = {
   'Noindex Added by JavaScript': 'noindex añadido por JavaScript',
   'Title Changed by JavaScript': 'Título cambiado por JavaScript',
   'AMP Validation Errors': 'Errores de validación de AMP',
+  'AMP Version Broken': 'Versión AMP rota',
+  'AMP Version Redirects': 'La versión AMP redirige',
   'Canonical Conflict (Near-Duplicate)': 'Conflicto de canonical (casi duplicado)',
   'High Boilerplate (>50%)': 'Mucho contenido repetido (>50 %)',
   'Content Area Not Found': 'Área de contenido no encontrada',

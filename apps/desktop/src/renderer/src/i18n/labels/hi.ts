@@ -221,6 +221,8 @@ export const HI_LABELS: Record<string, string> = {
   'Noindex Added by JavaScript': 'JavaScript द्वारा जोड़ा गया noindex',
   'Title Changed by JavaScript': 'JavaScript द्वारा बदला गया शीर्षक',
   'AMP Validation Errors': 'AMP सत्यापन त्रुटियाँ',
+  'AMP Version Broken': 'AMP संस्करण टूटा है',
+  'AMP Version Redirects': 'AMP संस्करण रीडायरेक्ट करता है',
   'Canonical Conflict (Near-Duplicate)': 'Canonical टकराव (निकट-प्रतिलिपि)',
   'High Boilerplate (>50%)': 'दोहराया ढाँचा अधिक (>50%)',
   'Content Area Not Found': 'सामग्री क्षेत्र नहीं मिला',

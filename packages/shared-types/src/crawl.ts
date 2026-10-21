@@ -139,6 +139,8 @@ export type UrlCategory =
   | 'issues:noindex-js-injected'
   | 'issues:title-changed-by-js'
   | 'issues:amp-validation-errors'
+  | 'issues:amp-target-broken'
+  | 'issues:amp-target-redirect'
   | 'issues:canonical-conflict-near-duplicate'
   | 'issues:high-boilerplate'
   | 'issues:content-area-not-found'
@@ -2047,6 +2049,8 @@ export interface OverviewCounts {
     /** Pages whose `<title>` is rewritten by JavaScript. */
     titleChangedByJs: number;
     ampValidationErrors: number;
+    ampTargetBroken: number;
+    ampTargetRedirect: number;
     canonicalConflictNearDuplicate: number;
     highBoilerplate: number;
     /** HTML pages the configured content-area selector did not match (kept out of near-duplicates). */
@@ -2708,6 +2712,19 @@ export interface SitemapFileRow {
   warnings: string[];
   error: string | null;
   reason: 'too-deep' | 'too-large' | 'counted-only' | null;
+}
+
+/**
+ * What a declared AMP version (`rel=amphtml`) answered when probed. Not
+ * requested (`blocked`) when robots.txt disallows it or it is a private
+ * address; `status` is null then and when no answer came.
+ */
+export interface AmpTargetRow {
+  url: string;
+  status: number | null;
+  redirectTarget: string | null;
+  error: string | null;
+  blocked: boolean;
 }
 
 /** One row of the `crawl-queue` export: a URL discovered but not fetched. */

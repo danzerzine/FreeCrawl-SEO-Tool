@@ -221,6 +221,8 @@ export const KO_LABELS: Record<string, string> = {
   'Noindex Added by JavaScript': 'JavaScript가 추가한 noindex',
   'Title Changed by JavaScript': 'JavaScript가 변경한 제목',
   'AMP Validation Errors': 'AMP 검증 오류',
+  'AMP Version Broken': 'AMP 버전 오류',
+  'AMP Version Redirects': 'AMP 버전 리디렉션',
   'Canonical Conflict (Near-Duplicate)': 'Canonical 충돌(유사 중복)',
   'High Boilerplate (>50%)': '반복 문구 과다(50% 초과)',
   'Content Area Not Found': '콘텐츠 영역을 찾을 수 없음',

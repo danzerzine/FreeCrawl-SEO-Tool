@@ -165,6 +165,8 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-charset-missing', label: 'Charset Missing', category: 'issues:charset-missing', count: 'charsetMissing' },
       { key: 'issues-charset-mismatch', label: 'Charset Mismatch (HTTP vs HTML)', category: 'issues:charset-mismatch', count: 'charsetMismatch' },
       { key: 'issues-amp-validation', label: 'AMP Validation Errors', category: 'issues:amp-validation-errors', count: 'ampValidationErrors' },
+      { key: 'issues-amp-target-broken', label: 'AMP Version Broken', category: 'issues:amp-target-broken', count: 'ampTargetBroken' },
+      { key: 'issues-amp-target-redirect', label: 'AMP Version Redirects', category: 'issues:amp-target-redirect', count: 'ampTargetRedirect' },
     ],
   },
   {

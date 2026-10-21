@@ -2745,6 +2745,20 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    // B24: what each declared AMP version answered when probed (not crawled).
+    version: 118,
+    name: 'add_amp_targets',
+    up: `
+      CREATE TABLE IF NOT EXISTS amp_targets (
+        url              TEXT PRIMARY KEY,
+        status_code      INTEGER,
+        redirect_target  TEXT,
+        error            TEXT,
+        blocked          INTEGER NOT NULL DEFAULT 0
+      );
+    `,
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

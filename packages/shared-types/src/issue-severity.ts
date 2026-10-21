@@ -113,6 +113,8 @@ const WARNING: UrlCategory[] = [
   'issues:meta-refresh-used',
   'issues:charset-missing',
   'issues:amp-validation-errors',
+  'issues:amp-target-broken',
+  'issues:amp-target-redirect',
   'issues:canonical-conflict-near-duplicate',
   'issues:broken-links-external',
   'issues:near-duplicate',

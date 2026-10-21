@@ -221,6 +221,8 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Noindex Added by JavaScript': 'JavaScript 添加的 noindex',
   'Title Changed by JavaScript': 'JavaScript 修改的标题',
   'AMP Validation Errors': 'AMP 校验错误',
+  'AMP Version Broken': 'AMP 版本失效',
+  'AMP Version Redirects': 'AMP 版本重定向',
   'Canonical Conflict (Near-Duplicate)': 'Canonical 冲突（近似重复）',
   'High Boilerplate (>50%)': '模板化内容过多（>50%）',
   'Content Area Not Found': '未找到内容区域',

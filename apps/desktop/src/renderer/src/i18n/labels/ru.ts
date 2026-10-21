@@ -221,6 +221,8 @@ export const RU_LABELS: Record<string, string> = {
   'Noindex Added by JavaScript': 'noindex, добавленный JavaScript',
   'Title Changed by JavaScript': 'Заголовок, изменённый JavaScript',
   'AMP Validation Errors': 'Ошибки проверки AMP',
+  'AMP Version Broken': 'Битая AMP-версия',
+  'AMP Version Redirects': 'AMP-версия перенаправляет',
   'Canonical Conflict (Near-Duplicate)': 'Конфликт canonical (почти дубликат)',
   'High Boilerplate (>50%)': 'Много шаблонного текста (>50 %)',
   'Content Area Not Found': 'Блок контента не найден',
