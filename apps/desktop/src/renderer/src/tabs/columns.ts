@@ -135,6 +135,14 @@ const COL = {
     info: 'Total number of <h2> elements on the page.',
     example: '4',
   } as ColumnSpec,
+  h2First: {
+    key: 'h2First',
+    header: URL_COLUMN_HEADERS.h2First,
+    size: 260,
+    kind: 'text',
+    info: 'Text of the first <h2> on the page.',
+    example: 'Delivery and returns',
+  } as ColumnSpec,
   wordCount: {
     key: 'wordCount',
     header: URL_COLUMN_HEADERS.wordCount,
@@ -693,7 +701,7 @@ export const COLUMN_SPECS: Record<TabKey, ColumnSpec[]> = {
     COL.indexability,
     COL.inlinks,
   ],
-  h2: [COL.url, COL.h2Count, COL.status, COL.indexability, COL.inlinks],
+  h2: [COL.url, COL.h2First, COL.h2Count, COL.status, COL.indexability, COL.inlinks],
   content: [
     COL.url,
     COL.wordCount,

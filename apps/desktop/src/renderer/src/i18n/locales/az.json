@@ -25,7 +25,10 @@
     "byTargetLinks": "Keçid hədəfləri: {{targets}} · onlara keçidlər: {{sources}}. Siyahı keçidlərin özünü göstərir.",
     "byTargetReport": "Hər hədəf üçün bir sətir: Hesabatlar → {{report}}.",
     "siteWideHint": "Demək olar ki, hər səhifədə var: sayt şablonunda və ya server parametrlərində bir düzəliş kifayətdir.",
-    "siteWideShare": "200 cavabı verən {{base}} səhifədən {{pages}}"
+    "siteWideShare": "200 cavabı verən {{base}} səhifədən {{pages}}",
+    "siteSitemapNotCrawled": "Sayt xəritəsindəki URL-lər taranmayıb",
+    "siteSitemapNotCrawledHint": "Bu URL-lər sayt xəritəsindədir, amma tarama onlara çatmayıb: onlara daxili keçid yoxdur və ya tarama daha əvvəl dayanıb. Siyahını açmaq üçün klikləyin.",
+    "crawlStoppedAtLimit": "Tarama {{n}} səhifəlik limitdə dayandı."
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",

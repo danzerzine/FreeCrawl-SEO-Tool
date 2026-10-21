@@ -235,6 +235,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Pixel Width Truncated (>990px)', category: 'issues:meta-pixel-width-too-long' },
     { label: 'Description = Title', category: 'issues:description-equals-title' },
     { label: 'Description = H1', category: 'issues:description-equals-h1' },
+    { label: 'Contains HTML', category: 'issues:description-has-html' },
   ],
 
   // ─── H1 tab ─────────────────────────────────────────────────────────────
@@ -251,6 +252,8 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
   // ─── H2 tab ─────────────────────────────────────────────────────────────
   h2: [
     { label: 'All', category: 'internal:html' },
+    { label: 'Missing', category: 'issues:h2-missing' },
+    { label: 'Duplicate', category: 'issues:h2-duplicate' },
     { label: 'Skipped Heading Level', category: 'issues:heading-skipped-level' },
   ],
 
@@ -408,6 +411,9 @@ interface AppState {
    * the user has only one row selected this mirrors `[selectedUrlId]`. */
   selectedUrlIds: number[];
   sidebarOpen: boolean;
+  /** A report the Reports dialog should open on (B76: sidebar «not crawled» entry); null = its own choice. */
+  reportRequest: string | null;
+  requestReport: (kind: string | null) => void;
   detailPanelOpen: boolean;
   settingsOpen: boolean;
   /** Where the Settings dialog should land when it opens. Null keeps
@@ -611,6 +617,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedUrlId: null,
   selectedUrlIds: [],
   sidebarOpen: true,
+  reportRequest: null,
+  requestReport: (kind) => set({ reportRequest: kind }),
   detailPanelOpen: true,
   settingsOpen: false,
   settingsTarget: null,
@@ -883,6 +891,7 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
   if (cat === 'issues:amp-validation-errors') return 'amp';
   if (cat === 'issues:amp-target-broken' || cat === 'issues:amp-target-redirect') return 'amp';
   if (cat.startsWith('issues:h1-')) return 'h1';
+  if (cat.startsWith('issues:h2-')) return 'h2';
   if (cat === 'issues:heading-skipped-level') return 'h2';
   if (cat.startsWith('issues:canonical-')) return 'canonicals';
   if (cat === 'issues:multiple-canonicals') return 'canonicals';

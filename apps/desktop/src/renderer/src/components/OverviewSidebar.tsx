@@ -67,6 +67,7 @@ export function OverviewSidebar() {
   const progressCrawled = useAppStore((s) => s.progress?.crawled ?? 0);
   const activeCategory = useAppStore((s) => s.activeCategory);
   const navigateToCategory = useAppStore((s) => s.navigateToCategory);
+  const requestReport = useAppStore((s) => s.requestReport);
   // Monotonic guard shared by the polling effect and the progress-driven
   // refetch — both call overviewGet(), and on the multi-worker reader
   // pool a slower response can resolve after a fresher one. Applying
@@ -301,7 +302,17 @@ export function OverviewSidebar() {
   const botBlocked = overview?.site?.botBlocked ?? null;
   const sitemapFindings = overview?.site?.sitemapFindings ?? null;
   const fileUrls = (files: { url: string }[] | undefined) => (files ?? []).map((f) => f.url);
-  const sitemapNotices = [
+  const stoppedAt = overview?.site?.crawlStoppedAtLimit ?? null;
+  const sitemapNotices: {
+    key: string;
+    info: boolean;
+    items: string[];
+    count: number;
+    title: string;
+    hint: string;
+    note?: string;
+    onClick?: () => void;
+  }[] = [
     {
       key: 'overUrls',
       info: false,
@@ -345,6 +356,25 @@ export function OverviewSidebar() {
         defaultValue:
           'These URLs are listed in two or more sitemap files. That is not necessarily a problem. The first few are shown; the Sitemap URLs export has the number of files for every URL.',
       }),
+    },
+    {
+      key: 'notCrawled',
+      info: true,
+      items: [],
+      count: overview?.issues.sitemapNotCrawled ?? 0,
+      title: t('sidebar.siteSitemapNotCrawled', { defaultValue: 'Sitemap URLs not crawled' }),
+      hint: t('sidebar.siteSitemapNotCrawledHint', {
+        defaultValue:
+          'These URLs are listed in a sitemap but the crawl never reached them: no internal link leads to them, or the crawl stopped first. Click to open the list.',
+      }),
+      note:
+        stoppedAt !== null
+          ? t('sidebar.crawlStoppedAtLimit', {
+              defaultValue: 'The crawl stopped at its limit of {{n}} pages.',
+              n: stoppedAt,
+            })
+          : undefined,
+      onClick: () => requestReport('sitemap-orphans'),
     },
   ].filter((n) => n.count > 0);
 
@@ -410,36 +440,43 @@ export function OverviewSidebar() {
           </div>
         </div>
       )}
-      {sitemapNotices.map((n) => (
+      {sitemapNotices.map((n) => {
         // About sitemap files, not crawled URLs: the files are the list.
-        <div
-          key={n.key}
-          className={
-            n.info
-              ? 'flex items-start gap-1.5 border-b border-surface-800 px-2 py-1.5 text-[11px] text-surface-300'
-              : 'flex items-start gap-1.5 border-b border-amber-700/40 bg-amber-900/20 px-2 py-1.5 text-[11px] text-amber-200'
-          }
-          title={n.hint}
-        >
-          {n.info ? (
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="font-medium">{n.title}</div>
-            {n.items.map((url) => (
-              <div
-                key={url}
-                className={`break-all font-mono text-[10px] ${n.info ? 'text-surface-500' : 'text-amber-300/80'}`}
-              >
-                {url}
-              </div>
-            ))}
-          </div>
-          <span className="shrink-0 font-mono tabular-nums">{n.count.toLocaleString()}</span>
-        </div>
-      ))}
+        // An entry with a list behind it (B76) is a button that opens it.
+        const Tag = n.onClick ? 'button' : 'div';
+        return (
+          <Tag
+            key={n.key}
+            type={n.onClick ? 'button' : undefined}
+            onClick={n.onClick}
+            className={
+              n.info
+                ? `flex w-full items-start gap-1.5 border-b border-surface-800 px-2 py-1.5 text-left text-[11px] text-surface-300${n.onClick ? ' hover:bg-surface-800' : ''}`
+                : 'flex items-start gap-1.5 border-b border-amber-700/40 bg-amber-900/20 px-2 py-1.5 text-[11px] text-amber-200'
+            }
+            title={n.hint}
+          >
+            {n.info ? (
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">{n.title}</div>
+              {n.note && <div className="text-[10px] text-surface-500">{n.note}</div>}
+              {n.items.map((url) => (
+                <div
+                  key={url}
+                  className={`break-all font-mono text-[10px] ${n.info ? 'text-surface-500' : 'text-amber-300/80'}`}
+                >
+                  {url}
+                </div>
+              ))}
+            </div>
+            <span className="shrink-0 font-mono tabular-nums">{n.count.toLocaleString()}</span>
+          </Tag>
+        );
+      })}
       <div className="flex-1 overflow-auto">
         <div className="py-1 text-[11px]">
           {tree.map((node) => (

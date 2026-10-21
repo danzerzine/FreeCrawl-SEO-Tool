@@ -178,6 +178,9 @@ const WARNING: UrlCategory[] = [
 
 /** Informational / stylistic / nice-to-have signals. */
 const INFO: UrlCategory[] = [
+  'issues:h2-missing',
+  'issues:h2-duplicate',
+  'issues:description-has-html',
   'issues:hreflang-unlinked',
   // Google recommends x-default but never requires it — a missing one is
   // a suggestion, not a defect.

@@ -74,6 +74,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-meta-pixel-width', label: 'Pixel Width Truncated (>990px)', category: 'issues:meta-pixel-width-too-long', count: 'metaPixelWidthTooLong' },
       { key: 'issues-description-equals-title', label: 'Description = Title', category: 'issues:description-equals-title', count: 'descriptionEqualsTitle' },
       { key: 'issues-description-equals-h1', label: 'Description = H1', category: 'issues:description-equals-h1', count: 'descriptionEqualsH1' },
+      { key: 'issues-description-has-html', label: 'Contains HTML', category: 'issues:description-has-html', count: 'descriptionHasHtml' },
     ],
   },
   {
@@ -87,6 +88,14 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-h1-too-long', label: 'Over 70 Characters', category: 'issues:h1-too-long', count: 'h1TooLong' },
       { key: 'issues-heading-skipped', label: 'Skipped Heading Level', category: 'issues:heading-skipped-level', count: 'headingSkippedLevel' },
       { key: 'issues-h1-equals-title', label: 'H1 = Title', category: 'issues:h1-equals-title', count: 'h1EqualsTitle' },
+    ],
+  },
+  {
+    key: 'issues-h2',
+    label: 'H2',
+    items: [
+      { key: 'issues-h2-missing', label: 'Missing', category: 'issues:h2-missing', count: 'h2Missing' },
+      { key: 'issues-h2-duplicate', label: 'Duplicate', category: 'issues:h2-duplicate', count: 'h2Duplicate' },
     ],
   },
   {

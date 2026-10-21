@@ -59,6 +59,11 @@ export function App() {
   const [sitemapValidatorOpen, setSitemapValidatorOpen] = useState(false);
   const [exportAsOpen, setExportAsOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const reportRequest = useAppStore((s) => s.reportRequest);
+  const requestReport = useAppStore((s) => s.requestReport);
+  useEffect(() => {
+    if (reportRequest) setReportsOpen(true);
+  }, [reportRequest]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [exportSetsOpen, setExportSetsOpen] = useState(false);
@@ -648,7 +653,14 @@ export function App() {
         open={sitemapValidatorOpen}
         onClose={() => setSitemapValidatorOpen(false)}
       />
-      <ReportsDialog open={reportsOpen} onClose={() => setReportsOpen(false)} />
+      <ReportsDialog
+        open={reportsOpen}
+        initialKind={reportRequest}
+        onClose={() => {
+          setReportsOpen(false);
+          requestReport(null);
+        }}
+      />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <CompareDialog open={compareOpen} onClose={() => setCompareOpen(false)} />
       <ScheduledCrawlDialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} />

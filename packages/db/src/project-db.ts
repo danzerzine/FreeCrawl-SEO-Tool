@@ -117,6 +117,8 @@ export const DISABLED_ISSUES_META_KEY = 'disabledIssues';
 export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
 /** JSON `Soft404ProbeResult` of the last crawl's missing-page probe; '' when clean. */
 export const SOFT404_PROBE_META_KEY = 'soft404Probe';
+/** The page limit the last crawl stopped at (B76); '' when it did not hit it. */
+export const PAGE_LIMIT_HIT_META_KEY = 'pageLimitHit';
 /** `project_meta` key set by `recomputeInlinks`; orphans mean nothing before it. */
 export const INLINKS_COMPUTED_META_KEY = 'inlinksComputed';
 /** `project_meta` key set by `recomputeRedirectChains`; redirect ends mean nothing before it. */
@@ -181,6 +183,7 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:hreflang-noindex-target',
   'issues:amp-target-broken',
   'issues:amp-target-redirect',
+  'issues:h2-duplicate',
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -342,6 +345,7 @@ interface UrlRowDb {
   h1_length: number | null;
   h1_count: number;
   h2_count: number;
+  h2_first: string | null;
   h3_count: number;
   h4_count: number;
   h5_count: number;
@@ -645,6 +649,7 @@ export interface UpsertUrlInput {
   h1?: string | null;
   h1Count?: number;
   h2Count?: number;
+  h2First?: string | null;
   h3Count?: number;
   h4Count?: number;
   h5Count?: number;
@@ -871,7 +876,7 @@ const UPSERT_URL_SQL = `
   INSERT INTO urls (
     url, content_kind, status_code, status_text, indexability, indexability_reason,
     title, title_length, meta_description, meta_description_length,
-    h1, h1_length, h1_count, h2_count, h3_count, h4_count, h5_count, h6_count,
+    h1, h1_length, h1_count, h2_count, h2_first, h3_count, h4_count, h5_count, h6_count,
     word_count, canonical, canonical_resolved, canonical_distinct_count,
     canonical_cross_domain, canonical_count, canonical_http, meta_robots, x_robots_tag,
     content_type, content_length, response_time_ms, depth, outlinks, redirect_target,
@@ -917,7 +922,7 @@ const UPSERT_URL_SQL = `
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
     :title, :title_length, :meta_description, :meta_description_length,
-    :h1, :h1_length, :h1_count, :h2_count, :h3_count, :h4_count, :h5_count, :h6_count,
+    :h1, :h1_length, :h1_count, :h2_count, :h2_first, :h3_count, :h4_count, :h5_count, :h6_count,
     :word_count, :canonical, :canonical_resolved, :canonical_distinct_count,
     :canonical_cross_domain, :canonical_count, :canonical_http, :meta_robots, :x_robots_tag,
     :content_type, :content_length, :response_time_ms, :depth, :outlinks, :redirect_target,
@@ -975,6 +980,7 @@ const UPSERT_URL_SQL = `
     h1_length = excluded.h1_length,
     h1_count = excluded.h1_count,
     h2_count = excluded.h2_count,
+    h2_first = excluded.h2_first,
     h3_count = excluded.h3_count,
     h4_count = excluded.h4_count,
     h5_count = excluded.h5_count,
@@ -2834,6 +2840,7 @@ export class ProjectDb {
       h1_length: input.h1 != null ? charLength(input.h1) : null,
       h1_count: input.h1Count ?? 0,
       h2_count: input.h2Count ?? 0,
+      h2_first: input.h2First ?? null,
       h3_count: input.h3Count ?? 0,
       h4_count: input.h4Count ?? 0,
       h5_count: input.h5Count ?? 0,
@@ -7614,6 +7621,7 @@ export class ProjectDb {
             : null,
         siteWide: { pagesBase, checks: siteWideChecks },
         sitemapFindings: this.sitemapFindings(),
+        crawlStoppedAtLimit: Number(this.getMeta(PAGE_LIMIT_HIT_META_KEY)) || null,
       },
     };
   }
@@ -7682,6 +7690,9 @@ export class ProjectDb {
       metaDuplicate: dup('meta_description'),
       h1Missing: countWhere(`${indexable} AND (h1 IS NULL OR h1 = '')`),
       h1Duplicate: dup('h1'),
+      h2Missing: gatedCount('issues:h2-missing'),
+      h2Duplicate: dup('h2_first'),
+      descriptionHasHtml: gatedCount('issues:description-has-html'),
       h1Multiple: gatedCount('issues:h1-multiple'),
       headingSkippedLevel: gatedCount('issues:heading-skipped-level'),
       multipleCanonicals: gatedCount('issues:multiple-canonicals'),
@@ -11661,6 +11672,7 @@ export class ProjectDb {
     h1Length: r.h1_length,
     h1Count: r.h1_count,
     h2Count: r.h2_count,
+    h2First: r.h2_first ?? null,
     h3Count: r.h3_count,
     h4Count: r.h4_count,
     h5Count: r.h5_count,
@@ -12438,7 +12450,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -12586,6 +12598,21 @@ function baseCategoryWhereClause(
                   AND h1 IS NOT NULL AND h1 != ''
                 GROUP BY h1 HAVING COUNT(*) > 1
               )`;
+    case 'issues:h2-missing':
+      // No <h2> at all on a page answered 2xx (B76).
+      return `${INDEXABLE_HTML_SCOPE} AND h2_count = 0`;
+    case 'issues:h2-duplicate':
+      // The first H2 repeats on another page answered 2xx (B76), like h1-duplicate.
+      return `${INDEXABLE_HTML_SCOPE} AND h2_first IS NOT NULL AND h2_first != ''
+              AND h2_first IN (
+                SELECT h2_first FROM urls
+                WHERE ${INDEXABLE_HTML_SCOPE} AND h2_first IS NOT NULL AND h2_first != ''
+                GROUP BY h2_first HAVING COUNT(*) > 1
+              )`;
+    case 'issues:description-has-html':
+      // The description is stored entity-decoded, so an escaped `&lt;b&gt;`
+      // counts too; a bare `<` before a digit or space is plain text (B76).
+      return `${INDEXABLE_HTML_SCOPE} AND meta_description GLOB '*<[a-zA-Z/!]*'`;
     case 'issues:h1-multiple':
       return "is_external = 0 AND content_kind = 'html' AND h1_count > 1";
     case 'issues:heading-skipped-level':

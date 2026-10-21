@@ -23,6 +23,7 @@ export const URL_COLUMN_HEADERS = {
   h1Length: 'H1-1 Length',
   h1Count: 'H1 Count',
   h2Count: 'H2 Count',
+  h2First: 'H2-1',
   wordCount: 'Word Count',
   mainWordCount: 'Content Area Word Count',
   canonical: 'Canonical Link Element 1',

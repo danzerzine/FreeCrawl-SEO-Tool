@@ -63,6 +63,9 @@ export type UrlCategory =
   | 'issues:meta-duplicate'
   | 'issues:h1-missing'
   | 'issues:h1-duplicate'
+  | 'issues:h2-missing'
+  | 'issues:h2-duplicate'
+  | 'issues:description-has-html'
   | 'issues:h1-multiple'
   | 'issues:heading-skipped-level'
   | 'issues:multiple-canonicals'
@@ -352,6 +355,8 @@ export interface CrawlUrlRow {
   h1Length: number | null;
   h1Count: number;
   h2Count: number;
+  /** First H2's text (B76); null on pages without one and in older crawls. */
+  h2First: string | null;
   h3Count: number;
   h4Count: number;
   h5Count: number;
@@ -1899,6 +1904,8 @@ export interface OverviewCounts {
       /** URLs listed in two or more distinct files, with the first few. */
       inSeveral: { count: number; sample: string[] };
     } | null;
+    /** The page limit the last crawl stopped at, so «not crawled» counts can say why; null when it did not hit it. */
+    crawlStoppedAtLimit?: number | null;
   };
   summary: {
     totalInternalUrls: number;
@@ -1941,6 +1948,9 @@ export interface OverviewCounts {
     metaDuplicate: number;
     h1Missing: number;
     h1Duplicate: number;
+    h2Missing: number;
+    h2Duplicate: number;
+    descriptionHasHtml: number;
     h1Multiple: number;
     headingSkippedLevel: number;
     multipleCanonicals: number;

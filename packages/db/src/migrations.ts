@@ -2759,6 +2759,16 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // B76: the first H2's text, for the duplicate-H2 check and the H2 tab.
+    version: 119,
+    name: 'add_h2_first',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'h2_first'))
+        db.exec('ALTER TABLE urls ADD COLUMN h2_first TEXT');
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

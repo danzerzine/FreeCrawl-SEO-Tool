@@ -24,6 +24,7 @@ import {
   type ProbeWrite,
   EXPENSIVE_ISSUE_DEFINITIONS,
   SOFT404_PROBE_META_KEY,
+  PAGE_LIMIT_HIT_META_KEY,
   COUNT_NOFOLLOW_META_KEY,
   CHECK_EXTERNAL_META_KEY,
   CHECKS_FILLED_META_KEY,
@@ -401,6 +402,7 @@ export class Crawler extends EventEmitter {
   private externalSeen = new Set<string>();
   /** AMP versions probed (or queued) in this crawl, B24. */
   private ampSeen = new Set<string>();
+  private pageLimitHit = false;
   private pending = 0;
   private crawled = 0;
   private failed = 0;
@@ -1310,6 +1312,7 @@ export class Crawler extends EventEmitter {
     // The missing-page probe describes the crawl that is starting; it is
     // re-run at the end (a stopped crawl simply has no verdict).
     if (!isRespider) this.db.setMeta(SOFT404_PROBE_META_KEY, '');
+    this.db.setMeta(PAGE_LIMIT_HIT_META_KEY, '');
     // The post-crawl inlinks and link-score passes read this to decide
     // whether nofollow links count (they are stored either way).
     this.db.setMeta(COUNT_NOFOLLOW_META_KEY, this.config.storeNofollowLinks ? '1' : '0');
@@ -4015,7 +4018,14 @@ export class Crawler extends EventEmitter {
   private enqueue(item: QueueItem): void {
     if (this.stopped) return;
     if (this.seen.has(item.url)) return;
-    if (this.seen.size >= this.config.maxUrls) return;
+    if (this.seen.size >= this.config.maxUrls) {
+      if (!this.pageLimitHit) {
+        // Recorded so «sitemap URLs not crawled» can say the limit, not the site, is why (B76).
+        this.pageLimitHit = true;
+        void this.dbCall<void>('setMeta', [PAGE_LIMIT_HIT_META_KEY, String(this.config.maxUrls)]);
+      }
+      return;
+    }
     // Subresource share of the budget (see SUBRESOURCE_BUDGET_SHARE). Checked
     // after the overall cap so the budget total is unchanged — this only
     // decides who gets to claim the remaining slots.
@@ -5201,6 +5211,7 @@ export class Crawler extends EventEmitter {
           h1: parsed.h1,
           h1Count: parsed.h1Count,
           h2Count: parsed.h2Count,
+          h2First: parsed.h2First,
           h3Count: parsed.h3Count,
           h4Count: parsed.h4Count,
           h5Count: parsed.h5Count,

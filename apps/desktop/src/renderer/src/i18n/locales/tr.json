@@ -25,7 +25,10 @@
     "byTargetLinks": "Bağlantı hedefleri: {{targets}} · onlara giden bağlantılar: {{sources}}. Liste, bağlantıları gösterir.",
     "byTargetReport": "Hedef başına bir satır: Raporlar → {{report}}.",
     "siteWideHint": "Neredeyse her sayfada var: site şablonunda veya sunucu ayarlarında tek bir düzeltme yeter.",
-    "siteWideShare": "200 yanıtı veren {{base}} sayfanın {{pages}} tanesi"
+    "siteWideShare": "200 yanıtı veren {{base}} sayfanın {{pages}} tanesi",
+    "siteSitemapNotCrawled": "Taranmayan site haritası URL’leri",
+    "siteSitemapNotCrawledHint": "Bu URL’ler bir site haritasında var ama tarama onlara ulaşmadı: hiçbir iç bağlantı onlara gitmiyor ya da tarama daha önce durdu. Listeyi açmak için tıklayın.",
+    "crawlStoppedAtLimit": "Tarama {{n}} sayfalık sınırında durdu."
   },
   "integrations": {
     "intro": "Harici servisleri kendi kimlik bilgilerinle bağla. API anahtarları ve secret'lar işletim sisteminin güvenli depolaması ile şifreli saklanır ve bu makineden asla çıkmaz.",

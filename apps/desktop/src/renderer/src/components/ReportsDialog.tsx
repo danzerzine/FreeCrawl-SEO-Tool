@@ -29,6 +29,8 @@ import type {
 
 interface Props {
   open: boolean;
+  /** Report to show on opening, e.g. from a sidebar entry (B76). */
+  initialKind?: string | null;
   onClose: () => void;
 }
 
@@ -189,7 +191,7 @@ const VALUE_FORMAT: Record<ReportKind, (v: number | null) => string> = {
   'mobile-parity': (v) => (v ?? 0).toLocaleString(),
 };
 
-export function ReportsDialog({ open, onClose }: Props) {
+export function ReportsDialog({ open, initialKind, onClose }: Props) {
   const { t } = useTranslation();
   const maxLinksPerPage = useAppStore((s) => s.config.maxLinksPerPage);
   const [kind, setKind] = useState<ReportKind>('pages-per-dir');
@@ -205,6 +207,9 @@ export function ReportsDialog({ open, onClose }: Props) {
   const [orphanExclude, setOrphanExclude] = useState('');
   const [orphanExcludeError, setOrphanExcludeError] = useState<string | null>(null);
   const [orphanApplied, setOrphanApplied] = useState(0);
+  useEffect(() => {
+    if (open && initialKind && initialKind in REPORT_LABELS) setKind(initialKind as ReportKind);
+  }, [open, initialKind]);
 
   // Localised label maps. Memoised on `t` so they only rebuild when the
   // language changes, not on every render.

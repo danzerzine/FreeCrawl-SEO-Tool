@@ -25,7 +25,10 @@
     "byTargetLinks": "Link targets: {{targets}} · links to them: {{sources}}. The list shows the links.",
     "byTargetReport": "One row per target: Reports → {{report}}.",
     "siteWideHint": "Found on almost every page: one fix in the site template or server settings.",
-    "siteWideShare": "{{pages}} of {{base}} pages answered 200"
+    "siteWideShare": "{{pages}} of {{base}} pages answered 200",
+    "siteSitemapNotCrawled": "Sitemap URLs not crawled",
+    "siteSitemapNotCrawledHint": "These URLs are listed in a sitemap but the crawl never reached them: no internal link leads to them, or the crawl stopped first. Click to open the list.",
+    "crawlStoppedAtLimit": "The crawl stopped at its limit of {{n}} pages."
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",

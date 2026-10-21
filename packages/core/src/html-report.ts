@@ -91,6 +91,9 @@ const ISSUES: IssueDef[] = [
   { key: 'metaTooLong', label: 'Meta Description Too Long (>160)', severity: 'warn' },
   { key: 'metaTooShort', label: 'Meta Description Too Short (<120)', severity: 'warn' },
   { key: 'h1Missing', label: 'H1 Missing', severity: 'error' },
+  { key: 'h2Missing', label: 'H2 Missing', severity: 'info' },
+  { key: 'h2Duplicate', label: 'H2 Duplicate', severity: 'info' },
+  { key: 'descriptionHasHtml', label: 'Description Contains HTML', severity: 'info' },
   { key: 'h1Duplicate', label: 'H1 Duplicate', severity: 'error' },
   { key: 'h1Multiple', label: 'Multiple H1s', severity: 'warn' },
   { key: 'headingSkippedLevel', label: 'Skipped Heading Level', severity: 'warn' },
@@ -209,6 +212,11 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   metaDuplicate: 'Write page-specific meta descriptions; duplicated snippets lower click-through and get rewritten by Google.',
   metaTooLong: 'Shorten meta descriptions to about 160 characters so the snippet is not cut off.',
   metaTooShort: 'Extend meta descriptions below 120 characters to make full use of the snippet.',
+  h2Missing:
+    'Break long content into sections with H2 subheadings; they help readers and search engines scan the page.',
+  h2Duplicate: 'Give each page its own first H2 instead of a heading repeated from a template.',
+  descriptionHasHtml:
+    'Remove HTML tags from the meta description; search engines show them as text or drop the description.',
   h1Missing: 'Add a single H1 that states the page topic; screen readers and crawlers use it as the page headline.',
   h1Duplicate: 'Make H1s unique per page so each page targets its own topic.',
   h1Multiple: 'Keep one H1 per page and demote the rest to H2/H3.',

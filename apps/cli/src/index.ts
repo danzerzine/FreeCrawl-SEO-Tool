@@ -609,6 +609,7 @@ async function main(): Promise<void> {
   const botBlocked = overview.site?.botBlocked ?? null;
   const siteWide = overview.site?.siteWide ?? null;
   const sitemapFindings = overview.site?.sitemapFindings ?? null;
+  const crawlStoppedAtLimit = overview.site?.crawlStoppedAtLimit ?? null;
   // A crawl that fetched nothing (unreachable seed, everything filtered) is a
   // failure for CI purposes — a successful spider always fetches ≥1 page.
   const hasErrors =
@@ -629,7 +630,7 @@ async function main(): Promise<void> {
           dbPath,
           summary,
           issues,
-          site: { soft404Probe, botBlocked, siteWide },
+          site: { soft404Probe, botBlocked, siteWide, crawlStoppedAtLimit },
           sitemapFindings,
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
@@ -691,6 +692,14 @@ async function main(): Promise<void> {
     }
     if (sitemapFindings?.inSeveral.count) {
       console.log(`Note: ${sitemapFindings.inSeveral.count} URL(s) in several sitemap files`);
+    }
+    if (issues.sitemapNotCrawled) {
+      console.log(
+        `Note: ${issues.sitemapNotCrawled} sitemap URL(s) not crawled` +
+          (crawlStoppedAtLimit
+            ? ` (the crawl stopped at its limit of ${crawlStoppedAtLimit} pages)`
+            : ''),
+      );
     }
   }
 

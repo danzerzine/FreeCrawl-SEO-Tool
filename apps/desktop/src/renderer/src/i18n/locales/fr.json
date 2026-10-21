@@ -25,7 +25,10 @@
     "byTargetLinks": "Cibles de liens : {{targets}} · liens vers elles : {{sources}}. La liste montre les liens.",
     "byTargetReport": "Une ligne par cible : Rapports → {{report}}.",
     "siteWideHint": "Présent sur presque toutes les pages : une seule correction dans le modèle du site ou les paramètres du serveur.",
-    "siteWideShare": "{{pages}} pages sur {{base}} ont répondu 200"
+    "siteWideShare": "{{pages}} pages sur {{base}} ont répondu 200",
+    "siteSitemapNotCrawled": "URL du sitemap non explorées",
+    "siteSitemapNotCrawledHint": "Ces URL figurent dans un sitemap, mais l’exploration ne les a pas atteintes : aucun lien interne n’y mène, ou l’exploration s’est arrêtée avant. Cliquez pour ouvrir la liste.",
+    "crawlStoppedAtLimit": "L’exploration s’est arrêtée à sa limite de {{n}} pages."
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",

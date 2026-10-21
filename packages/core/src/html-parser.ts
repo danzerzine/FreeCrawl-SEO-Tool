@@ -65,6 +65,8 @@ export interface ParsedPage {
   h1: string | null;
   h1Count: number;
   h2Count: number;
+  /** Text of the first <h2>, whitespace collapsed and entities decoded like the H1 (B76). */
+  h2First: string | null;
   h3Count: number;
   h4Count: number;
   h5Count: number;
@@ -915,6 +917,7 @@ export function parseHtml(
   const h1 = decodeEntities(collapseWs($('h1').first().text())) || null;
   const h1Count = $('h1').length;
   const h2Count = $('h2').length;
+  const h2First = decodeEntities(collapseWs($('h2').first().text())) || null;
   const h3Count = $('h3').length;
   const h4Count = $('h4').length;
   const h5Count = $('h5').length;
@@ -2215,6 +2218,7 @@ export function parseHtml(
     h1,
     h1Count,
     h2Count,
+    h2First,
     h3Count,
     h4Count,
     h5Count,

@@ -25,7 +25,10 @@
     "byTargetLinks": "Destinos de link: {{targets}} · links para eles: {{sources}}. A lista mostra os links.",
     "byTargetReport": "Uma linha por destino: Relatórios → {{report}}.",
     "siteWideHint": "Aparece em quase todas as páginas: uma correção no template do site ou nas configurações do servidor.",
-    "siteWideShare": "{{pages}} de {{base}} páginas responderam 200"
+    "siteWideShare": "{{pages}} de {{base}} páginas responderam 200",
+    "siteSitemapNotCrawled": "URLs do sitemap não rastreadas",
+    "siteSitemapNotCrawledHint": "Essas URLs estão em um sitemap, mas o rastreamento não chegou a elas: nenhum link interno leva a elas ou o rastreamento parou antes. Clique para abrir a lista.",
+    "crawlStoppedAtLimit": "O rastreamento parou no limite de {{n}} páginas."
   },
   "integrations": {
     "intro": "Conecte serviços externos com suas próprias credenciais. As chaves de API e os segredos são criptografados em repouso pelo armazenamento seguro do seu sistema operacional e nunca saem desta máquina.",
