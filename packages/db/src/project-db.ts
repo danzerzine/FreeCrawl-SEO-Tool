@@ -1739,6 +1739,7 @@ export class ProjectDb {
          DELETE FROM url_sources;
          DELETE FROM sitemap_urls;
          DELETE FROM sitemap_files;
+         DELETE FROM sitemap_url_sources;
          DELETE FROM urls;
          DELETE FROM project_meta WHERE key NOT IN (${META_KEYS_KEPT_BY_RESET.map((k) => `'${k}'`).join(', ')});
          DELETE FROM urls_issues;
@@ -4881,7 +4882,8 @@ export class ProjectDb {
   /**
    * Replace any previously-discovered sitemap entries with `entries`.
    * Bulk-inserted in chunks; on URL-level conflicts (same `<loc>` listed
-   * by multiple sitemaps) the first one wins.
+   * by multiple sitemaps) the first one wins; every distinct (URL, sitemap)
+   * pair is kept in `sitemap_url_sources`.
    */
   setSitemapUrls(
     entries: ReadonlyArray<{
@@ -4895,6 +4897,11 @@ export class ProjectDb {
     this.db.exec('BEGIN');
     try {
       this.db.exec('DELETE FROM sitemap_urls');
+      this.db.exec('DELETE FROM sitemap_url_sources');
+      const addSource = this.db.prepare(
+        'INSERT INTO sitemap_url_sources (url, source_sitemap) VALUES (?, ?) ON CONFLICT DO NOTHING',
+      );
+      for (const e of entries) addSource.run(e.url, e.source);
       if (entries.length > 0) {
         const CHUNK = 200;
         for (let i = 0; i < entries.length; i += CHUNK) {
@@ -4926,8 +4933,9 @@ export class ProjectDb {
       this.db.exec('DELETE FROM sitemap_files');
       const insert = this.db.prepare(
         `INSERT INTO sitemap_files
-           (url, status_code, bytes, inflated_bytes, url_count, child_count, warnings, error, reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (url, status_code, bytes, inflated_bytes, url_count, child_count, duplicate_entries,
+            warnings, error, reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(url) DO NOTHING`,
       );
       for (const f of files) {
@@ -4938,6 +4946,7 @@ export class ProjectDb {
           f.inflatedBytes,
           f.urlCount,
           f.childCount,
+          f.duplicateEntries,
           JSON.stringify(f.warnings),
           f.error,
           f.reason,
@@ -9305,20 +9314,28 @@ export class ProjectDb {
   /** Every URL listed in a crawled sitemap, with its lastmod and source sitemap. */
   *iterateSitemapUrls(): IterableIterator<SitemapUrlExportRow> {
     const rows = this.db
-      .prepare('SELECT url, lastmod, source_sitemap FROM sitemap_urls ORDER BY id')
+      .prepare(
+        `SELECT url, lastmod, source_sitemap,
+                NULLIF((SELECT COUNT(*) FROM sitemap_url_sources s WHERE s.url = sitemap_urls.url), 0) AS n
+           FROM sitemap_urls ORDER BY id`,
+      )
       .iterate() as unknown as Iterable<{
       url: string;
       lastmod: string | null;
       source_sitemap: string;
+      n: number | null;
     }>;
-    for (const r of rows) yield { url: r.url, lastmod: r.lastmod, sourceSitemap: r.source_sitemap };
+    for (const r of rows) {
+      yield { url: r.url, lastmod: r.lastmod, sourceSitemap: r.source_sitemap, sitemapCount: r.n };
+    }
   }
 
   /** The sitemap files the last crawl read or listed, in the order met; `where` filters them. */
   *iterateSitemapFiles(where = '1'): IterableIterator<SitemapFileRow> {
     const rows = this.db
       .prepare(
-        `SELECT url, status_code, bytes, inflated_bytes, url_count, child_count, warnings, error, reason
+        `SELECT url, status_code, bytes, inflated_bytes, url_count, child_count, duplicate_entries,
+                warnings, error, reason
            FROM sitemap_files WHERE ${where} ORDER BY id`,
       )
       .iterate() as unknown as Iterable<{
@@ -9328,6 +9345,7 @@ export class ProjectDb {
       inflated_bytes: number | null;
       url_count: number | null;
       child_count: number | null;
+      duplicate_entries: number | null;
       warnings: string;
       error: string | null;
       reason: SitemapFileRow['reason'];
@@ -9340,6 +9358,7 @@ export class ProjectDb {
         inflatedBytes: r.inflated_bytes,
         urlCount: r.url_count,
         childCount: r.child_count,
+        duplicateEntries: r.duplicate_entries,
         warnings: JSON.parse(r.warnings) as string[],
         error: r.error,
         reason: r.reason,
@@ -9352,11 +9371,18 @@ export class ProjectDb {
    * 50 MB as served or uncompressed, or too large to read). Null when the
    * project holds no sitemap files: not checked, rather than none found.
    */
-  private sitemapFindings(): { overUrls: SitemapFileRow[]; overSize: SitemapFileRow[] } | null {
+  private sitemapFindings(): NonNullable<OverviewCounts['site']>['sitemapFindings'] {
     const any = this.db.prepare('SELECT 1 FROM sitemap_files LIMIT 1').get();
     if (!any) return null;
     const maxBytes = 50 * 1024 * 1024;
+    const several = this.db
+      .prepare(
+        `SELECT url FROM sitemap_url_sources GROUP BY url HAVING COUNT(*) > 1 ORDER BY MIN(rowid)`,
+      )
+      .all() as { url: string }[];
     return {
+      duplicateEntries: [...this.iterateSitemapFiles('duplicate_entries > 0')],
+      inSeveral: { count: several.length, sample: several.slice(0, 5).map((r) => r.url) },
       overUrls: [...this.iterateSitemapFiles('url_count > 50000 OR child_count > 50000')],
       overSize: [
         ...this.iterateSitemapFiles(

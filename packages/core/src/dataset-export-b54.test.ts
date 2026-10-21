@@ -63,8 +63,8 @@ describe('B54 datasets', () => {
   it('sitemap-urls', () => {
     const rows = [...datasetRows(db, 'sitemap-urls')];
     expect(rows).toEqual([
-      { url: 'https://ex.com/a', lastmod: '2026-01-02', sourceSitemap: 'https://ex.com/sitemap.xml' },
-      { url: 'https://ex.com/z', lastmod: null, sourceSitemap: 'https://ex.com/s2.xml' },
+      { url: 'https://ex.com/a', lastmod: '2026-01-02', sourceSitemap: 'https://ex.com/sitemap.xml', sitemapCount: null },
+      { url: 'https://ex.com/z', lastmod: null, sourceSitemap: 'https://ex.com/s2.xml', sitemapCount: null },
     ]);
   });
   it('crawl-queue', () => {

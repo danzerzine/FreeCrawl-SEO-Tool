@@ -370,6 +370,19 @@ function renderSiteNotices(counts: OverviewCounts): string {
       `<p><span class="sev-warn">WARN</span> Sitemap over 50 MB: ${listFiles(sitemaps.overSize)}. ` +
       `Search engines read at most 50 MB uncompressed per sitemap file — split it and list the parts in a sitemap index.</p>`;
   }
+  if (sitemaps?.duplicateEntries.length) {
+    out +=
+      `<p><span class="sev-warn">WARN</span> Sitemap lists a URL twice: ${listFiles(sitemaps.duplicateEntries)}. ` +
+      `Each URL should appear once per sitemap file.</p>`;
+  }
+  if (sitemaps?.inSeveral.count) {
+    const more = sitemaps.inSeveral.count - sitemaps.inSeveral.sample.length;
+    out +=
+      `<p><span class="sev-info">INFO</span> ${fmtNum(sitemaps.inSeveral.count)} ` +
+      `URL${sitemaps.inSeveral.count === 1 ? ' is' : 's are'} in several sitemap files: ` +
+      `${listFiles(sitemaps.inSeveral.sample.map((url) => ({ url })))}${more > 0 ? ` and ${fmtNum(more)} more` : ''}. ` +
+      `Not necessarily a problem.</p>`;
+  }
   const probe = counts.site?.soft404Probe;
   if (!probe) return out;
   const via = probe.finalUrl

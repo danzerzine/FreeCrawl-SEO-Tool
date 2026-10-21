@@ -1889,7 +1889,14 @@ export interface OverviewCounts {
      * more than 50 MB uncompressed (a file too large to read counts here).
      * Null when the crawl read no sitemap files, so "not checked", not zero.
      */
-    sitemapFindings?: { overUrls: SitemapFileRow[]; overSize: SitemapFileRow[] } | null;
+    sitemapFindings?: {
+      overUrls: SitemapFileRow[];
+      overSize: SitemapFileRow[];
+      /** Files that list a URL more than once. */
+      duplicateEntries: SitemapFileRow[];
+      /** URLs listed in two or more distinct files, with the first few. */
+      inSeveral: { count: number; sample: string[] };
+    } | null;
   };
   summary: {
     totalInternalUrls: number;
@@ -2675,6 +2682,8 @@ export interface SitemapUrlExportRow {
   url: string;
   lastmod: string | null;
   sourceSitemap: string;
+  /** Distinct sitemap files that list the URL; null for a crawl made before they were kept. */
+  sitemapCount: number | null;
 }
 
 /**
@@ -2693,6 +2702,8 @@ export interface SitemapFileRow {
   inflatedBytes: number | null;
   urlCount: number | null;
   childCount: number | null;
+  /** URL entries that repeat an earlier entry of the same file. */
+  duplicateEntries: number | null;
   /** Protocol breaches found while reading (over 50,000 URLs, over 50 MB, content type). */
   warnings: string[];
   error: string | null;

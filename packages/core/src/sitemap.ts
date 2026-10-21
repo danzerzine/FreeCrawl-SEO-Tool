@@ -236,6 +236,7 @@ export async function fetchSitemaps(
       inflatedBytes: null,
       urlCount: null,
       childCount: null,
+      duplicateEntries: null,
       warnings: [],
       error: null,
       reason: null,
@@ -342,6 +343,9 @@ export async function fetchSitemaps(
       result.sitemapsParsed.push(item.url);
       file.urlCount = parsed.entries.length;
       file.childCount = parsed.childSitemaps.length;
+      const norms = parsed.entries.map((e) => normalizeUrl(e.url, undefined, opts.rewrites));
+      file.duplicateEntries =
+        parsed.entries.length - new Set(norms.map((n, i) => n ?? parsed.entries[i]!.url)).size;
       // Per-file URL cap (sitemapindex children are counted individually,
       // which is exactly what the protocol limits).
       if (parsed.entries.length > SITEMAP_MAX_URLS) {
@@ -354,12 +358,12 @@ export async function fetchSitemaps(
           `Sitemap index references ${parsed.childSitemaps.length.toLocaleString('en-US')} sitemaps, over the sitemaps.org 50,000 limit.`,
         );
       }
-      for (const entry of parsed.entries) {
+      for (const [i, entry] of parsed.entries.entries()) {
         if (result.entries.length >= opts.maxUrls) {
           result.truncated = true;
           break;
         }
-        const norm = normalizeUrl(entry.url, undefined, opts.rewrites);
+        const norm = norms[i];
         if (!norm) continue;
         result.entries.push({ ...entry, url: norm });
       }

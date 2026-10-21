@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Info } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import {
@@ -300,10 +300,13 @@ export function OverviewSidebar() {
   const soft404Probe = overview?.site?.soft404Probe ?? null;
   const botBlocked = overview?.site?.botBlocked ?? null;
   const sitemapFindings = overview?.site?.sitemapFindings ?? null;
+  const fileUrls = (files: { url: string }[] | undefined) => (files ?? []).map((f) => f.url);
   const sitemapNotices = [
     {
       key: 'overUrls',
-      files: sitemapFindings?.overUrls ?? [],
+      info: false,
+      items: fileUrls(sitemapFindings?.overUrls),
+      count: sitemapFindings?.overUrls.length ?? 0,
       title: t('sidebar.siteSitemapOverUrls', { defaultValue: 'Sitemap over 50,000 URLs' }),
       hint: t('sidebar.siteSitemapOverUrlsHint', {
         defaultValue:
@@ -312,14 +315,38 @@ export function OverviewSidebar() {
     },
     {
       key: 'overSize',
-      files: sitemapFindings?.overSize ?? [],
+      info: false,
+      items: fileUrls(sitemapFindings?.overSize),
+      count: sitemapFindings?.overSize.length ?? 0,
       title: t('sidebar.siteSitemapOverSize', { defaultValue: 'Sitemap over 50 MB' }),
       hint: t('sidebar.siteSitemapOverSizeHint', {
         defaultValue:
           'Search engines read at most 50 MB uncompressed per sitemap file. Split the file and list the parts in a sitemap index.',
       }),
     },
-  ].filter((n) => n.files.length > 0);
+    {
+      key: 'duplicateEntries',
+      info: false,
+      items: fileUrls(sitemapFindings?.duplicateEntries),
+      count: sitemapFindings?.duplicateEntries.length ?? 0,
+      title: t('sidebar.siteSitemapDuplicates', { defaultValue: 'Sitemap lists a URL twice' }),
+      hint: t('sidebar.siteSitemapDuplicatesHint', {
+        defaultValue:
+          'These sitemap files list the same URL more than once. Each URL should appear once per file; the Sitemap Files export has the count per file.',
+      }),
+    },
+    {
+      key: 'inSeveral',
+      info: true,
+      items: sitemapFindings?.inSeveral.sample ?? [],
+      count: sitemapFindings?.inSeveral.count ?? 0,
+      title: t('sidebar.siteSitemapInSeveral', { defaultValue: 'URL in several sitemaps' }),
+      hint: t('sidebar.siteSitemapInSeveralHint', {
+        defaultValue:
+          'These URLs are listed in two or more sitemap files. That is not necessarily a problem. The first few are shown; the Sitemap URLs export has the number of files for every URL.',
+      }),
+    },
+  ].filter((n) => n.count > 0);
 
   return (
     <div className="flex h-full flex-col bg-surface-900">
@@ -387,19 +414,30 @@ export function OverviewSidebar() {
         // About sitemap files, not crawled URLs: the files are the list.
         <div
           key={n.key}
-          className="flex items-start gap-1.5 border-b border-amber-700/40 bg-amber-900/20 px-2 py-1.5 text-[11px] text-amber-200"
+          className={
+            n.info
+              ? 'flex items-start gap-1.5 border-b border-surface-800 px-2 py-1.5 text-[11px] text-surface-300'
+              : 'flex items-start gap-1.5 border-b border-amber-700/40 bg-amber-900/20 px-2 py-1.5 text-[11px] text-amber-200'
+          }
           title={n.hint}
         >
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {n.info ? (
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          )}
           <div className="min-w-0 flex-1">
             <div className="font-medium">{n.title}</div>
-            {n.files.map((f) => (
-              <div key={f.url} className="break-all font-mono text-[10px] text-amber-300/80">
-                {f.url}
+            {n.items.map((url) => (
+              <div
+                key={url}
+                className={`break-all font-mono text-[10px] ${n.info ? 'text-surface-500' : 'text-amber-300/80'}`}
+              >
+                {url}
               </div>
             ))}
           </div>
-          <span className="shrink-0 font-mono tabular-nums">{n.files.length.toLocaleString()}</span>
+          <span className="shrink-0 font-mono tabular-nums">{n.count.toLocaleString()}</span>
         </div>
       ))}
       <div className="flex-1 overflow-auto">

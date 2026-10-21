@@ -2728,6 +2728,23 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 117,
+    name: 'add_sitemap_url_sources',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS sitemap_url_sources (
+          url             TEXT NOT NULL,
+          source_sitemap  TEXT NOT NULL,
+          UNIQUE (url, source_sitemap)
+        );
+      `);
+      const cols = db.prepare('PRAGMA table_info(sitemap_files)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'duplicate_entries')) {
+        db.exec('ALTER TABLE sitemap_files ADD COLUMN duplicate_entries INTEGER');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

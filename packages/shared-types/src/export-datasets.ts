@@ -191,6 +191,7 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'url', header: 'URL' },
     { key: 'lastmod', header: 'Last Modified' },
     { key: 'sourceSitemap', header: 'Source Sitemap' },
+    { key: 'sitemapCount', header: 'Sitemaps Listing It' },
   ],
   'sitemap-files': [
     { key: 'url', header: 'Sitemap' },
@@ -199,6 +200,7 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'inflatedBytes', header: 'Bytes Uncompressed' },
     { key: 'urlCount', header: 'URLs' },
     { key: 'childCount', header: 'Child Sitemaps' },
+    { key: 'duplicateEntries', header: 'Duplicate Entries' },
     { key: 'warnings', header: 'Warnings' },
     { key: 'error', header: 'Error' },
     { key: 'reason', header: 'Note' },

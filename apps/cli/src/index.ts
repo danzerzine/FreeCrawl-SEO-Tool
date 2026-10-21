@@ -686,6 +686,12 @@ async function main(): Promise<void> {
     for (const f of sitemapFindings?.overSize ?? []) {
       console.log(`Warning: sitemap over 50 MB — ${f.url}`);
     }
+    for (const f of sitemapFindings?.duplicateEntries ?? []) {
+      console.log(`Warning: sitemap lists ${f.duplicateEntries} URL(s) twice — ${f.url}`);
+    }
+    if (sitemapFindings?.inSeveral.count) {
+      console.log(`Note: ${sitemapFindings.inSeveral.count} URL(s) in several sitemap files`);
+    }
   }
 
   db.close();
