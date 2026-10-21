@@ -1427,6 +1427,13 @@ const LINK_TARGET_REPORT_SQL: Record<LinkTargetReportInput['report'], string> = 
   'non-indexable-inlinks': `t.indexability IN (${NON_INDEXABLE_SQL_LIST})`,
 };
 
+/**
+ * `project_meta` keys that are the user's setup rather than crawl data, so
+ * `reset()` (Clear, a crawl of another site, a new project's first crawl)
+ * keeps them: the monitoring rules and the alert channels turned on (B88d).
+ */
+const META_KEYS_KEPT_BY_RESET = ['monitorRules', 'monitorChannels'] as const;
+
 export class ProjectDb {
   /** Parse cache for `getDisabledIssues()` — keyed by the raw meta string. */
   private disabledIssuesRaw: string | null = null;
@@ -1607,7 +1614,7 @@ export class ProjectDb {
          DELETE FROM url_sources;
          DELETE FROM sitemap_urls;
          DELETE FROM urls;
-         DELETE FROM project_meta;
+         DELETE FROM project_meta WHERE key NOT IN (${META_KEYS_KEPT_BY_RESET.map((k) => `'${k}'`).join(', ')});
          DELETE FROM urls_issues;
          DELETE FROM crawl_queue;
          DELETE FROM host_certs;
@@ -1662,6 +1669,18 @@ export class ProjectDb {
         JSON.stringify(run.snapshot),
       );
     return Number(res.lastInsertRowid);
+  }
+
+  /**
+   * Start URL of the newest history row: the site the project was last
+   * crawled for, as the crawler resolved it (the typed URL in project meta
+   * may differ, e.g. before a redirect). Null when there is no history.
+   */
+  latestCrawlRunStartUrl(): string | null {
+    const row = this.db.prepare('SELECT start_url FROM crawl_runs ORDER BY id DESC LIMIT 1').get() as
+      | { start_url: string }
+      | undefined;
+    return row?.start_url ?? null;
   }
 
   /**

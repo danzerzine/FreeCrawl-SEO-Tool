@@ -215,3 +215,17 @@ export {
   type RuleOp,
   type AlertRuleResult,
 } from './monitor/rules.js';
+export {
+  listProjectRules,
+  saveProjectRules,
+  MONITOR_RULES_META_KEY,
+} from './monitor/project-rules.js';
+export {
+  formatAlert,
+  sendSlack,
+  sendTelegram,
+  sendWebhook,
+  type SendResult,
+  type SendOptions,
+  type TelegramConfig,
+} from './monitor/notify.js';
