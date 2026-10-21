@@ -7,6 +7,7 @@ export {
 } from './project-db.js';
 export type { UpsertUrlInput, ProbeWrite } from './project-db.js';
 export { runMigrations } from './migrations.js';
+export { buildCrawlSnapshot } from './crawl-snapshot.js';
 export {
   detectProjectFormat,
   packProject,

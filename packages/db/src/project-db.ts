@@ -96,6 +96,7 @@ import {
   minhashSlot,
   minhashSimilarity,
 } from '@freecrawl/shared-types';
+import { buildCrawlSnapshot } from './crawl-snapshot.js';
 import { runMigrations } from './migrations.js';
 
 /** `meta` key holding the JSON list of silenced issue categories. */
@@ -1669,6 +1670,19 @@ export class ProjectDb {
         JSON.stringify(run.snapshot),
       );
     return Number(res.lastInsertRowid);
+  }
+
+  /**
+   * Snapshot of the project as it stands now ({@link buildCrawlSnapshot}),
+   * appended as one history row. One call, so the desktop host runs the
+   * whole of it on the writer worker: on a 480k-URL project the counts take
+   * minutes, which on the main thread would freeze the window.
+   */
+  recordCrawlRun(
+    run: Omit<CrawlRun, 'id' | 'snapshot'>,
+    opts: { disabledChecks?: readonly string[] } = {},
+  ): number {
+    return this.appendCrawlRun({ ...run, snapshot: buildCrawlSnapshot(this, opts) });
   }
 
   /**

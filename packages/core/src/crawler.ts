@@ -60,7 +60,6 @@ import {
   redactUrlSecrets,
 } from './http-client.js';
 import { setActiveDnsHook } from './dns-resolver.js';
-import { buildCrawlSnapshot } from './monitor/snapshot.js';
 import { probeAlpn } from './alpn-probe.js';
 import { discoverSitemapUrls, fetchSitemaps, type SitemapEntry } from './sitemap.js';
 import { runJsonExtractionRules } from './extraction.js';
@@ -1561,15 +1560,16 @@ export class Crawler extends EventEmitter {
    */
   private async recordCrawlRun(): Promise<void> {
     try {
-      await this.dbCall<number>('appendCrawlRun', [
+      // Counted where the writes go (the desktop writer worker), not here.
+      await this.dbCall<number>('recordCrawlRun', [
         {
           finishedAt: new Date().toISOString(),
           startUrl: this.config.startUrl,
           mode: this.config.mode,
           durationMs: Date.now() - this.startedAt,
           toolVersion: this.toolVersion,
-          snapshot: buildCrawlSnapshot(this.db, { disabledChecks: this.config.disabledIssues }),
         },
+        { disabledChecks: this.config.disabledIssues },
       ]);
     } catch (err) {
       this.emit('warn', `Crawl history not saved: ${(err as Error).message}`);
