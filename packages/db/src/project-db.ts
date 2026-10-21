@@ -151,6 +151,12 @@ export const TEMPLATE_SAMPLE_META_KEY = 'templateSample';
 const CONTENT_AREA_MISSED_SQL = "content_source = 'selector-missed'";
 /** Words thin and empty content are judged on: the content area's when the crawl had one, else the page's (B74). */
 const JUDGED_WORDS_SQL = 'COALESCE(main_word_count, word_count)';
+/** The URL up to its query, with a trailing slash so a last path segment ends like the others (B28). */
+const URL_PATH_SLASH_SQL =
+  "((CASE WHEN instr(url, '?') > 0 THEN substr(url, 1, instr(url, '?') - 1) ELSE url END) || '/')";
+/** The query string led by '&', so every parameter reads '&name=' (B28). */
+const URL_QUERY_AMP_SQL =
+  "(CASE WHEN instr(url, '?') > 0 THEN '&' || substr(url, instr(url, '?') + 1) ELSE '' END)";
 /** Near-duplicate clusters above this many pages are named in the crawl log. */
 const LARGE_DUPLICATE_CLUSTER = 50;
 /**
@@ -167,6 +173,7 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:title-outside-head',
   'issues:description-outside-head',
   'issues:meta-robots-outside-head',
+  'issues:link-utm-internal',
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -398,6 +405,7 @@ interface UrlRowDb {
   title_outside_head: number;
   description_outside_head: number;
   meta_robots_outside_head: number;
+  internal_utm_links: number;
   og_name_attr: number;
   meta_noindex_bots: string | null;
   main_word_count: number | null;
@@ -698,6 +706,7 @@ export interface UpsertUrlInput {
   titleOutsideHead?: number;
   descriptionOutsideHead?: number;
   metaRobotsOutsideHead?: number;
+  internalUtmLinks?: number;
   ogNameAttr?: number;
   metaNoindexBots?: string | null;
   mainWordCount?: number | null;
@@ -896,7 +905,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head,
+    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
     template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
@@ -942,7 +951,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
     :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
@@ -1094,6 +1103,7 @@ const UPSERT_URL_SQL = `
     title_outside_head = excluded.title_outside_head,
     description_outside_head = excluded.description_outside_head,
     meta_robots_outside_head = excluded.meta_robots_outside_head,
+    internal_utm_links = excluded.internal_utm_links,
     og_name_attr = excluded.og_name_attr,
     meta_noindex_bots = excluded.meta_noindex_bots,
     main_word_count = excluded.main_word_count,
@@ -2871,6 +2881,7 @@ export class ProjectDb {
       title_outside_head: input.titleOutsideHead ?? 0,
       description_outside_head: input.descriptionOutsideHead ?? 0,
       meta_robots_outside_head: input.metaRobotsOutsideHead ?? 0,
+      internal_utm_links: input.internalUtmLinks ?? 0,
       og_name_attr: input.ogNameAttr ?? 0,
       meta_noindex_bots: input.metaNoindexBots ?? null,
       main_word_count: input.mainWordCount ?? null,
@@ -7683,6 +7694,9 @@ export class ProjectDb {
       titleOutsideHead: gatedCount('issues:title-outside-head'),
       descriptionOutsideHead: gatedCount('issues:description-outside-head'),
       metaRobotsOutsideHead: gatedCount('issues:meta-robots-outside-head'),
+      urlTemplateJunk: gatedCount('issues:url-template-junk'),
+      urlInternalSearch: gatedCount('issues:url-internal-search'),
+      linkUtmInternal: gatedCount('issues:link-utm-internal'),
       ogNameAttribute: gatedCount('issues:og-name-attribute'),
       noindexOtherBot: gatedCount('issues:noindex-other-bot'),
       langContentMismatch: gatedCount('issues:lang-content-mismatch'),
@@ -11520,6 +11534,7 @@ export class ProjectDb {
     titleOutsideHead: r.title_outside_head ?? 0,
     descriptionOutsideHead: r.description_outside_head ?? 0,
     metaRobotsOutsideHead: r.meta_robots_outside_head ?? 0,
+    internalUtmLinks: r.internal_utm_links ?? 0,
     ogNameAttr: r.og_name_attr ?? 0,
     metaNoindexBots: r.meta_noindex_bots ?? null,
     mainWordCount: r.main_word_count ?? null,
@@ -12234,7 +12249,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -12732,6 +12747,26 @@ function baseCategoryWhereClause(
     case 'issues:meta-robots-outside-head':
       // Still applied (Google usually honours it), and listed so it moves to <head>.
       return "is_external = 0 AND content_kind = 'html' AND meta_robots_outside_head > 0";
+    case 'issues:url-template-junk':
+      // A script printed an object or an unset variable into the link:
+      // [object Object], a whole segment undefined/null, an unrendered
+      // ${…} or {{…}} placeholder (B28).
+      return `is_external = 0 AND content_kind = 'html' AND (
+        instr(lower(url), '[object%20object]') > 0 OR instr(lower(url), '%5bobject%20object%5d') > 0
+        OR instr(lower(url), '$%7b') > 0 OR instr(lower(url), '%7b%7b') > 0
+        OR ${URL_PATH_SLASH_SQL} LIKE '%/undefined/%' OR ${URL_PATH_SLASH_SQL} LIKE '%/null/%')`;
+    case 'issues:url-internal-search':
+      // Site search results: WordPress ?s=, or a search parameter under a
+      // search / poisk / find path segment; a ?q= filter elsewhere is not one (B28).
+      return `is_external = 0 AND content_kind = 'html' AND (
+        ${URL_QUERY_AMP_SQL} LIKE '%&s=%'
+        OR ((${URL_QUERY_AMP_SQL} LIKE '%&q=%' OR ${URL_QUERY_AMP_SQL} LIKE '%&query=%'
+             OR ${URL_QUERY_AMP_SQL} LIKE '%&search=%' OR ${URL_QUERY_AMP_SQL} LIKE '%&text=%')
+            AND (${URL_PATH_SLASH_SQL} LIKE '%/search/%' OR ${URL_PATH_SLASH_SQL} LIKE '%/poisk/%'
+                 OR ${URL_PATH_SLASH_SQL} LIKE '%/find/%')))`;
+    case 'issues:link-utm-internal':
+      // utm_* on an internal link starts a new analytics session (B28).
+      return "is_external = 0 AND content_kind = 'html' AND internal_utm_links > 0";
     case 'issues:lang-content-mismatch':
       // html[lang] names a language the main content clearly isn't in
       // (different writing system, or none of its function words while

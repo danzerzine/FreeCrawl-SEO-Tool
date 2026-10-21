@@ -215,6 +215,8 @@ export interface ParsedPage {
   anchorTooLongCount: number;
   /** `<a href>` elements whose anchor is a generic phrase (`GENERIC_ANCHOR_TEXTS`). */
   genericAnchorCount: number;
+  /** Internal `<a href>` with `utm_*` in the raw href (normalisation strips them from the stored URL) (B28). */
+  internalUtmLinks: number;
   /** `<a target="_blank">` elements without `rel="noopener"` / `noreferrer`. */
   targetBlankNoNoopenerCount: number;
   /**
@@ -1657,6 +1659,7 @@ export function parseHtml(
   let emptyAnchorCount = 0;
   let anchorTooLongCount = 0;
   let genericAnchorCount = 0;
+  let internalUtmLinks = 0;
   let targetBlankNoNoopenerCount = 0;
   // JS-only / non-crawlable anchors. Three patterns count toward this
   // number — see the field doc on `parseHtml` return for the rationale:
@@ -1790,6 +1793,7 @@ export function parseHtml(
     const anchorGeneric = !!anchor && GENERIC_ANCHORS.has(anchor.trim().toLowerCase());
     if (anchorTooLong) anchorTooLongCount++;
     if (anchorGeneric) genericAnchorCount++;
+    if (isInternal && /[?&]utm_[a-z]+=/i.test(href)) internalUtmLinks++;
     if (
       target?.toLowerCase() === '_blank' &&
       !rel?.includes('noopener') &&
@@ -2267,6 +2271,7 @@ export function parseHtml(
     emptyAnchorCount,
     anchorTooLongCount,
     genericAnchorCount,
+    internalUtmLinks,
     targetBlankNoNoopenerCount,
     jsOnlyLinksCount,
     uncrawlableLinks,

@@ -160,6 +160,9 @@ const ISSUES: IssueDef[] = [
   { key: 'h1Empty', label: 'H1 Empty', severity: 'error' },
   { key: 'h1TooLong', label: 'H1 Too Long (>70)', severity: 'warn' },
   { key: 'urlFragment', label: 'Fragment in URL', severity: 'info' },
+  { key: 'urlTemplateJunk', label: 'Template Junk in URL', severity: 'warn' },
+  { key: 'urlInternalSearch', label: 'Internal Search URL', severity: 'info' },
+  { key: 'linkUtmInternal', label: 'Internal Link with UTM', severity: 'warn' },
   { key: 'urlSpaces', label: 'Spaces in URL', severity: 'warn' },
   { key: 'imageEmptyAlt', label: 'Image Empty Alt', severity: 'info' },
   { key: 'imageDuplicateAlt', label: 'Image Duplicate Alt', severity: 'warn' },
@@ -256,6 +259,12 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   titleOutsideHead: 'Move <title> into <head>; in <body> it is read only when <head> has none.',
   descriptionOutsideHead: 'Move the meta description into <head>; in <body> it is read only when <head> has none.',
   metaRobotsOutsideHead: 'Move the robots meta into <head>; search engines may ignore it in <body>.',
+  urlTemplateJunk:
+    'Fix the script or template that writes the link; the URL holds an unfilled value.',
+  urlInternalSearch:
+    'Keep site search results out of the crawl: noindex them or stop linking to them.',
+  linkUtmInternal:
+    'Drop utm_* from internal links; they restart the visit in analytics.',
   langContentMismatch: 'Set html[lang] to the language the page is actually written in.',
   soft404: 'Return 404/410 for pages that no longer exist instead of a 200 "not found" page.',
   redirectChain: 'Point links and redirects straight at the final URL.',

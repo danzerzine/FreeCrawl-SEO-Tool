@@ -201,6 +201,8 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Fragment (#) in URL', category: 'issues:url-fragment' },
     { label: 'Spaces in URL', category: 'issues:url-spaces' },
     { label: 'Malformed URL', category: 'issues:url-malformed' },
+    { label: 'Template Junk in URL', category: 'issues:url-template-junk' },
+    { label: 'Internal Search URL', category: 'issues:url-internal-search' },
     { label: 'Crawl Trap', category: 'issues:crawl-trap' },
     { label: 'Long Query String (>100 chars)', category: 'issues:query-string-too-long' },
     { label: 'Folder Depth >4', category: 'issues:folder-depth-too-deep' },
@@ -348,6 +350,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Empty Anchor Text', category: 'issues:link-empty-anchor' },
     { label: 'Anchor Text Too Long (>100)', category: 'issues:anchor-text-too-long' },
     { label: 'Generic Anchor Text', category: 'issues:anchor-text-generic' },
+    { label: 'Internal Link with UTM', category: 'issues:link-utm-internal' },
     { label: 'Target=_blank No Noopener', category: 'issues:target-blank-no-noopener' },
     { label: 'External Links > 100', category: 'issues:external-links-too-many' },
     { label: 'Total Links per Page > 100', category: 'issues:links-per-page-too-many' },
@@ -955,6 +958,7 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
   if (
     cat === 'issues:anchor-text-too-long' ||
     cat === 'issues:anchor-text-generic' ||
+    cat === 'issues:link-utm-internal' ||
     cat === 'issues:target-blank-no-noopener' ||
     cat === 'issues:external-links-too-many' ||
     cat === 'issues:links-per-page-too-many' ||

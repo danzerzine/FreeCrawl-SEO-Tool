@@ -5239,6 +5239,7 @@ export class Crawler extends EventEmitter {
           emptyAnchorCount: parsed.emptyAnchorCount,
           anchorTooLongCount: parsed.anchorTooLongCount,
           genericAnchorCount: parsed.genericAnchorCount,
+          internalUtmLinks: parsed.internalUtmLinks,
           targetBlankNoNoopenerCount: parsed.targetBlankNoNoopenerCount,
           microdataCount: parsed.microdataCount,
           rdfaCount: parsed.rdfaCount,

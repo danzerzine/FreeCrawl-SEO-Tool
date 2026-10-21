@@ -2677,6 +2677,19 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 114,
+    name: 'add_internal_utm_links',
+    // Internal links whose raw href carries utm_* (B28).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'internal_utm_links')) {
+        db.exec('ALTER TABLE urls ADD COLUMN internal_utm_links INTEGER NOT NULL DEFAULT 0');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {
