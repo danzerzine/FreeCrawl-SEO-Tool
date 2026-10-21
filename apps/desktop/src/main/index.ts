@@ -335,6 +335,13 @@ import {
   encryptString,
   decryptString,
 } from './credentials.js';
+import {
+  splitConfigSecrets,
+  applyConfigSecrets,
+  redactConfigSecrets,
+  serializeConfigWithEncryptedSecrets,
+  parseConfigWithEncryptedSecrets,
+} from './config-secrets.js';
 import { runPagespeedBatch, type PagespeedBatchItem } from './pagespeed.js';
 import { runCruxBatch, type CruxBatchItem } from './crux.js';
 import {
@@ -2305,126 +2312,6 @@ function mergeCrawlConfig(parsed: Partial<CrawlConfig>): CrawlConfig {
  *  IPC handler is running (via AsyncLocalStorage), else the default one. */
 function getDb(): ProjectDb {
   return currentSession().getDb();
-}
-
-// ── Crawl-config secret handling ───────────────────────────────────────────
-//
-// `CrawlConfig` carries credentials — HTTP-auth password/token, the browser
-// form-login password, and a proxy URL that can embed `user:pass@`. These
-// must not sit in plaintext in preferences.json or the .seoproject, nor be
-// handed to a colleague in a shared settings-export. `configSecretFields`
-// enumerates them; the helpers below either blank them (export) or split
-// them out for at-rest encryption (prefs / project meta).
-
-/** Return the secret values from a config as a flat record, and a deep-ish
- *  copy of the config with those values blanked. */
-function splitConfigSecrets(config: CrawlConfig): {
-  clean: CrawlConfig;
-  secrets: Record<string, string>;
-} {
-  const clean: CrawlConfig = JSON.parse(JSON.stringify(config)) as CrawlConfig;
-  const secrets: Record<string, string> = {};
-  if (clean.auth) {
-    if (clean.auth.password) {
-      secrets['auth.password'] = clean.auth.password;
-      clean.auth.password = '';
-    }
-    if (clean.auth.token) {
-      secrets['auth.token'] = clean.auth.token;
-      clean.auth.token = '';
-    }
-  }
-  const pv = clean.formLogin?.browser?.passwordValue;
-  if (pv) {
-    secrets['formLogin.browser.passwordValue'] = pv;
-    clean.formLogin!.browser!.passwordValue = '';
-  }
-  if (clean.proxyUrl) {
-    secrets['proxyUrl'] = clean.proxyUrl;
-    clean.proxyUrl = '';
-  }
-  return { clean, secrets };
-}
-
-/** Re-apply previously split secrets onto a (cleaned) config, in place. */
-function applyConfigSecrets(
-  config: CrawlConfig,
-  secrets: Record<string, string>,
-): CrawlConfig {
-  if (secrets['auth.password'] !== undefined && config.auth) {
-    config.auth.password = secrets['auth.password'];
-  }
-  if (secrets['auth.token'] !== undefined && config.auth) {
-    config.auth.token = secrets['auth.token'];
-  }
-  if (
-    secrets['formLogin.browser.passwordValue'] !== undefined &&
-    config.formLogin?.browser
-  ) {
-    config.formLogin.browser.passwordValue = secrets['formLogin.browser.passwordValue'];
-  }
-  if (secrets['proxyUrl'] !== undefined) {
-    config.proxyUrl = secrets['proxyUrl'];
-  }
-  return config;
-}
-
-/** A copy of the config with every secret blanked — for the shareable
- *  settings-export, which must never carry credentials. Accepts a loose
- *  record because the export IPC types its payload as `Record<string,
- *  unknown>`; the JSON round-trip inside `splitConfigSecrets` tolerates
- *  partial/extra fields. */
-function redactConfigSecrets(config: Record<string, unknown>): Record<string, unknown> {
-  return splitConfigSecrets(config as unknown as CrawlConfig).clean as unknown as Record<
-    string,
-    unknown
-  >;
-}
-
-/** Serialize a config for at-rest storage: secrets are pulled out and the
- *  whole secret bundle is encrypted into one field, the rest stays plain
- *  (and human-diffable). Returns the JSON string to persist. */
-function serializeConfigWithEncryptedSecrets(config: CrawlConfig): string {
-  const { clean, secrets } = splitConfigSecrets(config);
-  const payload: { config: CrawlConfig; secretsEnc?: string } = { config: clean };
-  if (Object.keys(secrets).length > 0) {
-    payload.secretsEnc = encryptString(JSON.stringify(secrets));
-  }
-  return JSON.stringify(payload);
-}
-
-/** Reverse of {@link serializeConfigWithEncryptedSecrets}. Accepts both the
- *  new `{config, secretsEnc}` envelope and a legacy bare-config JSON string
- *  (pre-encryption projects) so old files still load. Returns null on parse
- *  failure. */
-function parseConfigWithEncryptedSecrets(raw: string): Partial<CrawlConfig> | null {
-  try {
-    const parsed = JSON.parse(raw) as
-      | { config?: Partial<CrawlConfig>; secretsEnc?: string }
-      | Partial<CrawlConfig>;
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      'config' in parsed &&
-      (parsed as { config?: unknown }).config
-    ) {
-      const env = parsed as { config: Partial<CrawlConfig>; secretsEnc?: string };
-      const cfg = env.config;
-      if (env.secretsEnc) {
-        try {
-          const secrets = JSON.parse(decryptString(env.secretsEnc)) as Record<string, string>;
-          applyConfigSecrets(cfg as CrawlConfig, secrets);
-        } catch {
-          /* corrupt/undecryptable secrets — load the rest without them */
-        }
-      }
-      return cfg;
-    }
-    // Legacy: the whole thing is a bare config object.
-    return parsed as Partial<CrawlConfig>;
-  } catch {
-    return null;
-  }
 }
 
 /** Monotonic suffix so each open gets its own working file. */
