@@ -140,6 +140,16 @@ function flaggedChecks(
   return { has, failed };
 }
 
+/**
+ * Runs `fn` (a comparison of `a` and `b`) with both projects read through
+ * SQLite's page cache, not the memory map: the checks read every page of both
+ * files, and Windows counts every mapped page as the app's memory (4.2 GB vs
+ * 1.8 GB on a 261k-page pair, same time). Like the bulk exports.
+ */
+export function compareWithoutMmap<T>(a: ProjectDb, b: ProjectDb, fn: () => T): Promise<T> {
+  return a.withoutMmap(() => b.withoutMmap(async () => fn()));
+}
+
 export interface CompareProject {
   db: ProjectDb;
   /** Closes the project and deletes the temp copy, if any. */

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { packProject, ProjectDb } from '@freecrawl/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { compareCrawls, openCompareProject } from './compare.js';
+import { compareCrawls, compareWithoutMmap, openCompareProject } from './compare.js';
 
 let dir: string;
 const opened: ProjectDb[] = [];
@@ -303,5 +303,21 @@ describe('openCompareProject (B22)', () => {
     const junk = path.join(dir, 'junk.seoproject');
     fs.writeFileSync(junk, 'hello');
     await expect(openCompareProject(junk)).rejects.toThrow(/not a FreeCrawl project/i);
+  });
+});
+
+describe('compareWithoutMmap (B22)', () => {
+  const mmap = (db: ProjectDb): number =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((db as any).db.prepare('PRAGMA mmap_size').get() as { mmap_size: number }).mmap_size;
+
+  it('runs the comparison with the memory map off on both projects and restores it after', async () => {
+    const a = project('a', [{ id: 1, url: U('a') }]);
+    const b = project('b', [{ id: 1, url: U('a') }]);
+    const before = mmap(a);
+    expect(before).toBeGreaterThan(0);
+    const seen = await compareWithoutMmap(a, b, () => [mmap(a), mmap(b)]);
+    expect(seen).toEqual([0, 0]);
+    expect([mmap(a), mmap(b)]).toEqual([before, before]);
   });
 });

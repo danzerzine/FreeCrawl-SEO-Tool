@@ -112,6 +112,7 @@ export {
 export {
   compareCrawls,
   compareToFiles,
+  compareWithoutMmap,
   openCompareProject,
   type CompareProject,
   type CompareCategory,

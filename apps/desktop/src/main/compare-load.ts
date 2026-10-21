@@ -1,4 +1,4 @@
-import { compareCrawls, openCompareProject } from '@freecrawl/core';
+import { compareCrawls, compareWithoutMmap, openCompareProject } from '@freecrawl/core';
 import type { ProjectDb } from '@freecrawl/db';
 import {
   COMPARE_CATEGORIES,
@@ -34,7 +34,7 @@ export async function compareWithOpenProject(
 ): Promise<CompareLoadResult> {
   const picked = await openCompareProject(filePath);
   try {
-    const s = compareCrawls(picked.db, open);
+    const s = await compareWithoutMmap(picked.db, open, () => compareCrawls(picked.db, open));
     return {
       filePath,
       totalA: s.totalA,

@@ -28,6 +28,7 @@ import {
   Crawler,
   compareCrawls,
   compareToFiles,
+  compareWithoutMmap,
   openCompareProject,
   type CompareProject,
   assertMetric,
@@ -1117,9 +1118,9 @@ async function runCompare(
       }
     }
     const [before, after] = opened as [CompareProject, CompareProject];
-    const summary = opts.outDir
-      ? compareToFiles(before.db, after.db, opts.outDir)
-      : compareCrawls(before.db, after.db);
+    const summary = await compareWithoutMmap(before.db, after.db, () =>
+      opts.outDir ? compareToFiles(before.db, after.db, opts.outDir) : compareCrawls(before.db, after.db),
+    );
     if (opts.json) {
       // Awaited: the caller exits right after, which would cut a long pipe write short.
       await new Promise<void>((done) =>
