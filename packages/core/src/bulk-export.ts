@@ -269,19 +269,30 @@ export function since(t0: number): number {
 export async function runBulkExport(
   db: ProjectDb,
   outputDir: string,
-  options: {
-    tasks?: readonly BulkExportTask[];
-    /** Header row of the CSV files: the grid's labels (default) or raw keys. */
-    headers?: 'labels' | 'keys';
-    /** Tool version and project file, recorded in `manifest.json`. */
-    toolVersion?: string;
-    projectFile?: string;
-    /**
-     * `false`: no `manifest.json` of its own; a caller running several
-     * exports into the folder writes one for the whole run.
-     */
-    manifest?: boolean;
-  } = {},
+  options: BulkExportOptions = {},
+): Promise<BulkExportResult> {
+  // Reads through SQLite's page cache: see `withoutMmap`.
+  return db.withoutMmap(() => writeBulkExport(db, outputDir, options));
+}
+
+interface BulkExportOptions {
+  tasks?: readonly BulkExportTask[];
+  /** Header row of the CSV files: the grid's labels (default) or raw keys. */
+  headers?: 'labels' | 'keys';
+  /** Tool version and project file, recorded in `manifest.json`. */
+  toolVersion?: string;
+  projectFile?: string;
+  /**
+   * `false`: no `manifest.json` of its own; a caller running several
+   * exports into the folder writes one for the whole run.
+   */
+  manifest?: boolean;
+}
+
+async function writeBulkExport(
+  db: ProjectDb,
+  outputDir: string,
+  options: BulkExportOptions,
 ): Promise<BulkExportResult> {
   const startedAt = new Date();
   const writesManifest = !options.tasks && options.manifest !== false;
