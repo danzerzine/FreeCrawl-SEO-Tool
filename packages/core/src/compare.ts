@@ -1,4 +1,21 @@
-import type { ProjectDb } from '@freecrawl/db';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import {
+  categoryWhereClause,
+  detectProjectFormat,
+  EXPENSIVE_ISSUE_DEFINITIONS,
+  ProjectDb,
+  unpackProject,
+} from '@freecrawl/db';
+import { ISSUE_CATEGORIES } from '@freecrawl/shared-types';
+import type {
+  CompareCategory,
+  CompareDiffRow,
+  CompareIssueChange,
+  CompareNotComparable,
+  UrlCategory,
+} from '@freecrawl/shared-types';
 
 /**
  * Cross-project diff engine. Compares two crawl databases by URL key
@@ -28,25 +45,7 @@ export interface CompareOptions {
   responseTimeThresholdMs?: number;
 }
 
-export type CompareCategory =
-  | 'added'
-  | 'removed'
-  | 'status'
-  | 'title'
-  | 'meta'
-  | 'h1'
-  | 'canonical'
-  | 'indexability'
-  | 'response_time';
-
-export interface CompareDiffRow {
-  url: string;
-  category: CompareCategory;
-  /** Old value formatted for display (a-side). null = absent. */
-  before: string | null;
-  /** New value formatted for display (b-side). null = absent. */
-  after: string | null;
-}
+export type { CompareCategory, CompareDiffRow };
 
 export interface CompareSummary {
   /** Total URLs in each side. */
@@ -56,9 +55,14 @@ export interface CompareSummary {
   counts: Record<CompareCategory, number>;
   /** Truncated sample rows per category (≤ perCategoryLimit). */
   samples: CompareDiffRow[];
+  /** Per check, pages that appeared / resolved (pages in both crawls). */
+  issueChanges: Record<string, CompareIssueChange>;
+  /** Kinds the pair cannot be compared on, with the reason. */
+  notComparable: Record<string, CompareNotComparable>;
 }
 
 interface MinimalRow {
+  id: number;
   url: string;
   status_code: number | null;
   title: string | null;
@@ -67,9 +71,128 @@ interface MinimalRow {
   canonical: string | null;
   indexability: string;
   response_time_ms: number | null;
+  depth: number | null;
+  schema_types: string | null;
+  content_hash: string | null;
+  content_source: string | null;
 }
 
-function loadAll(db: ProjectDb): Iterable<MinimalRow> {
+/**
+ * Prepared reader of one page's followed internal link targets (distinct).
+ * Per `from_url_id` through idx_links_from, so no sort or scan of the table.
+ */
+function outlinkReader(db: ProjectDb): (urlId: number) => Set<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawDb = (db as any).db as {
+    prepare: (sql: string) => { all: (...args: number[]) => unknown[] };
+  };
+  const stmt = rawDb.prepare(
+    `SELECT DISTINCT to_url FROM links
+      WHERE from_url_id = ? AND type = 'hyperlink' AND is_internal = 1
+        AND (rel IS NULL OR rel NOT LIKE '%nofollow%')`,
+  );
+  return (urlId) => new Set((stmt.all(urlId) as { to_url: string }[]).map((r) => r.to_url));
+}
+
+/**
+ * The checks each page is flagged by, as indexes into `keys`. Membership is
+ * the filter behind each check's list (`categoryWhereClause`), so cheap checks
+ * count as well as the materialised ones. A check whose filter cannot run on
+ * this project (an older schema) is listed in `failed`, not thrown.
+ */
+function flaggedChecks(
+  db: ProjectDb,
+  keys: readonly UrlCategory[],
+): { byUrlId: Map<number, number[]>; failed: Map<number, string> } {
+  const byUrlId = new Map<number, number[]>();
+  const failed = new Map<number, string>();
+  const listed = db.urlIdsByCategories(keys);
+  keys.forEach((key, i) => {
+    const ids = listed.get(key);
+    if (ids === undefined || ids instanceof Error) {
+      failed.set(i, ids?.message ?? 'not listed');
+      return;
+    }
+    for (const id of ids) {
+      const flagged = byUrlId.get(id);
+      if (flagged) flagged.push(i);
+      else byUrlId.set(id, [i]);
+    }
+  });
+  return { byUrlId, failed };
+}
+
+export interface CompareProject {
+  db: ProjectDb;
+  /** Closes the project and deletes the temp copy, if any. */
+  dispose: () => void;
+}
+
+/**
+ * Open the other project of a comparison, for every consumer. An archive
+ * `.seoproject` is unpacked to a temp working copy; a bare SQLite project is
+ * read in place, read-only, and copied only when its stored (expensive)
+ * checks predate the current definitions: they are rebuilt in the copy, so
+ * the file the user picked is never written. Throws a user-facing message on
+ * a missing or unrecognised file.
+ */
+export async function openCompareProject(path: string): Promise<CompareProject> {
+  if (!existsSync(path)) throw new Error(`Project not found: ${path}`);
+  const format = detectProjectFormat(path);
+  if (format === 'unknown') {
+    throw new Error(
+      'This file is not a FreeCrawl project (unrecognised format). It may be corrupt or a different file type.',
+    );
+  }
+  let dir: string | null = null;
+  let db: ProjectDb | null = null;
+  const dispose = (): void => {
+    try {
+      db?.close();
+    } catch {
+      /* already gone — the copy is removed regardless */
+    }
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  };
+  try {
+    if (format === 'archive') {
+      dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
+      const copy = join(dir, basename(path));
+      await unpackProject(path, copy);
+      db = new ProjectDb(copy);
+    } else {
+      db = new ProjectDb(path, { readOnly: true });
+      if (db.issueMaterialisationStale()) {
+        db.close();
+        dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
+        const copy = join(dir, basename(path));
+        copyFileSync(path, copy);
+        db = new ProjectDb(copy);
+      }
+    }
+    if (dir && db.issueMaterialisationStale()) db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+  } catch (err) {
+    dispose();
+    throw err;
+  }
+  return { db, dispose };
+}
+
+const COMPARE_COPY_PREFIX = 'freecrawl-compare-';
+
+/** Column names of a table; an older project lacks the ones added later. */
+function columnsOf(db: ProjectDb, table: string): Set<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawDb = (db as any).db as { prepare: (sql: string) => { all: () => unknown[] } };
+  return new Set(
+    (rawDb.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name),
+  );
+}
+
+/** Columns the newer kinds read. A missing one is selected as NULL and its kind is reported as not comparable. */
+const KIND_COLUMNS = ['depth', 'schema_types', 'content_hash', 'content_source'] as const;
+
+function loadAll(db: ProjectDb, urlColumns: ReadonlySet<string>): Iterable<MinimalRow> {
   // Pull only the fields the diff needs — keeps memory bounded at 1M
   // URLs (~120 MB for the seven columns vs ~600 MB for the full table).
   // Reaches into the underlying DatabaseSync via ProjectDb.exec for the
@@ -86,8 +209,8 @@ function loadAll(db: ProjectDb): Iterable<MinimalRow> {
   };
   return rawDb
     .prepare(
-      `SELECT url, status_code, title, meta_description, h1, canonical,
-              indexability, response_time_ms
+      `SELECT id, url, status_code, title, meta_description, h1, canonical,
+              indexability, response_time_ms, ${KIND_COLUMNS.map((c) => (urlColumns.has(c) ? c : `NULL AS ${c}`)).join(', ')}
          FROM urls
         WHERE is_external = 0 AND content_kind = 'html'`,
     )
@@ -104,6 +227,11 @@ const EMPTY_COUNTS: Record<CompareCategory, number> = {
   canonical: 0,
   indexability: 0,
   response_time: 0,
+  depth: 0,
+  content: 0,
+  structured_data: 0,
+  outlinks: 0,
+  issues: 0,
 };
 
 export function compareCrawls(
@@ -116,9 +244,11 @@ export function compareCrawls(
 
   // Consume each side straight into its Map — no intermediate array.
   const mapA = new Map<string, MinimalRow>();
-  for (const r of loadAll(a)) mapA.set(r.url, r);
+  const colsA = columnsOf(a, 'urls');
+  const colsB = columnsOf(b, 'urls');
+  for (const r of loadAll(a, colsA)) mapA.set(r.url, r);
   const mapB = new Map<string, MinimalRow>();
-  for (const r of loadAll(b)) mapB.set(r.url, r);
+  for (const r of loadAll(b, colsB)) mapB.set(r.url, r);
 
   const counts: Record<CompareCategory, number> = { ...EMPTY_COUNTS };
   const samples: CompareDiffRow[] = [];
@@ -159,6 +289,26 @@ export function compareCrawls(
       });
     }
   }
+
+  // Checks silenced in either project are left out of the comparison.
+  const silenced = new Set([...a.getDisabledIssues(), ...b.getDisabledIssues()]);
+  const keys = ISSUE_CATEGORIES.filter((k) => !silenced.has(k) && categoryWhereClause(k) !== null);
+  const flagsA = flaggedChecks(a, keys);
+  const flagsB = flaggedChecks(b, keys);
+  const issueChanges: Record<string, CompareIssueChange> = {};
+  let compared = 0;
+  const hasLinkType = columnsOf(a, 'links').has('type') && columnsOf(b, 'links').has('type');
+  const outlinksA = hasLinkType ? outlinkReader(a) : null;
+  const outlinksB = hasLinkType ? outlinkReader(b) : null;
+  // A kind is comparable only when both projects have all the columns it reads.
+  const lacking = (...cols: string[]): string[] =>
+    cols.filter((c) => !colsA.has(c) || !colsB.has(c));
+  const notComparable: Record<string, CompareNotComparable> = {};
+  const noDepth = lacking('depth').length > 0;
+  const noSchema = lacking('schema_types').length > 0;
+  const noContent = lacking('content_hash', 'content_source').length > 0;
+  let contentSkipped = 0;
+  const failedKey = (i: number): boolean => flagsA.failed.has(i) || flagsB.failed.has(i);
 
   // Field-level changes — present in both, value differs.
   for (const [url, ra] of mapA) {
@@ -225,6 +375,94 @@ export function compareCrawls(
         after: rb.response_time_ms !== null ? `${rb.response_time_ms} ms` : null,
       });
     }
+    if (!noDepth && ra.depth !== rb.depth) {
+      push({
+        url,
+        category: 'depth',
+        before: ra.depth !== null ? String(ra.depth) : null,
+        after: rb.depth !== null ? String(rb.depth) : null,
+      });
+    }
+    if (!noSchema && (ra.schema_types ?? '') !== (rb.schema_types ?? '')) {
+      push({
+        url,
+        category: 'structured_data',
+        before: ra.schema_types,
+        after: rb.schema_types,
+      });
+    }
+    compared++;
+    // The sets are read one page at a time and dropped, so nothing per URL
+    // is held in memory; the diff is what the row shows.
+    const ta = outlinksA?.(ra.id) ?? new Set<string>();
+    const tb = outlinksB?.(rb.id) ?? new Set<string>();
+    const dropped = [...ta].filter((t) => !tb.has(t)).sort();
+    const added = [...tb].filter((t) => !ta.has(t)).sort();
+    if (dropped.length > 0 || added.length > 0) {
+      push({
+        url,
+        category: 'outlinks',
+        before: dropped.length > 0 ? dropped.join(' ') : null,
+        after: added.length > 0 ? added.join(' ') : null,
+      });
+    }
+    const fa = flagsA.byUrlId.get(ra.id) ?? [];
+    const fb = flagsB.byUrlId.get(rb.id) ?? [];
+    const resolved = fa.filter((i) => !fb.includes(i) && !failedKey(i));
+    const appeared = fb.filter((i) => !fa.includes(i) && !failedKey(i));
+    if (resolved.length > 0 || appeared.length > 0) {
+      for (const i of resolved)
+        (issueChanges[keys[i]!] ??= { appeared: 0, resolved: 0 }).resolved++;
+      for (const i of appeared)
+        (issueChanges[keys[i]!] ??= { appeared: 0, resolved: 0 }).appeared++;
+      push({
+        url,
+        category: 'issues',
+        before: resolved.length > 0 ? resolved.map((i) => keys[i]).join(' ') : null,
+        after: appeared.length > 0 ? appeared.map((i) => keys[i]).join(' ') : null,
+      });
+    }
+    // A hash is comparable only when both sides have one, from the same
+    // content source (main text vs whole body hash differently).
+    if (noContent) {
+      // reported once below
+    } else if (
+      ra.content_hash === null ||
+      rb.content_hash === null ||
+      ra.content_source === null ||
+      ra.content_source !== rb.content_source
+    ) {
+      contentSkipped++;
+    } else if (ra.content_hash !== rb.content_hash) {
+      push({
+        url,
+        category: 'content',
+        before: ra.content_hash.slice(0, 12),
+        after: rb.content_hash.slice(0, 12),
+      });
+    }
+  }
+  const missing = (kind: string, cols: string[]): void => {
+    notComparable[kind] = {
+      reason: `column ${cols.join(', ')} missing in an older project`,
+      urls: compared,
+    };
+  };
+  if (noDepth) missing('depth', lacking('depth'));
+  if (noSchema) missing('structured_data', lacking('schema_types'));
+  if (noContent) missing('content', lacking('content_hash', 'content_source'));
+  if (!hasLinkType) missing('outlinks', ['links.type']);
+  if (contentSkipped > 0) {
+    notComparable.content = {
+      reason: 'a page lacks a content hash, or the two crawls hashed a different content source',
+      urls: contentSkipped,
+    };
+  }
+
+  for (const failed of [flagsA.failed, flagsB.failed]) {
+    for (const [i, reason] of failed) {
+      notComparable[keys[i]!] ??= { reason, urls: compared };
+    }
   }
 
   return {
@@ -234,5 +472,7 @@ export function compareCrawls(
     totalB: mapB.size,
     counts,
     samples,
+    issueChanges,
+    notComparable,
   };
 }

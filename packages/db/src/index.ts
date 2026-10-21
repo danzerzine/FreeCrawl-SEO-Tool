@@ -1,5 +1,6 @@
 export {
   ProjectDb,
+  categoryWhereClause,
   EXPENSIVE_ISSUE_DEFINITIONS,
   SOFT404_PROBE_META_KEY,
   COUNT_NOFOLLOW_META_KEY,

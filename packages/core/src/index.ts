@@ -111,6 +111,8 @@ export {
 } from './webhook.js';
 export {
   compareCrawls,
+  openCompareProject,
+  type CompareProject,
   type CompareCategory,
   type CompareDiffRow,
   type CompareSummary,

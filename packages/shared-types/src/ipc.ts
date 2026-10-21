@@ -977,22 +977,43 @@ export interface BulkExportResult {
   errors: { label: string; error: string }[];
 }
 
-export type CompareCategory =
-  | 'added'
-  | 'removed'
-  | 'status'
-  | 'title'
-  | 'meta'
-  | 'h1'
-  | 'canonical'
-  | 'indexability'
-  | 'response_time';
+/** The kinds of change between two crawls; the one list core, the CLI, the MCP tool and the dialog read. */
+export const COMPARE_CATEGORIES = [
+  'added',
+  'removed',
+  'status',
+  'title',
+  'meta',
+  'h1',
+  'canonical',
+  'indexability',
+  'response_time',
+  'depth',
+  'content',
+  'structured_data',
+  'outlinks',
+  'issues',
+] as const;
+
+export type CompareCategory = (typeof COMPARE_CATEGORIES)[number];
 
 export interface CompareDiffRow {
   url: string;
   category: CompareCategory;
   before: string | null;
   after: string | null;
+}
+
+export interface CompareNotComparable {
+  reason: string;
+  /** Pages in both crawls the kind could not be judged for. */
+  urls: number;
+}
+
+/** Pages a check started or stopped flagging between the two crawls (pages in both). */
+export interface CompareIssueChange {
+  appeared: number;
+  resolved: number;
 }
 
 export interface CompareLoadInput {
@@ -1007,6 +1028,10 @@ export interface CompareLoadResult {
   totalB: number;
   counts: Record<CompareCategory, number>;
   samples: CompareDiffRow[];
+  /** Per check with a change; checks silenced in either project are left out. */
+  issueChanges: Record<string, CompareIssueChange>;
+  /** Kinds (or checks) the pair cannot be compared on: the reason and how many pages it touches. */
+  notComparable: Record<string, CompareNotComparable>;
 }
 
 export interface GraphNode {
