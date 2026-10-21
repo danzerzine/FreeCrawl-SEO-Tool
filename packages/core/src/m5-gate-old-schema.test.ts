@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { ProjectDb } from '@freecrawl/db';
+import { ProjectDb, runMigrations } from '@freecrawl/db';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { compareCrawls } from './compare.js';
 
@@ -76,4 +76,22 @@ it('a project from an older build opened read-only: overview, thin and empty con
   const s = compareCrawls(oldDb, open(project('new', rows)));
   expect(Object.keys(s.notComparable)).not.toContain('issues:content-thin');
   expect(Object.keys(s.notComparable)).not.toContain('issues:page-empty');
+});
+
+it('a project with the schema of the build before these checks (migrations up to 109), read-only: overview works', () => {
+  const file = path.join(dir, 'v109.seoproject');
+  const raw = new DatabaseSync(file);
+  runMigrations(raw, 109);
+  raw
+    .prepare(
+      `INSERT INTO urls (url, is_external, content_kind, status_code, indexability, title, word_count)
+       VALUES (?, 0, 'html', 200, 'indexable', '', ?)`,
+    )
+    .run('https://ex.com/thin', 10);
+  raw.close();
+  const db = open(file, true);
+  const o = db.getOverviewCounts();
+  expect(o.issues.titleMissing).toBe(1);
+  expect(o.issues.pageEmpty).toBe(1);
+  expect(urls(db, 'issues:content-thin')).toEqual(['https://ex.com/thin']);
 });
