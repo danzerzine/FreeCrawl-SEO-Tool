@@ -1119,9 +1119,8 @@ async function runHistory(opts: {
     return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
   }
   try {
-    // A CLI crawl stores the start URL as `startUrl`, the desktop app as `lastStartUrl`.
-    const startUrl =
-      opts.startUrl ?? project.db.getMeta('lastStartUrl') ?? project.db.getMeta('startUrl') ?? '';
+    // Default: the site of the newest crawl, as stored in its history row.
+    const startUrl = opts.startUrl ?? project.db.latestCrawlRunStartUrl() ?? '';
     const rows = project.db.listCrawlRuns(startUrl, limit).map((run) => ({
       finishedAt: run.finishedAt,
       ...Object.fromEntries(metrics.map((m) => [m, metricValue(run.snapshot, m)])),
