@@ -225,6 +225,25 @@ describe('compareCrawls: older project (B22)', () => {
       expect(s.notComparable[kind]?.urls, kind).toBe(1);
     }
   });
+  it('a check whose filter cannot run on the older project is no change, even where the newer one flags the page', () => {
+    const older = project('older', [{ id: 1, url: U('a') }]);
+    const file = path.join(dir, 'older.seoproject');
+    older.close();
+    opened.splice(opened.indexOf(older), 1);
+    const raw = new DatabaseSync(file);
+    const idx = raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND sql LIKE '%folder_depth%'`).all() as { name: string }[];
+    for (const { name } of idx) raw.exec(`DROP INDEX ${name}`);
+    raw.exec('ALTER TABLE urls DROP COLUMN folder_depth');
+    raw.close();
+    const readOnly = new ProjectDb(file, { readOnly: true });
+    opened.push(readOnly);
+    const current = project('current', [{ id: 1, url: U('a') }], 'UPDATE urls SET folder_depth = 6');
+
+    const s = compareCrawls(readOnly, current);
+    expect(s.notComparable['issues:folder-depth-too-deep']?.urls).toBe(1);
+    expect(s.issueChanges['issues:folder-depth-too-deep']).toBeUndefined();
+    expect(JSON.stringify(s.samples)).not.toContain('issues:folder-depth-too-deep');
+  });
 });
 
 describe('openCompareProject (B22)', () => {

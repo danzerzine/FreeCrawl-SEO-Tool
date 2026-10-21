@@ -108,31 +108,36 @@ function outlinkReader(db: ProjectDb): (urlId: number) => Set<string> {
 }
 
 /**
- * The checks each page is flagged by, as indexes into `keys`. Membership is
- * the filter behind each check's list (`categoryWhereClause`), so cheap checks
- * count as well as the materialised ones. A check whose filter cannot run on
- * this project (an older schema) is listed in `failed`, not thrown.
+ * The checks each page is flagged by: one bitset per check over `urls.id`,
+ * so a 261k-page pair holds a few MB, not a Map of per-page arrays. Membership
+ * is the filter behind each check's list (`categoryWhereClause`), so cheap
+ * checks count as well as the materialised ones. A check whose filter cannot
+ * run on this project (an older schema) is listed in `failed`, not thrown.
  */
 function flaggedChecks(
   db: ProjectDb,
   keys: readonly UrlCategory[],
-): { byUrlId: Map<number, number[]>; failed: Map<number, string> } {
-  const byUrlId = new Map<number, number[]>();
+): { has: (check: number, urlId: number) => boolean; failed: Map<number, string> } {
+  const bits: (Uint8Array | null)[] = [];
   const failed = new Map<number, string>();
   const listed = db.urlIdsByCategories(keys);
   keys.forEach((key, i) => {
     const ids = listed.get(key);
+    listed.delete(key);
     if (ids === undefined || ids instanceof Error) {
       failed.set(i, ids?.message ?? 'not listed');
+      bits.push(null);
       return;
     }
-    for (const id of ids) {
-      const flagged = byUrlId.get(id);
-      if (flagged) flagged.push(i);
-      else byUrlId.set(id, [i]);
-    }
+    let max = 0;
+    for (const id of ids) if (id > max) max = id;
+    const set = new Uint8Array((max >> 3) + 1);
+    for (const id of ids) set[id >> 3]! |= 1 << (id & 7);
+    bits.push(set);
   });
-  return { byUrlId, failed };
+  const has = (check: number, urlId: number): boolean =>
+    ((bits[check]?.[urlId >> 3] ?? 0) & (1 << (urlId & 7))) !== 0;
+  return { has, failed };
 }
 
 export interface CompareProject {
@@ -230,6 +235,28 @@ function loadAll(db: ProjectDb, urlColumns: ReadonlySet<string>): Iterable<Minim
     .iterate() as Iterable<MinimalRow>;
 }
 
+/**
+ * A copy of the row as one object literal: every row shares one shape, which
+ * holds 261k rows per side in less heap than the rows the driver returns.
+ */
+function compactRow(r: MinimalRow): MinimalRow {
+  return {
+    id: r.id,
+    url: r.url,
+    status_code: r.status_code,
+    title: r.title,
+    meta_description: r.meta_description,
+    h1: r.h1,
+    canonical: r.canonical,
+    indexability: r.indexability,
+    response_time_ms: r.response_time_ms,
+    depth: r.depth,
+    schema_types: r.schema_types,
+    content_hash: r.content_hash,
+    content_source: r.content_source,
+  };
+}
+
 const EMPTY_COUNTS: Record<CompareCategory, number> = {
   added: 0,
   removed: 0,
@@ -259,9 +286,9 @@ export function compareCrawls(
   const mapA = new Map<string, MinimalRow>();
   const colsA = columnsOf(a, 'urls');
   const colsB = columnsOf(b, 'urls');
-  for (const r of loadAll(a, colsA)) mapA.set(r.url, r);
+  for (const r of loadAll(a, colsA)) mapA.set(r.url, compactRow(r));
   const mapB = new Map<string, MinimalRow>();
-  for (const r of loadAll(b, colsB)) mapB.set(r.url, r);
+  for (const r of loadAll(b, colsB)) mapB.set(r.url, compactRow(r));
 
   const counts: Record<CompareCategory, number> = { ...EMPTY_COUNTS };
   const samples: CompareDiffRow[] = [];
@@ -322,7 +349,7 @@ export function compareCrawls(
   const noSchema = lacking('schema_types').length > 0;
   const noContent = lacking('content_hash', 'content_source').length > 0;
   let contentSkipped = 0;
-  const failedKey = (i: number): boolean => flagsA.failed.has(i) || flagsB.failed.has(i);
+  const usable = keys.map((_, i) => !flagsA.failed.has(i) && !flagsB.failed.has(i));
 
   // Field-level changes — present in both, value differs.
   for (const [url, ra] of mapA) {
@@ -420,10 +447,13 @@ export function compareCrawls(
         after: added.length > 0 ? added.join(' ') : null,
       });
     }
-    const fa = flagsA.byUrlId.get(ra.id) ?? [];
-    const fb = flagsB.byUrlId.get(rb.id) ?? [];
-    const resolved = fa.filter((i) => !fb.includes(i) && !failedKey(i));
-    const appeared = fb.filter((i) => !fa.includes(i) && !failedKey(i));
+    const resolved: number[] = [];
+    const appeared: number[] = [];
+    for (let i = 0; i < keys.length; i++) {
+      if (!usable[i]) continue;
+      const inA = flagsA.has(i, ra.id);
+      if (inA !== flagsB.has(i, rb.id)) (inA ? resolved : appeared).push(i);
+    }
     if (resolved.length > 0 || appeared.length > 0) {
       for (const i of resolved)
         (issueChanges[keys[i]!] ??= { appeared: 0, resolved: 0 }).resolved++;
