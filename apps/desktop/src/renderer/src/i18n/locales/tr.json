@@ -1034,7 +1034,7 @@
     "pickDifferent": "Farklı bir proje dosyası seç",
     "comparing": "Karşılaştırılıyor…",
     "openOther": "Başka Proje Aç",
-    "pickPrompt": "Açık projeyle karşılaştırmak için önceki crawl'ı (`.seoproject` dosyası) seç.",
+    "pickPrompt": "Açık projeyle karşılaştırmak için önceki taramayı (`.seoproject` dosyası) seç.",
     "added": "Eklenen",
     "removed": "Kaldırılan",
     "statusChanged": "Durum Değişti",
