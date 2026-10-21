@@ -614,6 +614,7 @@ export const AZ_LABELS: Record<string, string> = {
   Address: 'Adres',
   'Indexability Reason': 'İndekslənə bilmə səbəbi',
   'Noindex for Other Engines': 'Digər axtarış sistemləri üçün noindex',
+  'Content Area Word Count': 'Məzmun sahəsində söz sayı',
   'Content Kind': 'Məzmun növü',
   'TTFB (ms)': 'TTFB (ms)',
   'HTTP Protocol': 'HTTP protokolu',

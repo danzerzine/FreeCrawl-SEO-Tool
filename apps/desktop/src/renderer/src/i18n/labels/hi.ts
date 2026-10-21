@@ -607,6 +607,7 @@ export const HI_LABELS: Record<string, string> = {
   Address: 'पता',
   'Indexability Reason': 'अनुक्रमणीयता का कारण',
   'Noindex for Other Engines': 'अन्य सर्च इंजनों के लिए noindex',
+  'Content Area Word Count': 'कंटेंट क्षेत्र में शब्द',
   'Content Kind': 'सामग्री की किस्म',
   'TTFB (ms)': 'TTFB (मि.से.)',
   'HTTP Protocol': 'HTTP प्रोटोकॉल',

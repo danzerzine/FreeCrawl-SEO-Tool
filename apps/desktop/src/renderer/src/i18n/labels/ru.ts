@@ -609,6 +609,7 @@ export const RU_LABELS: Record<string, string> = {
   Address: 'Адрес',
   'Indexability Reason': 'Причина индексируемости',
   'Noindex for Other Engines': 'Noindex для других поисковиков',
+  'Content Area Word Count': 'Слов в области контента',
   'Content Kind': 'Вид контента',
   'TTFB (ms)': 'TTFB (мс)',
   'HTTP Protocol': 'Протокол HTTP',

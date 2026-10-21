@@ -2164,6 +2164,7 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
     ['H5 Count', row.h5Count > 0 ? row.h5Count : null],
     ['H6 Count', row.h6Count > 0 ? row.h6Count : null],
     ['Word Count', row.wordCount],
+    ['Content Area Word Count', row.mainWordCount],
     [
       'Boilerplate Coverage',
       // Post-crawl pass samples up to ~2K pages; URLs outside the

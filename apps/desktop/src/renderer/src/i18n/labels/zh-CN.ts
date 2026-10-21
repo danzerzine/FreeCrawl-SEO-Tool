@@ -601,6 +601,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   Address: '地址',
   'Indexability Reason': '可索引性原因',
   'Noindex for Other Engines': '针对其他引擎的 noindex',
+  'Content Area Word Count': '内容区域字数',
   'Content Kind': '内容种类',
   'TTFB (ms)': 'TTFB（毫秒）',
   'HTTP Protocol': 'HTTP 协议',

@@ -2644,6 +2644,20 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 112,
+    name: 'add_main_word_count',
+    // Words in the content area, when the crawl had one; NULL in older
+    // crawls, which keep judging thin content on the whole page (B74).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'main_word_count')) {
+        db.exec('ALTER TABLE urls ADD COLUMN main_word_count INTEGER');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

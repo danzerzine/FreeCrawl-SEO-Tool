@@ -467,6 +467,8 @@ export interface ParsedPage {
   hasNoindex: boolean;
   /** Meta names other than robots and the crawl's bot that say noindex, comma-joined; null when none (B75). */
   metaNoindexBots: string | null;
+  /** Words in the content area (or the chrome-stripped body without one), counted like `wordCount` (B74). */
+  mainWordCount: number;
   hasNofollow: boolean;
 }
 
@@ -1527,7 +1529,7 @@ export function parseHtml(
   // Soft 404: a 2xx page that says it isn't there. Needs the wording in
   // the title or H1 AND almost no content of its own, so an article
   // *about* 404 errors — long, on topic — never qualifies.
-  const mainWordCount = mainText ? mainText.split(' ').length : 0;
+  const mainWordCount = mainText ? mainText.split(' ').filter(Boolean).length : 0;
   const soft404Signal =
     (looksNotFound(title) || looksNotFound(h1)) && mainWordCount < SOFT_404_MAX_MAIN_WORDS;
   const headWrites = findInlineScriptHeadWrites($);
@@ -2308,6 +2310,7 @@ export function parseHtml(
     mobileAlternate,
     hasNoindex,
     metaNoindexBots,
+    mainWordCount,
     hasNofollow,
   };
 }

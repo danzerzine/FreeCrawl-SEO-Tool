@@ -623,6 +623,8 @@ export interface CrawlUrlRow {
   ogNameAttr: number;
   /** Meta names other than robots and the crawl's bot that say noindex (`bingbot,yandex`); null when none (B75). */
   metaNoindexBots: string | null;
+  /** Words in the content area when the crawl had one; null otherwise and in older crawls (B74). */
+  mainWordCount: number | null;
   /** Primary language the main-content prose is written in (`tr`, `en`, …); null when unclear. */
   contentLang: string | null;
   /** `html[lang]` declares a language the prose is clearly not written in. */

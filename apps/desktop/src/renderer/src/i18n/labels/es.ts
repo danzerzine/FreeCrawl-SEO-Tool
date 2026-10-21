@@ -614,6 +614,7 @@ export const ES_LABELS: Record<string, string> = {
   Address: 'Dirección',
   'Indexability Reason': 'Motivo de indexabilidad',
   'Noindex for Other Engines': 'Noindex para otros buscadores',
+  'Content Area Word Count': 'Palabras en el área de contenido',
   'Content Kind': 'Clase de contenido',
   'TTFB (ms)': 'TTFB (ms)',
   'HTTP Protocol': 'Protocolo HTTP',

@@ -50,6 +50,7 @@ const XML_COLUMNS: (keyof CrawlUrlRow)[] = [
   'h5Count',
   'h6Count',
   'wordCount',
+  'mainWordCount',
   'canonical',
   'canonicalCount',
   'canonicalHttp',

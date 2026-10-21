@@ -597,6 +597,7 @@ export const TR_LABELS: Record<string, string> = {
   Address: 'Adres',
   'Indexability Reason': 'İndekslenebilirlik Sebebi',
   'Noindex for Other Engines': 'Diğer Motorlar için Noindex',
+  'Content Area Word Count': 'İçerik Alanındaki Kelime Sayısı',
   'Content Kind': 'İçerik Sınıfı',
   'TTFB (ms)': 'TTFB (ms)',
   'HTTP Protocol': 'HTTP Protokolü',

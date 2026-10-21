@@ -5213,6 +5213,7 @@ export class Crawler extends EventEmitter {
           hreflangOutsideHead: this.config.storeHreflang ? parsed.hreflangOutsideHead : 0,
           ogNameAttr: parsed.ogNameAttr,
           metaNoindexBots: parsed.metaNoindexBots,
+          mainWordCount: parsed.contentSource === 'selector' ? parsed.mainWordCount : null,
           contentLang: parsed.contentLang,
           langMismatch: parsed.langMismatch ? 1 : 0,
           soft404: parsed.soft404Signal && statusCode >= 200 && statusCode < 300 ? 1 : 0,

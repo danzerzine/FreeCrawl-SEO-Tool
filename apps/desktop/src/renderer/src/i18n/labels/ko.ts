@@ -602,6 +602,7 @@ export const KO_LABELS: Record<string, string> = {
   Address: '주소',
   'Indexability Reason': '색인 가능성 사유',
   'Noindex for Other Engines': '다른 검색엔진용 noindex 목록',
+  'Content Area Word Count': '콘텐츠 영역 단어 수',
   'Content Kind': '콘텐츠 종류',
   'TTFB (ms)': 'TTFB(밀리초)',
   'HTTP Protocol': 'HTTP 프로토콜',

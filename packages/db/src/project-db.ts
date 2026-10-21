@@ -149,6 +149,8 @@ export const TEMPLATE_SHINGLES_META_KEY = 'templateShingles';
 export const TEMPLATE_SAMPLE_META_KEY = 'templateSample';
 /** The configured content-area selector matched nothing on the page (B8). */
 const CONTENT_AREA_MISSED_SQL = "content_source = 'selector-missed'";
+/** Words thin and empty content are judged on: the content area's when the crawl had one, else the page's (B74). */
+const JUDGED_WORDS_SQL = 'COALESCE(main_word_count, word_count)';
 /** Near-duplicate clusters above this many pages are named in the crawl log. */
 const LARGE_DUPLICATE_CLUSTER = 50;
 /**
@@ -389,6 +391,7 @@ interface UrlRowDb {
   hreflang_outside_head: number;
   og_name_attr: number;
   meta_noindex_bots: string | null;
+  main_word_count: number | null;
   /** Primary language the main-content prose is written in. */
   content_lang: string | null;
   /** 1 when `html[lang]` names a language the prose clearly isn't in. */
@@ -685,6 +688,7 @@ export interface UpsertUrlInput {
   hreflangOutsideHead?: number;
   ogNameAttr?: number;
   metaNoindexBots?: string | null;
+  mainWordCount?: number | null;
   contentLang?: string | null;
   langMismatch?: number;
   soft404?: number;
@@ -880,7 +884,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots,
+    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count,
     template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
@@ -926,7 +930,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count,
     :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
@@ -1077,6 +1081,7 @@ const UPSERT_URL_SQL = `
     hreflang_outside_head = excluded.hreflang_outside_head,
     og_name_attr = excluded.og_name_attr,
     meta_noindex_bots = excluded.meta_noindex_bots,
+    main_word_count = excluded.main_word_count,
     content_lang = excluded.content_lang,
     lang_mismatch = excluded.lang_mismatch,
     soft_404 = excluded.soft_404,
@@ -2850,6 +2855,7 @@ export class ProjectDb {
       hreflang_outside_head: input.hreflangOutsideHead ?? 0,
       og_name_attr: input.ogNameAttr ?? 0,
       meta_noindex_bots: input.metaNoindexBots ?? null,
+      main_word_count: input.mainWordCount ?? null,
       content_lang: input.contentLang ?? null,
       lang_mismatch: input.langMismatch ?? 0,
       soft_404: input.soft404 ?? 0,
@@ -7559,7 +7565,7 @@ export class ProjectDb {
       canonicalToRedirect: gatedCount('issues:canonical-to-redirect'),
       canonicalToNoindex: gatedCount('issues:canonical-to-noindex'),
       contentThin: countWhere(
-        `${indexable} AND indexability = 'indexable' AND word_count IS NOT NULL AND word_count < 300`,
+        `${indexable} AND indexability = 'indexable' AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < 300`,
       ),
       // Only a completed check yields a finding count — an unsupported or
       // language-mismatched page stores zero because nothing was collected.
@@ -7804,7 +7810,7 @@ export class ProjectDb {
       targetBlankNoNoopenerPages: issueCount('issues:target-blank-no-noopener'),
       pageEmpty: countWhere(
         `${html} AND status_code BETWEEN 200 AND 299 AND indexability = 'indexable'
-         AND word_count IS NOT NULL AND word_count < 30`,
+         AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < 30`,
       ),
       ogImageNotAbsolute: gatedCount('issues:og-image-not-absolute'),
       twitterImageNotAbsolute: gatedCount('issues:twitter-image-not-absolute'),
@@ -11492,6 +11498,7 @@ export class ProjectDb {
     hreflangOutsideHead: r.hreflang_outside_head ?? 0,
     ogNameAttr: r.og_name_attr ?? 0,
     metaNoindexBots: r.meta_noindex_bots ?? null,
+    mainWordCount: r.main_word_count ?? null,
     contentLang: r.content_lang ?? null,
     langMismatch: (r.lang_mismatch ?? 0) === 1,
     soft404: r.soft_404 ?? 0,
@@ -12503,7 +12510,7 @@ function baseCategoryWhereClause(
       // a page canonicalised elsewhere never competes in search, so its
       // word count says nothing about content quality.
       return `${INDEXABLE_HTML_SCOPE} AND indexability = 'indexable'
-              AND word_count IS NOT NULL AND word_count < 300`;
+              AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < 300`;
     case 'issues:spelling-grammar':
       return `is_external = 0 AND content_kind = 'html' AND EXISTS (
                 SELECT 1 FROM spelling_results s
@@ -13210,7 +13217,7 @@ function baseCategoryWhereClause(
               AND status_code BETWEEN 200 AND 299
               AND indexability = 'indexable'
               AND word_count IS NOT NULL
-              AND word_count < 30`;
+              AND ${JUDGED_WORDS_SQL} < 30`;
     case 'issues:og-image-not-absolute':
       // OpenGraph requires absolute URLs for og:image. Relative paths
       // simply don't render in Facebook / LinkedIn share cards.

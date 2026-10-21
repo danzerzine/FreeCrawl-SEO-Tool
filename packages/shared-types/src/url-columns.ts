@@ -24,6 +24,7 @@ export const URL_COLUMN_HEADERS = {
   h1Count: 'H1 Count',
   h2Count: 'H2 Count',
   wordCount: 'Word Count',
+  mainWordCount: 'Content Area Word Count',
   canonical: 'Canonical Link Element 1',
   metaRobots: 'Meta Robots 1',
   xRobotsTag: 'X-Robots-Tag 1',
