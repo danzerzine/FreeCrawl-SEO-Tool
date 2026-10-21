@@ -10,6 +10,8 @@
     "checkOff": "꺼짐",
     "cookiesOffHint": "크롤링의 쿠키 정책이 \"모두 거부\"이므로 쿠키 검사가 꺼져 있습니다. Set-Cookie 헤더를 분석하려면 설정 → 쿠키에서 \"모두 허용\" 또는 \"서드파티 차단\"을 선택하세요.",
     "notComputed": "계산 안 됨",
+    "trendPrevious": "이전 크롤({{date}}): {{previous}}",
+    "trendVersion": "두 크롤은 서로 다른 FreeCrawl 버전으로 실행되었습니다. 변화는 사이트가 아니라 검사 때문일 수 있습니다.",
     "notComputedHint": "인바운드 링크가 아직 계산되지 않아 고립 페이지를 셀 수 없습니다. \"인바운드 링크 다시 계산\"이 켜진 크롤이 끝날 때 계산됩니다.",
     "byTargetPages": "링크 대상: {{targets}} · 링크하는 페이지: {{sources}}. 목록에는 링크하는 페이지가 표시됩니다.",
     "byTargetLinks": "링크 대상: {{targets}} · 대상으로 가는 링크: {{sources}}. 목록에는 링크가 표시됩니다.",

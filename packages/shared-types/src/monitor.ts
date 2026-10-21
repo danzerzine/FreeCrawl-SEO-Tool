@@ -40,6 +40,20 @@ export interface CrawlRun {
 }
 
 /**
+ * Each check's count in the newest crawl against the previous crawl of the
+ * same start URL (Overview sidebar ▲N/▼N, `issues-summary.csv`). Read from
+ * `crawl_runs` only, so it is the finished crawls, never the live counts.
+ */
+export interface IssueTrend {
+  /** ISO 8601, when the previous crawl finished. */
+  previousFinishedAt: string;
+  /** The two crawls ran on different app versions: a change may come from the check, not the site. */
+  toolVersionChanged: boolean;
+  /** `issues:<key>` → its previous count and newest minus previous; a check off or not computed in either crawl is absent. */
+  checks: Record<string, { previous: number; change: number }>;
+}
+
+/**
  * One monitoring rule as a rule file holds it (`docs/specs/M13-monitoring.md`).
  * The core's `parseRules` checks it and fills the defaults.
  */

@@ -103,6 +103,7 @@ import {
   type ScheduleEntry,
   type ExportSet,
   type ExportSetChoiceGroup,
+  type IssueTrend,
   type MonitorHistoryRow,
   type ScheduleSpec,
   type IntegrationsState,
@@ -470,6 +471,7 @@ const api: FreeCrawlApi = {
   monitorHistory: (metrics: string[], limit?: number): Promise<MonitorHistoryRow[]> =>
     ipcRenderer.invoke(IPC.monitorHistory, metrics, limit),
   monitorMetrics: (): Promise<string[]> => ipcRenderer.invoke(IPC.monitorMetrics),
+  issueTrend: (): Promise<IssueTrend | null> => ipcRenderer.invoke(IPC.issueTrend),
   pickDirectory: (input?: { title?: string; defaultPath?: string }): Promise<string | null> =>
     ipcRenderer.invoke(IPC.pickDirectory, input),
   defaultProjectDir: (): Promise<string> => ipcRenderer.invoke(IPC.defaultProjectDir),

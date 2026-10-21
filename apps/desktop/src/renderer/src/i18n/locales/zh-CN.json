@@ -10,6 +10,8 @@
     "checkOff": "已关闭",
     "cookiesOffHint": "由于抓取的 Cookie 策略为“全部拒绝”，Cookie 检查已关闭。请在 设置 → Cookie 中选择“全部接受”或“拦截第三方”以分析 Set-Cookie 标头。",
     "notComputed": "未计算",
+    "trendPrevious": "上次抓取（{{date}}）：{{previous}}",
+    "trendVersion": "两次抓取使用了不同版本的 FreeCrawl：变化可能来自检查本身，而非网站。",
     "notComputedHint": "尚未计算入链，因此无法统计孤立页面。入链会在开启“重新计算入链”的抓取结束时计算。",
     "byTargetPages": "链接目标：{{targets}} · 链接到它们的页面：{{sources}}。列表显示的是链接到它们的页面。",
     "byTargetLinks": "链接目标：{{targets}} · 指向它们的链接：{{sources}}。列表显示的是这些链接。",

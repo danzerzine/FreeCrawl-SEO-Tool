@@ -10,6 +10,8 @@
     "checkOff": "Désactivé",
     "cookiesOffHint": "Les contrôles des cookies sont désactivés car la politique de cookies de l'exploration est « Tout refuser ». Choisissez « Tout accepter » ou « Bloquer les tiers » dans Paramètres → Cookies pour analyser les en-têtes Set-Cookie.",
     "notComputed": "Non calculé",
+    "trendPrevious": "Exploration précédente, {{date}} : {{previous}}",
+    "trendVersion": "Les deux explorations ont utilisé des versions différentes de FreeCrawl : le changement peut venir de la vérification, pas du site.",
     "notComputedHint": "Les liens entrants n'ont pas encore été calculés, les pages orphelines ne peuvent donc pas être comptées. Ils sont calculés à la fin d'une exploration avec « Recalculer les liens entrants » activé.",
     "byTargetPages": "Cibles de liens : {{targets}} · pages qui les lient : {{sources}}. La liste montre les pages qui lient.",
     "byTargetLinks": "Cibles de liens : {{targets}} · liens vers elles : {{sources}}. La liste montre les liens.",

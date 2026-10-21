@@ -14,6 +14,7 @@ import {
 } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import { writeExportFile } from './export-file.js';
+import { issueTrend } from './monitor/history.js';
 
 /** The four by-target link reports: file stem and label, in Reports order. */
 export const LINK_TARGET_EXPORTS: readonly { report: LinkTargetReportKind; label: string }[] = [
@@ -95,7 +96,9 @@ export async function exportLinkTargetReport(
  * computed that check). Checks the sidebar counts per image or per link
  * target also get that count as Items, so «URLs» means pages on every
  * row. Checks turned off in Settings → Issues are left out, as everywhere
- * else.
+ * else. Previous and Change compare the two latest finished crawls of the
+ * site in the sidebar's unit (Items where there are Items, else URLs);
+ * both are empty without a previous crawl or when either did not count it.
  */
 export async function exportIssuesSummary(
   db: ProjectDb,
@@ -104,6 +107,8 @@ export async function exportIssuesSummary(
 ): Promise<{ rowsWritten: number }> {
   const disabled = db.getDisabledIssues();
   const issues = db.getOverviewCounts().issues;
+  // Previous crawl's count and the change since (B23); empty without one.
+  const trend = issueTrend(db)?.checks ?? {};
   const rows = ISSUE_GROUPS.flatMap((g) =>
     g.items
       .filter((i) => !disabled.has(i.category))
@@ -111,14 +116,24 @@ export async function exportIssuesSummary(
         const count = issueCount(issues, i);
         const perItem = i.percentBase === 'images' || i.byTarget !== undefined;
         const urls = count === null || !perItem ? count : db.countIssuePages(i.category);
-        return [i.category, i.label, g.label, ISSUE_SEVERITY[i.category] ?? '', urls, perItem ? count : null];
+        const t = trend[i.category];
+        return [
+          i.category,
+          i.label,
+          g.label,
+          ISSUE_SEVERITY[i.category] ?? '',
+          urls,
+          perItem ? count : null,
+          t?.previous ?? null,
+          t?.change ?? null,
+        ];
       }),
   );
   return writeExportFile(filePath, async (partPath) => {
     const head =
       options.headers === 'keys'
-        ? ['check', 'label', 'group', 'severity', 'urls', 'items']
-        : ['Check', 'Label', 'Group', 'Severity', 'URLs', 'Items'];
+        ? ['check', 'label', 'group', 'severity', 'urls', 'items', 'previous', 'change']
+        : ['Check', 'Label', 'Group', 'Severity', 'URLs', 'Items', 'Previous', 'Change'];
     await writeFile(partPath, csv([head, ...rows], options.headers), 'utf8');
     return { rowsWritten: rows.length };
   });

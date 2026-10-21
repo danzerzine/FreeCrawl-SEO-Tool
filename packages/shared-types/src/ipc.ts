@@ -30,6 +30,7 @@ import type {
   AlertDelivery,
   MonitorAlertsConfig,
   MonitorAlertsState,
+  IssueTrend,
   MonitorHistoryRow,
 } from './monitor.js';
 import type {
@@ -327,6 +328,7 @@ export const IPC = {
   monitorAlertsTest: 'monitor-alerts:test',
   monitorHistory: 'monitor:history',
   monitorMetrics: 'monitor:metrics',
+  issueTrend: 'monitor:issue-trend',
   /** Faz 7 — integration credential store (safeStorage-encrypted).
    *  `integrationsGetAll` returns the redacted state map (secret values
    *  never leave the main process); `set` merges the supplied fields;
@@ -2293,6 +2295,8 @@ export interface FreeCrawlApi {
   monitorHistory(metrics: string[], limit?: number): Promise<MonitorHistoryRow[]>;
   /** Every metric name the Trends picker can offer; `status.<code>` as one name per code of the newest crawl. */
   monitorMetrics(): Promise<string[]>;
+  /** B23 — each check's count in the newest crawl against the previous one; null with fewer than two crawls. */
+  issueTrend(): Promise<IssueTrend | null>;
   /** Faz 7 — read the redacted credential state of every integration.
    *  Secret field values are never returned, only a `set` flag. */
   integrationsGetAll(): Promise<IntegrationsState>;

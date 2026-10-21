@@ -10,6 +10,8 @@
     "checkOff": "Bağlı",
     "cookiesOffHint": "Taramanın kuki siyasəti \"Hamısını rədd et\" olduğu üçün kuki yoxlamaları bağlıdır. Set-Cookie başlıqlarını təhlil etmək üçün Parametrlər → Kukilər bölməsində \"Hamısını qəbul et\" və ya \"Üçüncü tərəfləri blokla\" seçin.",
     "notComputed": "Hesablanmayıb",
+    "trendPrevious": "Əvvəlki tarama, {{date}}: {{previous}}",
+    "trendVersion": "İki tarama FreeCrawl-un fərqli versiyaları ilə aparılıb: dəyişiklik saytdan yox, yoxlamadan qaynaqlana bilər.",
     "notComputedHint": "Daxil olan keçidlər hələ hesablanmadığı üçün yetim səhifələri saymaq mümkün deyil. Onlar \"Daxil olan keçidləri yenidən hesabla\" aktiv olan taramanın sonunda hesablanır.",
     "byTargetPages": "Keçid hədəfləri: {{targets}} · keçid verən səhifələr: {{sources}}. Siyahı keçid verən səhifələri göstərir.",
     "byTargetLinks": "Keçid hədəfləri: {{targets}} · onlara keçidlər: {{sources}}. Siyahı keçidlərin özünü göstərir.",

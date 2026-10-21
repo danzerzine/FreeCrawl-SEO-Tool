@@ -313,6 +313,7 @@ import {
   buildLogExportXlsx,
   buildLogExportCsv,
   extractProseText,
+  issueTrend,
   type LogAnalysisResult,
   type LogExportTables,
 } from '@freecrawl/core';
@@ -5600,6 +5601,8 @@ function registerIpc(): void {
     monitorHistory(currentSession().getDb(), metrics, limit),
   );
   registerHandle(IPC.monitorMetrics, () => monitorMetricNames(currentSession().getDb()));
+  // B23 — the Overview sidebar's ▲N/▼N per check.
+  registerHandle(IPC.issueTrend, () => issueTrend(currentSession().getDb()));
   // B14 — saved export sets live in the project, so a schedule can run one.
   registerHandle(IPC.exportSetsList, () => listExportSets(currentSession().getDb()));
   registerHandle(IPC.exportSetsChoices, () => exportSetChoices());

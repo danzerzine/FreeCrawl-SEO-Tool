@@ -10,6 +10,8 @@
     "checkOff": "Kapalı",
     "cookiesOffHint": "Taramanın çerez politikası \"Tümünü reddet\" olduğu için çerez kontrolleri kapalı. Set-Cookie başlıklarını incelemek için Ayarlar → Çerezler altında \"Tümünü kabul et\" veya \"Üçüncü tarafları engelle\" seçin.",
     "notComputed": "Hesaplanmadı",
+    "trendPrevious": "Önceki tarama, {{date}}: {{previous}}",
+    "trendVersion": "İki tarama farklı FreeCrawl sürümleriyle yapıldı: değişiklik siteden değil, kontrolden kaynaklanabilir.",
     "notComputedHint": "Gelen bağlantılar henüz hesaplanmadığı için yetim sayfalar sayılamıyor. \"Inlink'leri yeniden hesapla\" açık olan bir taramanın sonunda hesaplanırlar.",
     "byTargetPages": "Bağlantı hedefleri: {{targets}} · bağlantı veren sayfalar: {{sources}}. Liste, bağlantı veren sayfaları gösterir.",
     "byTargetLinks": "Bağlantı hedefleri: {{targets}} · onlara giden bağlantılar: {{sources}}. Liste, bağlantıları gösterir.",

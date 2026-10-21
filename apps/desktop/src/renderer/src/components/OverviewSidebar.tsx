@@ -7,6 +7,7 @@ import {
   issueCount,
   issueSourcesCount,
   type IssueCheckDef,
+  type IssueTrend,
   type OverviewCounts,
   type UrlCategory,
 } from '@freecrawl/shared-types';
@@ -36,6 +37,8 @@ interface Node {
   /** Site-wide check: its share of the pages answered 2xx, shown instead of
    *  "% of Total" (its own count may include redirects or unfetched rows). */
   share?: number;
+  /** The check's count in the previous crawl and the change since (B23). */
+  trend?: { previous: number; change: number };
   children?: Node[];
 }
 
@@ -177,6 +180,29 @@ export function OverviewSidebar() {
       });
   }, [progressCrawled, progressRunning, setOverview]);
 
+  // B23 — each check against the previous crawl. Hidden while a crawl runs:
+  // the live counts are not a finished crawl. Refetched when it ends and on
+  // every data change (a project opened, a crawl recorded).
+  const [trend, setTrend] = useState<IssueTrend | null>(null);
+  useEffect(() => {
+    if (progressRunning) {
+      setTrend(null);
+      return;
+    }
+    let cancelled = false;
+    void window.freecrawl
+      .issueTrend()
+      .then((tr) => {
+        if (!cancelled) setTrend(tr);
+      })
+      .catch(() => {
+        if (!cancelled) setTrend(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dataVersion, progressRunning]);
+
   const toggle = (k: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -237,9 +263,25 @@ export function OverviewSidebar() {
     [t],
   );
   const tree = useMemo(
-    () => buildTree(overview, disabledSet, cookiesOff, targetHint, siteWideText),
-    [overview, disabledSet, cookiesOff, targetHint, siteWideText],
+    () => buildTree(overview, disabledSet, cookiesOff, targetHint, siteWideText, trend),
+    [overview, disabledSet, cookiesOff, targetHint, siteWideText, trend],
   );
+  const trendHint = useMemo(() => {
+    if (!trend) return (_previous: number) => '';
+    const date = new Date(trend.previousFinishedAt).toLocaleDateString(lang);
+    const version = trend.toolVersionChanged
+      ? ` ${t('sidebar.trendVersion', {
+          defaultValue:
+            'The two crawls ran on different FreeCrawl versions, so the change may come from the check, not the site.',
+        })}`
+      : '';
+    return (previous: number) =>
+      t('sidebar.trendPrevious', {
+        defaultValue: 'Previous crawl, {{date}}: {{previous}}',
+        date,
+        previous: previous.toLocaleString(),
+      }) + version;
+  }, [trend, lang, t]);
   const offLabel = t('sidebar.checkOff', { defaultValue: 'Off' });
   const notComputedLabel = t('sidebar.notComputed', { defaultValue: 'Not computed' });
   const notComputedHint = t('sidebar.notComputedHint', {
@@ -333,6 +375,7 @@ export function OverviewSidebar() {
               offHint={cookiesOffHint}
               notComputedLabel={notComputedLabel}
               notComputedHint={notComputedHint}
+              trendHint={trendHint}
             />
           ))}
         </div>
@@ -354,6 +397,7 @@ const TreeNode = memo(function TreeNode({
   offHint,
   notComputedLabel,
   notComputedHint,
+  trendHint,
 }: {
   node: Node;
   depth: number;
@@ -367,6 +411,7 @@ const TreeNode = memo(function TreeNode({
   offHint: string;
   notComputedLabel: string;
   notComputedHint: string;
+  trendHint: (previous: number) => string;
 }) {
   const isExpanded = expanded.has(node.key);
   const isActive = node.category && node.category === activeCategory;
@@ -409,6 +454,15 @@ const TreeNode = memo(function TreeNode({
             {notComputedLabel}
           </span>
         )}
+        {!node.off && node.count != null && node.trend && node.trend.change !== 0 && (
+          <span
+            className="shrink-0 font-mono tabular-nums text-surface-400"
+            title={trendHint(node.trend.previous)}
+          >
+            {node.trend.change > 0 ? '▲' : '▼'}
+            {Math.abs(node.trend.change).toLocaleString()}
+          </span>
+        )}
         {!node.off && node.count != null && (
           <>
             <span className="font-mono tabular-nums text-surface-300">
@@ -442,6 +496,7 @@ const TreeNode = memo(function TreeNode({
             offHint={offHint}
             notComputedLabel={notComputedLabel}
             notComputedHint={notComputedHint}
+            trendHint={trendHint}
           />
         ))}
     </>
@@ -454,6 +509,7 @@ function buildTree(
   cookiesOff: boolean,
   targetHint: TargetHint,
   siteWideText: SiteWideText,
+  trend: IssueTrend | null,
 ): Node[] {
   if (!o) return [];
   // Response Codes and Security deliberately count external URLs too (that's
@@ -473,6 +529,7 @@ function buildTree(
       ? { targetHint: targetHint(i, issueCount(o.issues, i), issueSourcesCount(o.issues, i)) }
       : {}),
     ...(cookiesOff && i.category.startsWith('issues:cookie-') ? { off: true } : {}),
+    ...(trend?.checks[i.category] ? { trend: trend.checks[i.category] } : {}),
   });
   // Checks on almost every page answered 2xx (`OverviewCounts.site.siteWide`).
   const siteWideBase = o.site?.siteWide?.pagesBase ?? 0;

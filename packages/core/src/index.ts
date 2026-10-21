@@ -214,6 +214,7 @@ export {
 } from './monitor/snapshot.js';
 export {
   latestAndPrevious,
+  issueTrend,
   historyRows,
   type LatestCrawls,
 } from './monitor/history.js';

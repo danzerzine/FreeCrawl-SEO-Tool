@@ -5,8 +5,8 @@
  * `lastStartUrl`, which can differ (redirect, missing slash).
  */
 import type { ProjectDb } from '@freecrawl/db';
-import type { CrawlRun, MonitorHistoryRow } from '@freecrawl/shared-types';
-import { assertMetric, metricValue } from './snapshot.js';
+import type { CrawlRun, IssueTrend, MonitorHistoryRow } from '@freecrawl/shared-types';
+import { assertMetric, listMetrics, metricValue } from './snapshot.js';
 
 type HistoryDb = Pick<ProjectDb, 'latestCrawlRunStartUrl' | 'listCrawlRuns'>;
 
@@ -25,6 +25,29 @@ export function latestAndPrevious(db: HistoryDb): LatestCrawls | null {
   const current = runs.at(-1);
   if (!current) return null;
   return { current, previous: runs.length > 1 ? runs[0]! : null };
+}
+
+/**
+ * Every check's count in the newest crawl against the previous one of the
+ * same start URL; null with fewer than two crawls. A check null in either
+ * snapshot (off, or absent from an older build) is left out.
+ */
+export function issueTrend(db: HistoryDb): IssueTrend | null {
+  const pair = latestAndPrevious(db);
+  if (!pair?.previous) return null;
+  const { current, previous } = pair;
+  const checks: IssueTrend['checks'] = {};
+  for (const m of listMetrics()) {
+    if (!m.startsWith('issues:')) continue;
+    const before = metricValue(previous.snapshot, m);
+    const after = metricValue(current.snapshot, m);
+    if (before !== null && after !== null) checks[m] = { previous: before, change: after - before };
+  }
+  return {
+    previousFinishedAt: previous.finishedAt,
+    toolVersionChanged: current.toolVersion !== previous.toolVersion,
+    checks,
+  };
 }
 
 /**

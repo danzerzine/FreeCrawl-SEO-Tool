@@ -10,6 +10,8 @@
     "checkOff": "Desativado",
     "cookiesOffHint": "As verificações de cookies estão desativadas porque a política de cookies do rastreamento é \"Rejeitar tudo\". Escolha \"Aceitar tudo\" ou \"Bloquear terceiros\" em Configurações → Cookies para analisar os cabeçalhos Set-Cookie.",
     "notComputed": "Não calculado",
+    "trendPrevious": "Rastreamento anterior, {{date}}: {{previous}}",
+    "trendVersion": "Os dois rastreamentos usaram versões diferentes do FreeCrawl: a mudança pode vir da verificação, não do site.",
     "notComputedHint": "Os links de entrada ainda não foram calculados, então as páginas órfãs não podem ser contadas. Eles são calculados no fim de um rastreamento com \"Recalcular links de entrada\" ativado.",
     "byTargetPages": "Destinos de link: {{targets}} · páginas que linkam: {{sources}}. A lista mostra as páginas que linkam.",
     "byTargetLinks": "Destinos de link: {{targets}} · links para eles: {{sources}}. A lista mostra os links.",
