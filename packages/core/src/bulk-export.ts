@@ -258,6 +258,15 @@ export function since(t0: number): number {
 }
 
 /**
+ * The process's peak memory so far, MB (`maxRSS`; on Windows the peak
+ * working set). Read when a file is done, it is the high-water mark up to
+ * that file, not the file's own share.
+ */
+export function peakRssMb(): number {
+  return Math.round(process.resourceUsage().maxRSS / 1024);
+}
+
+/**
  * Write every {@link BULK_EXPORT_TASKS} category to a CSV under
  * `outputDir` (created when missing). Each file goes through
  * `<name>.part` + rename; zero-row categories leave no file, so the dump
@@ -318,6 +327,7 @@ async function writeBulkExport(
     })),
   );
   const passMs = since(t0);
+  const passPeakMb = peakRssMb();
   settled.forEach((r, i) => {
     const task = tasks[i]!;
     if (r.status === 'rejected') {
@@ -331,6 +341,8 @@ async function writeBulkExport(
         rowsWritten: r.value,
         // Files of one pass finish together: each took the pass's time.
         ms: passMs,
+        peakRssMb: passPeakMb,
+        sharedPass: true,
       });
     }
   });
@@ -353,6 +365,7 @@ async function writeBulkExport(
         category: scope === 'internal' ? 'internal:all' : 'external:all',
         rowsWritten,
         ms: since(t0),
+        peakRssMb: peakRssMb(),
       });
     } catch (err) {
       errors.push({ label, error: (err as Error).message });
@@ -367,7 +380,14 @@ async function writeBulkExport(
         headers: options.headers,
       });
       if (rowsWritten === 0) continue;
-      files.push({ filePath, label: task.label, dataset: task.dataset, rowsWritten, ms: since(t0) });
+      files.push({
+        filePath,
+        label: task.label,
+        dataset: task.dataset,
+        rowsWritten,
+        ms: since(t0),
+        peakRssMb: peakRssMb(),
+      });
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
     }
@@ -400,6 +420,8 @@ async function writeBulkManifest(
         label: f.label,
         rows: f.rowsWritten,
         ms: f.ms,
+        peakRssMb: f.peakRssMb,
+        sharedPass: f.sharedPass,
       })),
       errors: result.errors,
     };

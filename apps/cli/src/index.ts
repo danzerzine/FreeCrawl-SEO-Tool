@@ -1583,7 +1583,7 @@ async function runExport(opts: {
             ...(error === null ? {} : { error }),
             ...outcome,
             // Write times stay in manifest.json; stdout keeps its shape.
-            files: outcome.files.map(({ ms: _ms, ...f }) => f),
+            files: outcome.files.map(({ ms: _ms, peakRssMb: _mb, sharedPass: _sp, ...f }) => f),
           },
           null,
           2,

@@ -11,6 +11,7 @@ import { EXPENSIVE_ISSUE_DEFINITIONS, type ProjectDb } from '@freecrawl/db';
 import {
   EXPORT_DATASET_COLUMNS,
   ISSUE_CATEGORIES,
+  type BulkExportFile,
   type BulkExportResult,
   type ExportDatasetKey,
   type ExportSet,
@@ -19,6 +20,7 @@ import {
 import {
   BULK_EXPORT_TASKS,
   exportIssueInlinks,
+  peakRssMb,
   runBulkExport,
   since,
   type BulkExportTask,
@@ -54,8 +56,12 @@ export const CLI_EXPORT_DATASETS = (Object.keys(EXPORT_DATASET_COLUMNS) as Expor
 const JSONL_DATASETS: readonly ExportDatasetKey[] = ['page-html', 'page-text'];
 
 export interface ExportOutcome {
-  /** `ms`: the file's write time (manifest.json only, not the CLI's JSON). */
-  files: { path: string; label: string; rows: number | null; ms?: number }[];
+  /** `ms`, `peakRssMb`, `sharedPass`: as in {@link BulkExportFile} (manifest.json only, not the CLI's JSON). */
+  files: (Pick<BulkExportFile, 'ms' | 'peakRssMb' | 'sharedPass'> & {
+    path: string;
+    label: string;
+    rows: number | null;
+  })[];
   errors: { label: string; error: string }[];
   /** Outputs that held no rows, so no file was written; not a failure. */
   skipped: { label: string; reason: string }[];
@@ -185,7 +191,14 @@ export async function runExportItems(
   }
   const addBulk = (r: Pick<BulkExportResult, 'files' | 'errors'>): void => {
     outcome.files.push(
-      ...r.files.map((f) => ({ path: f.filePath, label: f.label, rows: f.rowsWritten, ms: f.ms })),
+      ...r.files.map((f) => ({
+        path: f.filePath,
+        label: f.label,
+        rows: f.rowsWritten,
+        ms: f.ms,
+        peakRssMb: f.peakRssMb,
+        sharedPass: f.sharedPass,
+      })),
     );
     outcome.errors.push(...r.errors);
   };
@@ -288,7 +301,10 @@ export async function runExportItems(
       outcome.errors.push({ label: item.name, error: (err as Error).message });
     }
     // A single-file item: its file took the item's time.
-    for (const f of outcome.files.slice(filesBefore)) f.ms ??= since(t0);
+    for (const f of outcome.files.slice(filesBefore)) {
+      f.ms ??= since(t0);
+      f.peakRssMb ??= peakRssMb();
+    }
   }
   await writeRunManifest(outDir, items, outcome, startedAt, options);
   return outcome;
@@ -321,6 +337,8 @@ async function writeRunManifest(
         label: f.label,
         rows: f.rows,
         ms: f.ms,
+        peakRssMb: f.peakRssMb,
+        sharedPass: f.sharedPass,
       })),
       errors: outcome.errors,
       skipped: outcome.skipped,
