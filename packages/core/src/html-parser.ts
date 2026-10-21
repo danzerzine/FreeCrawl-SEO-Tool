@@ -415,6 +415,10 @@ export interface ParsedPage {
   canonicalOutsideHead: number;
   /** `<link rel="alternate" hreflang>` elements inside `<body>` (not honoured — see `hreflangs`). */
   hreflangOutsideHead: number;
+  /** `<title>`, `<meta name="description">` and robots metas inside `<body>`; the head copy wins, a body robots still applies (B26). */
+  titleOutsideHead: number;
+  descriptionOutsideHead: number;
+  metaRobotsOutsideHead: number;
   /** 1 when an `og:*` tag is given only with `name=` (B25). */
   ogNameAttr: number;
   /** "Not found" wording in the title/H1 of a page with almost no content. */
@@ -893,9 +897,19 @@ export function parseHtml(
   // double space in the markup is not a character the reader sees, so it
   // must not count toward the length limits or make "H1 = Title" miss.
   const collapseWs = (s: string): string => s.replace(/\s+/g, ' ').trim();
-  const title = decodeEntities(collapseWs(titleEls.first().text())) || null;
+  // A title or description inside <body> is read only when <head> has none,
+  // and counted either way (B26).
+  const inBody = 'body *';
+  const headFirst = (els: ReturnType<typeof $>) => {
+    const head = els.not(inBody);
+    return head.length > 0 ? head.first() : els.first();
+  };
+  const titleOutsideHead = titleEls.filter(inBody).length;
+  const title = decodeEntities(collapseWs(headFirst(titleEls).text())) || null;
+  const descriptionEls = $('meta[name="description"]');
+  const descriptionOutsideHead = descriptionEls.filter(inBody).length;
   const metaDescription =
-    decodeEntities(collapseWs($('meta[name="description"]').attr('content') ?? '')) || null;
+    decodeEntities(collapseWs(headFirst(descriptionEls).attr('content') ?? '')) || null;
   const h1 = decodeEntities(collapseWs($('h1').first().text())) || null;
   const h1Count = $('h1').length;
   const h2Count = $('h2').length;
@@ -1003,12 +1017,14 @@ export function parseHtml(
   const robotsMetaContents: string[] = [];
   const appliedRobotsContents: string[] = [];
   const otherBotNoindex = new Set<string>();
+  let metaRobotsOutsideHead = 0;
   $('meta').each((_, el) => {
     const name = ($(el).attr('name') ?? '').trim().toLowerCase();
     if (!ROBOTS_META_NAMES.has(name)) return;
     const content = ($(el).attr('content') ?? '').trim().toLowerCase();
     if (!content) return;
     robotsMetaContents.push(content);
+    if ($(el).closest('body').length > 0) metaRobotsOutsideHead++;
     if (name === 'robots' || name === robotsBot) appliedRobotsContents.push(content);
     else if (/\bnoindex\b|\bnone\b/.test(content)) otherBotNoindex.add(name);
   });
@@ -2295,6 +2311,9 @@ export function parseHtml(
     contentSource,
     canonicalOutsideHead,
     hreflangOutsideHead,
+    titleOutsideHead,
+    descriptionOutsideHead,
+    metaRobotsOutsideHead,
     ogNameAttr,
     soft404Signal,
     jsTitleWrite: headWrites.titleWrite,

@@ -120,6 +120,9 @@ export type UrlCategory =
   | 'issues:charset-mismatch'
   | 'issues:canonical-outside-head'
   | 'issues:hreflang-outside-head'
+  | 'issues:title-outside-head'
+  | 'issues:description-outside-head'
+  | 'issues:meta-robots-outside-head'
   | 'issues:og-name-attribute'
   | 'issues:noindex-other-bot'
   | 'issues:lang-content-mismatch'
@@ -619,6 +622,9 @@ export interface CrawlUrlRow {
   canonicalOutsideHead: number;
   /** `<link rel="alternate" hreflang>` elements placed inside `<body>` — ignored likewise. */
   hreflangOutsideHead: number;
+  titleOutsideHead: number;
+  descriptionOutsideHead: number;
+  metaRobotsOutsideHead: number;
   /** 1 when an `og:*` tag is given only with `name=`, not the `property=` OpenGraph asks for (B25). */
   ogNameAttr: number;
   /** Meta names other than robots and the crawl's bot that say noindex (`bingbot,yandex`); null when none (B75). */
@@ -1992,6 +1998,9 @@ export interface OverviewCounts {
     canonicalOutsideHead: number;
     /** hreflang `<link>` elements placed inside `<body>`, where search engines ignore them. */
     hreflangOutsideHead: number;
+    titleOutsideHead: number;
+    descriptionOutsideHead: number;
+    metaRobotsOutsideHead: number;
     /** `og:*` tags given with `name=` instead of `property=` (B25). */
     ogNameAttribute: number;
     /** Pages with a noindex meant for another search engine than the one the crawl acts as (B75). */

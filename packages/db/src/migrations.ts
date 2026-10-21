@@ -2658,6 +2658,25 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 113,
+    name: 'add_head_tags_outside_head',
+    // <title>, description and robots metas found inside <body> (B26).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      for (const name of [
+        'title_outside_head',
+        'description_outside_head',
+        'meta_robots_outside_head',
+      ]) {
+        if (!cols.some((c) => c.name === name)) {
+          db.exec(`ALTER TABLE urls ADD COLUMN ${name} INTEGER NOT NULL DEFAULT 0`);
+        }
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

@@ -186,6 +186,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Blocked by Robots', category: 'indexability:blocked-robots' },
     { label: 'Noindex Added by JavaScript', category: 'issues:noindex-js-injected' },
     { label: 'Noindex for Another Search Engine', category: 'issues:noindex-other-bot' },
+    { label: 'Meta Robots Outside <head>', category: 'issues:meta-robots-outside-head' },
   ],
 
   // ─── URL tab ────────────────────────────────────────────────────────────
@@ -214,6 +215,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Below 30 Characters', category: 'issues:title-too-short' },
     { label: 'Duplicate', category: 'issues:title-duplicate' },
     { label: 'Multiple <title> Tags', category: 'issues:title-multiple' },
+    { label: 'Title Outside <head>', category: 'issues:title-outside-head' },
     { label: 'Pixel Width Truncated (>600px)', category: 'issues:title-pixel-width-too-long' },
     { label: 'Placeholder Title', category: 'issues:title-placeholder' },
     { label: 'Single-Word Title', category: 'issues:title-single-word' },
@@ -227,6 +229,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Over 160 Characters', category: 'issues:meta-too-long' },
     { label: 'Below 120 Characters', category: 'issues:meta-too-short' },
     { label: 'Duplicate', category: 'issues:meta-duplicate' },
+    { label: 'Description Outside <head>', category: 'issues:description-outside-head' },
     { label: 'Pixel Width Truncated (>990px)', category: 'issues:meta-pixel-width-too-long' },
     { label: 'Description = Title', category: 'issues:description-equals-title' },
     { label: 'Description = H1', category: 'issues:description-equals-h1' },
@@ -858,8 +861,10 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
   if (cat.startsWith('issues:title-') || cat === 'issues:title-pixel-width-too-long') {
     return 'page-titles';
   }
+  if (cat === 'issues:meta-robots-outside-head') return 'directives';
   if (
     cat.startsWith('issues:meta-') ||
+    cat === 'issues:description-outside-head' ||
     cat === 'issues:description-equals-title' ||
     cat === 'issues:description-equals-h1'
   ) {
