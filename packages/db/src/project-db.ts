@@ -7459,6 +7459,17 @@ export class ProjectDb {
   private overviewCollect: Set<string> | null = null;
   /** Results of the batch for the call in progress, keyed by clause. */
   private overviewBatch: Map<string, number> | null = null;
+  /** Overview clauses this project's schema cannot run (read-only opens only). */
+  private overviewUnreadable = new Set<string>();
+
+  private clauseReadable(clause: string): boolean {
+    try {
+      this.db.prepare(`SELECT 1 FROM urls WHERE ${clause} LIMIT 0`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * `SELECT COUNT(*) FROM urls WHERE <clause>` — served from the active
@@ -7488,7 +7499,14 @@ export class ProjectDb {
     if (this.overviewCollect) return 0;
     let stmt = this.scalarStmtCache.get(sql);
     if (!stmt) {
-      stmt = this.db.prepare(sql);
+      try {
+        stmt = this.db.prepare(sql);
+      } catch (err) {
+        // Read-only open of an older project: a check it lacks counts 0
+        // (see runOverviewBatch).
+        if (this.readOnly) return 0;
+        throw err;
+      }
       this.scalarStmtCache.set(sql, stmt);
     }
     return Number((stmt.get() as { c: number | null }).c ?? 0);
@@ -7504,7 +7522,14 @@ export class ProjectDb {
       } finally {
         this.overviewCollect = null;
       }
-      this.overviewClauses = [...collect];
+      // A read-only open skips migrations, so a project last written by an
+      // older build can lack the column or table a newer check reads; one
+      // such clause would fail the whole combined scan. Those checks count 0
+      // (the build that wrote the file did not run them).
+      this.overviewUnreadable = this.readOnly
+        ? new Set([...collect].filter((c) => !this.clauseReadable(c)))
+        : new Set();
+      this.overviewClauses = [...collect].filter((c) => !this.overviewUnreadable.has(c));
       this.overviewScopedClauses = this.overviewClauses.filter((c) =>
         c.startsWith(INTERNAL_HTML_SCOPE),
       );
@@ -7512,7 +7537,7 @@ export class ProjectDb {
         (c) => !c.startsWith(INTERNAL_HTML_SCOPE),
       );
     }
-    if (this.overviewClauses.length === 0) return;
+    if (this.overviewClauses.length === 0 && this.overviewUnreadable.size === 0) return;
     const projection = (clauses: string[]): string =>
       clauses
         .map((c, i) => `SUM(CASE WHEN (${c}) THEN 1 ELSE 0 END) AS c${i}`)
@@ -7523,7 +7548,7 @@ export class ProjectDb {
     const withoutScope = (c: string): string =>
       c.slice(INTERNAL_HTML_SCOPE.length).replace(/^\s*AND\s+/, '') || '1 = 1';
 
-    const batch = new Map<string, number>();
+    const batch = new Map<string, number>([...this.overviewUnreadable].map((c) => [c, 0]));
     const collectInto = (
       stmt: StatementSync,
       clauses: string[],

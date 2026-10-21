@@ -2759,7 +2759,11 @@ const MIGRATIONS: Migration[] = [
   },
 ];
 
-export function runMigrations(db: DatabaseSync): void {
+export function runMigrations(
+  db: DatabaseSync,
+  /** Stop after this version: lets tests build the schema of an older build. */
+  untilVersion = Infinity,
+): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_version (
       version INTEGER PRIMARY KEY,
@@ -2771,7 +2775,7 @@ export function runMigrations(db: DatabaseSync): void {
     (db.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number | null }).v ??
     0;
 
-  const pending = MIGRATIONS.filter((m) => m.version > currentVersion);
+  const pending = MIGRATIONS.filter((m) => m.version > currentVersion && m.version <= untilVersion);
   for (const migration of pending) {
     db.exec('BEGIN');
     try {
