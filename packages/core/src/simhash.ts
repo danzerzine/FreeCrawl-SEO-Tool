@@ -26,6 +26,7 @@
 import {
   fingerprintFromShingles,
   fnv1a64,
+  SHINGLE_SIZE,
   shingleHashes,
   simhashFromShingles,
   tokenizeContent,
@@ -37,8 +38,6 @@ import {
 function toHex64(n: bigint): string {
   return n.toString(16).padStart(16, '0');
 }
-
-const SHINGLE_SIZE = 3;
 
 /**
  * Compute the near-duplicate fingerprint (SimHash + MinHash) and the exact

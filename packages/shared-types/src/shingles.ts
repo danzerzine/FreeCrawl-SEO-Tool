@@ -48,7 +48,7 @@ export function fnv1a32Bytes(bytes: Uint8Array): number {
   return h >>> 0;
 }
 
-const SHINGLE_SIZE = 3;
+export const SHINGLE_SIZE = 3;
 const MIN_TOKEN_LEN = 2;
 /** With a set, a page needs this many shingles left to be fingerprinted. */
 const MIN_SHINGLES_AFTER_SET = 3;
@@ -151,6 +151,11 @@ export function unpackTemplateSet(bytes: Uint8Array): Uint32Array {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let i = 0; i < out.length; i++) out[i] = view.getUint32(i * 4, true);
   return out;
+}
+
+/** Decode a stored (base64) template set, the form kept in project_meta. */
+export function unpackTemplateSetBase64(packed: string): Uint32Array {
+  return unpackTemplateSet(Buffer.from(packed, 'base64'));
 }
 
 /** A template set from its hashes; id = FNV-1a 32 of the packed, sorted set. */

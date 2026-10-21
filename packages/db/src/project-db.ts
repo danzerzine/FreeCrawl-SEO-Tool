@@ -102,7 +102,7 @@ import {
   minhashSimilarity,
   fingerprintFromShingles,
   packTemplateSet,
-  unpackTemplateSet,
+  unpackTemplateSetBase64,
   type ShingleHashes,
   type TemplateSet,
 } from '@freecrawl/shared-types';
@@ -4037,7 +4037,7 @@ export class ProjectDb {
     if (this.templateSetCache?.id === id) return this.templateSetCache;
     const packed = this.getMeta(TEMPLATE_SHINGLES_META_KEY);
     if (packed === null) return null;
-    this.templateSetCache = { id, hashes: unpackTemplateSet(Buffer.from(packed, 'base64')) };
+    this.templateSetCache = { id, hashes: unpackTemplateSetBase64(packed) };
     return this.templateSetCache;
   }
 

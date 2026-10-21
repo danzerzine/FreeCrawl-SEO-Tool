@@ -14,7 +14,7 @@ import type {
 import {
   EXTERNAL_NO_ANSWER_CONFIRMED,
   makeTemplateSet,
-  unpackTemplateSet,
+  unpackTemplateSetBase64,
   type ShingleHashes,
   type TemplateSet,
 } from '@freecrawl/shared-types';
@@ -1842,7 +1842,7 @@ export class Crawler extends EventEmitter {
       );
       return;
     }
-    this.templateSet = { id: Number(id), hashes: unpackTemplateSet(Buffer.from(packed, 'base64')) };
+    this.templateSet = { id: Number(id), hashes: unpackTemplateSetBase64(packed) };
     this.emit(
       'info',
       `Duplicates: template text from the stored set (${this.templateSet.hashes.length} shingles) is left out of near-duplicate fingerprints`,
