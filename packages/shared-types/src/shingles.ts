@@ -137,3 +137,24 @@ export function fingerprintFromShingles(
   const kept = set ? h.h32.filter((x) => !inSortedSet(set.hashes, x)) : h.h32;
   return { simhash, minhash: computeMinHashFromHashes(kept) };
 }
+
+/** Sorted set hashes as little-endian uint32 bytes (the stored form). */
+export function packTemplateSet(hashes: Uint32Array): Uint8Array {
+  const out = new Uint8Array(hashes.length * 4);
+  const view = new DataView(out.buffer);
+  for (let i = 0; i < hashes.length; i++) view.setUint32(i * 4, hashes[i]!, true);
+  return out;
+}
+
+export function unpackTemplateSet(bytes: Uint8Array): Uint32Array {
+  const out = new Uint32Array(bytes.length >>> 2);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let i = 0; i < out.length; i++) out[i] = view.getUint32(i * 4, true);
+  return out;
+}
+
+/** A template set from its hashes; id = FNV-1a 32 of the packed, sorted set. */
+export function makeTemplateSet(hashes: Uint32Array): TemplateSet {
+  const sorted = Uint32Array.from(hashes).sort();
+  return { id: fnv1a32Bytes(packTemplateSet(sorted)), hashes: sorted };
+}

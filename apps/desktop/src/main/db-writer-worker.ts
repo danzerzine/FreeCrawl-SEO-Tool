@@ -128,6 +128,8 @@ const ALLOWED_METHODS = new Set<string>([
   'recomputeHreflangAnalysis',
   'recomputeHreflangInconsistent',
   'recomputeDuplicateClusters',
+  // B98: queued behind the page writes it must follow.
+  'freezeTemplateSet',
   'markUrlTrap',
   'recomputeBoilerplateCoverage',
   'recomputePaginationSequence',

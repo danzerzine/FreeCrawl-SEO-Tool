@@ -100,6 +100,11 @@ import {
   MINHASH_BAND_ROWS,
   minhashSlot,
   minhashSimilarity,
+  fingerprintFromShingles,
+  packTemplateSet,
+  unpackTemplateSet,
+  type ShingleHashes,
+  type TemplateSet,
 } from '@freecrawl/shared-types';
 import { buildCrawlSnapshot } from './crawl-snapshot.js';
 import { runMigrations } from './migrations.js';
@@ -133,6 +138,10 @@ export const NEAR_DUPLICATE_INCOMPLETE_META_KEY = 'nearDuplicateIncomplete';
 export const NEAR_DUPLICATE_NOT_COMPARED_META_KEY = 'nearDuplicateNotCompared';
 /** Id of the project's current template set (B98); absent = no set. */
 export const TEMPLATE_SET_ID_META_KEY = 'templateSetId';
+/** The set's hashes, packed sorted uint32 little-endian, base64. */
+export const TEMPLATE_SHINGLES_META_KEY = 'templateShingles';
+/** JSON `{ pages, entries }` of the sample the set was learned from. */
+export const TEMPLATE_SAMPLE_META_KEY = 'templateSample';
 /** The configured content-area selector matched nothing on the page (B8). */
 const CONTENT_AREA_MISSED_SQL = "content_source = 'selector-missed'";
 /** Near-duplicate clusters above this many pages are named in the crawl log. */
@@ -3965,6 +3974,48 @@ export class ProjectDb {
   private currentTemplateSetId(): number | null {
     const v = this.getMeta(TEMPLATE_SET_ID_META_KEY);
     return v === null || v === '' ? null : Number(v);
+  }
+
+  /**
+   * Hashes of the set with this id, cached per connection by id. The id
+   * itself is never cached (another connection may reset or freeze), so a
+   * stale entry is simply a miss.
+   */
+  private templateSetCache: TemplateSet | null = null;
+  private templateSetById(id: number | null): TemplateSet | null {
+    if (id === null) return null;
+    if (this.templateSetCache?.id === id) return this.templateSetCache;
+    const packed = this.getMeta(TEMPLATE_SHINGLES_META_KEY);
+    if (packed === null) return null;
+    this.templateSetCache = { id, hashes: unpackTemplateSet(Buffer.from(packed, 'base64')) };
+    return this.templateSetCache;
+  }
+
+  /**
+   * Make a learned template set the project's current one (B98). One
+   * transaction: the set goes to `project_meta` and every sample row's
+   * near-duplicate fingerprint is recomputed from its shingle hashes and
+   * marked with the set id. Sample rows not written yet are fixed by their
+   * own write (see `writeFetchedUrl`). Any error rolls everything back.
+   * A writer job: it runs in the same queue as page writes.
+   */
+  freezeTemplateSet(input: {
+    id: number;
+    hashes: Uint32Array;
+    sample: { pages: number; entries: number };
+    rows: ReadonlyArray<{ url: string; shingles: ShingleHashes }>;
+  }): void {
+    const set: TemplateSet = { id: input.id, hashes: input.hashes };
+    this.runInTransaction(() => {
+      this.setMeta(TEMPLATE_SET_ID_META_KEY, String(input.id));
+      this.setMeta(TEMPLATE_SHINGLES_META_KEY, Buffer.from(packTemplateSet(input.hashes)).toString('base64'));
+      this.setMeta(TEMPLATE_SAMPLE_META_KEY, JSON.stringify(input.sample));
+      const upd = this.db.prepare('UPDATE urls SET simhash = ?, minhash = ?, template_set_id = ? WHERE url = ?');
+      for (const r of input.rows) {
+        const fp = fingerprintFromShingles(r.shingles, set);
+        upd.run(fp.simhash, fp.minhash, input.id, r.url);
+      }
+    });
   }
 
   /**
