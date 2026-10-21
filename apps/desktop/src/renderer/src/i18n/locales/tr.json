@@ -1100,7 +1100,8 @@
     "browse": "Gözat…",
     "outputDirHint": "Bir klasör seçin — her çalışma orada zaman damgalı bir alt klasöre yazar.",
     "sheets": "Tüm URL'leri yeni bir Google E-Tablolar dosyasına da gönder",
-    "webhook": "Proje webhook'una dosya listesini bildir (Ayarlar → Webhook)"
+    "webhook": "Proje webhook'una dosya listesini bildir (Ayarlar → Webhook)",
+    "compare": "Önceki taramayla karşılaştır: değişiklik raporu dışa aktarma klasörüne, sayılar webhook'a ve uyarı e-postasına"
   },
   "serp": {
     "noTitle": "(başlık yok)",

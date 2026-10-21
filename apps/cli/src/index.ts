@@ -26,11 +26,13 @@ import {
 } from '@freecrawl/shared-types';
 import {
   Crawler,
+  compareChangesText,
   compareCrawls,
   compareToFiles,
   compareWithoutMmap,
   openCompareProject,
   type CompareProject,
+  type CompareSummary,
   assertMetric,
   historyRows,
   latestAndPrevious,
@@ -152,6 +154,9 @@ Options:
                         Useful for CI/CD pipelines.
   --export-dir <dir>  After the crawl, write the exports named by --export into <dir> (see export)
   --export <list>     What --export-dir writes; same list as export --what (default: bulk)
+  --compare-with <project>  After the crawl, compare with that saved project (before) the way
+                        compare does: counts printed (--json: "compare"); with --export-dir the
+                        compare-*.csv files go there too. Changes do not change the exit code.
 
 analyze-logs options:
   --project <file>    Project to merge log aggregates into (default: ./crawl.seoproject)
@@ -277,6 +282,7 @@ function parseCliArgs() {
       'save-set': { type: 'string' },
       'list-sets': { type: 'boolean' },
       'export-dir': { type: 'string' },
+      'compare-with': { type: 'string' },
       export: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -508,6 +514,15 @@ async function main(): Promise<void> {
     console.error('--export needs --export-dir <dir>.');
     process.exit(2);
   }
+  const compareWith = values['compare-with'] !== undefined ? resolve(values['compare-with']) : null;
+  if (compareWith === dbPath) {
+    console.error('--compare-with needs another project than --db: the crawl rewrites its own.');
+    process.exit(2);
+  }
+  if (compareWith !== null && !existsSync(compareWith)) {
+    console.error(`Project not found: ${compareWith}`);
+    process.exit(2);
+  }
 
   // Opened only after every flag validated, so a bad argument leaves no
   // empty project file behind.
@@ -566,6 +581,25 @@ async function main(): Promise<void> {
     });
   }
 
+  let compared: CompareSummary | null = null;
+  let compareError: string | null = null;
+  if (compareWith !== null) {
+    try {
+      const previous = await openCompareProject(compareWith);
+      try {
+        compared = await compareWithoutMmap(previous.db, db, () =>
+          postCrawlExport
+            ? compareToFiles(previous.db, db, postCrawlExport.dir)
+            : compareCrawls(previous.db, db),
+        );
+      } finally {
+        previous.dispose();
+      }
+    } catch (err) {
+      compareError = (err as Error).message;
+    }
+  }
+
   const overview = db.getOverviewCounts();
   const issues = overview.issues;
   const soft404Probe = overview.site?.soft404Probe ?? null;
@@ -595,6 +629,20 @@ async function main(): Promise<void> {
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
           ...(exported ? { exports: { ok: exported.errors.length === 0, ...exported } } : {}),
+          ...(compareWith !== null
+            ? {
+                compare: compared
+                  ? {
+                      with: compareWith,
+                      totalBefore: compared.totalA,
+                      totalAfter: compared.totalB,
+                      counts: compared.counts,
+                      issueChanges: compared.issueChanges,
+                      notComparable: compared.notComparable,
+                    }
+                  : { with: compareWith, error: compareError },
+              }
+            : {}),
         },
         null,
         2,
@@ -612,6 +660,8 @@ async function main(): Promise<void> {
       for (const e of exported.errors) console.error(`Export failed: ${e.label}: ${e.error}`);
       for (const k of exported.skipped) console.error(`Export skipped: ${k.label}: ${k.reason}`);
     }
+    if (compared) console.log(compareChangesText(compared));
+    if (compareError !== null) console.error(`Compare with ${compareWith} failed: ${compareError}`);
     if (botBlocked) {
       console.log(
         `Warning: bot protection blocked ${botBlocked.count} URL(s)` +
@@ -628,7 +678,9 @@ async function main(): Promise<void> {
   }
 
   db.close();
-  process.exit(hasErrors || (exported !== null && exported.errors.length > 0) ? 1 : 0);
+  process.exit(
+    hasErrors || (exported !== null && exported.errors.length > 0) || compareError !== null ? 1 : 0,
+  );
 }
 
 /**

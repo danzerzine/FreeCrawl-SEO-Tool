@@ -1123,7 +1123,8 @@
     "browse": "Examinar…",
     "outputDirHint": "Elige una carpeta: cada ejecución escribe en una subcarpeta con fecha y hora.",
     "sheets": "Enviar también todas las URL a una hoja de Google Sheets nueva",
-    "webhook": "Notificar al webhook del proyecto con la lista de archivos (Ajustes → Webhook)"
+    "webhook": "Notificar al webhook del proyecto con la lista de archivos (Ajustes → Webhook)",
+    "compare": "Comparar con el rastreo anterior: informe de cambios en la carpeta de exportación, recuentos en el webhook y el correo de alerta"
   },
   "serp": {
     "noTitle": "(sin título)",

@@ -1100,7 +1100,8 @@
     "browse": "Browse…",
     "outputDirHint": "Pick a folder — each run writes into a timestamped sub-folder there.",
     "sheets": "Also push All URLs to a new Google Sheets spreadsheet",
-    "webhook": "Notify the project webhook with the file list (Settings → Webhook)"
+    "webhook": "Notify the project webhook with the file list (Settings → Webhook)",
+    "compare": "Compare with the previous crawl: change report in the export folder, counts in the webhook and alert email"
   },
   "serp": {
     "noTitle": "(no title)",

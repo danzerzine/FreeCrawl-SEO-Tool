@@ -554,6 +554,9 @@ export interface ScheduleAfterCrawl {
   sheets: boolean;
   /** POST the file list / spreadsheet URL to the project's webhook URL (Settings → Webhook). */
   webhook: boolean;
+  /** Compare with the project as it was saved before this run (`<name>.previous.seoproject`, B81):
+   *  `compare-*.csv` into the export folder, the counts in the webhook and the alert email. */
+  compare?: boolean;
 }
 
 export interface ScheduleSpec {

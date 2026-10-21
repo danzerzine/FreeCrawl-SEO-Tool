@@ -1123,7 +1123,8 @@
     "browse": "Parcourir…",
     "outputDirHint": "Choisissez un dossier : chaque exécution écrit dans un sous-dossier horodaté.",
     "sheets": "Envoyer aussi toutes les URL vers une nouvelle feuille Google Sheets",
-    "webhook": "Notifier le webhook du projet avec la liste des fichiers (Paramètres → Webhook)"
+    "webhook": "Notifier le webhook du projet avec la liste des fichiers (Paramètres → Webhook)",
+    "compare": "Comparer avec l'exploration précédente : rapport des changements dans le dossier d'export, chiffres dans le webhook et l'e-mail d'alerte"
   },
   "serp": {
     "noTitle": "(aucun titre)",

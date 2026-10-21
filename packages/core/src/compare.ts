@@ -77,6 +77,20 @@ export interface CompareSummary {
   notComparable: Record<string, CompareNotComparable>;
 }
 
+/**
+ * One plain line of what changed, for an alert email or a log: the kinds with
+ * changes and their counts, then the number of checks that changed (B81).
+ */
+export function compareChangesText(summary: CompareSummary): string {
+  const kinds = Object.entries(summary.counts)
+    .filter(([, n]) => n > 0)
+    .map(([kind, n]) => `${kind} ${n}`);
+  const checks = Object.keys(summary.issueChanges).length;
+  const head = `Changes since the previous crawl (${summary.totalA} → ${summary.totalB} URLs):`;
+  if (kinds.length === 0 && checks === 0) return `${head} none.`;
+  return `${head} ${[kinds.join(', '), checks > 0 ? `checks changed: ${checks}` : ''].filter(Boolean).join('; ')}.`;
+}
+
 interface MinimalRow {
   id: number;
   url: string;

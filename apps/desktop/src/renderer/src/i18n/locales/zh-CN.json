@@ -1077,7 +1077,8 @@
     "browse": "浏览…",
     "outputDirHint": "选择一个文件夹——每次运行都会写入其中带时间戳的子文件夹。",
     "sheets": "同时将所有 URL 推送到新的 Google 表格",
-    "webhook": "用文件列表通知项目 Webhook（设置 → Webhook）"
+    "webhook": "用文件列表通知项目 Webhook（设置 → Webhook）",
+    "compare": "与上一次抓取比较：变更报告写入导出文件夹，数量写入 Webhook 和警报邮件"
   },
   "serp": {
     "noTitle": "（无标题）",

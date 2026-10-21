@@ -1123,7 +1123,8 @@
     "browse": "Procurar…",
     "outputDirHint": "Escolha uma pasta — cada execução grava em uma subpasta com data e hora.",
     "sheets": "Enviar também todas as URLs para uma nova planilha do Google Sheets",
-    "webhook": "Notificar o webhook do projeto com a lista de arquivos (Configurações → Webhook)"
+    "webhook": "Notificar o webhook do projeto com a lista de arquivos (Configurações → Webhook)",
+    "compare": "Comparar com o rastreamento anterior: relatório de mudanças na pasta de exportação, contagens no webhook e no e-mail de alerta"
   },
   "serp": {
     "noTitle": "(sem título)",

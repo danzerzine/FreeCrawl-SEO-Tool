@@ -1100,7 +1100,8 @@
     "browse": "Bax…",
     "outputDirHint": "Qovluq seçin — hər icra orada vaxt möhürlü alt qovluğa yazır.",
     "sheets": "Bütün URL-ləri yeni Google Sheets cədvəlinə də göndər",
-    "webhook": "Layihə webhook-una fayl siyahısını bildir (Ayarlar → Webhook)"
+    "webhook": "Layihə webhook-una fayl siyahısını bildir (Ayarlar → Webhook)",
+    "compare": "Əvvəlki tarama ilə müqayisə et: dəyişiklik hesabatı ixrac qovluğuna, saylar webhook-a və xəbərdarlıq e-poçtuna"
   },
   "serp": {
     "noTitle": "(başlıq yoxdur)",

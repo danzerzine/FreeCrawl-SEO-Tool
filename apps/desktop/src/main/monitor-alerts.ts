@@ -46,7 +46,12 @@ export interface AlertDeps {
   log: (level: 'info' | 'warn', message: string) => void;
 }
 
-type Sender = (results: AlertRuleResult[], deps: AlertDeps, title: string) => Promise<SendResult> | null;
+type Sender = (
+  results: AlertRuleResult[],
+  deps: AlertDeps,
+  title: string,
+  footer?: string,
+) => Promise<SendResult> | null;
 
 /**
  * Builds one channel's send from its credentials; null when they are not
@@ -66,12 +71,12 @@ const SENDERS: Record<AlertChannelId, Sender> = {
     const apiBase = deps.telegramApiBase ?? TELEGRAM_API_BASE;
     return sendTelegram({ apiBase, token, chatId }, results, { title, timeoutMs: deps.timeoutMs });
   },
-  email: (results, deps, title) => {
+  email: (results, deps, title, footer) => {
     const c = deps.credentials('email');
     const smtpUrl = c['smtpUrl']?.trim();
     const to = c['to']?.trim();
     if (!smtpUrl || !to) return null;
-    return sendEmail(smtpUrl, to, results, { title, timeoutMs: deps.timeoutMs });
+    return sendEmail(smtpUrl, to, results, { title, footer, timeoutMs: deps.timeoutMs });
   },
   webhook: (results, deps, title) => {
     const url = deps.webhookUrl?.trim();
@@ -119,11 +124,12 @@ async function deliver(
   results: AlertRuleResult[],
   deps: AlertDeps,
   title: string,
+  footer?: string,
 ): Promise<AlertDelivery[]> {
   return Promise.all(
     channels.map(async (channel): Promise<AlertDelivery> => {
       try {
-        const sent = SENDERS[channel](results, deps, title);
+        const sent = SENDERS[channel](results, deps, title, footer);
         const r = sent ? await sent : { ok: false, detail: 'not configured' };
         deps.log(r.ok ? 'info' : 'warn', `Alert to ${channel} ${r.ok ? 'sent' : 'failed'}: ${r.detail}`);
         return { channel, ok: r.ok, detail: r.detail };
@@ -153,12 +159,13 @@ export function crawlRunSaved(
  * start URL is the crawler's resolved one from the newest row, not the
  * typed `lastStartUrl`, which can differ (redirect, missing slash).
  * `since` is when the crawl started; a newest row older than it is not
- * this crawl's.
+ * this crawl's. `footer` (a scheduled crawl's change report, B81) goes at
+ * the end of the email.
  */
 export async function alertAfterCrawl(
   db: Pick<ProjectDb, 'getMeta' | 'latestCrawlRunStartUrl' | 'listCrawlRuns'>,
   deps: AlertDeps,
-  opts: { since?: string } = {},
+  opts: { since?: string; footer?: string } = {},
 ): Promise<AlertDelivery[]> {
   try {
     const { channels } = readAlertsConfig(db);
@@ -177,7 +184,7 @@ export async function alertAfterCrawl(
     const fired = results.filter((r) => r.status === 'fired').length;
     if (fired === 0) return [];
     deps.log('info', `Alerts: ${fired} rule(s) fired for ${startUrl}`);
-    return await deliver(channels, results, deps, `FreeCrawl alert for ${startUrl}`);
+    return await deliver(channels, results, deps, `FreeCrawl alert for ${startUrl}`, opts.footer);
   } catch (err) {
     deps.log('warn', `Alerts skipped: ${err instanceof Error ? err.message : String(err)}`);
     return [];

@@ -110,6 +110,7 @@ export {
   type WebhookResult,
 } from './webhook.js';
 export {
+  compareChangesText,
   compareCrawls,
   compareToFiles,
   compareWithoutMmap,

@@ -151,15 +151,16 @@ export function sendWebhook(
 }
 
 /**
- * Email over SMTP (`smtps://user:pass@host:port`), same body as Slack. The
- * sender address is the SMTP user when it is an address, else
+ * Email over SMTP (`smtps://user:pass@host:port`), same body as Slack plus
+ * an optional `footer` block (a scheduled crawl's change report). The sender
+ * address is the SMTP user when it is an address, else
  * `freecrawl@<host>`.
  */
 export async function sendEmail(
   smtpUrl: string,
   to: string,
   results: AlertRuleResult[],
-  opts: SendOptions & { title?: string } = {},
+  opts: SendOptions & { title?: string; footer?: string } = {},
 ): Promise<SendResult> {
   let shown = '[unparseable url]';
   const secrets = [smtpUrl];
@@ -182,7 +183,7 @@ export async function sendEmail(
         from: user.includes('@') ? user : `freecrawl@${u.hostname}`,
         to,
         subject: `${opts.title ?? 'FreeCrawl alert'}: ${fired} rule(s) fired`,
-        text: formatAlert(results, { title: opts.title }),
+        text: formatAlert(results, { title: opts.title }) + (opts.footer ? `\n\n${opts.footer}` : ''),
       });
     } finally {
       transport.close();

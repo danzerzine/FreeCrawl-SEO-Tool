@@ -26,6 +26,7 @@ interface FormState {
   afterOutputDir: string;
   afterSheets: boolean;
   afterWebhook: boolean;
+  afterCompare: boolean;
 }
 
 const DEFAULT_FORM: FormState = {
@@ -40,6 +41,7 @@ const DEFAULT_FORM: FormState = {
   afterOutputDir: '',
   afterSheets: false,
   afterWebhook: false,
+  afterCompare: false,
 };
 
 function entryToForm(entry: ScheduleEntry | null): FormState {
@@ -57,6 +59,7 @@ function entryToForm(entry: ScheduleEntry | null): FormState {
     afterOutputDir: spec.afterCrawl?.outputDir ?? '',
     afterSheets: spec.afterCrawl?.sheets ?? false,
     afterWebhook: spec.afterCrawl?.webhook ?? false,
+    afterCompare: spec.afterCrawl?.compare ?? false,
   };
 }
 
@@ -78,13 +81,14 @@ function formToSpec(form: FormState): ScheduleSpec {
   }
   const outputDir = form.afterOutputDir.trim();
   const exportKind = form.afterExport !== 'none' && outputDir !== '' ? form.afterExport : 'none';
-  if (exportKind !== 'none' || form.afterSheets || form.afterWebhook) {
+  if (exportKind !== 'none' || form.afterSheets || form.afterWebhook || form.afterCompare) {
     out.afterCrawl = {
       export: exportKind,
       ...(exportKind === 'set' ? { exportSet: form.afterExportSet } : {}),
       outputDir,
       sheets: form.afterSheets,
       webhook: form.afterWebhook,
+      ...(form.afterCompare ? { compare: true } : {}),
     };
   }
   return out;
@@ -403,6 +407,15 @@ export function ScheduledCrawlDialog({ open, onClose }: Props) {
                 className="h-3.5 w-3.5 accent-blue-500"
               />
               {t('scheduled.webhook', { defaultValue: 'Notify the project webhook with the file list (Settings → Webhook)' })}
+            </label>
+            <label className="mt-1 flex items-center gap-2 text-[11px] text-surface-200">
+              <input
+                type="checkbox"
+                checked={form.afterCompare}
+                onChange={(e) => update('afterCompare', e.target.checked)}
+                className="h-3.5 w-3.5 accent-blue-500"
+              />
+              {t('scheduled.compare', { defaultValue: 'Compare with the previous crawl: change report in the export folder, counts in the webhook and alert email' })}
             </label>
           </div>
 

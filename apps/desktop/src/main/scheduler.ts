@@ -145,8 +145,9 @@ function normalizeSpec(spec: ScheduleSpec): ScheduleSpec {
       outputDir,
       sheets: !!after.sheets,
       webhook: !!after.webhook,
+      ...(after.compare ? { compare: true } : {}),
     };
-    if (normalized.export !== 'none' || normalized.sheets || normalized.webhook) {
+    if (normalized.export !== 'none' || normalized.sheets || normalized.webhook || normalized.compare) {
       out.afterCrawl = normalized;
     }
   }
