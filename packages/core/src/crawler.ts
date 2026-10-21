@@ -315,6 +315,8 @@ const LARGE_CLUSTERS_LOGGED = 10;
  */
 const TEMPLATE_SAMPLE_PAGES = 500;
 const TEMPLATE_HELD_ENTRIES = 1_000_000;
+/** A page with more shingles than this is not held for the sample (≈ 280 KB per page). */
+const TEMPLATE_PAGE_ENTRIES = 20_000;
 const TEMPLATE_MIN_SAMPLE_PAGES = 50;
 const TEMPLATE_PAGE_SHARE = 0.3;
 const TEMPLATE_MAX_SHINGLES = 20_000;
@@ -712,6 +714,7 @@ export class Crawler extends EventEmitter {
   private templateSet: TemplateSet | null = null;
   private templateHeld: { url: string; shingles: ShingleHashes; sample: boolean }[] = [];
   private templateHeldEntries = 0;
+  private templateOversizeEntries = 0;
   private templateSamplePages = 0;
   private templateFreezeJob: Promise<void> | null = null;
 
@@ -1830,6 +1833,7 @@ export class Crawler extends EventEmitter {
     this.templateSet = null;
     this.templateHeld = [];
     this.templateHeldEntries = 0;
+    this.templateOversizeEntries = 0;
     this.templateSamplePages = 0;
     this.templateFreezeJob = null;
     if (this.templateLearn) return;
@@ -1849,9 +1853,24 @@ export class Crawler extends EventEmitter {
     );
   }
 
-  /** Keep a page's hashes for the freeze; freeze when the sample is full. */
+  /**
+   * Keep a page's hashes for the freeze; freeze when the sample is full. A
+   * page over TEMPLATE_PAGE_ENTRIES is not truncated (truncated hashes would
+   * give a wrong fingerprint on reconcile) and is not part of the sample: it
+   * does not count, does not use the sample budget and cannot trigger the
+   * freeze. Its hashes are held apart (own budget of the same size) only so
+   * the freeze can reconcile it when it was written before the set existed;
+   * beyond that budget it keeps the fingerprint it was written with.
+   */
   private holdTemplateSample(url: string, shingles: ShingleHashes, sample: boolean): void {
     const entries = shingles.h32.length;
+    if (entries > TEMPLATE_PAGE_ENTRIES) {
+      if (this.templateOversizeEntries + entries <= TEMPLATE_HELD_ENTRIES) {
+        this.templateHeld.push({ url, shingles, sample: false });
+        this.templateOversizeEntries += entries;
+      }
+      return;
+    }
     if (this.templateHeldEntries + entries > TEMPLATE_HELD_ENTRIES) {
       // No room to hold this page for the freeze: stop learning here. The
       // page itself is reconciled by its own write (it carries its hashes).
@@ -1875,6 +1894,7 @@ export class Crawler extends EventEmitter {
     const held = this.templateHeld;
     this.templateHeld = [];
     this.templateHeldEntries = 0;
+    this.templateOversizeEntries = 0;
     const sample = held.filter((h) => h.sample);
     const pages = sample.length;
     if (pages < TEMPLATE_MIN_SAMPLE_PAGES) {
