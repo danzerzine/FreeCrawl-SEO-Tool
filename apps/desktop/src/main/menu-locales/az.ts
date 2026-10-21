@@ -36,6 +36,7 @@ export const MENU_AZ: MenuLabels = {
   exportSheets: 'Google Sheets-ə ixrac et…',
   exportBigquery: 'BigQuery-yə ixrac et…',
   compareWith: 'Layihə ilə müqayisə et…',
+  trends: 'Trendlər…',
   scheduledCrawl: 'Cədvəlli tarama…',
   scheduledCrawlTooltip:
     'Açıq layihə üçün tətbiq daxilində təkrarlanan tarama qurun. Yalnız FreeCrawl açıq olduqda işə düşür; yenidən başlatmadan sonra da qalan tətikləyicilər üçün CLI ilə əməliyyat sisteminin cədvəlləyicisindən istifadə edin.',

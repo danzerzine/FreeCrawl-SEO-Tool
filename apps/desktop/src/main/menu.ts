@@ -152,6 +152,10 @@ export function buildAppMenu(handlers: AppMenuHandlers): Menu {
           click: () => send('compare-with-project'),
         },
         {
+          label: L.trends,
+          click: () => send('open-trends'),
+        },
+        {
           label: L.scheduledCrawl,
           toolTip: L.scheduledCrawlTooltip,
           click: () => send('open-scheduled-crawl'),

@@ -31,6 +31,7 @@ export const MENU_ES: MenuLabels = {
   exportSheets: 'Exportar a Google Sheets…',
   exportBigquery: 'Exportar a BigQuery…',
   compareWith: 'Comparar con proyecto…',
+  trends: 'Tendencias…',
   scheduledCrawl: 'Rastreo programado…',
   scheduledCrawlTooltip:
     'Configura un rastreo recurrente dentro de la aplicación para el proyecto abierto. Solo se activa mientras FreeCrawl está abierto; usa la CLI y el programador del sistema para disparadores que sobrevivan a un reinicio.',

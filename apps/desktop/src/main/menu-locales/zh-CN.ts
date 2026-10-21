@@ -31,6 +31,7 @@ export const MENU_ZH_CN: MenuLabels = {
   exportSheets: '导出到 Google Sheets…',
   exportBigquery: '导出到 BigQuery…',
   compareWith: '与项目比较…',
+  trends: '趋势…',
   scheduledCrawl: '定时抓取…',
   scheduledCrawlTooltip:
     '为当前打开的项目设置应用内的周期性抓取。仅在 FreeCrawl 运行时触发；若需要在重启后依然生效的触发方式，请配合命令行工具与操作系统的计划任务。',

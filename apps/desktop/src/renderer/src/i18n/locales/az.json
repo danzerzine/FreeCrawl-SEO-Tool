@@ -2413,5 +2413,12 @@
     "send": "Göndər",
     "toolCount_one": "{{count}} alət",
     "toolCount_other": "{{count}} alət"
+  },
+  "trends": {
+    "title": "Trendlər",
+    "metrics": "Metriklər",
+    "needTwo": "Bu sayt üçün iki tarama lazımdır. Say dəyişikliklərini görmək üçün saytı yenidən tarayın.",
+    "notComputed": "hesablanmayıb",
+    "loadFailed": "Tarama tarixçəsi yüklənmədi"
   }
 }

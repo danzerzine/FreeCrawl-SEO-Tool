@@ -14,6 +14,12 @@ export interface CrawlSnapshot {
   disabledChecks: UrlCategory[];
 }
 
+/** One crawl's point in the Trends view: its finish time and one value per chosen metric (null = not computed). */
+export interface MonitorHistoryRow {
+  finishedAt: string;
+  values: Record<string, number | null>;
+}
+
 /** One row of the project's crawl history (`crawl_runs`). */
 export interface CrawlRun {
   id: number;

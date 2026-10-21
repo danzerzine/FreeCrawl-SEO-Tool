@@ -31,6 +31,7 @@ export const MENU_KO: MenuLabels = {
   exportSheets: 'Google Sheets로 내보내기…',
   exportBigquery: 'BigQuery로 내보내기…',
   compareWith: '프로젝트와 비교…',
+  trends: '추세…',
   scheduledCrawl: '예약 크롤…',
   scheduledCrawlTooltip:
     '현재 열려 있는 프로젝트에 대해 앱 내에서 반복 크롤을 설정합니다. FreeCrawl이 실행 중일 때만 동작하므로, 재시작 후에도 유지되는 트리거가 필요하면 CLI와 운영체제의 작업 스케줄러를 사용하십시오.',
