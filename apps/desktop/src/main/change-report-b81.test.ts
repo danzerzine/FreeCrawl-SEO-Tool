@@ -72,6 +72,16 @@ describe('scheduled change report (B81)', () => {
     expect(fs.readFileSync(previous).equals(fs.readFileSync(project))).toBe(true);
   }, 90000);
 
+  it('a failed copy removes the old one, so no report runs against an older crawl', async () => {
+    const previous = previousCrawlPath(project);
+    expect(fs.existsSync(previous)).toBe(true);
+    await expect(keepPreviousCrawl(path.join(dir, 'gone.seoproject'))).rejects.toThrow();
+    expect(fs.existsSync(previousCrawlPath(path.join(dir, 'gone.seoproject')))).toBe(false);
+    fs.copyFileSync(project, path.join(dir, 'gone.previous.seoproject'));
+    await expect(keepPreviousCrawl(path.join(dir, 'gone.seoproject'))).rejects.toThrow();
+    expect(fs.existsSync(path.join(dir, 'gone.previous.seoproject'))).toBe(false);
+  });
+
   it('no previous copy: no report, no error', async () => {
     const db = new ProjectDb(project);
     try {
