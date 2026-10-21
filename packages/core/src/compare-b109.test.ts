@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { detectProjectFormat, packProject, ProjectDb, unpackProject } from '@freecrawl/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -91,4 +92,70 @@ describe('openCompareProject saves the rebuilt checks once (B109)', () => {
     expect(fs.readFileSync(archive).equals(bytes)).toBe(true);
     expect(fs.readdirSync(path.dirname(archive))).toEqual(['old.seoproject']);
   });
+
+  it('a bare project another process still writes: rebuilt in place through SQLite, the file stays whole', async () => {
+    const file = staleProject('live');
+    const writer = new DatabaseSync(file);
+    writer.exec('PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0;');
+    writer.exec(`INSERT INTO urls (id, url, is_external, content_kind, status_code, indexability)
+      VALUES (2, 'https://ex.com/b', 0, 'html', 200, 'indexable')`);
+
+    const handle = await openCompareProject(file);
+    expect(handle.rebuiltSaved).toBe(true);
+    expect(rowCount(handle.db)).toBe(2);
+    handle.dispose();
+
+    writer.close();
+    const check = new DatabaseSync(file);
+    expect(check.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
+    expect(check.prepare('SELECT count(*) AS n FROM urls').get()).toEqual({ n: 2 });
+    check.close();
+  });
+
+  it('a bare project that cannot be written: compared from a copy holding the rows still in its log', async () => {
+    fs.mkdirSync(path.join(dir, 'ro'));
+    const file = path.join(dir, 'ro', 'log.seoproject');
+    fs.renameSync(staleProject('log'), file);
+    const writer = new DatabaseSync(file);
+    writer.exec('PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0;');
+    writer.exec(`INSERT INTO urls (id, url, is_external, content_kind, status_code, indexability)
+      VALUES (2, 'https://ex.com/b', 0, 'html', 200, 'indexable')`);
+    fs.chmodSync(file, 0o444);
+    const handle = await openCompareProject(file);
+    try {
+      expect(handle.rebuiltSaved).toBe(false);
+      expect(handle.db.issueMaterialisationStale()).toBe(false);
+      expect(rowCount(handle.db)).toBe(2);
+    } finally {
+      handle.dispose();
+      writer.close();
+      fs.chmodSync(file, 0o644);
+    }
+    expect(await storedStale(file)).toBe(true);
+  });
+
+  it('a bare project left with a log by a crashed crawl: the next open still finds it whole', async () => {
+    const file = staleProject('crashed');
+    const crash = `const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync(process.argv[1]);
+      db.exec('PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0;');
+      for (let i = 2; i <= 51; i++) db.exec("INSERT INTO urls (id, url, is_external, content_kind, status_code, indexability) VALUES (" + i + ", 'https://ex.com/" + i + "', 0, 'html', 200, 'indexable')");
+      process.kill(process.pid, 'SIGKILL');`;
+    spawnSync(process.execPath, ['-e', crash, file]);
+    expect(fs.statSync(`${file}-wal`).size).toBeGreaterThan(0);
+
+    const handle = await openCompareProject(file);
+    expect(rowCount(handle.db)).toBe(51);
+    handle.dispose();
+
+    const check = new DatabaseSync(file);
+    expect(check.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
+    expect(check.prepare('SELECT count(*) AS n FROM urls').get()).toEqual({ n: 51 });
+    check.close();
+  });
 });
+
+function rowCount(db: ProjectDb): number {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((db as any).db.prepare('SELECT count(*) AS n FROM urls').get() as { n: number }).n;
+}
