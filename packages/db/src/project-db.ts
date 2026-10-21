@@ -672,6 +672,8 @@ export interface UpsertUrlInput {
   jsTitleChanged?: number;
   jsTitle?: string | null;
   minhash?: Uint8Array | null;
+  /** Template set the near-duplicate fingerprint was made with (B98); null = none. */
+  templateSetId?: number | null;
   contentSource?: ContentSource | null;
   ampPage?: boolean;
   /** JSON-stringified array of AMP validator error codes. */
@@ -858,7 +860,8 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head
+    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head,
+    template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
     :title, :title_length, :meta_description, :meta_description_length,
@@ -903,7 +906,8 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head,
+    :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
     content_kind = excluded.content_kind,
@@ -1058,6 +1062,7 @@ const UPSERT_URL_SQL = `
     js_title_changed = excluded.js_title_changed,
     js_title = excluded.js_title,
     minhash = excluded.minhash,
+    template_set_id = excluded.template_set_id,
     content_source = excluded.content_source,
     changed = ${CHANGED_FLAG_SQL},
     crawled_at = CURRENT_TIMESTAMP
@@ -2222,9 +2227,16 @@ export class ProjectDb {
      */
     uncrawlableLinks?: UncrawlableLink[];
     fromDepth: number;
+    /**
+     * The page's shingle hashes, sent while the crawl is still learning its
+     * template set (B98). When the page was fingerprinted with another set
+     * than the project's current one, the fingerprint is recomputed from
+     * these so the row ends on the current set.
+     */
+    shingles?: ShingleHashes;
   }): { urlId: number } {
     return this.runInTransaction(() => {
-      const urlId = this.upsertUrl(payload.upsert);
+      const urlId = this.upsertUrl(this.reconcileTemplateSet(payload.upsert, payload.shingles));
       if (urlId && payload.headers && payload.headers.length > 0) {
         this.setUrlHeaders(urlId, payload.headers);
       }
@@ -2797,6 +2809,7 @@ export class ProjectDb {
       js_title_changed: input.jsTitleChanged ?? 0,
       js_title: input.jsTitle ?? null,
       minhash: input.minhash ?? null,
+      template_set_id: input.templateSetId ?? null,
       content_source: input.contentSource ?? null,
       favicon: input.favicon ?? null,
       mixed_content_count: input.mixedContentCount ?? 0,
@@ -3974,6 +3987,22 @@ export class ProjectDb {
   private currentTemplateSetId(): number | null {
     const v = this.getMeta(TEMPLATE_SET_ID_META_KEY);
     return v === null || v === '' ? null : Number(v);
+  }
+
+  /**
+   * A page parsed before the current template set existed (or before a
+   * reset dropped it) is re-fingerprinted from its hashes and marked with
+   * the current id. Without hashes it is stored as it came: its id tells
+   * the truth and clustering leaves it out.
+   */
+  private reconcileTemplateSet(upsert: UpsertUrlInput, shingles: ShingleHashes | undefined): UpsertUrlInput {
+    if (!shingles) return upsert;
+    const current = this.currentTemplateSetId();
+    if ((upsert.templateSetId ?? null) === current) return upsert;
+    const set = this.templateSetById(current);
+    if (current !== null && !set) return upsert;
+    const fp = fingerprintFromShingles(shingles, set);
+    return { ...upsert, simhash: fp.simhash, minhash: fp.minhash, templateSetId: current };
   }
 
   /**
