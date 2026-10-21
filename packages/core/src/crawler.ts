@@ -1817,11 +1817,6 @@ export class Crawler extends EventEmitter {
   }
 
   /**
-   * Wrapper around `db.recomputeDuplicateClusters` that surfaces the
-   * cluster count as an `info` event so the user can see the post-crawl
-   * pass actually fired. Threshold = 0 disables clustering.
-   */
-  /**
    * Template set for this run (B98), decided once after the reset decision.
    * Only a run that follows a reset may learn: the flag is read and set to
    * '0' at once, so a resume, refresh or Re-Spider (or the run after a
@@ -1956,6 +1951,11 @@ export class Crawler extends EventEmitter {
     if (this.templateFreezeJob) await this.templateFreezeJob;
   }
 
+  /**
+   * Wrapper around `db.recomputeDuplicateClusters` that surfaces the
+   * cluster count as an `info` event so the user can see the post-crawl
+   * pass actually fired. Threshold = 0 disables clustering.
+   */
   private async runDuplicateClustering(): Promise<void> {
     const threshold = this.config.nearDuplicateHammingThreshold;
     const similarity = this.config.nearDuplicateSimilarity ?? 0;
