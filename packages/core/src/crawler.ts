@@ -1859,8 +1859,12 @@ export class Crawler extends EventEmitter {
    * give a wrong fingerprint on reconcile) and is not part of the sample: it
    * does not count, does not use the sample budget and cannot trigger the
    * freeze. Its hashes are held apart (own budget of the same size) only so
-   * the freeze can reconcile it when it was written before the set existed;
-   * beyond that budget it keeps the fingerprint it was written with.
+   * the freeze can reconcile it when it was written before the set existed.
+   * When that budget is full the page cannot be held, and a page dropped
+   * here that is written before the freeze would stay unreconciled (counted
+   * as not compared): so, like the main budget, a full oversize budget ends
+   * learning. The freeze job is queued before this page's own write, which
+   * then reconciles from the hashes it carries.
    */
   private holdTemplateSample(url: string, shingles: ShingleHashes, sample: boolean): void {
     const entries = shingles.h32.length;
@@ -1868,7 +1872,9 @@ export class Crawler extends EventEmitter {
       if (this.templateOversizeEntries + entries <= TEMPLATE_HELD_ENTRIES) {
         this.templateHeld.push({ url, shingles, sample: false });
         this.templateOversizeEntries += entries;
+        return;
       }
+      this.freezeTemplateSample();
       return;
     }
     if (this.templateHeldEntries + entries > TEMPLATE_HELD_ENTRIES) {
