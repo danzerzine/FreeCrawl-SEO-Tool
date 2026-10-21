@@ -94,4 +94,13 @@ it('a project with the schema of the build before these checks (migrations up to
   expect(o.issues.titleMissing).toBe(1);
   expect(o.issues.pageEmpty).toBe(1);
   expect(urls(db, 'issues:content-thin')).toEqual(['https://ex.com/thin']);
+  expect(o.thresholds).not.toHaveProperty('wordsSql');
+});
+
+it('a writer open still fails loudly when the schema lacks what a check reads', () => {
+  const file = project('writer', [['https://ex.com/a', 200, 500, 300, 500]]);
+  const db = open(file);
+  // Writer opens migrate, so a missing column means a bug: it must not read as 0.
+  (db as unknown as { db: DatabaseSync }).db.exec('ALTER TABLE urls DROP COLUMN h2_first');
+  expect(() => db.getOverviewCounts()).toThrow(/h2_first/);
 });
