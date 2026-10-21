@@ -1840,7 +1840,13 @@ export class Crawler extends EventEmitter {
     if (this.templateLearn) return;
     const id = this.db.getMeta(TEMPLATE_SET_ID_META_KEY);
     const packed = this.db.getMeta(TEMPLATE_SHINGLES_META_KEY);
-    if (id === null || packed === null) return;
+    if (id === null || packed === null) {
+      this.emit(
+        'info',
+        'Duplicates: no template set stored for this project; near-duplicate fingerprints use the full page text',
+      );
+      return;
+    }
     this.templateSet = { id: Number(id), hashes: unpackTemplateSet(Buffer.from(packed, 'base64')) };
     this.emit(
       'info',
