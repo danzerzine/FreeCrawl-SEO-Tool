@@ -7464,63 +7464,45 @@ export class ProjectDb {
     // 2xx response so redirects / error pages (which never carry these
     // elements) aren't flagged as "missing".
     const indexable = INDEXABLE_HTML_SCOPE;
+    // Checks gated to pages answered 2xx (B79) are counted through the very
+    // clause their list applies, so the sidebar number and the rows cannot drift.
+    const gatedCount = (cat: UrlCategory): number => countWhere(categoryWhereClause(cat) ?? '1 = 1');
+    // Duplicate groups form over pages answered 2xx only (B79).
     const dup = (col: string): number =>
       this.scalarCount(
         `SELECT COALESCE(SUM(c), 0) AS c FROM (
            SELECT COUNT(*) AS c FROM urls
-           WHERE ${html} AND ${col} IS NOT NULL AND ${col} != ''
+           WHERE ${indexable} AND ${col} IS NOT NULL AND ${col} != ''
            GROUP BY ${col} HAVING c > 1
          )`,
       );
     return {
       titleMissing: countWhere(`${indexable} AND (title IS NULL OR title = '')`),
-      titleTooLong: countWhere(`${html} AND title_length > 60`),
-      titleTooShort: countWhere(`${html} AND title_length > 0 AND title_length < 30`),
+      titleTooLong: gatedCount('issues:title-too-long'),
+      titleTooShort: gatedCount('issues:title-too-short'),
       titleDuplicate: dup('title'),
       metaMissing: countWhere(
         `${indexable} AND (meta_description IS NULL OR meta_description = '')`,
       ),
-      metaTooLong: countWhere(`${html} AND meta_description_length > 160`),
-      metaTooShort: countWhere(
-        `${html} AND meta_description_length > 0 AND meta_description_length < 120`,
-      ),
+      metaTooLong: gatedCount('issues:meta-too-long'),
+      metaTooShort: gatedCount('issues:meta-too-short'),
       metaDuplicate: dup('meta_description'),
       h1Missing: countWhere(`${indexable} AND (h1 IS NULL OR h1 = '')`),
       h1Duplicate: dup('h1'),
-      h1Multiple: countWhere(`${html} AND h1_count > 1`),
-      headingSkippedLevel: countWhere(
-        `${html} AND heading_order_violations > 0`,
-      ),
-      multipleCanonicals: countWhere(`${html} AND canonical_count > 1`),
+      h1Multiple: gatedCount('issues:h1-multiple'),
+      headingSkippedLevel: gatedCount('issues:heading-skipped-level'),
+      multipleCanonicals: gatedCount('issues:multiple-canonicals'),
       canonicalMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND (canonical IS NULL OR canonical = '')
          AND (canonical_http IS NULL OR canonical_http = '')`,
       ),
-      canonicalSelfReferencing: countWhere(
-        `${html} AND canonical IS NOT NULL AND ${CANONICAL_CMP} = url`,
-      ),
-      canonicalNonSelf: countWhere(
-        `${html} AND canonical IS NOT NULL AND canonical != ''
-         AND ${CANONICAL_CMP} != url`,
-      ),
-      canonicalMismatch: countWhere(
-        `${html}
-         AND canonical IS NOT NULL AND canonical != ''
-         AND canonical_http IS NOT NULL AND canonical_http != ''
-         AND ${CANONICAL_CMP} != canonical_http`,
-      ),
-      canonicalConflicting: countWhere(
-        `${html} AND canonical_distinct_count > 1`,
-      ),
-      canonicalCrossDomain: countWhere(
-        `${html} AND canonical_cross_domain = 1`,
-      ),
-      noindexCanonicalConflict: countWhere(
-        `${html} AND canonical IS NOT NULL AND canonical != ''
-         AND ${CANONICAL_CMP} != url
-         AND (meta_robots LIKE '%noindex%' OR meta_robots LIKE '%none%' OR x_robots_tag LIKE '%noindex%' OR x_robots_tag LIKE '%none%')`,
-      ),
+      canonicalSelfReferencing: gatedCount('issues:canonical-self-referencing'),
+      canonicalNonSelf: gatedCount('issues:canonical-non-self'),
+      canonicalMismatch: gatedCount('issues:canonical-mismatch'),
+      canonicalConflicting: gatedCount('issues:canonical-conflicting'),
+      canonicalCrossDomain: gatedCount('issues:canonical-cross-domain'),
+      noindexCanonicalConflict: gatedCount('issues:noindex-canonical-conflict'),
       redirectToNoindex: countWhere(
         `${html} AND status_code >= 300 AND status_code < 400
          AND redirect_final_url IS NOT NULL AND redirect_final_url != ''
@@ -7529,29 +7511,9 @@ export class ProjectDb {
              AND t.indexability = 'non-indexable:noindex'
          )`,
       ),
-      canonicalToNon200: countWhere(
-        `${html} AND canonical IS NOT NULL AND canonical != ''
-         AND EXISTS (
-           SELECT 1 FROM urls t WHERE t.url = ${CANONICAL_CMP_Q}
-             AND t.status_code IS NOT NULL
-             AND (t.status_code < 200 OR t.status_code >= 400)
-         )`,
-      ),
-      canonicalToRedirect: countWhere(
-        `${html} AND canonical IS NOT NULL AND canonical != ''
-         AND EXISTS (
-           SELECT 1 FROM urls t WHERE t.url = ${CANONICAL_CMP_Q}
-             AND t.status_code >= 300 AND t.status_code < 400
-         )`,
-      ),
-      canonicalToNoindex: countWhere(
-        `${html} AND canonical IS NOT NULL AND canonical != ''
-         AND ${CANONICAL_CMP} != url
-         AND EXISTS (
-           SELECT 1 FROM urls t WHERE t.url = ${CANONICAL_CMP_Q}
-             AND t.indexability = 'non-indexable:noindex'
-         )`,
-      ),
+      canonicalToNon200: gatedCount('issues:canonical-to-non-200'),
+      canonicalToRedirect: gatedCount('issues:canonical-to-redirect'),
+      canonicalToNoindex: gatedCount('issues:canonical-to-noindex'),
       contentThin: countWhere(
         `${indexable} AND indexability = 'indexable' AND word_count IS NOT NULL AND word_count < 300`,
       ),
@@ -7559,15 +7521,10 @@ export class ProjectDb {
       // language-mismatched page stores zero because nothing was collected.
       // Stating `status = 'ok'` keeps that explicit rather than leaning on
       // the count happening to be zero.
-      spellingGrammar: countWhere(
-        `${html} AND EXISTS (
-           SELECT 1 FROM spelling_results s
-            WHERE s.url = urls.url AND s.status = 'ok' AND s.match_count > 0
-         )`,
-      ),
-      responseSlow: countWhere(`${html} AND response_time_ms > 1000`),
-      responseVerySlow: countWhere(`${html} AND response_time_ms > 3000`),
-      pageLarge: countWhere(`${html} AND content_length > 1048576`),
+      spellingGrammar: gatedCount('issues:spelling-grammar'),
+      responseSlow: gatedCount('issues:response-slow'),
+      responseVerySlow: gatedCount('issues:response-very-slow'),
+      pageLarge: gatedCount('issues:page-large'),
       urlTooLong: countWhere(`${html} AND LENGTH(url) > 2048`),
       urlUppercase: countWhere(`${html} AND ${URL_HAS_UPPERCASE}`),
       urlUnderscore: countWhere(`${html} AND INSTR(url, '_') > 0`),
@@ -7577,10 +7534,8 @@ export class ProjectDb {
       urlNonAscii: countWhere(`${html} AND ${URL_HAS_NON_ASCII}`),
       langMissing: countWhere(`${indexable} AND (lang IS NULL OR lang = '')`),
       viewportMissing: countWhere(`${indexable} AND (viewport IS NULL OR viewport = '')`),
-      mobileParityMismatch: countWhere(`${html} AND mobile_parity_diff > 0`),
-      contentWiderThanScreen: countWhere(
-        `${html} AND mobile_usable >= 0 AND mobile_overflow_px > 4`,
-      ),
+      mobileParityMismatch: gatedCount('issues:mobile-parity-mismatch'),
+      contentWiderThanScreen: gatedCount('issues:content-wider-than-screen'),
       ogMissing: countWhere(
         `${indexable}
          AND (og_title IS NULL OR og_title = '')
@@ -7606,31 +7561,12 @@ export class ProjectDb {
         `${indexable} AND schema_block_count = 0 AND schema_invalid_count = 0
          AND microdata_count = 0 AND rdfa_count = 0`,
       ),
-      structuredDataInvalid: countWhere(`${html} AND schema_invalid_count > 0`),
-      paginationBroken: countWhere(
-        `${html}
-         AND (
-           (pagination_next IS NOT NULL AND EXISTS (
-             SELECT 1 FROM urls t WHERE t.url = urls.pagination_next
-               AND t.status_code >= 400 AND t.status_code < 600))
-           OR (pagination_prev IS NOT NULL AND EXISTS (
-             SELECT 1 FROM urls t WHERE t.url = urls.pagination_prev
-               AND t.status_code >= 400 AND t.status_code < 600))
-         )`,
-      ),
-      hreflangXDefaultMissing: countWhere(
-        `${html} AND hreflang_count > 0
-         AND (hreflangs IS NULL OR INSTR(hreflangs, '"x-default"') = 0)`,
-      ),
-      mixedContent: countWhere(
-        `${html} AND url LIKE 'https://%' AND mixed_content_count > 0`,
-      ),
-      mixedContentActive: countWhere(
-        `${html} AND url LIKE 'https://%' AND mixed_content_active > 0`,
-      ),
-      mixedContentPassive: countWhere(
-        `${html} AND url LIKE 'https://%' AND mixed_content_passive > 0`,
-      ),
+      structuredDataInvalid: gatedCount('issues:structured-data-invalid'),
+      paginationBroken: gatedCount('issues:pagination-broken'),
+      hreflangXDefaultMissing: gatedCount('issues:hreflang-x-default-missing'),
+      mixedContent: gatedCount('issues:mixed-content'),
+      mixedContentActive: gatedCount('issues:mixed-content-active'),
+      mixedContentPassive: gatedCount('issues:mixed-content-passive'),
       faviconMissing: countWhere(`${indexable} AND (favicon IS NULL OR favicon = '')`),
       redirectLoop: countWhere(`${html} AND redirect_loop = 1`),
       redirectCanonicalChain: countWhere(
@@ -7672,16 +7608,11 @@ export class ProjectDb {
            THEN (SELECT COUNT(*) FROM image_usages iu WHERE ${USAGE_DUPLICATE_ALT_PREDICATE})
            ELSE (SELECT COUNT(*) FROM images WHERE ${DUPLICATE_ALT_PREDICATE}) END) AS c`,
       ),
-      metaRefreshUsed: countWhere(
-        `${html} AND meta_refresh IS NOT NULL AND meta_refresh != ''`,
-      ),
-      charsetMismatch: countWhere(
-        `${html} AND http_charset IS NOT NULL AND meta_charset IS NOT NULL
-         AND http_charset != meta_charset`,
-      ),
-      canonicalOutsideHead: countWhere(`${html} AND canonical_outside_head > 0`),
-      hreflangOutsideHead: countWhere(`${html} AND hreflang_outside_head > 0`),
-      langContentMismatch: countWhere(`${html} AND lang_mismatch = 1`),
+      metaRefreshUsed: gatedCount('issues:meta-refresh-used'),
+      charsetMismatch: gatedCount('issues:charset-mismatch'),
+      canonicalOutsideHead: gatedCount('issues:canonical-outside-head'),
+      hreflangOutsideHead: gatedCount('issues:hreflang-outside-head'),
+      langContentMismatch: gatedCount('issues:lang-content-mismatch'),
       soft404: countWhere(`${html} AND status_code BETWEEN 200 AND 299 AND soft_404 > 0`),
       redirectChain: countWhere(
         `is_external = 0 AND redirect_chain_length >= 2
@@ -7690,42 +7621,27 @@ export class ProjectDb {
       blockedByRobots: countWhere(
         `is_external = 0 AND indexability = 'non-indexable:robots-blocked' AND inlinks > 0`,
       ),
-      noindexJsInjected: countWhere(`${html} AND js_noindex > 0`),
-      titleChangedByJs: countWhere(`${html} AND js_title_changed > 0`),
+      noindexJsInjected: gatedCount('issues:noindex-js-injected'),
+      titleChangedByJs: gatedCount('issues:title-changed-by-js'),
       charsetMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND (charset IS NULL OR charset = '')`,
       ),
-      ampValidationErrors: countWhere(
-        `${html} AND amp_page = 1
-         AND amp_validation_errors IS NOT NULL
-         AND amp_validation_errors != ''
-         AND amp_validation_errors != '[]'`,
-      ),
-      canonicalConflictNearDuplicate: countWhere(
-        `${html} AND cluster_id > 0 AND cluster_size > 1
-         AND canonical IS NOT NULL AND canonical != ''
-         AND ${CANONICAL_CONFLICT_CLUSTER}`,
-      ),
-      highBoilerplate: countWhere(
-        `${html} AND boilerplate_coverage IS NOT NULL AND boilerplate_coverage > 50`,
-      ),
-      contentAreaNotFound: countWhere(`${html} AND ${CONTENT_AREA_MISSED_SQL}`),
+      ampValidationErrors: gatedCount('issues:amp-validation-errors'),
+      canonicalConflictNearDuplicate: gatedCount('issues:canonical-conflict-near-duplicate'),
+      highBoilerplate: gatedCount('issues:high-boilerplate'),
+      contentAreaNotFound: gatedCount('issues:content-area-not-found'),
       brokenLinksInternal: this.countBrokenLinks('internal', 'targets'),
       brokenLinksExternal: this.countBrokenLinks('external', 'targets'),
       brokenLinksInternalLinks: this.countBrokenLinks('internal', 'links'),
       brokenLinksExternalLinks: this.countBrokenLinks('external', 'links'),
       nearDuplicate: countWhere(`${html} AND cluster_id > 0 AND cluster_size > 1`),
       duplicateContentExact: dup('content_hash'),
-      hreflangInvalidCode: countWhere(`${html} AND hreflang_invalid_count > 0`),
-      hreflangSelfRefMissing: countWhere(
-        `${html} AND hreflang_count > 0 AND hreflang_self_ref_missing = 1`,
-      ),
-      hreflangReciprocityMissing: countWhere(
-        `${html} AND hreflang_reciprocity_missing > 0`,
-      ),
-      hreflangTargetIssues: countWhere(`${html} AND hreflang_target_issues > 0`),
-      hreflangUnlinked: countWhere(`${html} AND hreflang_unlinked > 0`),
+      hreflangInvalidCode: gatedCount('issues:hreflang-invalid-code'),
+      hreflangSelfRefMissing: gatedCount('issues:hreflang-self-ref-missing'),
+      hreflangReciprocityMissing: gatedCount('issues:hreflang-reciprocity-missing'),
+      hreflangTargetIssues: gatedCount('issues:hreflang-target-issues'),
+      hreflangUnlinked: gatedCount('issues:hreflang-unlinked'),
       // null = inlinks never computed (crawl stopped early, old project).
       orphanPage:
         this.getMeta(INLINKS_COMPUTED_META_KEY) === null
@@ -7746,9 +7662,9 @@ export class ProjectDb {
         `SELECT COUNT(*) AS c FROM sitemap_urls s
           WHERE NOT EXISTS (SELECT 1 FROM urls u WHERE u.url = s.url)`,
       ),
-      h1Empty: countWhere(`${html} AND h1_count > 0 AND (h1 IS NULL OR h1 = '')`),
-      h1TooLong: countWhere(`${html} AND h1_length > 70`),
-      titleMultiple: countWhere(`${html} AND title_count > 1`),
+      h1Empty: gatedCount('issues:h1-empty'),
+      h1TooLong: gatedCount('issues:h1-too-long'),
+      titleMultiple: gatedCount('issues:title-multiple'),
       urlFragment: countWhere(`${html} AND INSTR(url, '#') > 0`),
       urlSpaces: countWhere(
         `${html} AND (INSTR(url, ' ') > 0 OR INSTR(url, '%20') > 0)`,
@@ -7763,8 +7679,8 @@ export class ProjectDb {
            THEN (SELECT COUNT(*) FROM image_usages WHERE alt = '' AND is_variant = 0)
            ELSE (SELECT COUNT(*) FROM images WHERE alt = '') END) AS c`,
       ),
-      linkEmptyAnchor: countWhere(`${html} AND empty_anchor_count > 0`),
-      brokenBookmark: countWhere(`${html} AND broken_bookmarks > 0`),
+      linkEmptyAnchor: gatedCount('issues:link-empty-anchor'),
+      brokenBookmark: gatedCount('issues:broken-bookmark'),
       appleTouchIconMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND (apple_touch_icon IS NULL OR apple_touch_icon = '')`,
@@ -7777,132 +7693,38 @@ export class ProjectDb {
         `${html} AND status_code >= 200 AND status_code < 300
          AND (feed_url IS NULL OR feed_url = '')`,
       ),
-      titlePixelWidthTooLong: countWhere(`${html} AND title_pixel_width > 600`),
-      metaPixelWidthTooLong: countWhere(`${html} AND meta_pixel_width > 990`),
-      insecureFormAction: countWhere(
-        `${html} AND url LIKE 'https://%' AND insecure_form_action_count > 0`,
-      ),
-      missingSri: countWhere(`${html} AND missing_sri_count > 0`),
-      ttfbSlow: countWhere(`${html} AND ttfb_ms IS NOT NULL AND ttfb_ms > 600`),
-      ttfbVerySlow: countWhere(
-        `${html} AND ttfb_ms IS NOT NULL AND ttfb_ms > 1800`,
-      ),
-      cookieNoSecure: countWhere(
-        `${html} AND cookies_insecure > 0 AND url LIKE 'https://%'`,
-      ),
-      cookieNoHttpOnly: countWhere(`${html} AND cookies_no_httponly > 0`),
-      cookieNoSameSite: countWhere(`${html} AND cookies_no_samesite > 0`),
+      titlePixelWidthTooLong: gatedCount('issues:title-pixel-width-too-long'),
+      metaPixelWidthTooLong: gatedCount('issues:meta-pixel-width-too-long'),
+      insecureFormAction: gatedCount('issues:insecure-form-action'),
+      missingSri: gatedCount('issues:missing-sri'),
+      ttfbSlow: gatedCount('issues:ttfb-slow'),
+      ttfbVerySlow: gatedCount('issues:ttfb-very-slow'),
+      cookieNoSecure: gatedCount('issues:cookie-no-secure'),
+      cookieNoHttpOnly: gatedCount('issues:cookie-no-httponly'),
+      cookieNoSameSite: gatedCount('issues:cookie-no-samesite'),
       queryStringTooLong: countWhere(`${html} AND query_string_length > 100`),
       folderDepthTooDeep: countWhere(`${html} AND folder_depth > 4`),
-      http2NotSupported: countWhere(
-        `${html} AND http_protocol = 'http/1.1'`,
-      ),
-      http3NotSupported: countWhere(
-        `${html} AND http_protocol IS NOT NULL AND http_protocol != 'h3'`,
-      ),
-      renderBlocking: countWhere(`${html} AND render_blocking_count > 5`),
-      keepaliveDisabled: countWhere(`${html} AND keep_alive = 0`),
-      titlePlaceholder: countWhere(
-        `${html} AND title IS NOT NULL AND title != ''
-         AND (
-           LOWER(title) IN ('untitled', 'untitled document', 'default title',
-                             'new page', 'page', 'home', 'index', 'document',
-                             'welcome', 'untitled-1', 'untitled 1', 'home page')
-           OR LOWER(title) GLOB 'page [0-9]*'
-           OR LOWER(title) LIKE 'untitled%'
-         )`,
-      ),
+      http2NotSupported: gatedCount('issues:http2-not-supported'),
+      http3NotSupported: gatedCount('issues:http3-not-supported'),
+      renderBlocking: gatedCount('issues:render-blocking'),
+      keepaliveDisabled: gatedCount('issues:keepalive-disabled'),
+      titlePlaceholder: gatedCount('issues:title-placeholder'),
       analyticsMissing: countWhere(
         `${html} AND status_code BETWEEN 200 AND 299
          AND indexability = 'indexable'
          AND (analytics_trackers IS NULL OR analytics_trackers = '[]' OR analytics_trackers = '')`,
       ),
-      analyticsMultipleGa4: countWhere(
-        `${html} AND analytics_trackers IS NOT NULL
-         AND (
-           LENGTH(analytics_trackers) - LENGTH(REPLACE(analytics_trackers, '"name":"Google Analytics 4"', ''))
-         ) / LENGTH('"name":"Google Analytics 4"') > 1`,
-      ),
-      analyticsUaLegacy: countWhere(
-        `${html} AND analytics_trackers IS NOT NULL
-         AND analytics_trackers LIKE '%"name":"Google Analytics (UA)"%'`,
-      ),
-      analyticsPixelWithoutPolicy: countWhere(
-        `${html} AND analytics_trackers IS NOT NULL
-         AND (analytics_trackers LIKE '%"Facebook Pixel"%'
-           OR analytics_trackers LIKE '%"TikTok Pixel"%'
-           OR analytics_trackers LIKE '%"Pinterest Tag"%'
-           OR analytics_trackers LIKE '%"LinkedIn Insight Tag"%')
-         AND (permissions_policy IS NULL OR permissions_policy = '')`,
-      ),
+      analyticsMultipleGa4: gatedCount('issues:analytics-multiple-ga4'),
+      analyticsUaLegacy: gatedCount('issues:analytics-ua-legacy'),
+      analyticsPixelWithoutPolicy: gatedCount('issues:analytics-pixel-without-policy'),
       imageTooLarge: issueCount('issues:image-too-large'),
-      sslCertExpired: countWhere(
-        `${html} AND url LIKE 'https://%'
-         AND EXISTS (
-           SELECT 1 FROM host_certs hc
-            WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
-              AND hc.days_until_expiry IS NOT NULL
-              AND hc.days_until_expiry < 0
-         )`,
-      ),
-      sslCertExpiringSoon: countWhere(
-        `${html} AND url LIKE 'https://%'
-         AND EXISTS (
-           SELECT 1 FROM host_certs hc
-            WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
-              AND hc.days_until_expiry IS NOT NULL
-              AND hc.days_until_expiry >= 0
-              AND hc.days_until_expiry <= 30
-         )`,
-      ),
-      sslProtocolOld: countWhere(
-        `${html} AND url LIKE 'https://%'
-         AND EXISTS (
-           SELECT 1 FROM host_certs hc
-            WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
-              AND hc.protocol IS NOT NULL
-              AND hc.protocol IN ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2')
-         )`,
-      ),
-      sslSignatureWeak: countWhere(
-        `${html} AND url LIKE 'https://%'
-         AND EXISTS (
-           SELECT 1 FROM host_certs hc
-            WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
-              AND hc.signature_algorithm IS NOT NULL
-              AND (
-                LOWER(hc.signature_algorithm) LIKE '%sha1%'
-                OR LOWER(hc.signature_algorithm) LIKE '%md5%'
-              )
-         )`,
-      ),
-      hstsNoPreload: countWhere(
-        `${html} AND url LIKE 'https://%'
-         AND hsts IS NOT NULL AND hsts != ''
-         AND LOWER(hsts) NOT LIKE '%preload%'`,
-      ),
-      hstsMaxAgeShort: countWhere(
-        `${html} AND url LIKE 'https://%'
-         AND hsts IS NOT NULL AND hsts != ''
-         AND CAST(
-           TRIM(
-             SUBSTR(
-               LOWER(hsts),
-               INSTR(LOWER(hsts), 'max-age=') + 8,
-               CASE
-                 WHEN INSTR(SUBSTR(LOWER(hsts), INSTR(LOWER(hsts), 'max-age=') + 8), ';') > 0
-                   THEN INSTR(SUBSTR(LOWER(hsts), INSTR(LOWER(hsts), 'max-age=') + 8), ';') - 1
-                 ELSE LENGTH(hsts)
-               END
-             )
-           ) AS INTEGER
-         ) < 31536000`,
-      ),
-      hstsNoIncludeSubdomains: countWhere(
-        `${html} AND url LIKE 'https://%'
-         AND hsts IS NOT NULL AND hsts != ''
-         AND LOWER(hsts) NOT LIKE '%includesubdomains%'`,
-      ),
+      sslCertExpired: gatedCount('issues:ssl-cert-expired'),
+      sslCertExpiringSoon: gatedCount('issues:ssl-cert-expiring-soon'),
+      sslProtocolOld: gatedCount('issues:ssl-protocol-old'),
+      sslSignatureWeak: gatedCount('issues:ssl-signature-weak'),
+      hstsNoPreload: gatedCount('issues:hsts-no-preload'),
+      hstsMaxAgeShort: gatedCount('issues:hsts-max-age-short'),
+      hstsNoIncludeSubdomains: gatedCount('issues:hsts-no-includesubdomains'),
       // Link- and image-correlated counters. Each of these used to run a
       // per-page EXISTS over `links` / `image_usages` inside the sidebar's
       // combined scan — O(pages × outlinks) on every tick, which on a 62k-
@@ -7914,15 +7736,9 @@ export class ProjectDb {
       anchorTextTooLongPages: issueCount('issues:anchor-text-too-long'),
       anchorTextGeneric: issueCount(linkTargetsKey('issues:anchor-text-generic')),
       anchorTextGenericPages: issueCount('issues:anchor-text-generic'),
-      formInputUnlabeled: countWhere(
-        `${html} AND form_input_unlabeled > 0`,
-      ),
-      imagesNoLazyLoading: countWhere(
-        `${html} AND images_count >= 5 AND (images_lazy * 2) < images_count`,
-      ),
-      imagesNoResponsive: countWhere(
-        `${html} AND images_count >= 5 AND (images_responsive * 2) < images_count`,
-      ),
+      formInputUnlabeled: gatedCount('issues:form-input-unlabeled'),
+      imagesNoLazyLoading: gatedCount('issues:images-no-lazy-loading'),
+      imagesNoResponsive: gatedCount('issues:images-no-responsive'),
       landmarkMainMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND indexability = 'indexable' AND landmark_main = 0`,
@@ -7931,24 +7747,13 @@ export class ProjectDb {
         `${html} AND status_code >= 200 AND status_code < 300
          AND indexability = 'indexable' AND skip_link_present = 0`,
       ),
-      ariaInvalidRole: countWhere(`${html} AND aria_invalid_roles > 0`),
-      pageTooLargeCritical: countWhere(
-        `${html} AND content_length > 3145728`,
-      ),
-      paginationCanonicalConflict: countWhere(
-        `${html} AND ((pagination_next IS NOT NULL AND pagination_next != '')
-                  OR (pagination_prev IS NOT NULL AND pagination_prev != ''))
-         AND canonical IS NOT NULL AND canonical != ''
-         AND ${CANONICAL_CMP} != url`,
-      ),
-      schemaDuplicateId: countWhere(`${html} AND schema_duplicate_ids > 0`),
-      schemaUnknownType: countWhere(`${html} AND schema_unknown_types > 0`),
-      schemaMissingRequired: countWhere(
-        `${html} AND schema_missing_required > 0`,
-      ),
-      schemaMissingRecommended: countWhere(
-        `${html} AND schema_missing_recommended > 0`,
-      ),
+      ariaInvalidRole: gatedCount('issues:aria-invalid-role'),
+      pageTooLargeCritical: gatedCount('issues:page-too-large-critical'),
+      paginationCanonicalConflict: gatedCount('issues:pagination-canonical-conflict'),
+      schemaDuplicateId: gatedCount('issues:schema-duplicate-id'),
+      schemaUnknownType: gatedCount('issues:schema-unknown-type'),
+      schemaMissingRequired: gatedCount('issues:schema-missing-required'),
+      schemaMissingRecommended: gatedCount('issues:schema-missing-recommended'),
       imageBrokenSrc: issueCount('issues:image-broken-src'),
       targetBlankNoNoopener: issueCount(linkTargetsKey('issues:target-blank-no-noopener')),
       targetBlankNoNoopenerPages: issueCount('issues:target-blank-no-noopener'),
@@ -7956,27 +7761,11 @@ export class ProjectDb {
         `${html} AND status_code BETWEEN 200 AND 299 AND indexability = 'indexable'
          AND word_count IS NOT NULL AND word_count < 30`,
       ),
-      ogImageNotAbsolute: countWhere(
-        `${html} AND og_image IS NOT NULL AND og_image != ''
-         AND og_image NOT LIKE 'http://%' AND og_image NOT LIKE 'https://%'`,
-      ),
-      twitterImageNotAbsolute: countWhere(
-        `${html} AND twitter_image IS NOT NULL AND twitter_image != ''
-         AND twitter_image NOT LIKE 'http://%' AND twitter_image NOT LIKE 'https://%'`,
-      ),
-      canonicalNotAbsolute: countWhere(
-        `${html} AND canonical IS NOT NULL AND canonical != ''
-         AND canonical NOT LIKE 'http://%' AND canonical NOT LIKE 'https://%'`,
-      ),
-      descriptionEqualsTitle: countWhere(
-        `${html} AND title IS NOT NULL AND title != ''
-         AND meta_description IS NOT NULL AND meta_description != ''
-         AND TRIM(LOWER(title)) = TRIM(LOWER(meta_description))`,
-      ),
-      titleSingleWord: countWhere(
-        `${html} AND title IS NOT NULL AND title != ''
-         AND TRIM(title) NOT LIKE '% %'`,
-      ),
+      ogImageNotAbsolute: gatedCount('issues:og-image-not-absolute'),
+      twitterImageNotAbsolute: gatedCount('issues:twitter-image-not-absolute'),
+      canonicalNotAbsolute: gatedCount('issues:canonical-not-absolute'),
+      descriptionEqualsTitle: gatedCount('issues:description-equals-title'),
+      titleSingleWord: gatedCount('issues:title-single-word'),
       externalLinksTooMany: issueCount('issues:external-links-too-many'),
       outlinksZero: countWhere(
         `${html} AND status_code BETWEEN 200 AND 299
@@ -7985,11 +7774,7 @@ export class ProjectDb {
       ),
       internalLinkToRedirect: issueCount(linkTargetsKey('issues:internal-link-to-redirect')),
       internalLinkToRedirectPages: issueCount('issues:internal-link-to-redirect'),
-      h1EqualsTitle: countWhere(
-        `${html} AND title IS NOT NULL AND title != ''
-         AND h1 IS NOT NULL AND h1 != ''
-         AND TRIM(LOWER(title)) = TRIM(LOWER(h1))`,
-      ),
+      h1EqualsTitle: gatedCount('issues:h1-equals-title'),
       // The next three counters were O(n²) correlated subqueries that
       // dominated SQLite CPU when run on every sidebar tick. They are
       // now materialised post-crawl into `urls_issues` (see
@@ -8001,27 +7786,13 @@ export class ProjectDb {
       duplicateUrlPostNorm: issueCount('issues:duplicate-url-post-norm'),
       canonicalChainMultiHop: issueCount('issues:canonical-chain-multi-hop'),
       imageSlowLoading: issueCount('issues:image-slow-loading'),
-      descriptionEqualsH1: countWhere(
-        `${html} AND meta_description IS NOT NULL AND meta_description != ''
-         AND h1 IS NOT NULL AND h1 != ''
-         AND TRIM(LOWER(meta_description)) = TRIM(LOWER(h1))`,
-      ),
+      descriptionEqualsH1: gatedCount('issues:description-equals-h1'),
       jsOnlyNavigation: countWhere(UNCRAWLABLE_INTERNAL_OUTLINKS_SQL),
-      textCodeRatioLow: countWhere(
-        `${html} AND text_code_ratio IS NOT NULL AND text_code_ratio < 10`,
-      ),
-      fleschVeryDifficult: countWhere(
-        `${html} AND flesch_reading_ease IS NOT NULL AND flesch_reading_ease < 30`,
-      ),
-      gunningFogVeryHigh: countWhere(
-        `${html} AND gunning_fog_index IS NOT NULL AND gunning_fog_index > 17`,
-      ),
-      corsWildcardWithCredentials: countWhere(
-        `${html} AND TRIM(cors_allow_origin) = '*' AND cors_allow_credentials = 1`,
-      ),
-      corsWildcardOrigin: countWhere(
-        `${html} AND TRIM(cors_allow_origin) = '*' AND cors_allow_credentials != 1`,
-      ),
+      textCodeRatioLow: gatedCount('issues:text-code-ratio-low'),
+      fleschVeryDifficult: gatedCount('issues:flesch-very-difficult'),
+      gunningFogVeryHigh: gatedCount('issues:gunning-fog-very-high'),
+      corsWildcardWithCredentials: gatedCount('issues:cors-wildcard-with-credentials'),
+      corsWildcardOrigin: gatedCount('issues:cors-wildcard-origin'),
       httpNotHttps: countWhere(
         `${html}
          AND url LIKE 'http://%'
@@ -8030,53 +7801,20 @@ export class ProjectDb {
          AND url NOT LIKE 'http://%.local/%'
          AND url NOT LIKE 'http://%.local'`,
       ),
-      renderBlockingCritical: countWhere(`${html} AND render_blocking_count > 20`),
+      renderBlockingCritical: gatedCount('issues:render-blocking-critical'),
       ogImageTooLarge: issueCount('issues:og-image-too-large'),
       twitterImageTooLarge: issueCount('issues:twitter-image-too-large'),
-      ogImageWrongAspect: countWhere(
-        `${html} AND og_image IS NOT NULL AND og_image != ''
-         AND og_image_width > 0 AND og_image_height > 0
-         AND (
-           og_image_width < 200 OR og_image_height < 200
-           OR (CAST(og_image_width AS REAL) / og_image_height) NOT BETWEEN 1.5 AND 2.3
-         )`,
-      ),
-      twitterImageWrongAspect: countWhere(
-        `${html} AND twitter_image IS NOT NULL AND twitter_image != ''
-         AND twitter_image_width > 0 AND twitter_image_height > 0
-         AND (
-           (LOWER(COALESCE(twitter_card, '')) = 'summary_large_image' AND (
-              twitter_image_width < 300 OR twitter_image_height < 157
-              OR (CAST(twitter_image_width AS REAL) / twitter_image_height) NOT BETWEEN 1.7 AND 2.3))
-           OR
-           (LOWER(COALESCE(twitter_card, '')) != 'summary_large_image' AND (
-              twitter_image_width < 144 OR twitter_image_height < 144
-              OR (CAST(twitter_image_width AS REAL) / twitter_image_height) NOT BETWEEN 0.8 AND 1.25))
-         )`,
-      ),
-      lowContrastText: countWhere(
-        `${html} AND a11y_low_contrast IS NOT NULL AND a11y_low_contrast > 0`,
-      ),
-      focusOutlineSuppressed: countWhere(`${html} AND a11y_focus_suppressed = 1`),
-      fontTooSmall: countWhere(
-        `${html} AND a11y_small_font IS NOT NULL AND a11y_small_font > 0`,
-      ),
-      tapTargetsTooSmall: countWhere(
-        `${html} AND a11y_tap_targets_small IS NOT NULL AND a11y_tap_targets_small > 0`,
-      ),
-      paginationSequenceBreak: countWhere(
-        `${html} AND pagination_sequence_break = 1`,
-      ),
-      linksPerPageTooMany: countWhere(`${html} AND outlinks > 100`),
-      hreflangInconsistentLang: countWhere(
-        `${html} AND hreflang_inconsistent_lang = 1`,
-      ),
-      pageManyRequests: countWhere(
-        `${html} AND subresource_request_count > 100`,
-      ),
-      overBudget: countWhere(
-        `${html} AND budget_status IS NOT NULL AND budget_status > 0`,
-      ),
+      ogImageWrongAspect: gatedCount('issues:og-image-wrong-aspect'),
+      twitterImageWrongAspect: gatedCount('issues:twitter-image-wrong-aspect'),
+      lowContrastText: gatedCount('issues:low-contrast-text'),
+      focusOutlineSuppressed: gatedCount('issues:focus-outline-suppressed'),
+      fontTooSmall: gatedCount('issues:font-too-small'),
+      tapTargetsTooSmall: gatedCount('issues:tap-targets-too-small'),
+      paginationSequenceBreak: gatedCount('issues:pagination-sequence-break'),
+      linksPerPageTooMany: gatedCount('issues:links-per-page-too-many'),
+      hreflangInconsistentLang: gatedCount('issues:hreflang-inconsistent-lang'),
+      pageManyRequests: gatedCount('issues:page-many-requests'),
+      overBudget: gatedCount('issues:over-budget'),
     };
   }
 
@@ -8164,8 +7902,11 @@ export class ProjectDb {
       byContentKind[row.content_kind] = row.c;
     }
 
+    // Pages only (B79): external stubs and never-fetched rows carry the
+    // placeholder 'indexable', same scope as the `indexability:indexable` filter.
     for (const row of this.db
-      .prepare('SELECT indexability, COUNT(*) AS c FROM urls GROUP BY indexability')
+      .prepare(`SELECT indexability, COUNT(*) AS c FROM urls
+         WHERE ${INTERNAL_HTML_SCOPE} AND status_code IS NOT NULL GROUP BY indexability`)
       .all() as unknown as { indexability: string; c: number }[]) {
       byIndexability[row.indexability] = row.c;
     }
@@ -11991,7 +11732,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '9';
+export const ISSUE_MATERIALISATION_VERSION = '10';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -12068,7 +11809,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // per page and scaled with pages × outlinks.
     // Only links whose own target failed are flagged; a link to a URL
     // that answered on a mostly-dead host is not.
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND id IN (
        SELECT l.from_url_id
          FROM links l
@@ -12079,7 +11820,8 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   [
     linkTargetsKey('issues:dead-external-domain'),
     `${DEAD_EXTERNAL_TARGET_SQL}
-     AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 0)`,
+     AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 0
+                    AND l.from_url_id IN (SELECT id FROM urls WHERE ${INDEXABLE_HTML_SCOPE}))`,
   ],
   [
     'issues:duplicate-url-post-norm',
@@ -12113,7 +11855,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // The column counts every <a> on the page (the link graph keeps one
     // record per target); the links sub-select keeps projects crawled
     // before the column existed flagged until their next crawl.
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND (
        anchor_too_long_count > 0
        OR id IN (SELECT from_url_id FROM links WHERE ${LONG_ANCHOR_LINK_SQL})
@@ -12124,12 +11866,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // (page, target), so a target whose stored anchor is the short one of
     // two links on a page is not counted.
     linkTargetsKey('issues:anchor-text-too-long'),
-    `url IN (SELECT to_url FROM links WHERE ${LONG_ANCHOR_LINK_SQL})`,
+    `url IN (SELECT to_url FROM links WHERE ${LONG_ANCHOR_LINK_SQL} AND from_url_id IN (SELECT id FROM urls WHERE ${INDEXABLE_HTML_SCOPE}))`,
   ],
   [
     'issues:anchor-text-generic',
     // Same column + legacy fallback split as anchor-text-too-long.
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND (
        generic_anchor_count > 0
        OR id IN (SELECT from_url_id FROM links WHERE ${GENERIC_ANCHOR_LINK_SQL})
@@ -12137,12 +11879,12 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   ],
   [
     linkTargetsKey('issues:anchor-text-generic'),
-    `url IN (SELECT to_url FROM links WHERE ${GENERIC_ANCHOR_LINK_SQL})`,
+    `url IN (SELECT to_url FROM links WHERE ${GENERIC_ANCHOR_LINK_SQL} AND from_url_id IN (SELECT id FROM urls WHERE ${INDEXABLE_HTML_SCOPE}))`,
   ],
   [
     'issues:target-blank-no-noopener',
     // Same column + legacy fallback split as anchor-text-too-long.
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND (
        target_blank_no_noopener_count > 0
        OR id IN (SELECT from_url_id FROM links WHERE ${TARGET_BLANK_NO_NOOPENER_LINK_SQL})
@@ -12150,11 +11892,11 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   ],
   [
     linkTargetsKey('issues:target-blank-no-noopener'),
-    `url IN (SELECT to_url FROM links WHERE ${TARGET_BLANK_NO_NOOPENER_LINK_SQL})`,
+    `url IN (SELECT to_url FROM links WHERE ${TARGET_BLANK_NO_NOOPENER_LINK_SQL} AND from_url_id IN (SELECT id FROM urls WHERE ${INDEXABLE_HTML_SCOPE}))`,
   ],
   [
     'issues:external-links-too-many',
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND id IN (
        SELECT from_url_id FROM links
         WHERE is_internal = 0
@@ -12164,7 +11906,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   ],
   [
     'issues:internal-link-to-redirect',
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND id IN (
        SELECT l.from_url_id
          FROM links l
@@ -12179,7 +11921,8 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
     // Redirects first (idx_urls_status), one idx_links_to_internal probe each.
     linkTargetsKey('issues:internal-link-to-redirect'),
     `status_code >= 300 AND status_code < 400
-     AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 1)`,
+     AND EXISTS (SELECT 1 FROM links l WHERE l.to_url = urls.url AND l.is_internal = 1
+                    AND l.from_url_id IN (SELECT id FROM urls WHERE ${INDEXABLE_HTML_SCOPE}))`,
   ],
   [
     // Two passes over `links` (nofollow targets, followed targets); the
@@ -12190,7 +11933,7 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   ['issues:inlinks-non-indexable-only', INLINKS_NON_INDEXABLE_ONLY_SQL],
   [
     'issues:image-broken-src',
-    `is_external = 0 AND content_kind = 'html'
+    `${INDEXABLE_HTML_SCOPE}
      AND id IN (
        SELECT iu.from_url_id
          FROM image_usages iu
@@ -12396,7 +12139,33 @@ function buildClauseSql(c: FilterClause, args: (string | number)[]): string | nu
 /** `PRAGMA mmap_size` of every connection. */
 const MMAP_SIZE = 30_000_000_000;
 
+/**
+ * Checks that read the HTTP response or the HTML body (B79): a redirect,
+ * an error page or a row that never answered has nothing to flag, so they
+ * count pages answered 2xx only. URL-text checks (url-uppercase, ...) and
+ * redirect checks keep their wider scope on purpose.
+ */
+export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
+  ['http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+);
+
+/** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
+function gateToPages(clause: string): string {
+  const gated = clause.split(INTERNAL_HTML_SCOPE).join(INDEXABLE_HTML_SCOPE);
+  // A clause that spells the scope differently gets the gate as an outer conjunct.
+  return gated.startsWith(INDEXABLE_HTML_SCOPE) ? gated : `${INDEXABLE_HTML_SCOPE} AND (${gated})`;
+}
+
 export function categoryWhereClause(
+  cat: UrlCategory,
+  /** Silenced issue checks (Settings → Issues): their filter matches nothing. */
+  disabledIssues?: ReadonlySet<string>,
+): string | null {
+  const clause = baseCategoryWhereClause(cat, disabledIssues);
+  return clause !== null && STATUS_GATED_ISSUES.has(cat) ? gateToPages(clause) : clause;
+}
+
+function baseCategoryWhereClause(
   cat: UrlCategory,
   /** Silenced issue checks (Settings → Issues): their filter matches nothing. */
   disabledIssues?: ReadonlySet<string>,

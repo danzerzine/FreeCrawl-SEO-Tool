@@ -14,7 +14,7 @@ let file: string;
  * 60 chars on the first 113, keep-alive off on all (a check switched off in
  * settings), one image without alt and one target=_blank link to a distinct
  * internal target on all. Every row, fetched or not, says HTTP/2 (the
- * HTTP/3 check counts rows that never answered 200, like B79).
+ * HTTP/3 check used to count rows that never answered 200, B79).
  */
 function seed(ok: number): void {
   new ProjectDb(file).close();
@@ -72,16 +72,17 @@ describe('site-wide checks (B78)', () => {
     // 115 of 120 is site-wide, 113 of 120 is not.
     expect(byCat.get('issues:h1-too-long')).toBe(115);
     expect(byCat.has('issues:title-too-long')).toBe(false);
-    // Counted on 160 rows, judged on its 120 pages answered 200: 100%; its own count stays 160.
+    // B79 fixed the count: HTTP/3 is judged on the 120 pages answered 200 only,
+    // the 10 redirects (they carry http_protocol) no longer count. Before B79 it was 160.
     expect(byCat.get('issues:http3-not-supported')).toBe(120);
-    expect(o.issues.http3NotSupported).toBe(160);
+    expect(o.issues.http3NotSupported).toBe(120);
     // Counted by link target, by image, or switched off: never site-wide.
     expect(byCat.has('issues:target-blank-no-noopener')).toBe(false);
     expect(byCat.has('issues:image-missing-alt')).toBe(false);
     expect(byCat.has('issues:keepalive-disabled')).toBe(false);
     // The check's own list is untouched.
     expect(h1List).toBe(115);
-    expect(http3List).toBe(160);
+    expect(http3List).toBe(120); // B79: was 160, redirects counted
   });
 
   it('a crawl with fewer than 100 pages answered 200 has no site-wide checks', () => {
