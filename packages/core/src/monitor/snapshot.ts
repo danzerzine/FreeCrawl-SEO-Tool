@@ -101,5 +101,16 @@ export function metricValue(snapshot: CrawlSnapshot, name: string): MetricValue 
     if (snapshot.disabledChecks.includes(check.category as UrlCategory)) return null;
     return issueCount(snapshot.counts.issues, check) ?? null;
   }
-  throw new Error(`Unknown metric: ${name}. Valid metrics: ${listMetrics().join(', ')}`);
+  throw unknownMetric(name);
+}
+
+/** Throws, as `metricValue` would, when `name` is not a metric; for checking a rule file before any crawl. */
+export function assertMetric(name: string): void {
+  if (!FIXED_METRICS.has(name) && !STATUS_CODE_METRIC.test(name) && !ISSUE_CHECKS.has(name)) {
+    throw unknownMetric(name);
+  }
+}
+
+function unknownMetric(name: string): Error {
+  return new Error(`Unknown metric: ${name}. Valid metrics: ${listMetrics().join(', ')}`);
 }
