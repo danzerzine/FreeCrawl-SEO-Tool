@@ -4950,11 +4950,15 @@ export class Crawler extends EventEmitter {
           jsNoindex,
           jsTitleChanged,
           jsTitle,
-          minhash: parsed.minhash,
+          // A page the configured content area missed is fingerprinted on
+          // its template, so it stays out of near-duplicate clustering. The
+          // exact-content hash stays: an exact copy is still one.
+          minhash: parsed.contentSource === 'selector-missed' ? null : parsed.minhash,
+          contentSource: parsed.contentSource,
           extractionResults: parsed.extractionResults
             ? JSON.stringify(parsed.extractionResults)
             : null,
-          simhash: parsed.simhash,
+          simhash: parsed.contentSource === 'selector-missed' ? null : parsed.simhash,
           contentHash: parsed.contentHash,
           titleCount: parsed.titleCount,
           imagesEmptyAlt: parsed.imagesEmptyAlt,

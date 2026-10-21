@@ -211,6 +211,7 @@ export const RU_LABELS: Record<string, string> = {
   'AMP Validation Errors': 'Ошибки проверки AMP',
   'Canonical Conflict (Near-Duplicate)': 'Конфликт canonical (почти дубликат)',
   'High Boilerplate (>50%)': 'Много шаблонного текста (>50 %)',
+  'Content Area Not Found': 'Блок контента не найден',
 
   // Response performance
   'Slow (>1s)': 'Медленно (>1 с)',
@@ -594,6 +595,7 @@ export const RU_LABELS: Record<string, string> = {
   Hits: 'Совпадения',
   Hamming: 'Хэмминг',
   'Similarity %': "Сходство, %",
+  'Content Source': "Откуда взят текст",
   "Content Language": "Язык контента",
   "HTTP Charset": "Charset HTTP",
   "Meta Charset": "Charset в meta",

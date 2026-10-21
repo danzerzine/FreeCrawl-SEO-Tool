@@ -189,6 +189,7 @@ const INFO: UrlCategory[] = [
   'issues:image-empty-alt',
   'issues:image-duplicate-alt',
   'issues:high-boilerplate',
+  'issues:content-area-not-found',
   'issues:crawled-not-in-sitemap',
   'issues:h1-too-long',
   'issues:url-fragment',

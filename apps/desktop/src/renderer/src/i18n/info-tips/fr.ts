@@ -685,4 +685,6 @@ export const FR_INFO_TIPS: Record<string, string> = {
     "Plus forte similarité textuelle estimée avec une autre page du groupe de quasi-doublons de cette URL, mesurée sur le texte principal. Vide pour les pages qui ne sont pas des quasi-doublons.",
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = recommandé (valeur par défaut de Screaming Frog) ; 80 détecte des réécritures plus libres ; 0 désactive cette étape.",
+  ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
+    "Origine du texte principal utilisé pour les doublons : selector (votre sélecteur de zone de contenu), selector-missed (le sélecteur n'a rien trouvé, la page est exclue des quasi-doublons), main, article, body-without-chrome ou body.",
 };

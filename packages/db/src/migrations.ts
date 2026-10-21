@@ -2572,6 +2572,21 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_crawl_runs_start_url ON crawl_runs(start_url, id);
     `,
   },
+  {
+    version: 107,
+    name: 'add_content_source',
+    // Where each page's main text came from (content-area selector, main,
+    // article, body without chrome, whole body, or selector-missed), so a
+    // missed content area shows instead of silently fingerprinting chrome.
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'content_source')) {
+        db.exec('ALTER TABLE urls ADD COLUMN content_source TEXT');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

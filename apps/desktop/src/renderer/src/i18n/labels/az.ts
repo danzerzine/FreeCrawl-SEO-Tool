@@ -219,6 +219,7 @@ export const AZ_LABELS: Record<string, string> = {
   'AMP Validation Errors': 'AMP yoxlama xətaları',
   'Canonical Conflict (Near-Duplicate)': 'Canonical ziddiyyəti (yaxın dublikat)',
   'High Boilerplate (>50%)': 'Çox şablon mətn (> 50 %)',
+  'Content Area Not Found': 'Kontent sahəsi tapılmadı',
 
   // Response performance
   'Slow (>1s)': 'Yavaş (> 1 san)',
@@ -599,6 +600,7 @@ export const AZ_LABELS: Record<string, string> = {
   Hits: 'Uyğunluq',
   Hamming: 'Hamming',
   'Similarity %': "Oxşarlıq %",
+  'Content Source': "Kontent mənbəyi",
   "Content Language": "Məzmun dili",
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",

@@ -211,6 +211,7 @@ export const HI_LABELS: Record<string, string> = {
   'AMP Validation Errors': 'AMP सत्यापन त्रुटियाँ',
   'Canonical Conflict (Near-Duplicate)': 'Canonical टकराव (निकट-प्रतिलिपि)',
   'High Boilerplate (>50%)': 'दोहराया ढाँचा अधिक (>50%)',
+  'Content Area Not Found': 'सामग्री क्षेत्र नहीं मिला',
 
   // Response performance
   'Slow (>1s)': 'धीमा (>1 से)',
@@ -592,6 +593,7 @@ export const HI_LABELS: Record<string, string> = {
   Hits: 'मिलान',
   Hamming: 'हैमिंग',
   'Similarity %': "समानता %",
+  'Content Source': "सामग्री स्रोत",
   "Content Language": "सामग्री की भाषा",
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",

@@ -18,6 +18,7 @@ import type {
   PageSourceExportRow,
   SitemapUrlExportRow,
   ContentKind,
+  ContentSource,
   CrawlSummary,
   CrawlUrlRow,
   DiscoveredImage,
@@ -357,6 +358,8 @@ interface UrlRowDb {
   minhash: Uint8Array | null;
   /** Best estimated similarity (%) to a near-duplicate cluster mate. */
   near_dup_similarity: number | null;
+  /** Where the main text came from (`ContentSource`); NULL for rows crawled before it was recorded. */
+  content_source: string | null;
   /** 1 when the page declares `<html ⚡>` / `<html amp>`, else 0. */
   amp_page: number;
   /** JSON string array of AMP smoke-validator error codes. Empty when
@@ -640,6 +643,7 @@ export interface UpsertUrlInput {
   jsTitleChanged?: number;
   jsTitle?: string | null;
   minhash?: Uint8Array | null;
+  contentSource?: ContentSource | null;
   ampPage?: boolean;
   /** JSON-stringified array of AMP validator error codes. */
   ampValidationErrors?: string | null;
@@ -825,7 +829,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, minhash, hreflang_outside_head
+    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
     :title, :title_length, :meta_description, :meta_description_length,
@@ -870,7 +874,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :hreflang_outside_head
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head
   )
   ON CONFLICT(url) DO UPDATE SET
     content_kind = excluded.content_kind,
@@ -1025,6 +1029,7 @@ const UPSERT_URL_SQL = `
     js_title_changed = excluded.js_title_changed,
     js_title = excluded.js_title,
     minhash = excluded.minhash,
+    content_source = excluded.content_source,
     changed = ${CHANGED_FLAG_SQL},
     crawled_at = CURRENT_TIMESTAMP
   RETURNING id
@@ -2759,6 +2764,7 @@ export class ProjectDb {
       js_title_changed: input.jsTitleChanged ?? 0,
       js_title: input.jsTitle ?? null,
       minhash: input.minhash ?? null,
+      content_source: input.contentSource ?? null,
       favicon: input.favicon ?? null,
       mixed_content_count: input.mixedContentCount ?? 0,
       mixed_content_active: input.mixedContentActive ?? 0,
@@ -7478,6 +7484,7 @@ export class ProjectDb {
       highBoilerplate: countWhere(
         `${html} AND boilerplate_coverage IS NOT NULL AND boilerplate_coverage > 50`,
       ),
+      contentAreaNotFound: countWhere(`${html} AND content_source = 'selector-missed'`),
       brokenLinksInternal: this.countBrokenLinks('internal', 'targets'),
       brokenLinksExternal: this.countBrokenLinks('external', 'targets'),
       brokenLinksInternalLinks: this.countBrokenLinks('internal', 'links'),
@@ -11397,6 +11404,7 @@ export class ProjectDb {
     jsTitleChanged: r.js_title_changed ?? 0,
     jsTitle: r.js_title ?? null,
     nearDupSimilarity: r.near_dup_similarity ?? null,
+    contentSource: (r.content_source as ContentSource | null) ?? null,
     ampPage: r.amp_page === 1,
     ampValidationErrors: r.amp_validation_errors,
     boilerplateCoverage: r.boilerplate_coverage,
@@ -12321,6 +12329,11 @@ export function categoryWhereClause(
                 SELECT 1 FROM urls t WHERE t.url = ${CANONICAL_CMP_Q}
                   AND t.indexability = 'non-indexable:noindex'
               )`;
+    case 'issues:content-area-not-found':
+      // The content-area selector is set but matched nothing with text on
+      // the page: its main text fell back to the template, so it has no
+      // near-duplicate fingerprint. Usually an older page layout.
+      return "is_external = 0 AND content_kind = 'html' AND content_source = 'selector-missed'";
     case 'issues:high-boilerplate':
       // V2 Faz 14 #5 — Page's unique 5-word shingles are >50%
       // boilerplate (shingles that repeat across >30% of the sampled

@@ -680,4 +680,6 @@ export const HI_INFO_TIPS: Record<string, string> = {
     "इस URL के निकट-प्रतिलिपि क्लस्टर के किसी अन्य पेज से सबसे अधिक अनुमानित टेक्स्ट समानता, मुख्य टेक्स्ट पर मापी गई। जो पेज निकट-प्रतिलिपि नहीं हैं उनमें खाली रहता है।",
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = अनुशंसित (Screaming Frog डिफ़ॉल्ट); 80 अधिक ढीले पुनर्लेखन पकड़ता है; 0 इस चरण को बंद करता है।",
+  ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
+    "डुप्लिकेट जाँच के लिए मुख्य पाठ कहाँ से लिया गया: selector (आपका सामग्री-क्षेत्र सेलेक्टर), selector-missed (सेलेक्टर को कुछ नहीं मिला, पेज निकट-डुप्लिकेट से बाहर रहता है), main, article, body-without-chrome या body.",
 };

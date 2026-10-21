@@ -211,6 +211,7 @@ export const KO_LABELS: Record<string, string> = {
   'AMP Validation Errors': 'AMP 검증 오류',
   'Canonical Conflict (Near-Duplicate)': 'Canonical 충돌(유사 중복)',
   'High Boilerplate (>50%)': '반복 문구 과다(50% 초과)',
+  'Content Area Not Found': '콘텐츠 영역을 찾을 수 없음',
 
   // Response performance
   'Slow (>1s)': '느림(1초 초과)',
@@ -587,6 +588,7 @@ export const KO_LABELS: Record<string, string> = {
   Hits: '일치',
   Hamming: '해밍 거리',
   'Similarity %': "유사도 %",
+  'Content Source': "콘텐츠 출처",
   "Content Language": "콘텐츠 언어",
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",

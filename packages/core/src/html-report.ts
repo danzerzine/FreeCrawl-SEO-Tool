@@ -144,6 +144,7 @@ const ISSUES: IssueDef[] = [
   { key: 'titleChangedByJs', label: 'Title Changed by JavaScript', severity: 'warn' },
   { key: 'ampValidationErrors', label: 'AMP Validation Errors', severity: 'warn' },
   { key: 'highBoilerplate', label: 'High Boilerplate (>50%)', severity: 'warn' },
+  { key: 'contentAreaNotFound', label: 'Content Area Not Found', severity: 'info' },
   { key: 'nonIndexableInSitemap', label: 'Non-Indexable in Sitemap', severity: 'error' },
   { key: 'non200InSitemap', label: 'Non-200 in Sitemap', severity: 'error' },
   { key: 'redirectInSitemap', label: 'Redirect in Sitemap', severity: 'warn' },
@@ -269,6 +270,7 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   renderBlocking: 'Defer or async non-critical scripts and inline critical CSS to unblock rendering.',
   keepaliveDisabled: 'Enable HTTP keep-alive so browsers reuse connections.',
   highBoilerplate: 'Increase unique main content relative to navigation and footer boilerplate.',
+  contentAreaNotFound: 'Widen the content-area selector (Settings → Duplicates) so it also matches these page layouts; until then they are left out of near-duplicate checks.',
 };
 const SEVERITY_FALLBACK: Record<IssueDef['severity'], string> = {
   error: 'Fix these pages first — this check marks a problem that blocks indexing or breaks the user experience.',

@@ -210,6 +210,7 @@ export const TR_LABELS: Record<string, string> = {
   'AMP Validation Errors': 'AMP Doğrulama Hataları',
   'Canonical Conflict (Near-Duplicate)': 'Canonical Çakışması (Yakın-Yinelenen)',
   'High Boilerplate (>50%)': 'Yüksek Şablon İçerik (>%50)',
+  'Content Area Not Found': 'İçerik alanı bulunamadı',
 
   // Response performance
   'Slow (>1s)': 'Yavaş (>1sn)',
@@ -582,6 +583,7 @@ export const TR_LABELS: Record<string, string> = {
   Hits: 'Eşleşme',
   Hamming: 'Hamming',
   'Similarity %': "Benzerlik %",
+  'Content Source': "İçerik kaynağı",
   "Content Language": "İçerik Dili",
   "HTTP Charset": "HTTP Charset",
   "Meta Charset": "Meta Charset",

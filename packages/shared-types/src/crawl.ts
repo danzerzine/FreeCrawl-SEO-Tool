@@ -129,6 +129,7 @@ export type UrlCategory =
   | 'issues:amp-validation-errors'
   | 'issues:canonical-conflict-near-duplicate'
   | 'issues:high-boilerplate'
+  | 'issues:content-area-not-found'
   | 'issues:broken-links-all'
   | 'issues:broken-links-internal'
   | 'issues:broken-links-external'
@@ -630,6 +631,8 @@ export interface CrawlUrlRow {
   jsTitle: string | null;
   /** Highest estimated text similarity (%) to another page in its near-duplicate cluster. */
   nearDupSimilarity: number | null;
+  /** Where the main text came from; null for pages crawled before it was recorded. */
+  contentSource: ContentSource | null;
   /** True when the page declares `<html ⚡>` / `<html amp>`. AMP-for-Ads
    *  / AMP-for-Email variants (`⚡4ads`, `⚡4email`) count too. */
   ampPage: boolean;
@@ -1976,6 +1979,8 @@ export interface OverviewCounts {
     ampValidationErrors: number;
     canonicalConflictNearDuplicate: number;
     highBoilerplate: number;
+    /** HTML pages the configured content-area selector did not match (kept out of near-duplicates). */
+    contentAreaNotFound: number;
     /** Distinct broken targets of internal links. */
     brokenLinksInternal: number;
     /** Distinct broken targets of external links. */
@@ -2721,6 +2726,22 @@ export interface UrlDetail {
   /** Captured response headers (all values), in original order. */
   headers: HttpHeader[];
 }
+
+/**
+ * Where a page's main text (duplicate fingerprint, content language) came
+ * from: the configured content-area selector, the `main` / `article`
+ * landmark, the body without nav / header / footer / aside, or the whole
+ * body. `selector-missed`: a selector is set but matched nothing with text
+ * on this page (the text then comes from the fallback chain, but the page
+ * gets no near-duplicate fingerprint).
+ */
+export type ContentSource =
+  | 'selector'
+  | 'selector-missed'
+  | 'main'
+  | 'article'
+  | 'body-without-chrome'
+  | 'body';
 
 /**
  * Appended to an external probe's error text when the URL gave no answer at

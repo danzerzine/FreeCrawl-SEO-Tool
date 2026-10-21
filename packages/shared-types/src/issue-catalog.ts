@@ -117,6 +117,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-page-empty', label: 'Empty Page (<30 words)', category: 'issues:page-empty', count: 'pageEmpty' },
       { key: 'issues-high-boilerplate', label: 'High Boilerplate (>50%)', category: 'issues:high-boilerplate', count: 'highBoilerplate' },
       { key: 'issues-near-duplicate', label: 'Near-Duplicate Content', category: 'issues:near-duplicate', count: 'nearDuplicate' },
+      { key: 'issues-content-area-not-found', label: 'Content Area Not Found', category: 'issues:content-area-not-found', count: 'contentAreaNotFound' },
       { key: 'issues-duplicate-content-exact', label: 'Duplicate Content (exact)', category: 'issues:duplicate-content-exact', count: 'duplicateContentExact' },
       { key: 'issues-flesch-very-difficult', label: 'Hard to Read (Flesch <30)', category: 'issues:flesch-very-difficult', count: 'fleschVeryDifficult' },
       { key: 'issues-gunning-fog-very-high', label: 'Gunning Fog >17', category: 'issues:gunning-fog-very-high', count: 'gunningFogVeryHigh' },

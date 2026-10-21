@@ -684,4 +684,6 @@ export const RU_INFO_TIPS: Record<string, string> = {
     "Наибольшее расчётное сходство текста с другой страницей из группы почти дубликатов этого URL, по основному тексту. Пусто для страниц, не являющихся почти дубликатами.",
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = рекомендуется (по умолчанию в Screaming Frog); 80 находит более свободные переписывания; 0 отключает этот шаг.",
+  ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
+    "Откуда взят основной текст для проверки дублей: selector (ваш селектор области контента), selector-missed (селектор ничего не нашёл, страница не участвует в почти дубликатах), main, article, body-without-chrome или body.",
 };

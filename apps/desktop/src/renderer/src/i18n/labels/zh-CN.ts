@@ -211,6 +211,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'AMP Validation Errors': 'AMP 校验错误',
   'Canonical Conflict (Near-Duplicate)': 'Canonical 冲突（近似重复）',
   'High Boilerplate (>50%)': '模板化内容过多（>50%）',
+  'Content Area Not Found': '未找到内容区域',
 
   // Response performance
   'Slow (>1s)': '较慢（>1 秒）',
@@ -586,6 +587,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   Hits: '命中',
   Hamming: '汉明距离',
   'Similarity %': "相似度 %",
+  'Content Source': "内容来源",
   "Content Language": "内容语言",
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",

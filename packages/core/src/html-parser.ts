@@ -9,6 +9,7 @@ import type {
   LinkPosition,
   SchemaFinding,
   UncrawlableLink,
+  ContentSource,
 } from '@freecrawl/shared-types';
 import { GENERIC_ANCHOR_TEXTS } from '@freecrawl/shared-types';
 import {
@@ -395,6 +396,8 @@ export interface ParsedPage {
   langMismatch: boolean;
   /** MinHash signature of the main content (near-duplicate similarity); null when too short. */
   minhash: Uint8Array | null;
+  /** Where the main text came from; see `ContentSource`. */
+  contentSource: ContentSource;
   /** `<link rel="canonical">` elements inside `<body>` (not honoured — see `canonical`). */
   canonicalOutsideHead: number;
   /** `<link rel="alternate" hreflang>` elements inside `<body>` (not honoured — see `hreflangs`). */
@@ -735,13 +738,13 @@ export function extractProseText(
   if (!html || html.trim().length === 0) return '';
   const $ = cheerio.load(html);
   $('script, style, noscript, template, svg, code, pre, kbd, samp').remove();
-  return extractMainContentText($, contentAreaSelector);
+  return extractMainContentText($, contentAreaSelector).text;
 }
 
 function extractMainContentText(
   $: cheerio.CheerioAPI,
   userSelector?: string,
-): string {
+): { text: string; source: ContentSource } {
   const collapse = (s: string): string => s.replace(/\s+/g, ' ').trim();
   // Text of a region without its inline script / style payloads — a
   // `<script>` sitting inside `<main>` is code, not content.
@@ -757,30 +760,34 @@ function extractMainContentText(
   // region (e.g. `article.main-content`, `#content`) when the heuristic
   // misclassifies — common on CMSes where the navigation sits inside
   // `<main>` or where there's no semantic landmark at all. Invalid /
-  // unmatched selectors silently fall through to the heuristic so a
-  // typo doesn't break the crawl.
-  if (userSelector && userSelector.trim().length > 0) {
+  // unmatched selectors fall through to the heuristic so a typo doesn't
+  // break the crawl, but the page is marked `selector-missed`: its text is
+  // then the template's as much as its own.
+  const selector = userSelector?.trim() ?? '';
+  if (selector.length > 0) {
     try {
-      const region = $(userSelector.trim()).first();
+      const region = $(selector).first();
       if (region.length > 0) {
         const t = prose(region);
-        if (t.length > 0) return t;
+        if (t.length > 0) return { text: t, source: 'selector' };
       }
     } catch {
       // Bad selector — fall through to heuristic.
     }
   }
+  const from = (source: ContentSource): ContentSource =>
+    selector.length > 0 ? 'selector-missed' : source;
 
   const main = $('main, [role="main"]').first();
   if (main.length > 0) {
     const t = prose(main);
-    if (t.length > 0) return t;
+    if (t.length > 0) return { text: t, source: from('main') };
   }
 
   const article = $('article').first();
   if (article.length > 0) {
     const t = prose(article);
-    if (t.length > 0) return t;
+    if (t.length > 0) return { text: t, source: from('article') };
   }
 
   // Clone so `.remove()` doesn't mutate the live tree the rest of the
@@ -792,9 +799,9 @@ function extractMainContentText(
     )
     .remove();
   const stripped = collapse(body.text());
-  if (stripped.length > 0) return stripped;
+  if (stripped.length > 0) return { text: stripped, source: from('body-without-chrome') };
 
-  return collapse($('body').text());
+  return { text: collapse($('body').text()), source: from('body') };
 }
 
 export function parseHtml(
@@ -1474,7 +1481,7 @@ export function parseHtml(
   // Main-content prose (chrome stripped) — the duplicate fingerprint and
   // the content-language check both judge a page on its own words, not
   // on the menu it shares with every other page.
-  const mainText = extractMainContentText($, opts.contentAreaSelector);
+  const { text: mainText, source: contentSource } = extractMainContentText($, opts.contentAreaSelector);
   const contentLanguage = assessContentLanguage(mainText, lang);
   // Readability formula: the declared language when the prose agrees
   // with it, otherwise whatever the prose actually is.
@@ -2244,6 +2251,7 @@ export function parseHtml(
     contentLang: contentLanguage.detected,
     langMismatch: contentLanguage.mismatch,
     minhash,
+    contentSource,
     canonicalOutsideHead,
     hreflangOutsideHead,
     soft404Signal,

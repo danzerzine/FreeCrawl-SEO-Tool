@@ -331,6 +331,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'All', category: 'tab:duplicates' },
     { label: 'Near-Duplicate Content', category: 'issues:near-duplicate' },
     { label: 'Duplicate Content (exact)', category: 'issues:duplicate-content-exact' },
+    { label: 'Content Area Not Found', category: 'issues:content-area-not-found' },
   ],
 
   // ─── Links tab ──────────────────────────────────────────────────────────
@@ -900,7 +901,8 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
   if (cat.startsWith('issues:pagination-')) return 'pagination';
   if (
     cat === 'issues:near-duplicate' ||
-    cat === 'issues:duplicate-content-exact'
+    cat === 'issues:duplicate-content-exact' ||
+    cat === 'issues:content-area-not-found'
   ) {
     return 'duplicates';
   }

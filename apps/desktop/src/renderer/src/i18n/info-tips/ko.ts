@@ -673,4 +673,6 @@ export const KO_INFO_TIPS: Record<string, string> = {
     "이 URL의 유사 중복 클러스터 안 다른 페이지와의 최고 추정 텍스트 유사도로, 본문 텍스트 기준입니다. 유사 중복이 아닌 페이지는 비어 있습니다.",
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = 권장(Screaming Frog 기본값), 80은 더 느슨한 재작성까지 잡음, 0은 이 단계를 끔.",
+  ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
+    "중복 검사에 쓰인 본문의 출처: selector(콘텐츠 영역 선택자), selector-missed(선택자가 아무것도 찾지 못해 유사 중복에서 제외), main, article, body-without-chrome 또는 body.",
 };

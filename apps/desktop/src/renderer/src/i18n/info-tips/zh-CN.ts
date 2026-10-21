@@ -667,4 +667,6 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     "与该 URL 近似重复聚类中其他页面的最高估算文本相似度，基于主体文本计算。非近似重复页面为空。",
   ["90 = recommended (Screaming Frog's default); 80 catches looser rewrites; 0 turns this pass off."]:
     "90 = 推荐值（Screaming Frog 默认）；80 可发现改写幅度更大的副本；0 关闭此步骤。",
+  ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
+    "重复检查所用正文的来源：selector（您的内容区域选择器）、selector-missed（选择器未匹配到内容，该页不参与近似重复）、main、article、body-without-chrome 或 body。",
 };

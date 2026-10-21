@@ -211,6 +211,7 @@ export const ES_LABELS: Record<string, string> = {
   'AMP Validation Errors': 'Errores de validación de AMP',
   'Canonical Conflict (Near-Duplicate)': 'Conflicto de canonical (casi duplicado)',
   'High Boilerplate (>50%)': 'Mucho contenido repetido (>50 %)',
+  'Content Area Not Found': 'Área de contenido no encontrada',
 
   // Response performance
   'Slow (>1s)': 'Lenta (>1 s)',
@@ -599,6 +600,7 @@ export const ES_LABELS: Record<string, string> = {
   Hits: 'Coincidencias',
   Hamming: 'Hamming',
   'Similarity %': "Similitud %",
+  'Content Source': "Origen del contenido",
   "Content Language": "Idioma del contenido",
   "HTTP Charset": "Charset HTTP",
   "Meta Charset": "Charset meta",

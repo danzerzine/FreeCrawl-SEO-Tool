@@ -2173,6 +2173,7 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
         ? `${row.boilerplateCoverage}%`
         : null,
     ],
+    ['Content Source', row.contentSource],
     ['Sentence Count', row.sentenceCount > 0 ? row.sentenceCount : null],
     [
       'Flesch Reading Ease',
