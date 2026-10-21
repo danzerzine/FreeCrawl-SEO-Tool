@@ -12,6 +12,12 @@ export interface CrawlSnapshot {
   counts: Omit<OverviewCounts, 'site'>;
   /** `issues:*` categories silenced for this crawl; their metrics read as not computed. */
   disabledChecks: UrlCategory[];
+  /**
+   * The crawled site, as the history row holds it. Only in a file written by
+   * `check --write-snapshot`, so `--baseline` can refuse another site's;
+   * older files lack it.
+   */
+  startUrl?: string;
 }
 
 /** One crawl's point in the Trends view: its finish time and one value per chosen metric (null = not computed). */

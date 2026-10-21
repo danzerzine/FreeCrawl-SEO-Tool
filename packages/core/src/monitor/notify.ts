@@ -33,6 +33,9 @@ export interface TelegramConfig {
   chatId: string;
 }
 
+/** The public Bot API; `TelegramConfig.apiBase` unless a test points elsewhere. */
+export const TELEGRAM_API_BASE = 'https://api.telegram.org';
+
 /** Telegram's `sendMessage` text limit. */
 const TELEGRAM_MAX_CHARS = 4096;
 

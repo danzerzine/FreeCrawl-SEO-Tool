@@ -204,9 +204,15 @@ export {
 export {
   buildCrawlSnapshot,
   listMetrics,
+  assertMetric,
   metricValue,
   type MetricValue,
 } from './monitor/snapshot.js';
+export {
+  latestAndPrevious,
+  historyRows,
+  type LatestCrawls,
+} from './monitor/history.js';
 export {
   parseRules,
   evaluateRules,
@@ -226,6 +232,7 @@ export {
   sendTelegram,
   sendWebhook,
   sendEmail,
+  TELEGRAM_API_BASE,
   type SendResult,
   type SendOptions,
   type TelegramConfig,
