@@ -20,8 +20,9 @@ export function previousCrawlPath(projectPath: string): string {
 
 /**
  * Copies the saved project over its previous copy, before the crawl's first
- * autosave can change the file. Through a `.part` file and a rename, so a
- * failed copy leaves the old one whole. Throws on failure.
+ * autosave can change the file. On failure the old copy is removed too, so
+ * the report is skipped rather than run against an older crawl. Throws on
+ * failure.
  */
 export async function keepPreviousCrawl(projectPath: string): Promise<void> {
   const target = previousCrawlPath(projectPath);
@@ -30,6 +31,7 @@ export async function keepPreviousCrawl(projectPath: string): Promise<void> {
     await rename(`${target}.part`, target);
   } catch (err) {
     await rm(`${target}.part`, { force: true });
+    await rm(target, { force: true });
     throw err;
   }
 }
@@ -38,7 +40,7 @@ export async function keepPreviousCrawl(projectPath: string): Promise<void> {
  * Compares the previous copy ("before") with the project just crawled
  * ("after"), the same comparison as the Compare dialog. With `dir`, the
  * `compare-*.csv` files and `compare-summary.json` go there. Null when there
- * is no previous copy (the first scheduled run).
+ * is no previous copy (the copy at the crawl's start failed).
  */
 export async function runChangeReport(
   previousPath: string,

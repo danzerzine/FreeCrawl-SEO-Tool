@@ -7759,7 +7759,7 @@ function registerIpc(): void {
       try {
         changes = await runChangeReport(previousCrawlPath(sess.currentProjectPath), db, exportDir);
         if (!changes) {
-          logger.log('info', 'main', 'Change report skipped: no copy of the previous crawl yet (first scheduled run)', undefined, sess.logTag);
+          logger.log('info', 'main', 'Change report skipped: no copy of the previous crawl (the copy at the crawl start failed)', undefined, sess.logTag);
         } else {
           if (exportDir) files.push(join(exportDir, 'compare-summary.json'));
           logger.log('info', 'main', compareChangesText(changes), undefined, sess.logTag);
