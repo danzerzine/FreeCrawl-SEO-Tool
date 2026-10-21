@@ -2459,5 +2459,12 @@
     "toolCount_one": "{{count}} strumento",
     "toolCount_many": "{{count}} di strumenti",
     "toolCount_other": "{{count}} strumenti"
+  },
+  "trends": {
+    "title": "Tendenze",
+    "metrics": "Metriche",
+    "needTwo": "Servono due scansioni di questo sito. Scansiona di nuovo per vedere come cambiano i conteggi.",
+    "notComputed": "non calcolato",
+    "loadFailed": "Impossibile caricare la cronologia delle scansioni"
   }
 }

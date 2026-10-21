@@ -31,6 +31,7 @@ export const MENU_EN: MenuLabels = {
   exportSheets: 'Export to Google Sheets…',
   exportBigquery: 'Export to BigQuery…',
   compareWith: 'Compare With Project…',
+  trends: 'Trends…',
   scheduledCrawl: 'Scheduled Crawl…',
   scheduledCrawlTooltip:
     'Set up an in-app recurring crawl for the currently-open project. Fires only while FreeCrawl is open; use the CLI + OS scheduler for triggers that survive restarts.',

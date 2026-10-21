@@ -2413,5 +2413,12 @@
     "placeholder": "ör. Başlık sorunları en kötü olan sayfalar hangileri, neden? (Göndermek için {{mod}}+Enter)",
     "stop": "Durdur",
     "send": "Gönder"
+  },
+  "trends": {
+    "title": "Eğilimler",
+    "metrics": "Metrikler",
+    "needTwo": "Bu site için iki tarama gerekir. Sayıların nasıl değiştiğini görmek için siteyi yeniden tarayın.",
+    "notComputed": "hesaplanmadı",
+    "loadFailed": "Tarama geçmişi yüklenemedi"
   }
 }

@@ -31,6 +31,7 @@ export const MENU_TR: MenuLabels = {
   exportSheets: 'Google Sheets\'e Aktar…',
   exportBigquery: 'BigQuery\'ye Aktar…',
   compareWith: 'Projeyle Karşılaştır…',
+  trends: 'Eğilimler…',
   scheduledCrawl: 'Zamanlanmış Crawl…',
   scheduledCrawlTooltip:
     'Şu an açık olan proje için uygulama içi tekrarlayan crawl kur. Yalnızca FreeCrawl açıkken çalışır; yeniden başlatmaya dayanan tetikler için CLI + OS zamanlayıcısını kullan.',

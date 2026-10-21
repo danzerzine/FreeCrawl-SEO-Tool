@@ -2413,5 +2413,12 @@
     "placeholder": "e.g. Which pages have the worst title problems, and why? ({{mod}}+Enter to send)",
     "stop": "Stop",
     "send": "Send"
+  },
+  "trends": {
+    "title": "Trends",
+    "metrics": "Metrics",
+    "needTwo": "Needs two crawls of this site. Crawl it again to see how the counts move.",
+    "notComputed": "not computed",
+    "loadFailed": "Could not load the crawl history"
   }
 }

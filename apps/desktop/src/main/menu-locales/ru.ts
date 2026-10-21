@@ -31,6 +31,7 @@ export const MENU_RU: MenuLabels = {
   exportSheets: 'Экспорт в Google Sheets…',
   exportBigquery: 'Экспорт в BigQuery…',
   compareWith: 'Сравнить с проектом…',
+  trends: 'Динамика…',
   scheduledCrawl: 'Обход по расписанию…',
   scheduledCrawlTooltip:
     'Настройка повторяющегося обхода внутри приложения для открытого проекта. Срабатывает только пока FreeCrawl запущен; для запусков, переживающих перезагрузку, используйте CLI и планировщик операционной системы.',
