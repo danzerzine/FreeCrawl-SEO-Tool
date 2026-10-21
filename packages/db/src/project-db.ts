@@ -4064,7 +4064,7 @@ export class ProjectDb {
       );
       this.setMeta(TEMPLATE_SAMPLE_META_KEY, JSON.stringify(input.sample));
       const upd = this.db.prepare(
-        'UPDATE urls SET simhash = ?, minhash = ?, template_set_id = ? WHERE url = ?',
+        'UPDATE urls SET simhash = ?, minhash = ?, template_set_id = ? WHERE url = ? AND status_code IS NOT NULL',
       );
       for (const r of input.rows) {
         const fp = fingerprintFromShingles(r.shingles, set);
