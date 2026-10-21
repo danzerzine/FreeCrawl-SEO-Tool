@@ -1325,6 +1325,14 @@ const USAGE_DUPLICATE_ALT_PREDICATE = `iu.is_variant = 0 AND iu.alt IS NOT NULL 
 const INTERNAL_HTML_SCOPE = "is_external = 0 AND content_kind = 'html'";
 
 /**
+ * A URL no other row redirects to: the start of a redirect chain. The target
+ * list is built once (uncorrelated); a per-row NOT EXISTS has no index on
+ * redirect_target and took 18 minutes on a 261k-URL project.
+ */
+const REDIRECT_CHAIN_START_SQL =
+  'url NOT IN (SELECT redirect_target FROM urls WHERE redirect_target IS NOT NULL)';
+
+/**
  * Scope for on-page-element "missing" checks that only make sense on a real
  * fetched page body (title / meta / h1 / lang / viewport / OG / Twitter /
  * security headers / structured data). Redirects (3xx) and error responses
@@ -7634,8 +7642,7 @@ export class ProjectDb {
       langContentMismatch: gatedCount('issues:lang-content-mismatch'),
       soft404: countWhere(`${html} AND status_code BETWEEN 200 AND 299 AND soft_404 > 0`),
       redirectChain: countWhere(
-        `is_external = 0 AND redirect_chain_length >= 2
-         AND NOT EXISTS (SELECT 1 FROM urls p WHERE p.redirect_target = urls.url)`,
+        `is_external = 0 AND redirect_chain_length >= 2 AND ${REDIRECT_CHAIN_START_SQL}`,
       ),
       blockedByRobots: countWhere(
         `is_external = 0 AND indexability = 'non-indexable:robots-blocked' AND inlinks > 0`,
@@ -12667,7 +12674,7 @@ function baseCategoryWhereClause(
       // hop, not a start).
       return `is_external = 0
               AND redirect_chain_length >= 2
-              AND NOT EXISTS (SELECT 1 FROM urls p WHERE p.redirect_target = urls.url)`;
+              AND ${REDIRECT_CHAIN_START_SQL}`;
     case 'issues:blocked-by-robots':
       // Internal URLs the site links to but robots.txt forbids crawling —
       // the links spend equity on pages search engines can't fetch.
