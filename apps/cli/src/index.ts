@@ -26,8 +26,9 @@ import {
 import {
   Crawler,
   compareCrawls,
-  listMetrics,
-  metricValue,
+  assertMetric,
+  historyRows,
+  latestAndPrevious,
   parseRules,
   evaluateRules,
   gateFails,
@@ -35,6 +36,8 @@ import {
   sendTelegram,
   sendWebhook,
   sendEmail,
+  MONITOR_RULES_META_KEY,
+  TELEGRAM_API_BASE,
   type AlertRuleResult,
   type SendResult,
   exportUrlsToCsv,
@@ -1117,6 +1120,17 @@ async function runCompare(beforePath: string, afterPath: string): Promise<number
   }
 }
 
+/** Print a usage error (JSON on stdout with --json, else the usage line and
+ *  the message on stderr) and return exit code 2. */
+function usageFail(json: boolean, usage: string, message: string): number {
+  if (json) process.stdout.write(JSON.stringify({ ok: false, error: message }, null, 2) + '\n');
+  else {
+    console.error(usage);
+    console.error(message);
+  }
+  return 2;
+}
+
 /**
  * Crawl history of one start URL (the project's own unless `--start-url`),
  * oldest first, one column per metric. Read-only. Exit 0 also for a project
@@ -1129,23 +1143,19 @@ async function runHistory(opts: {
   startUrl: string | undefined;
   json: boolean;
 }): Promise<number> {
-  const fail = (message: string): number => {
-    if (opts.json) process.stdout.write(JSON.stringify({ ok: false, error: message }, null, 2) + '\n');
-    else {
-      console.error(
-        'Usage: freecrawl history --project <file> --metrics <a,b,…> [--limit N] [--start-url <url>] [--json]',
-      );
-      console.error(message);
-    }
-    return 2;
-  };
+  const fail = (message: string): number =>
+    usageFail(
+      opts.json,
+      'Usage: freecrawl history --project <file> --metrics <a,b,…> [--limit N] [--start-url <url>] [--json]',
+      message,
+    );
   if (!opts.projectPath) return fail('--project <file> is required.');
   if (!opts.metrics) return fail('--metrics <a,b,…> is required.');
   const metrics = opts.metrics.split(',').map((m) => m.trim()).filter((m) => m.length > 0);
-  const valid = listMetrics();
-  const unknown = metrics.find((m) => !valid.includes(m) && !/^status\.\d{3}$/.test(m));
-  if (unknown !== undefined) {
-    return fail(`Unknown metric: ${unknown}. Valid metrics: ${valid.join(', ')}`);
+  try {
+    for (const m of metrics) assertMetric(m);
+  } catch (err) {
+    return fail((err as Error).message);
   }
   let limit: number | undefined;
   if (opts.limit !== undefined) {
@@ -1160,18 +1170,14 @@ async function runHistory(opts: {
   }
   try {
     // Default: the site of the newest crawl, as stored in its history row.
-    const startUrl = opts.startUrl ?? project.db.latestCrawlRunStartUrl() ?? '';
-    const rows = project.db.listCrawlRuns(startUrl, limit).map((run) => ({
-      finishedAt: run.finishedAt,
-      ...Object.fromEntries(metrics.map((m) => [m, metricValue(run.snapshot, m)])),
-    }));
+    const history = historyRows(project.db, metrics, { startUrl: opts.startUrl, limit });
     if (opts.json) {
-      process.stdout.write(JSON.stringify({ ok: true, startUrl, runs: rows }, null, 2) + '\n');
+      const runs = history.rows.map((row) => ({ finishedAt: row.finishedAt, ...row.values }));
+      process.stdout.write(JSON.stringify({ ok: true, startUrl: history.startUrl ?? '', runs }, null, 2) + '\n');
     } else {
-      const columns = ['finishedAt', ...metrics];
-      console.log(columns.join(','));
-      for (const row of rows) {
-        console.log(columns.map((c) => String((row as Record<string, unknown>)[c] ?? '')).join(','));
+      console.log(['finishedAt', ...metrics].join(','));
+      for (const row of history.rows) {
+        console.log([row.finishedAt, ...metrics.map((m) => String(row.values[m] ?? ''))].join(','));
       }
     }
     return 0;
@@ -1180,22 +1186,26 @@ async function runHistory(opts: {
   }
 }
 
-/** Alert channels of `check --notify`: the variables each reads and its sender. */
+/**
+ * Alert channels of `check --notify`: the variables each reads and its
+ * sender. `title` names the site, so alerts of several projects in one
+ * channel can be told apart.
+ */
 const NOTIFY_CHANNELS: Record<
   string,
-  { env: string[]; send: (v: string[], results: AlertRuleResult[]) => Promise<SendResult> }
+  { env: string[]; send: (v: string[], results: AlertRuleResult[], title: string) => Promise<SendResult> }
 > = {
-  slack: { env: ['FREECRAWL_SLACK_WEBHOOK_URL'], send: ([url = ''], r) => sendSlack(url, r) },
+  slack: { env: ['FREECRAWL_SLACK_WEBHOOK_URL'], send: ([url = ''], r, title) => sendSlack(url, r, { title }) },
   telegram: {
     env: ['FREECRAWL_TELEGRAM_BOT_TOKEN', 'FREECRAWL_TELEGRAM_CHAT_ID'],
-    send: ([token = '', chatId = ''], r) =>
-      sendTelegram(
-        { apiBase: process.env.FREECRAWL_TELEGRAM_API_BASE || 'https://api.telegram.org', token, chatId },
-        r,
-      ),
+    send: ([token = '', chatId = ''], r, title) =>
+      sendTelegram({ apiBase: TELEGRAM_API_BASE, token, chatId }, r, { title }),
   },
   webhook: { env: ['FREECRAWL_WEBHOOK_URL'], send: ([url = ''], r) => sendWebhook(url, r) },
-  email: { env: ['FREECRAWL_SMTP_URL', 'FREECRAWL_ALERT_EMAIL_TO'], send: ([smtp = '', to = ''], r) => sendEmail(smtp, to, r) },
+  email: {
+    env: ['FREECRAWL_SMTP_URL', 'FREECRAWL_ALERT_EMAIL_TO'],
+    send: ([smtp = '', to = ''], r, title) => sendEmail(smtp, to, r, { title }),
+  },
 };
 
 /**
@@ -1213,16 +1223,12 @@ async function runCheck(opts: {
   notify: string | undefined;
   json: boolean;
 }): Promise<number> {
-  const fail = (message: string): number => {
-    if (opts.json) process.stdout.write(JSON.stringify({ ok: false, error: message }, null, 2) + '\n');
-    else {
-      console.error(
-        'Usage: freecrawl check --project <file> [--rules <file>] [--baseline <project|snapshot.json>] [--write-snapshot <file>] [--notify slack,telegram,webhook,email] [--json]',
-      );
-      console.error(message);
-    }
-    return 2;
-  };
+  const fail = (message: string): number =>
+    usageFail(
+      opts.json,
+      'Usage: freecrawl check --project <file> [--rules <file>] [--baseline <project|snapshot.json>] [--write-snapshot <file>] [--notify slack,telegram,webhook,email] [--json]',
+      message,
+    );
   if (!opts.projectPath) return fail('--project <file> is required.');
   // Channels are checked before any work, naming the variable, never its value.
   const channels = (opts.notify ?? '').split(',').map((c) => c.trim()).filter((c) => c.length > 0);
@@ -1244,25 +1250,35 @@ async function runCheck(opts: {
   try {
     let rules;
     try {
-      const text = opts.rules !== undefined ? readFileSync(opts.rules, 'utf8') : project.db.getMeta('monitorRules');
+      const text = opts.rules !== undefined ? readFileSync(opts.rules, 'utf8') : project.db.getMeta(MONITOR_RULES_META_KEY);
       if (text === null) return fail('No rules: pass --rules <file>, or save rules in the project.');
       rules = parseRules(JSON.parse(text));
     } catch (err) {
       return fail(`Cannot read rules${opts.rules ? ` ${opts.rules}` : ''}: ${(err as Error).message}`);
     }
-    const startUrl = project.db.latestCrawlRunStartUrl();
-    const runs = startUrl === null ? [] : project.db.listCrawlRuns(startUrl, 2);
-    const current = runs.at(-1);
-    const older = runs.length > 1 ? runs[0] : undefined;
-    if (!current) return fail('The project has no crawl history (no crawl has finished in it).');
-    let previous: CrawlSnapshot | null = older?.snapshot ?? null;
-    let baselineSource: string | null = older?.finishedAt ?? null;
+    // An empty list would pass every release: all rules deleted is not a green gate.
+    if (rules.length === 0) {
+      return fail(
+        opts.rules !== undefined
+          ? `No rules in ${opts.rules}: the "rules" list is empty.`
+          : "No rules: the project's saved rule list is empty; pass --rules <file>, or add rules in the project.",
+      );
+    }
+    const latest = latestAndPrevious(project.db);
+    if (!latest) return fail('The project has no crawl history (no crawl has finished in it).');
+    const { current } = latest;
+    let previous: CrawlSnapshot | null = latest.previous?.snapshot ?? null;
+    let baselineSource: string | null = latest.previous?.finishedAt ?? null;
     if (opts.baseline !== undefined) {
       try {
         if (!existsSync(opts.baseline)) throw new Error('file not found');
         if (detectProjectFormat(opts.baseline) === 'unknown') {
           const snap = JSON.parse(readFileSync(opts.baseline, 'utf8')) as CrawlSnapshot;
           if (snap?.version !== 1 || !snap.summary || !snap.counts) throw new Error('not a snapshot (version 1)');
+          // Older snapshot files carry no start URL; those are taken as they are.
+          if (snap.startUrl !== undefined && snap.startUrl !== current.startUrl) {
+            throw new Error(`it is a snapshot of ${snap.startUrl}, not of ${current.startUrl}`);
+          }
           previous = snap;
         } else {
           const base = await openProject(opts.baseline);
@@ -1287,7 +1303,8 @@ async function runCheck(opts: {
     }
     if (opts.writeSnapshot !== undefined) {
       try {
-        writeFileSync(opts.writeSnapshot, JSON.stringify(current.snapshot, null, 2) + '\n');
+        const snapshot: CrawlSnapshot = { ...current.snapshot, startUrl: current.startUrl };
+        writeFileSync(opts.writeSnapshot, JSON.stringify(snapshot, null, 2) + '\n');
       } catch (err) {
         return fail(`Cannot write snapshot ${opts.writeSnapshot}: ${(err as Error).message}`);
       }
@@ -1297,7 +1314,7 @@ async function runCheck(opts: {
     const notified: Array<{ channel: string; ok: boolean; detail: string }> = [];
     if (results.some((r) => r.status === 'fired')) {
       for (const c of channels) {
-        const sent = await NOTIFY_CHANNELS[c]!.send(secrets.get(c) ?? [], results);
+        const sent = await NOTIFY_CHANNELS[c]!.send(secrets.get(c) ?? [], results, `FreeCrawl alert for ${current.startUrl}`);
         notified.push({ channel: c, ...sent });
       }
     }
