@@ -178,18 +178,21 @@ export const AZ_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: 'Yoxdur',
-  'Over 60 Characters': '60 simvoldan çox',
-  'Below 30 Characters': '30 simvoldan az',
+  'Over {{titleMaxChars}} Characters': '{{titleMaxChars}} simvoldan çox',
+  'Below {{titleMinChars}} Characters': '{{titleMinChars}} simvoldan az',
   Duplicate: 'Dublikat',
   'Multiple <title> Tags': 'Bir neçə <title> teqi',
-  'Pixel Width Truncated (>600px)': 'Piksel eni kəsilir (> 600 px)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)': 'Piksel eni kəsilir (> {{titleMaxPx}} px)',
+  'Pixel Width Below {{titleMinPx}}px': 'En {{titleMinPx}} px-dən azdır',
   'Placeholder Title': 'Doldurucu başlıq',
   'Single-Word Title': 'Tək sözlü başlıq',
 
   // Meta description
-  'Over 160 Characters': '160 simvoldan çox',
-  'Below 120 Characters': '120 simvoldan az',
-  'Pixel Width Truncated (>990px)': 'Piksel eni kəsilir (> 990 px)',
+  'Over {{descriptionMaxChars}} Characters': '{{descriptionMaxChars}} simvoldan çox',
+  'Below {{descriptionMinChars}} Characters': '{{descriptionMinChars}} simvoldan az',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    'Piksel eni kəsilir (> {{descriptionMaxPx}} px)',
+  'Pixel Width Below {{descriptionMinPx}}px': 'En {{descriptionMinPx}} px-dən azdır',
   'Description = Title': 'Təsvir = Başlıq',
   'Description = H1': 'Təsvir = H1',
 
@@ -201,7 +204,7 @@ export const AZ_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': 'Boş səhifə (< 30 söz)',
-  'Thin Content (<300 words)': 'Zəif məzmun (< 300 söz)',
+  'Thin Content (<{{thinContentWords}} words)': 'Zəif məzmun (< {{thinContentWords}} söz)',
   'Near-Duplicate Content': 'Yaxın dublikat məzmun',
   'Duplicate Content (exact)': 'Dublikat məzmun (tam eyni)',
   'Low Text/Code Ratio (<10%)': 'Aşağı mətn/kod nisbəti (< 10 %)',

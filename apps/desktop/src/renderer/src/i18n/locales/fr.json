@@ -1062,6 +1062,19 @@
       "chooseLogo": "Choisir…",
       "removeLogo": "Retirer",
       "logoHint": "PNG, JPEG, SVG ou WebP jusqu'à 1 Mo ; affiché jusqu'à 44 px de haut dans l'en-tête du rapport."
+    },
+    "thresholds": {
+      "title": "Seuils",
+      "intro": "Les pages au-delà de ces limites sont signalées. Comptes et libellés suivent aussitôt ; la largeur est mesurée avec la police des résultats Google. Laissez un champ vide pour sa valeur par défaut.",
+      "titleMinChars": "Titre : moins de caractères que",
+      "titleMaxChars": "Titre : plus de caractères que",
+      "titleMinPx": "Titre : plus étroit que, px",
+      "titleMaxPx": "Titre : plus large que, px",
+      "descriptionMinChars": "Description : moins de caractères que",
+      "descriptionMaxChars": "Description : plus de caractères que",
+      "descriptionMinPx": "Description : plus étroite que, px",
+      "descriptionMaxPx": "Description : plus large que, px",
+      "thinContentWords": "Contenu faible : moins de mots que"
     }
   },
   "compare": {

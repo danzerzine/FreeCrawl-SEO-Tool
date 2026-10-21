@@ -170,18 +170,22 @@ export const FR_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: 'Absent',
-  'Over 60 Characters': 'Plus de 60 caractères',
-  'Below 30 Characters': 'Moins de 30 caractères',
+  'Over {{titleMaxChars}} Characters': 'Plus de {{titleMaxChars}} caractères',
+  'Below {{titleMinChars}} Characters': 'Moins de {{titleMinChars}} caractères',
   Duplicate: 'Dupliqué',
   'Multiple <title> Tags': 'Plusieurs balises <title>',
-  'Pixel Width Truncated (>600px)': 'Tronqué par la largeur en pixels (>600 px)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)':
+    'Tronqué par la largeur en pixels (>{{titleMaxPx}} px)',
+  'Pixel Width Below {{titleMinPx}}px': 'Largeur inférieure à {{titleMinPx}} px',
   'Placeholder Title': 'Titre de remplissage',
   'Single-Word Title': 'Titre d’un seul mot',
 
   // Meta description
-  'Over 160 Characters': 'Plus de 160 caractères',
-  'Below 120 Characters': 'Moins de 120 caractères',
-  'Pixel Width Truncated (>990px)': 'Tronquée par la largeur en pixels (>990 px)',
+  'Over {{descriptionMaxChars}} Characters': 'Plus de {{descriptionMaxChars}} caractères',
+  'Below {{descriptionMinChars}} Characters': 'Moins de {{descriptionMinChars}} caractères',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    'Tronquée par la largeur en pixels (>{{descriptionMaxPx}} px)',
+  'Pixel Width Below {{descriptionMinPx}}px': 'Largeur inférieure à {{descriptionMinPx}} px',
   'Description = Title': 'Description = titre',
   'Description = H1': 'Description = H1',
 
@@ -193,7 +197,7 @@ export const FR_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': 'Page vide (<30 mots)',
-  'Thin Content (<300 words)': 'Contenu maigre (<300 mots)',
+  'Thin Content (<{{thinContentWords}} words)': 'Contenu maigre (<{{thinContentWords}} mots)',
   'Near-Duplicate Content': 'Contenu quasi dupliqué',
   'Duplicate Content (exact)': 'Contenu dupliqué (exact)',
   'Low Text/Code Ratio (<10%)': 'Faible ratio texte/code (<10 %)',

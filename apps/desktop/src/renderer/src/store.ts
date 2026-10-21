@@ -12,6 +12,7 @@ import {
   type OverviewCounts,
   type UrlCategory,
 } from '@freecrawl/shared-types';
+import { setLabelThresholds } from './i18n/labels.js';
 import type { SettingsSectionKey } from './components/SettingsDialog.js';
 
 /**
@@ -213,12 +214,16 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
   'page-titles': [
     { label: 'All', category: 'internal:html' },
     { label: 'Missing', category: 'issues:title-missing' },
-    { label: 'Over 60 Characters', category: 'issues:title-too-long' },
-    { label: 'Below 30 Characters', category: 'issues:title-too-short' },
+    { label: 'Over {{titleMaxChars}} Characters', category: 'issues:title-too-long' },
+    { label: 'Below {{titleMinChars}} Characters', category: 'issues:title-too-short' },
     { label: 'Duplicate', category: 'issues:title-duplicate' },
     { label: 'Multiple <title> Tags', category: 'issues:title-multiple' },
     { label: 'Title Outside <head>', category: 'issues:title-outside-head' },
-    { label: 'Pixel Width Truncated (>600px)', category: 'issues:title-pixel-width-too-long' },
+    {
+      label: 'Pixel Width Truncated (>{{titleMaxPx}}px)',
+      category: 'issues:title-pixel-width-too-long',
+    },
+    { label: 'Pixel Width Below {{titleMinPx}}px', category: 'issues:title-pixel-width-too-short' },
     { label: 'Placeholder Title', category: 'issues:title-placeholder' },
     { label: 'Single-Word Title', category: 'issues:title-single-word' },
     { label: 'Title Changed by JavaScript', category: 'issues:title-changed-by-js' },
@@ -228,11 +233,18 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
   'meta-description': [
     { label: 'All', category: 'internal:html' },
     { label: 'Missing', category: 'issues:meta-missing' },
-    { label: 'Over 160 Characters', category: 'issues:meta-too-long' },
-    { label: 'Below 120 Characters', category: 'issues:meta-too-short' },
+    { label: 'Over {{descriptionMaxChars}} Characters', category: 'issues:meta-too-long' },
+    { label: 'Below {{descriptionMinChars}} Characters', category: 'issues:meta-too-short' },
     { label: 'Duplicate', category: 'issues:meta-duplicate' },
     { label: 'Description Outside <head>', category: 'issues:description-outside-head' },
-    { label: 'Pixel Width Truncated (>990px)', category: 'issues:meta-pixel-width-too-long' },
+    {
+      label: 'Pixel Width Truncated (>{{descriptionMaxPx}}px)',
+      category: 'issues:meta-pixel-width-too-long',
+    },
+    {
+      label: 'Pixel Width Below {{descriptionMinPx}}px',
+      category: 'issues:meta-pixel-width-too-short',
+    },
     { label: 'Description = Title', category: 'issues:description-equals-title' },
     { label: 'Description = H1', category: 'issues:description-equals-h1' },
     { label: 'Contains HTML', category: 'issues:description-has-html' },
@@ -260,7 +272,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
   // ─── Content tab ────────────────────────────────────────────────────────
   content: [
     { label: 'All', category: 'internal:html' },
-    { label: 'Thin Content (<300 words)', category: 'issues:content-thin' },
+    { label: 'Thin Content (<{{thinContentWords}} words)', category: 'issues:content-thin' },
     { label: 'Spelling/Grammar Issues', category: 'issues:spelling-grammar' },
     { label: 'Empty Page (<30 words)', category: 'issues:page-empty' },
     { label: 'Hard to Read (Flesch <30)', category: 'issues:flesch-very-difficult' },
@@ -635,6 +647,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       // live URL / scope edits in the top bar). Debounced so per-keystroke
       // edits don't each fire an IPC round-trip + synchronous SQLite write.
       persistConfigDebounced(next);
+      // New thresholds change counts and labels: save them now and recount
+      // once main has them, not after the debounce (B77).
+      if (
+        patch.seoThresholds &&
+        JSON.stringify(patch.seoThresholds) !== JSON.stringify(state.config.seoThresholds)
+      ) {
+        window.freecrawl
+          ?.projectConfigSet(next)
+          .then(() => useAppStore.getState().bumpDataVersion())
+          .catch(() => {
+            /* the debounced save retries */
+          });
+      }
       return { config: next };
     }),
   applyProjectConfig: (config) =>
@@ -656,7 +681,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? {}
         : { progress: { ...s.progress, running: false, paused: false } },
     ),
-  setOverview: (o) => set({ overview: o }),
+  setOverview: (o) => {
+    setLabelThresholds(o.thresholds);
+    set({ overview: o });
+  },
   setActiveTab: (t) => set({ activeTab: t, activeCategory: categoryForTab(t) }),
   setActiveCategory: (c) => set({ activeCategory: c }),
   navigateToCategory: (c) => {

@@ -20,7 +20,11 @@ import {
   ProjectDb,
   unpackProject,
 } from '@freecrawl/db';
-import { COMPARE_CATEGORIES, ISSUE_CATEGORIES } from '@freecrawl/shared-types';
+import {
+  checksWithDifferentThresholds,
+  COMPARE_CATEGORIES,
+  ISSUE_CATEGORIES,
+} from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import type {
   CompareCategory,
@@ -454,8 +458,17 @@ export function compareCrawls(
   const filledA = a.checksFilled();
   const filledB = b.checksFilled();
   const unfilled = new Set(LATER_CHECKS.filter((k) => !filledA.has(k) || !filledB.has(k)));
+  // A check counted against different limits in the two crawls would report
+  // the setting change as a site change (B77).
+  const rethresholded = new Set(
+    checksWithDifferentThresholds(a.getSeoThresholds(), b.getSeoThresholds()),
+  );
   const keys = ISSUE_CATEGORIES.filter(
-    (k) => !silenced.has(k) && !unfilled.has(k) && categoryWhereClause(k) !== null,
+    (k) =>
+      !silenced.has(k) &&
+      !unfilled.has(k) &&
+      !rethresholded.has(k) &&
+      categoryWhereClause(k) !== null,
   );
   const flagsA = flaggedChecks(a, keys);
   const flagsB = flaggedChecks(b, keys);
@@ -632,6 +645,13 @@ export function compareCrawls(
     if (silenced.has(k)) continue;
     notComparable[k] = {
       reason: 'not checked by the build that made one of the crawls',
+      urls: compared,
+    };
+  }
+  for (const k of rethresholded) {
+    if (silenced.has(k) || unfilled.has(k)) continue;
+    notComparable[k] = {
+      reason: 'the two crawls counted this check with different thresholds',
       urls: compared,
     };
   }

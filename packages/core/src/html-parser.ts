@@ -2880,6 +2880,19 @@ const ARIAL_18_WIDTHS: Record<string, number> = {
   // Turkish dotless i has no decomposition to fall back on
   'ı': 5,
 };
+// Cyrillic (Russian, Ukrainian, Kazakh) and «» №: Chromium canvas widths at
+// 18px Arial, one width per letter of the string (B77).
+const CYRILLIC_LETTERS =
+  'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяЁёЄІЇҐєіїґӘҒҚҢӨҰҮҺәғқңөұүһ«»№';
+const CYRILLIC_WIDTHS = [
+  12, 12, 12, 10, 12, 12, 17, 11, 13, 13, 10, 12, 15, 13, 14, 13, 12, 13, 11, 11, 14, 12, 13, 12,
+  16, 17, 14, 16, 12, 13, 18, 13, 10, 10, 10, 7, 11, 10, 12, 8, 10, 10, 8, 11, 12, 10, 10, 10, 10,
+  9, 8, 9, 15, 9, 10, 9, 14, 15, 11, 13, 9, 9, 14, 10, 12, 10, 13, 5, 5, 9, 9, 4, 5, 7, 14, 10, 10,
+  13, 14, 10, 10, 12, 10, 7, 8, 10, 10, 9, 9, 10, 10, 10, 19,
+];
+Array.from(CYRILLIC_LETTERS).forEach((ch, i) => {
+  ARIAL_18_WIDTHS[ch] = CYRILLIC_WIDTHS[i]!;
+});
 const ARIAL_18_DEFAULT = 10;
 
 function arial18Width(ch: string): number {

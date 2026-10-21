@@ -170,18 +170,22 @@ export const IT_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: 'Mancante',
-  'Over 60 Characters': 'Oltre 60 caratteri',
-  'Below 30 Characters': 'Sotto i 30 caratteri',
+  'Over {{titleMaxChars}} Characters': 'Oltre {{titleMaxChars}} caratteri',
+  'Below {{titleMinChars}} Characters': 'Sotto i {{titleMinChars}} caratteri',
   Duplicate: 'Duplicato',
   'Multiple <title> Tags': 'Più tag <title>',
-  'Pixel Width Truncated (>600px)': 'Troncato per larghezza in pixel (>600 px)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)':
+    'Troncato per larghezza in pixel (>{{titleMaxPx}} px)',
+  'Pixel Width Below {{titleMinPx}}px': 'Larghezza inferiore a {{titleMinPx}} px',
   'Placeholder Title': 'Titolo segnaposto',
   'Single-Word Title': 'Titolo di una sola parola',
 
   // Meta description
-  'Over 160 Characters': 'Oltre 160 caratteri',
-  'Below 120 Characters': 'Sotto i 120 caratteri',
-  'Pixel Width Truncated (>990px)': 'Troncata per larghezza in pixel (>990 px)',
+  'Over {{descriptionMaxChars}} Characters': 'Oltre {{descriptionMaxChars}} caratteri',
+  'Below {{descriptionMinChars}} Characters': 'Sotto i {{descriptionMinChars}} caratteri',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    'Troncata per larghezza in pixel (>{{descriptionMaxPx}} px)',
+  'Pixel Width Below {{descriptionMinPx}}px': 'Larghezza inferiore a {{descriptionMinPx}} px',
   'Description = Title': 'Descrizione = titolo',
   'Description = H1': 'Descrizione = H1',
 
@@ -193,7 +197,7 @@ export const IT_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': 'Pagina vuota (<30 parole)',
-  'Thin Content (<300 words)': 'Contenuto scarno (<300 parole)',
+  'Thin Content (<{{thinContentWords}} words)': 'Contenuto scarno (<{{thinContentWords}} parole)',
   'Near-Duplicate Content': 'Contenuto quasi duplicato',
   'Duplicate Content (exact)': 'Contenuto duplicato (esatto)',
   'Low Text/Code Ratio (<10%)': 'Basso rapporto testo/codice (<10%)',

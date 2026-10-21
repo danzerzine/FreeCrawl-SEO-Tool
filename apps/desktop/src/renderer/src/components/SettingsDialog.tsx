@@ -9,6 +9,8 @@ import {
   UI_LANGUAGE_NAMES,
   UI_LANGUAGE_PICKER_ORDER,
   normalizeDisabledIssues,
+  resolveSeoThresholds,
+  type SeoThresholds,
   normalizeUiLanguage,
   type UiLanguage,
   type UiTheme,
@@ -209,6 +211,8 @@ interface FormState {
   mobileParitySample: string;
   /** Silenced issue checks (Settings → Issues). */
   disabledIssues: UrlCategory[];
+  /** Check thresholds (Settings → Issues, B77), as typed. */
+  seoThresholds: Record<keyof SeoThresholds, string>;
   // content (body snapshot)
   storeBodySnapshots: boolean;
   bodySnapshotMaxBytes: string;
@@ -676,6 +680,9 @@ function configToForm(c: CrawlConfig): FormState {
     probeMobileParity: c.probeMobileParity ?? false,
     mobileParitySample: String(c.mobileParitySample ?? 200),
     disabledIssues: normalizeDisabledIssues(c.disabledIssues),
+    seoThresholds: Object.fromEntries(
+      Object.entries(resolveSeoThresholds(c.seoThresholds)).map(([k, v]) => [k, String(v)]),
+    ) as Record<keyof SeoThresholds, string>,
     storeBodySnapshots: c.storeBodySnapshots ?? true,
     bodySnapshotMaxBytes: String(c.bodySnapshotMaxBytes ?? 1_048_576),
     maxLinksPerPage: String(c.maxLinksPerPage ?? 100),
@@ -1026,6 +1033,15 @@ export function SettingsDialog({ open, onClose }: Props) {
       probeMobileParity: form.probeMobileParity,
       mobileParitySample: Math.max(0, num(form.mobileParitySample, config.mobileParitySample)),
       disabledIssues: form.disabledIssues,
+      // Blank or invalid fields fall back to the defaults.
+      seoThresholds: resolveSeoThresholds(
+        Object.fromEntries(
+          Object.entries(form.seoThresholds).map(([k, v]) => [
+            k,
+            v.trim() === '' ? undefined : Number(v),
+          ]),
+        ),
+      ),
       storeBodySnapshots: form.storeBodySnapshots,
       bodySnapshotMaxBytes: Math.max(
         0,
@@ -4085,6 +4101,46 @@ function CrawlAnalysisPanel({ form, update }: PanelProps) {
   );
 }
 
+const THRESHOLD_FIELDS: { key: keyof SeoThresholds; label: string }[] = [
+  { key: 'titleMinChars', label: 'Title: fewer characters than' },
+  { key: 'titleMaxChars', label: 'Title: more characters than' },
+  { key: 'titleMinPx', label: 'Title: narrower than, px' },
+  { key: 'titleMaxPx', label: 'Title: wider than, px' },
+  { key: 'descriptionMinChars', label: 'Description: fewer characters than' },
+  { key: 'descriptionMaxChars', label: 'Description: more characters than' },
+  { key: 'descriptionMinPx', label: 'Description: narrower than, px' },
+  { key: 'descriptionMaxPx', label: 'Description: wider than, px' },
+  { key: 'thinContentWords', label: 'Thin content: fewer words than' },
+];
+
+/** The limits the length, pixel-width and thin-content checks count against (B77). */
+function ThresholdFields({ form, update }: PanelProps) {
+  const { t } = useTranslation();
+  return (
+    <div className="mb-4 rounded border border-surface-800 p-2">
+      <div className="mb-1 text-[11px] font-medium text-surface-200">
+        {t('settingsPanels.thresholds.title', { defaultValue: 'Thresholds' })}
+      </div>
+      <p className="mb-2 text-[11px] text-surface-500">
+        {t('settingsPanels.thresholds.intro', {
+          defaultValue:
+            'Pages beyond these limits are flagged. Counts and labels follow a change at once; widths are measured in Google’s result font. Leave a field empty for its default.',
+        })}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {THRESHOLD_FIELDS.map((f) => (
+          <Num
+            key={f.key}
+            label={t(`settingsPanels.thresholds.${f.key}`, { defaultValue: f.label })}
+            value={form.seoThresholds[f.key]}
+            onChange={(v) => update('seoThresholds', { ...form.seoThresholds, [f.key]: v })}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function IssuesPanel({ form, update }: PanelProps) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
@@ -4128,6 +4184,7 @@ function IssuesPanel({ form, update }: PanelProps) {
             'A disabled check disappears from the sidebar, the overview counts, HTML/PDF reports, bulk export and the crawl-complete webhook. Nothing is deleted — turn it back on to see its results again.',
         })}
       </p>
+      <ThresholdFields form={form} update={update} />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
           type="search"

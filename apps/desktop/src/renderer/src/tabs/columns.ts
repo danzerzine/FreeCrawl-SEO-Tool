@@ -84,7 +84,7 @@ const COL = {
     header: URL_COLUMN_HEADERS.titleLength,
     size: 96,
     kind: 'number',
-    info: 'Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.',
+    info: 'Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).',
     example: '52',
   } as ColumnSpec,
   metaDescription: {

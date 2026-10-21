@@ -1318,6 +1318,8 @@ export class Crawler extends EventEmitter {
     this.db.setMeta(COUNT_NOFOLLOW_META_KEY, this.config.storeNofollowLinks ? '1' : '0');
     // insertLinks reads this to skip External rows nothing will request.
     this.db.setMeta(CHECK_EXTERNAL_META_KEY, this.config.checkExternalLinks ? '1' : '0');
+    // The limits this crawl's checks are counted with (B77).
+    this.db.setSeoThresholds(this.config.seoThresholds);
     const isRefresh = isSameSite && !isRespider && !this.resumeOnly;
     // A fresh crawl or a refresh fills every later check; a continued crawl
     // keeps only those the earlier part filled too.

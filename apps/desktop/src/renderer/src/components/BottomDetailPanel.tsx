@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { translateLabel } from '../i18n/labels.js';
+import { DEFAULT_SEO_THRESHOLDS } from '@freecrawl/shared-types';
 import type {
   CrawlConfig,
   CrawlUrlRow,
@@ -3201,8 +3202,9 @@ function SerpSnippet({ row }: { row: CrawlUrlRow }) {
   const desc = row.metaDescription ?? t('serp.noMeta', { defaultValue: '(no meta description)' });
   const titlePx = row.title ? measurePixelWidth(row.title, 15) : 0;
   const descPx = row.metaDescription ? measurePixelWidth(row.metaDescription, 13) : 0;
-  const titleLimit = 600;
-  const descLimit = 990;
+  const limits = useAppStore((s) => s.overview?.thresholds) ?? DEFAULT_SEO_THRESHOLDS;
+  const titleLimit = limits.titleMaxPx;
+  const descLimit = limits.descriptionMaxPx;
   const charsSuffix = t('serp.chars', { defaultValue: 'chars' });
 
   return (

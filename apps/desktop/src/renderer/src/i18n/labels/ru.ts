@@ -170,18 +170,21 @@ export const RU_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: 'Отсутствует',
-  'Over 60 Characters': 'Более 60 символов',
-  'Below 30 Characters': 'Менее 30 символов',
+  'Over {{titleMaxChars}} Characters': 'Более {{titleMaxChars}} символов',
+  'Below {{titleMinChars}} Characters': 'Менее {{titleMinChars}} символов',
   Duplicate: 'Дубликат',
   'Multiple <title> Tags': 'Несколько тегов <title>',
-  'Pixel Width Truncated (>600px)': 'Обрезан по ширине в пикселях (>600 px)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)': 'Обрезан по ширине в пикселях (>{{titleMaxPx}} px)',
+  'Pixel Width Below {{titleMinPx}}px': 'Ширина меньше {{titleMinPx}} px',
   'Placeholder Title': 'Заголовок-заготовка',
   'Single-Word Title': 'Заголовок из одного слова',
 
   // Meta description
-  'Over 160 Characters': 'Более 160 символов',
-  'Below 120 Characters': 'Менее 120 символов',
-  'Pixel Width Truncated (>990px)': 'Обрезано по ширине в пикселях (>990 px)',
+  'Over {{descriptionMaxChars}} Characters': 'Более {{descriptionMaxChars}} символов',
+  'Below {{descriptionMinChars}} Characters': 'Менее {{descriptionMinChars}} символов',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    'Обрезано по ширине в пикселях (>{{descriptionMaxPx}} px)',
+  'Pixel Width Below {{descriptionMinPx}}px': 'Ширина меньше {{descriptionMinPx}} px',
   'Description = Title': 'Описание = заголовок',
   'Description = H1': 'Описание = H1',
 
@@ -193,7 +196,7 @@ export const RU_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': 'Пустая страница (<30 слов)',
-  'Thin Content (<300 words)': 'Скудный контент (<300 слов)',
+  'Thin Content (<{{thinContentWords}} words)': 'Скудный контент (<{{thinContentWords}} слов)',
   'Near-Duplicate Content': 'Почти дублирующийся контент',
   'Duplicate Content (exact)': 'Дублирующийся контент (точно)',
   'Low Text/Code Ratio (<10%)': 'Низкое отношение текста к коду (<10 %)',

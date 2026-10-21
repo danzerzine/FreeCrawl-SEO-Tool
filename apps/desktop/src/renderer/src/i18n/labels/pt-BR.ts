@@ -170,18 +170,22 @@ export const PT_BR_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: 'Ausente',
-  'Over 60 Characters': 'Mais de 60 caracteres',
-  'Below 30 Characters': 'Menos de 30 caracteres',
+  'Over {{titleMaxChars}} Characters': 'Mais de {{titleMaxChars}} caracteres',
+  'Below {{titleMinChars}} Characters': 'Menos de {{titleMinChars}} caracteres',
   Duplicate: 'Duplicado',
   'Multiple <title> Tags': 'Várias tags <title>',
-  'Pixel Width Truncated (>600px)': 'Truncado pela largura em pixels (>600 px)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)':
+    'Truncado pela largura em pixels (>{{titleMaxPx}} px)',
+  'Pixel Width Below {{titleMinPx}}px': 'Largura abaixo de {{titleMinPx}} px',
   'Placeholder Title': 'Título de espaço reservado',
   'Single-Word Title': 'Título de uma só palavra',
 
   // Meta description
-  'Over 160 Characters': 'Mais de 160 caracteres',
-  'Below 120 Characters': 'Menos de 120 caracteres',
-  'Pixel Width Truncated (>990px)': 'Truncada pela largura em pixels (>990 px)',
+  'Over {{descriptionMaxChars}} Characters': 'Mais de {{descriptionMaxChars}} caracteres',
+  'Below {{descriptionMinChars}} Characters': 'Menos de {{descriptionMinChars}} caracteres',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    'Truncada pela largura em pixels (>{{descriptionMaxPx}} px)',
+  'Pixel Width Below {{descriptionMinPx}}px': 'Largura abaixo de {{descriptionMinPx}} px',
   'Description = Title': 'Descrição = título',
   'Description = H1': 'Descrição = H1',
 
@@ -193,7 +197,7 @@ export const PT_BR_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': 'Página vazia (<30 palavras)',
-  'Thin Content (<300 words)': 'Conteúdo raso (<300 palavras)',
+  'Thin Content (<{{thinContentWords}} words)': 'Conteúdo raso (<{{thinContentWords}} palavras)',
   'Near-Duplicate Content': 'Conteúdo quase duplicado',
   'Duplicate Content (exact)': 'Conteúdo duplicado (exato)',
   'Low Text/Code Ratio (<10%)': 'Baixa proporção texto/código (<10%)',

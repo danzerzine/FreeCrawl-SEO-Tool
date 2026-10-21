@@ -178,6 +178,8 @@ const WARNING: UrlCategory[] = [
 
 /** Informational / stylistic / nice-to-have signals. */
 const INFO: UrlCategory[] = [
+  'issues:title-pixel-width-too-short',
+  'issues:meta-pixel-width-too-short',
   'issues:h2-missing',
   'issues:h2-duplicate',
   'issues:description-has-html',

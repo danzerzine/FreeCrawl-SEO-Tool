@@ -170,18 +170,21 @@ export const KO_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: '없음',
-  'Over 60 Characters': '60자 초과',
-  'Below 30 Characters': '30자 미만',
+  'Over {{titleMaxChars}} Characters': '{{titleMaxChars}}자 초과',
+  'Below {{titleMinChars}} Characters': '{{titleMinChars}}자 미만',
   Duplicate: '중복',
   'Multiple <title> Tags': '<title> 태그가 여러 개',
-  'Pixel Width Truncated (>600px)': '픽셀 너비로 잘림(600 px 초과)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)': '픽셀 너비로 잘림({{titleMaxPx}} px 초과)',
+  'Pixel Width Below {{titleMinPx}}px': '너비 {{titleMinPx}}px 미만',
   'Placeholder Title': '임시 제목',
   'Single-Word Title': '한 단어로만 된 제목',
 
   // Meta description
-  'Over 160 Characters': '160자 초과',
-  'Below 120 Characters': '120자 미만',
-  'Pixel Width Truncated (>990px)': '픽셀 너비로 잘림(990 px 초과)',
+  'Over {{descriptionMaxChars}} Characters': '{{descriptionMaxChars}}자 초과',
+  'Below {{descriptionMinChars}} Characters': '{{descriptionMinChars}}자 미만',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    '픽셀 너비로 잘림({{descriptionMaxPx}} px 초과)',
+  'Pixel Width Below {{descriptionMinPx}}px': '너비 {{descriptionMinPx}}px 미만',
   'Description = Title': '설명 = 제목',
   'Description = H1': '설명 = H1',
 
@@ -193,7 +196,7 @@ export const KO_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': '빈 페이지(30단어 미만)',
-  'Thin Content (<300 words)': '내용 부족(300단어 미만)',
+  'Thin Content (<{{thinContentWords}} words)': '내용 부족({{thinContentWords}}단어 미만)',
   'Near-Duplicate Content': '유사 중복 콘텐츠',
   'Duplicate Content (exact)': '중복 콘텐츠(완전 일치)',
   'Low Text/Code Ratio (<10%)': '텍스트/코드 비율 낮음(10% 미만)',

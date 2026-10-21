@@ -1039,6 +1039,19 @@
       "chooseLogo": "Seç…",
       "removeLogo": "Sil",
       "logoHint": "1 MB-a qədər PNG, JPEG, SVG və ya WebP; hesabat başlığında ən çox 44 px hündürlükdə göstərilir."
+    },
+    "thresholds": {
+      "title": "Hədlər",
+      "intro": "Bu hədlərdən kənar səhifələr qeyd olunur. Saylar və etiketlər dərhal dəyişir; en Google nəticə şrifti ilə ölçülür. Standart dəyər üçün sahəni boş saxlayın.",
+      "titleMinChars": "Başlıq: bundan az simvol",
+      "titleMaxChars": "Başlıq: bundan çox simvol",
+      "titleMinPx": "Başlıq: bundan dar, px",
+      "titleMaxPx": "Başlıq: bundan geniş, px",
+      "descriptionMinChars": "Təsvir: bundan az simvol",
+      "descriptionMaxChars": "Təsvir: bundan çox simvol",
+      "descriptionMinPx": "Təsvir: bundan dar, px",
+      "descriptionMaxPx": "Təsvir: bundan geniş, px",
+      "thinContentWords": "Az mətn: bundan az söz"
     }
   },
   "compare": {

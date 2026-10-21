@@ -1062,6 +1062,19 @@
       "chooseLogo": "Escolher…",
       "removeLogo": "Remover",
       "logoHint": "PNG, JPEG, SVG ou WebP de até 1 MB; exibido com até 44 px de altura no cabeçalho do relatório."
+    },
+    "thresholds": {
+      "title": "Limites",
+      "intro": "Páginas além destes limites são sinalizadas. Contagens e rótulos mudam na hora; a largura é medida com a fonte dos resultados do Google. Deixe um campo vazio para o valor padrão.",
+      "titleMinChars": "Título: menos caracteres que",
+      "titleMaxChars": "Título: mais caracteres que",
+      "titleMinPx": "Título: mais estreito que, px",
+      "titleMaxPx": "Título: mais largo que, px",
+      "descriptionMinChars": "Descrição: menos caracteres que",
+      "descriptionMaxChars": "Descrição: mais caracteres que",
+      "descriptionMinPx": "Descrição: mais estreita que, px",
+      "descriptionMaxPx": "Descrição: mais larga que, px",
+      "thinContentWords": "Conteúdo raso: menos palavras que"
     }
   },
   "compare": {

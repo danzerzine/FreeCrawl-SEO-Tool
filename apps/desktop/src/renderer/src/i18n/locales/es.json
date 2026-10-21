@@ -1062,6 +1062,19 @@
       "chooseLogo": "Elegir…",
       "removeLogo": "Quitar",
       "logoHint": "PNG, JPEG, SVG o WebP de hasta 1 MB; se muestra con hasta 44 px de alto en el encabezado del informe."
+    },
+    "thresholds": {
+      "title": "Umbrales",
+      "intro": "Las páginas fuera de estos límites se marcan. Los recuentos y etiquetas cambian al instante; el ancho se mide con la fuente de resultados de Google. Deja un campo vacío para su valor por defecto.",
+      "titleMinChars": "Título: menos caracteres que",
+      "titleMaxChars": "Título: más caracteres que",
+      "titleMinPx": "Título: más estrecho que, px",
+      "titleMaxPx": "Título: más ancho que, px",
+      "descriptionMinChars": "Descripción: menos caracteres que",
+      "descriptionMaxChars": "Descripción: más caracteres que",
+      "descriptionMinPx": "Descripción: más estrecha que, px",
+      "descriptionMaxPx": "Descripción: más ancha que, px",
+      "thinContentWords": "Contenido escaso: menos palabras que"
     }
   },
   "compare": {

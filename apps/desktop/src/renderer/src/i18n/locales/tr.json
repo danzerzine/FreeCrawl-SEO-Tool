@@ -1039,6 +1039,19 @@
       "chooseLogo": "Seç…",
       "removeLogo": "Kaldır",
       "logoHint": "1 MB'a kadar PNG, JPEG, SVG veya WebP; rapor başlığında en fazla 44 px yükseklikte gösterilir."
+    },
+    "thresholds": {
+      "title": "Eşikler",
+      "intro": "Bu sınırların dışındaki sayfalar işaretlenir. Sayılar ve etiketler hemen güncellenir; genişlik Google sonuç yazı tipiyle ölçülür. Varsayılan için alanı boş bırakın.",
+      "titleMinChars": "Başlık: şundan az karakter",
+      "titleMaxChars": "Başlık: şundan çok karakter",
+      "titleMinPx": "Başlık: şundan dar, px",
+      "titleMaxPx": "Başlık: şundan geniş, px",
+      "descriptionMinChars": "Açıklama: şundan az karakter",
+      "descriptionMaxChars": "Açıklama: şundan çok karakter",
+      "descriptionMinPx": "Açıklama: şundan dar, px",
+      "descriptionMaxPx": "Açıklama: şundan geniş, px",
+      "thinContentWords": "Zayıf içerik: şundan az kelime"
     }
   },
   "compare": {

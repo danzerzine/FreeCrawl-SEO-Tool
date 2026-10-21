@@ -1039,6 +1039,19 @@
       "chooseLogo": "चुनें…",
       "removeLogo": "हटाएँ",
       "logoHint": "1 MB तक की PNG, JPEG, SVG या WebP; रिपोर्ट हेडर में अधिकतम 44 px ऊँचाई पर दिखती है।"
+    },
+    "thresholds": {
+      "title": "सीमाएँ",
+      "intro": "इन सीमाओं से बाहर के पेज चिह्नित होते हैं। गिनती और लेबल तुरंत बदलते हैं; चौड़ाई Google परिणाम फ़ॉन्ट से मापी जाती है। डिफ़ॉल्ट के लिए फ़ील्ड खाली छोड़ें।",
+      "titleMinChars": "शीर्षक: इससे कम अक्षर",
+      "titleMaxChars": "शीर्षक: इससे अधिक अक्षर",
+      "titleMinPx": "शीर्षक: इससे संकरा, px",
+      "titleMaxPx": "शीर्षक: इससे चौड़ा, px",
+      "descriptionMinChars": "विवरण: इससे कम अक्षर",
+      "descriptionMaxChars": "विवरण: इससे अधिक अक्षर",
+      "descriptionMinPx": "विवरण: इससे संकरा, px",
+      "descriptionMaxPx": "विवरण: इससे चौड़ा, px",
+      "thinContentWords": "कम सामग्री: इससे कम शब्द"
     }
   },
   "compare": {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
 import { TabExportButton } from '../components/TabExportButton.js';
-import type { CrawlUrlRow } from '@freecrawl/shared-types';
+import { DEFAULT_SEO_THRESHOLDS, type CrawlUrlRow } from '@freecrawl/shared-types';
 import { useAppStore } from '../store.js';
 
 const CARD_HEIGHT = 132;
@@ -15,9 +15,11 @@ const POLL_MS_IDLE = 30_000;
 // Google's mobile SERP truncates titles around 600 px and descriptions
 // around 990 px (rendered with their UI font). We approximate with Arial
 // at the same point sizes — close enough to flag over-budget snippets
-// without false negatives.
-const TITLE_PX_LIMIT = 600;
-const DESC_PX_LIMIT = 990;
+// without false negatives. The budgets are the project's thresholds (B77).
+function usePixelBudgets(): { title: number; desc: number } {
+  const t = useAppStore((s) => s.overview?.thresholds) ?? DEFAULT_SEO_THRESHOLDS;
+  return { title: t.titleMaxPx, desc: t.descriptionMaxPx };
+}
 const TITLE_CHAR_HARD_CAP = 100;
 const DESC_CHAR_HARD_CAP = 200;
 
@@ -25,6 +27,7 @@ type SortMode = 'inlinks' | 'url' | 'title-length-desc' | 'desc-length-desc';
 
 export function SerpTab() {
   const { t } = useTranslation();
+  const budget = usePixelBudgets();
   const dataVersion = useAppStore((s) => s.dataVersion);
   const progress = useAppStore((s) => s.progress);
   const setSelectedUrlId = useAppStore((s) => s.setSelectedUrlId);
@@ -210,7 +213,7 @@ export function SerpTab() {
         style={{ height: STATUS_BAR_HEIGHT }}
       >
         <span>
-          Click a card to select that URL · Title budget {TITLE_PX_LIMIT}px · Description budget {DESC_PX_LIMIT}px
+          Click a card to select that URL · Title budget {budget.title}px · Description budget {budget.desc}px
         </span>
       </div>
     </div>
@@ -226,12 +229,13 @@ function SerpCard({
   active: boolean;
   onClick: () => void;
 }) {
+  const budget = usePixelBudgets();
   const title = row.title ?? '(no title)';
   const desc = row.metaDescription ?? '';
   const titlePx = row.title ? measurePixelWidth(row.title, 15) : 0;
   const descPx = desc ? measurePixelWidth(desc, 13) : 0;
-  const titleOver = titlePx > TITLE_PX_LIMIT;
-  const descOver = descPx > DESC_PX_LIMIT;
+  const titleOver = titlePx > budget.title;
+  const descOver = descPx > budget.desc;
 
   return (
     <button
@@ -273,11 +277,11 @@ function SerpCard({
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[10px] text-surface-500">
         <span className={titleOver ? 'text-amber-400' : ''}>
-          Title: {titlePx}px / {TITLE_PX_LIMIT}px · {row.titleLength ?? 0} chars
+          Title: {titlePx}px / {budget.title}px · {row.titleLength ?? 0} chars
         </span>
         {desc && (
           <span className={descOver ? 'text-amber-400' : ''}>
-            Desc: {descPx}px / {DESC_PX_LIMIT}px · {row.metaDescriptionLength ?? 0} chars
+            Desc: {descPx}px / {budget.desc}px · {row.metaDescriptionLength ?? 0} chars
           </span>
         )}
         <span>Inlinks: {(row.inlinks ?? 0).toLocaleString()}</span>

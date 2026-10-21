@@ -170,18 +170,20 @@ export const ZH_CN_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: '缺失',
-  'Over 60 Characters': '超过 60 个字符',
-  'Below 30 Characters': '少于 30 个字符',
+  'Over {{titleMaxChars}} Characters': '超过 {{titleMaxChars}} 个字符',
+  'Below {{titleMinChars}} Characters': '少于 {{titleMinChars}} 个字符',
   Duplicate: '重复',
   'Multiple <title> Tags': '存在多个 <title> 标签',
-  'Pixel Width Truncated (>600px)': '因像素宽度被截断（>600 px）',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)': '因像素宽度被截断（>{{titleMaxPx}} px）',
+  'Pixel Width Below {{titleMinPx}}px': '宽度低于 {{titleMinPx}} 像素',
   'Placeholder Title': '占位标题',
   'Single-Word Title': '只有一个词的标题',
 
   // Meta description
-  'Over 160 Characters': '超过 160 个字符',
-  'Below 120 Characters': '少于 120 个字符',
-  'Pixel Width Truncated (>990px)': '因像素宽度被截断（>990 px）',
+  'Over {{descriptionMaxChars}} Characters': '超过 {{descriptionMaxChars}} 个字符',
+  'Below {{descriptionMinChars}} Characters': '少于 {{descriptionMinChars}} 个字符',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)': '因像素宽度被截断（>{{descriptionMaxPx}} px）',
+  'Pixel Width Below {{descriptionMinPx}}px': '宽度低于 {{descriptionMinPx}} 像素',
   'Description = Title': '描述 = 标题',
   'Description = H1': '描述 = H1',
 
@@ -193,7 +195,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': '空页面（少于 30 词）',
-  'Thin Content (<300 words)': '内容单薄（少于 300 词）',
+  'Thin Content (<{{thinContentWords}} words)': '内容单薄（少于 {{thinContentWords}} 词）',
   'Near-Duplicate Content': '近似重复内容',
   'Duplicate Content (exact)': '重复内容（完全相同）',
   'Low Text/Code Ratio (<10%)': '文本与代码比例过低（<10%）',

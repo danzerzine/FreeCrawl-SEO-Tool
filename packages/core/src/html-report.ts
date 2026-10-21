@@ -2,6 +2,7 @@ import { createWriteStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ProjectDb } from '@freecrawl/db';
+import { fillThresholdLabel } from '@freecrawl/shared-types';
 import type { CrawlSummary, OverviewCounts, ReportBranding } from '@freecrawl/shared-types';
 import { writeExportFile } from './export-file.js';
 
@@ -84,12 +85,20 @@ interface IssueDef {
 const ISSUES: IssueDef[] = [
   { key: 'titleMissing', label: 'Title Missing', severity: 'error' },
   { key: 'titleDuplicate', label: 'Title Duplicate', severity: 'error' },
-  { key: 'titleTooLong', label: 'Title Too Long (>60)', severity: 'warn' },
-  { key: 'titleTooShort', label: 'Title Too Short (<30)', severity: 'warn' },
+  { key: 'titleTooLong', label: 'Title Too Long (>{{titleMaxChars}})', severity: 'warn' },
+  { key: 'titleTooShort', label: 'Title Too Short (<{{titleMinChars}})', severity: 'warn' },
   { key: 'metaMissing', label: 'Meta Description Missing', severity: 'error' },
   { key: 'metaDuplicate', label: 'Meta Description Duplicate', severity: 'error' },
-  { key: 'metaTooLong', label: 'Meta Description Too Long (>160)', severity: 'warn' },
-  { key: 'metaTooShort', label: 'Meta Description Too Short (<120)', severity: 'warn' },
+  {
+    key: 'metaTooLong',
+    label: 'Meta Description Too Long (>{{descriptionMaxChars}})',
+    severity: 'warn',
+  },
+  {
+    key: 'metaTooShort',
+    label: 'Meta Description Too Short (<{{descriptionMinChars}})',
+    severity: 'warn',
+  },
   { key: 'h1Missing', label: 'H1 Missing', severity: 'error' },
   { key: 'h2Missing', label: 'H2 Missing', severity: 'info' },
   { key: 'h2Duplicate', label: 'H2 Duplicate', severity: 'info' },
@@ -103,7 +112,7 @@ const ISSUES: IssueDef[] = [
   { key: 'canonicalToRedirect', label: 'Canonical → Redirect', severity: 'warn' },
   { key: 'canonicalToNoindex', label: 'Canonical → Noindex', severity: 'error' },
   { key: 'canonicalMismatch', label: 'Canonical HTTP/HTML Mismatch', severity: 'error' },
-  { key: 'contentThin', label: 'Thin Content (<300 words)', severity: 'warn' },
+  { key: 'contentThin', label: 'Thin Content (<{{thinContentWords}} words)', severity: 'warn' },
   { key: 'nearDuplicate', label: 'Near-Duplicate Content', severity: 'warn' },
   { key: 'duplicateContentExact', label: 'Duplicate Content (exact)', severity: 'error' },
   { key: 'responseSlow', label: 'Slow Response (>1s)', severity: 'warn' },
@@ -177,8 +186,22 @@ const ISSUES: IssueDef[] = [
   { key: 'imageDuplicateAlt', label: 'Image Duplicate Alt', severity: 'warn' },
   { key: 'brokenBookmark', label: 'Broken Bookmarks', severity: 'warn' },
   { key: 'linkEmptyAnchor', label: 'Empty Anchor Text', severity: 'warn' },
-  { key: 'titlePixelWidthTooLong', label: 'Title Pixel Width >600px', severity: 'warn' },
-  { key: 'metaPixelWidthTooLong', label: 'Meta Description Pixel Width >990px', severity: 'warn' },
+  { key: 'titlePixelWidthTooLong', label: 'Title Pixel Width >{{titleMaxPx}}px', severity: 'warn' },
+  {
+    key: 'metaPixelWidthTooLong',
+    label: 'Meta Description Pixel Width >{{descriptionMaxPx}}px',
+    severity: 'warn',
+  },
+  {
+    key: 'titlePixelWidthTooShort',
+    label: 'Title Pixel Width <{{titleMinPx}}px',
+    severity: 'info',
+  },
+  {
+    key: 'metaPixelWidthTooShort',
+    label: 'Meta Description Pixel Width <{{descriptionMinPx}}px',
+    severity: 'info',
+  },
   { key: 'insecureFormAction', label: 'Insecure Form Action (HTTPS → HTTP)', severity: 'error' },
   { key: 'missingSri', label: 'Missing SRI (3rd-party subresource)', severity: 'info' },
   { key: 'ttfbSlow', label: 'TTFB Slow (>600ms)', severity: 'warn' },
@@ -203,15 +226,21 @@ const SEV_RANK: Record<IssueDef['severity'], number> = { error: 0, warn: 1, info
  * read); the fallback covers checks without a tailored line.
  */
 const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
-  titleMissing: 'Write a unique, descriptive <title> (50–60 characters) for every page; it is the strongest on-page ranking and click-through signal.',
+  titleMissing:
+    'Write a unique, descriptive <title> ({{titleMinChars}}–{{titleMaxChars}} characters) for every page; it is the strongest on-page ranking and click-through signal.',
   titleDuplicate: 'Give each page its own title — duplicates make search engines pick one page and suppress the rest.',
-  titleTooLong: 'Trim titles to about 60 characters so they are not truncated in results; front-load the primary keyword.',
-  titleTooShort: 'Expand titles below 30 characters with the page topic and brand so they describe the page.',
+  titleTooLong:
+    'Trim titles to about {{titleMaxChars}} characters so they are not truncated in results; front-load the primary keyword.',
+  titleTooShort:
+    'Expand titles below {{titleMinChars}} characters with the page topic and brand so they describe the page.',
   titlePlaceholder: 'Replace placeholder titles ("Untitled", "Home") with real page titles.',
-  metaMissing: 'Add a meta description (120–160 characters) that summarises the page and invites the click.',
+  metaMissing:
+    'Add a meta description ({{descriptionMinChars}}–{{descriptionMaxChars}} characters) that summarises the page and invites the click.',
   metaDuplicate: 'Write page-specific meta descriptions; duplicated snippets lower click-through and get rewritten by Google.',
-  metaTooLong: 'Shorten meta descriptions to about 160 characters so the snippet is not cut off.',
-  metaTooShort: 'Extend meta descriptions below 120 characters to make full use of the snippet.',
+  metaTooLong:
+    'Shorten meta descriptions to about {{descriptionMaxChars}} characters so the snippet is not cut off.',
+  metaTooShort:
+    'Extend meta descriptions below {{descriptionMinChars}} characters to make full use of the snippet.',
   h2Missing:
     'Break long content into sections with H2 subheadings; they help readers and search engines scan the page.',
   h2Duplicate: 'Give each page its own first H2 instead of a heading repeated from a template.',
@@ -319,7 +348,11 @@ const SEVERITY_FALLBACK: Record<IssueDef['severity'], string> = {
 };
 
 function renderRecommendations(counts: OverviewCounts): string {
-  const rows = ISSUES.map((d) => ({ ...d, count: counts.issues[d.key] as number }))
+  const rows = ISSUES.map((d) => ({
+    ...d,
+    label: fillThresholdLabel(d.label, counts.thresholds),
+    count: counts.issues[d.key] as number,
+  }))
     .filter((r) => r.count > 0)
     .sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.count - a.count)
     .slice(0, 12);
@@ -328,7 +361,7 @@ function renderRecommendations(counts: OverviewCounts): string {
     .map(
       (r) =>
         `<li><span class="sev-${r.severity}">${escape(r.label)}</span> <span class="muted">(${fmtNum(r.count)} URL${r.count === 1 ? '' : 's'})</span><br>${escape(
-          RECOMMENDATIONS[r.key] ?? SEVERITY_FALLBACK[r.severity],
+          fillThresholdLabel(RECOMMENDATIONS[r.key] ?? SEVERITY_FALLBACK[r.severity], counts.thresholds),
         )}</li>`,
     )
     .join('');
@@ -413,7 +446,7 @@ function renderIssues(counts: OverviewCounts): string {
   const notices = renderSiteNotices(counts);
   const rows = ISSUES.map((d) => {
     const c = counts.issues[d.key] as number;
-    return { ...d, count: c };
+    return { ...d, label: fillThresholdLabel(d.label, counts.thresholds), count: c };
   })
     .filter((r) => r.count > 0)
     .sort((a, b) =>

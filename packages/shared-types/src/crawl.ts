@@ -1,3 +1,4 @@
+import { DEFAULT_SEO_THRESHOLDS, type SeoThresholds } from './seo-thresholds.js';
 /**
  * Crawl scope. Determines which links are followed.
  *  - `subdomain`        — same registrable domain + same exact host
@@ -175,6 +176,8 @@ export type UrlCategory =
   | 'issues:feed-missing'
   | 'issues:title-pixel-width-too-long'
   | 'issues:meta-pixel-width-too-long'
+  | 'issues:title-pixel-width-too-short'
+  | 'issues:meta-pixel-width-too-short'
   | 'issues:insecure-form-action'
   | 'issues:missing-sri'
   | 'issues:ttfb-slow'
@@ -1532,6 +1535,12 @@ export interface CrawlConfig {
    */
   disabledIssues: UrlCategory[];
   /**
+   * Length, pixel-width and thin-content limits (B77). Missing keys use
+   * `DEFAULT_SEO_THRESHOLDS`; a config file or older project without the
+   * field gets the defaults.
+   */
+  seoThresholds?: Partial<SeoThresholds>;
+  /**
    * Page-rendering strategy for the fetch layer.
    *  - `text`  (default) — fetch the raw HTML response as-is. Fast,
    *    deterministic, covers server-rendered + static sites.
@@ -1879,6 +1888,8 @@ export interface Soft404ProbeResult {
 }
 
 export interface OverviewCounts {
+  /** The limits the length, pixel-width and thin-content checks were counted with (B77). */
+  thresholds?: SeoThresholds;
   /** Findings about the site as a whole rather than any one URL. */
   site?: {
     soft404Probe: Soft404ProbeResult | null;
@@ -2112,6 +2123,8 @@ export interface OverviewCounts {
     feedMissing: number;
     titlePixelWidthTooLong: number;
     metaPixelWidthTooLong: number;
+    titlePixelWidthTooShort: number;
+    metaPixelWidthTooShort: number;
     insecureFormAction: number;
     missingSri: number;
     ttfbSlow: number;
@@ -2988,6 +3001,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   analysePagination: true,
   analyseIssues: true,
   disabledIssues: [],
+  seoThresholds: { ...DEFAULT_SEO_THRESHOLDS },
   cookiePolicy: 'reject-all',
   perHostUserAgents: [],
   proxyProfiles: [],

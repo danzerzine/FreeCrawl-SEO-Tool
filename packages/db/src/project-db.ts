@@ -107,6 +107,9 @@ import {
   unpackTemplateSetBase64,
   type ShingleHashes,
   type TemplateSet,
+  resolveSeoThresholds,
+  DEFAULT_SEO_THRESHOLDS,
+  type SeoThresholds,
 } from '@freecrawl/shared-types';
 import { buildCrawlSnapshot } from './crawl-snapshot.js';
 import { runMigrations } from './migrations.js';
@@ -170,8 +173,19 @@ const LARGE_DUPLICATE_CLUSTER = 50;
  * out (M5).
  */
 export const CHECKS_FILLED_META_KEY = 'checksFilled';
+/**
+ * `project_meta` key: JSON of the `SeoThresholds` this project is counted
+ * with (B77). Written at crawl start and when the desktop saves a config;
+ * absent on older projects, which then use the defaults.
+ */
+export const SEO_THRESHOLDS_META_KEY = 'seoThresholds';
 /** Page checks added since module 5; this build fills every one of them. */
 export const LATER_CHECKS: readonly UrlCategory[] = [
+  // Pixel widths: Cyrillic is measured per letter since B77, so an older crawl's widths differ.
+  'issues:title-pixel-width-too-long',
+  'issues:title-pixel-width-too-short',
+  'issues:meta-pixel-width-too-long',
+  'issues:meta-pixel-width-too-short',
   'issues:og-name-attribute',
   'issues:noindex-other-bot',
   'issues:title-outside-head',
@@ -1567,6 +1581,8 @@ const META_KEYS_KEPT_BY_RESET = ['monitorRules', 'monitorChannels'] as const;
 export class ProjectDb {
   /** Parse cache for `getDisabledIssues()` — keyed by the raw meta string. */
   private disabledIssuesRaw: string | null = null;
+  private seoThresholdsRaw: string | null = null;
+  private seoThresholdsValue: SeoThresholds | null = null;
   private disabledIssuesSet: ReadonlySet<UrlCategory> | null = null;
   private readonly db: DatabaseSync;
   private readonly bodies: BodyCodec;
@@ -2228,9 +2244,39 @@ export class ProjectDb {
   applyCrawlConfigFlags(config: {
     disabledIssues?: readonly string[];
     dedupePreNormalize?: boolean;
+    seoThresholds?: Partial<SeoThresholds>;
   }): void {
     this.setDisabledIssues(config.disabledIssues ?? []);
     this.setDedupePreNormalize(config.dedupePreNormalize ?? true);
+    this.setSeoThresholds(config.seoThresholds);
+  }
+
+  /** Stores the thresholds this project is counted with; missing keys get the defaults (B77). */
+  setSeoThresholds(partial?: Partial<SeoThresholds> | null): void {
+    const next = JSON.stringify(resolveSeoThresholds(partial));
+    if (this.getMeta(SEO_THRESHOLDS_META_KEY) === next) return;
+    this.setMeta(SEO_THRESHOLDS_META_KEY, next);
+  }
+
+  /** The thresholds the length, pixel-width and thin-content checks use; defaults when none stored. */
+  getSeoThresholds(): SeoThresholds {
+    const raw = this.getMeta(SEO_THRESHOLDS_META_KEY);
+    if (!raw) return DEFAULT_SEO_THRESHOLDS;
+    if (raw === this.seoThresholdsRaw && this.seoThresholdsValue) return this.seoThresholdsValue;
+    let parsed: Partial<SeoThresholds> | null = null;
+    try {
+      parsed = JSON.parse(raw) as Partial<SeoThresholds>;
+    } catch {
+      parsed = null;
+    }
+    this.seoThresholdsRaw = raw;
+    this.seoThresholdsValue = resolveSeoThresholds(parsed);
+    return this.seoThresholdsValue;
+  }
+
+  /** `categoryWhereClause` with this project's thresholds. */
+  private clauseFor(cat: UrlCategory, disabledIssues?: ReadonlySet<string>): string | null {
+    return categoryWhereClause(cat, disabledIssues, this.getSeoThresholds());
   }
 
   /** The silenced issue categories, as a set. Empty when none. */
@@ -7307,6 +7353,7 @@ export class ProjectDb {
       search: params.search,
       filter: params.filter,
       disabledIssues: this.getDisabledIssues(),
+      thresholds: this.getSeoThresholds(),
     });
     const sortCol = validSortColumn(params.sortBy, this.urlSortColumns());
     const sortDir = params.sortDir === 'desc' ? 'DESC' : 'ASC';
@@ -7525,7 +7572,7 @@ export class ProjectDb {
     // the row set the same query by construction.
     const disabledIssues = this.getDisabledIssues();
     const countCategory = (cat: UrlCategory): number => {
-      const clause = categoryWhereClause(cat, disabledIssues);
+      const clause = this.clauseFor(cat, disabledIssues);
       return countWhere(clause ?? '1 = 1');
     };
 
@@ -7558,7 +7605,7 @@ export class ProjectDb {
     const siteWideChecks: { category: UrlCategory; pages: number }[] = [];
     if (!this.overviewCollect) {
       for (const category of siteWideCandidates(issues, pagesBase, disabledIssues)) {
-        const clause = categoryWhereClause(category, disabledIssues);
+        const clause = this.clauseFor(category, disabledIssues);
         if (!clause) continue;
         const pages = countWhere(`${pagesClause} AND (${clause})`);
         if (isSiteWide(pages, pagesBase)) siteWideChecks.push({ category, pages });
@@ -7613,6 +7660,7 @@ export class ProjectDb {
         blockedRobots: countCategory('indexability:blocked-robots'),
       },
       issues,
+      thresholds: this.getSeoThresholds(),
       site: {
         soft404Probe: this.readSoft404Probe(),
         botBlocked:
@@ -7667,7 +7715,7 @@ export class ProjectDb {
     const indexable = INDEXABLE_HTML_SCOPE;
     // Checks gated to pages answered 2xx (B79) are counted through the very
     // clause their list applies, so the sidebar number and the rows cannot drift.
-    const gatedCount = (cat: UrlCategory): number => countWhere(categoryWhereClause(cat) ?? '1 = 1');
+    const gatedCount = (cat: UrlCategory): number => countWhere(this.clauseFor(cat) ?? '1 = 1');
     // Duplicate groups form over pages answered 2xx only (B79).
     const dup = (col: string): number =>
       this.scalarCount(
@@ -7718,9 +7766,7 @@ export class ProjectDb {
       canonicalToNon200: gatedCount('issues:canonical-to-non-200'),
       canonicalToRedirect: gatedCount('issues:canonical-to-redirect'),
       canonicalToNoindex: gatedCount('issues:canonical-to-noindex'),
-      contentThin: countWhere(
-        `${indexable} AND indexability = 'indexable' AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < 300`,
-      ),
+      contentThin: gatedCount('issues:content-thin'),
       // Only a completed check yields a finding count — an unsupported or
       // language-mismatched page stores zero because nothing was collected.
       // Stating `status = 'ok'` keeps that explicit rather than leaning on
@@ -7912,6 +7958,8 @@ export class ProjectDb {
       ),
       titlePixelWidthTooLong: gatedCount('issues:title-pixel-width-too-long'),
       metaPixelWidthTooLong: gatedCount('issues:meta-pixel-width-too-long'),
+      titlePixelWidthTooShort: gatedCount('issues:title-pixel-width-too-short'),
+      metaPixelWidthTooShort: gatedCount('issues:meta-pixel-width-too-short'),
       insecureFormAction: gatedCount('issues:insecure-form-action'),
       missingSri: gatedCount('issues:missing-sri'),
       ttfbSlow: gatedCount('issues:ttfb-slow'),
@@ -8095,7 +8143,7 @@ export class ProjectDb {
     if (category === 'issues:broken-links-internal') return this.countBrokenLinks('internal', 'pages');
     if (category === 'issues:broken-links-external') return this.countBrokenLinks('external', 'pages');
     if (category === 'issues:broken-links-all') return this.countBrokenLinks('all', 'pages');
-    const where = categoryWhereClause(category, this.getDisabledIssues());
+    const where = this.clauseFor(category, this.getDisabledIssues());
     return this.scalarCount(`SELECT COUNT(*) AS c FROM urls WHERE ${where ?? '1 = 1'}`);
   }
 
@@ -8904,7 +8952,7 @@ export class ProjectDb {
         : ISSUE_CATEGORIES.filter((c) => c === issueKey);
     // A check with no filter has no pages of its own: skip it rather
     // than list every URL under it.
-    const checks = keys.filter((key) => !disabled.has(key) && categoryWhereClause(key, disabled) !== null);
+    const checks = keys.filter((key) => !disabled.has(key) && this.clauseFor(key, disabled) !== null);
     if (checks.length > 1) {
       // Many checks: every check's pages from one scan of the urls table.
       const listed = this.urlIdsByCategories(checks);
@@ -8920,7 +8968,7 @@ export class ProjectDb {
     }
     for (const key of checks) {
       const rows = this.db
-        .prepare(`SELECT url FROM urls WHERE ${categoryWhereClause(key, disabled)} ORDER BY id`)
+        .prepare(`SELECT url FROM urls WHERE ${this.clauseFor(key, disabled)} ORDER BY id`)
         .iterate() as unknown as Iterable<{ url: string }>;
       for (const r of rows) yield { issueKey: key, url: r.url };
     }
@@ -9220,7 +9268,7 @@ export class ProjectDb {
     const unfiltered: UrlCategory[] = [];
     const all: number[] = [];
     for (const category of new Set(categories)) {
-      const where = categoryWhereClause(category, disabled);
+      const where = this.clauseFor(category, disabled);
       if (where === '1 = 0') out.set(category, new Uint32Array(0));
       else if (where === null) unfiltered.push(category);
       else scanned.push({ category, ids: [] });
@@ -9232,7 +9280,7 @@ export class ProjectDb {
       words.push(
         scanned
           .slice(i, i + PER_WORD)
-          .map((s, j) => `(CASE WHEN (${categoryWhereClause(s.category, disabled)}) THEN ${2 ** j} ELSE 0 END)`)
+          .map((s, j) => `(CASE WHEN (${this.clauseFor(s.category, disabled)}) THEN ${2 ** j} ELSE 0 END)`)
           .join(' + '),
       );
     }
@@ -9270,7 +9318,7 @@ export class ProjectDb {
    * category files.
    */
   urlIdsByCategory(category: UrlCategory): Uint32Array {
-    const where = categoryWhereClause(category, this.getDisabledIssues());
+    const where = this.clauseFor(category, this.getDisabledIssues());
     const sql = where
       ? `SELECT id FROM urls WHERE (${where}) ORDER BY id`
       : 'SELECT id FROM urls ORDER BY id';
@@ -9578,7 +9626,7 @@ export class ProjectDb {
     // inside Electron's 4 GB heap-cap budget. 2000-row batches keep
     // peak memory flat regardless of table size while adding only
     // ~500 statement executions per million rows.
-    const where = categoryWhereClause(category, this.getDisabledIssues());
+    const where = this.clauseFor(category, this.getDisabledIssues());
     const BATCH = 2000;
     const sql = where
       ? `SELECT * FROM urls WHERE (${where}) AND id > ? ORDER BY id LIMIT ?`
@@ -9612,6 +9660,7 @@ export class ProjectDb {
     const { whereSql, args: baseArgs } = buildUrlsWhere({
       ...params,
       disabledIssues: this.getDisabledIssues(),
+      thresholds: this.getSeoThresholds(),
     });
     const BATCH = 2000;
     const sql = whereSql
@@ -12305,6 +12354,7 @@ function buildUrlsWhere(params: {
   search?: string;
   /** Silenced checks — their categories match no rows. */
   disabledIssues?: ReadonlySet<string>;
+  thresholds?: SeoThresholds;
   filter?: AdvancedFilter;
 }): { whereSql: string; args: (string | number)[] } {
   const where: string[] = [];
@@ -12312,7 +12362,7 @@ function buildUrlsWhere(params: {
 
   const cat = params.category ?? 'all';
   if (cat !== 'all') {
-    const clause = categoryWhereClause(cat, params.disabledIssues);
+    const clause = categoryWhereClause(cat, params.disabledIssues, params.thresholds);
     if (clause) where.push(clause);
   }
 
@@ -12464,8 +12514,10 @@ export function categoryWhereClause(
   cat: UrlCategory,
   /** Silenced issue checks (Settings → Issues): their filter matches nothing. */
   disabledIssues?: ReadonlySet<string>,
+  /** Length, pixel-width and thin-content limits (B77); the defaults when omitted. */
+  t: SeoThresholds = DEFAULT_SEO_THRESHOLDS,
 ): string | null {
-  const clause = baseCategoryWhereClause(cat, disabledIssues);
+  const clause = baseCategoryWhereClause(cat, disabledIssues, t);
   return clause !== null && STATUS_GATED_ISSUES.has(cat) ? gateToPages(clause) : clause;
 }
 
@@ -12473,6 +12525,7 @@ function baseCategoryWhereClause(
   cat: UrlCategory,
   /** Silenced issue checks (Settings → Issues): their filter matches nothing. */
   disabledIssues?: ReadonlySet<string>,
+  t: SeoThresholds = DEFAULT_SEO_THRESHOLDS,
 ): string | null {
   if (disabledIssues?.has(cat)) return '1 = 0';
   switch (cat) {
@@ -12559,9 +12612,9 @@ function baseCategoryWhereClause(
               AND status_code >= 200 AND status_code < 300
               AND (title IS NULL OR title = '')`;
     case 'issues:title-too-long':
-      return "is_external = 0 AND content_kind = 'html' AND title_length > 60";
+      return `is_external = 0 AND content_kind = 'html' AND title_length > ${t.titleMaxChars}`;
     case 'issues:title-too-short':
-      return "is_external = 0 AND content_kind = 'html' AND title_length > 0 AND title_length < 30";
+      return `is_external = 0 AND content_kind = 'html' AND title_length > 0 AND title_length < ${t.titleMinChars}`;
     case 'issues:title-duplicate':
       return `is_external = 0 AND content_kind = 'html' AND title IS NOT NULL AND title != ''
               AND title IN (
@@ -12575,9 +12628,9 @@ function baseCategoryWhereClause(
               AND status_code >= 200 AND status_code < 300
               AND (meta_description IS NULL OR meta_description = '')`;
     case 'issues:meta-too-long':
-      return "is_external = 0 AND content_kind = 'html' AND meta_description_length > 160";
+      return `is_external = 0 AND content_kind = 'html' AND meta_description_length > ${t.descriptionMaxChars}`;
     case 'issues:meta-too-short':
-      return "is_external = 0 AND content_kind = 'html' AND meta_description_length > 0 AND meta_description_length < 120";
+      return `is_external = 0 AND content_kind = 'html' AND meta_description_length > 0 AND meta_description_length < ${t.descriptionMinChars}`;
     case 'issues:meta-duplicate':
       return `is_external = 0 AND content_kind = 'html' AND meta_description IS NOT NULL AND meta_description != ''
               AND meta_description IN (
@@ -12765,7 +12818,7 @@ function baseCategoryWhereClause(
       // a page canonicalised elsewhere never competes in search, so its
       // word count says nothing about content quality.
       return `${INDEXABLE_HTML_SCOPE} AND indexability = 'indexable'
-              AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < 300`;
+              AND word_count IS NOT NULL AND ${JUDGED_WORDS_SQL} < ${t.thinContentWords}`;
     case 'issues:spelling-grammar':
       return `is_external = 0 AND content_kind = 'html' AND EXISTS (
                 SELECT 1 FROM spelling_results s
@@ -13206,13 +13259,21 @@ function baseCategoryWhereClause(
       // 600px ≈ 60 chars of average mix, but heavy uppercase or wide
       // letters (M, W, …) can hit 600px well before that.
       return `is_external = 0 AND content_kind = 'html'
-              AND title_pixel_width > 600`;
+              AND title_pixel_width > ${t.titleMaxPx}`;
+    case 'issues:title-pixel-width-too-short':
+      // A title so narrow it wastes the result line (B77). Width 0 is a
+      // missing title or a row from before widths were stored.
+      return `is_external = 0 AND content_kind = 'html'
+              AND title_pixel_width > 0 AND title_pixel_width < ${t.titleMinPx}`;
     case 'issues:meta-pixel-width-too-long':
       // Meta description truncation point on desktop SERP is ~990px and on
       // mobile ~990px-ish. We use 990px as the ceiling — same threshold
       // applied across viewports keeps the issue check predictable.
       return `is_external = 0 AND content_kind = 'html'
-              AND meta_pixel_width > 990`;
+              AND meta_pixel_width > ${t.descriptionMaxPx}`;
+    case 'issues:meta-pixel-width-too-short':
+      return `is_external = 0 AND content_kind = 'html'
+              AND meta_pixel_width > 0 AND meta_pixel_width < ${t.descriptionMinPx}`;
     case 'issues:insecure-form-action':
       // HTTPS page submitting form data over plain HTTP. Browsers warn
       // ("Not Secure" interstitial) on submit; one of the highest-ROI
@@ -13282,7 +13343,7 @@ function baseCategoryWhereClause(
             : 'info';
       const clauses = issueCategoriesBySeverity(tier)
         .filter((c) => !disabledIssues?.has(c) && !PAGE_ROLLUP_EXCLUDED.has(c))
-        .map((c) => categoryWhereClause(c, disabledIssues))
+        .map((c) => categoryWhereClause(c, disabledIssues, t))
         .filter((c): c is string => c !== null)
         .map((c) => `(${c})`);
       return clauses.length > 0 ? clauses.join(' OR ') : '1 = 0';

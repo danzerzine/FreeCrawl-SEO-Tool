@@ -7,6 +7,7 @@
 import { writeFile } from 'node:fs/promises';
 import type { ProjectDb } from '@freecrawl/db';
 import {
+  fillThresholdLabel,
   ISSUE_GROUPS,
   ISSUE_SEVERITY,
   issueCount,
@@ -108,7 +109,7 @@ export async function exportIssuesSummary(
   options: { headers?: ReportHeaders } = {},
 ): Promise<{ rowsWritten: number }> {
   const disabled = db.getDisabledIssues();
-  const issues = db.getOverviewCounts().issues;
+  const { issues, thresholds } = db.getOverviewCounts();
   const trend = issueTrend(db)?.checks ?? {};
   const rows = ISSUE_GROUPS.flatMap((g) =>
     g.items
@@ -120,7 +121,7 @@ export async function exportIssuesSummary(
         const t = trend[i.category];
         return [
           i.category,
-          i.label,
+          fillThresholdLabel(i.label, thresholds),
           g.label,
           ISSUE_SEVERITY[i.category] ?? '',
           urls,

@@ -169,18 +169,21 @@ export const TR_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: 'Eksik',
-  'Over 60 Characters': '60 Karakterden Uzun',
-  'Below 30 Characters': '30 Karakterden Kısa',
+  'Over {{titleMaxChars}} Characters': '{{titleMaxChars}} Karakterden Uzun',
+  'Below {{titleMinChars}} Characters': '{{titleMinChars}} Karakterden Kısa',
   Duplicate: 'Yinelenen',
   'Multiple <title> Tags': 'Birden Çok <title> Etiketi',
-  'Pixel Width Truncated (>600px)': 'Pixel Genişliği Kesildi (>600px)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)': 'Pixel Genişliği Kesildi (>{{titleMaxPx}}px)',
+  'Pixel Width Below {{titleMinPx}}px': 'Genişlik {{titleMinPx}} px altında',
   'Placeholder Title': 'Yer Tutucu Başlık',
   'Single-Word Title': 'Tek Kelime Başlık',
 
   // Meta description
-  'Over 160 Characters': '160 Karakterden Uzun',
-  'Below 120 Characters': '120 Karakterden Kısa',
-  'Pixel Width Truncated (>990px)': 'Pixel Genişliği Kesildi (>990px)',
+  'Over {{descriptionMaxChars}} Characters': '{{descriptionMaxChars}} Karakterden Uzun',
+  'Below {{descriptionMinChars}} Characters': '{{descriptionMinChars}} Karakterden Kısa',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    'Pixel Genişliği Kesildi (>{{descriptionMaxPx}}px)',
+  'Pixel Width Below {{descriptionMinPx}}px': 'Genişlik {{descriptionMinPx}} px altında',
   'Description = Title': 'Açıklama = Başlık',
   'Description = H1': 'Açıklama = H1',
 
@@ -192,7 +195,7 @@ export const TR_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': 'Boş Sayfa (<30 kelime)',
-  'Thin Content (<300 words)': 'İnce İçerik (<300 kelime)',
+  'Thin Content (<{{thinContentWords}} words)': 'İnce İçerik (<{{thinContentWords}} kelime)',
   'Near-Duplicate Content': 'Yakın Yinelenen İçerik',
   'Duplicate Content (exact)': 'Yinelenen İçerik (birebir)',
   'Low Text/Code Ratio (<10%)': 'Düşük Metin/Kod Oranı (<%10)',

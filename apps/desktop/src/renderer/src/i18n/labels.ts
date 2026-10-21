@@ -20,7 +20,13 @@
  * When adding a new label: drop the English text verbatim as the key,
  * and the translation as the value, in each locale file.
  */
-import { normalizeUiLanguage, type UiLanguage } from '@freecrawl/shared-types';
+import {
+  DEFAULT_SEO_THRESHOLDS,
+  fillThresholdLabel,
+  normalizeUiLanguage,
+  type SeoThresholds,
+  type UiLanguage,
+} from '@freecrawl/shared-types';
 import { TR_LABELS } from './labels/tr.js';
 import { AZ_LABELS } from './labels/az.js';
 import { ZH_CN_LABELS } from './labels/zh-CN.js';
@@ -56,6 +62,16 @@ const LABELS: Partial<Record<UiLanguage, Record<string, string>>> = {
  */
 export function translateLabel(label: string, lang: string): string {
   const code = normalizeUiLanguage(lang);
-  if (!code) return label;
-  return LABELS[code]?.[label] ?? label;
+  const text = code ? (LABELS[code]?.[label] ?? label) : label;
+  return fillThresholdLabel(text, labelThresholds);
+}
+
+/**
+ * Labels of length, pixel-width and thin-content checks carry
+ * `{{titleMaxChars}}`-style placeholders (B77); they are filled with the
+ * open project's thresholds, set whenever its overview arrives.
+ */
+let labelThresholds: SeoThresholds = DEFAULT_SEO_THRESHOLDS;
+export function setLabelThresholds(t: SeoThresholds | undefined): void {
+  labelThresholds = t ?? DEFAULT_SEO_THRESHOLDS;
 }

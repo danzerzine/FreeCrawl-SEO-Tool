@@ -1016,6 +1016,19 @@
       "chooseLogo": "选择…",
       "removeLogo": "移除",
       "logoHint": "不超过 1 MB 的 PNG、JPEG、SVG 或 WebP；在报告页眉中最高显示 44 px。"
+    },
+    "thresholds": {
+      "title": "阈值",
+      "intro": "超出这些界限的页面会被标记。计数和标签立即更新；宽度按 Google 搜索结果字体测量。留空则使用默认值。",
+      "titleMinChars": "标题：字符少于",
+      "titleMaxChars": "标题：字符多于",
+      "titleMinPx": "标题：窄于（像素）",
+      "titleMaxPx": "标题：宽于（像素）",
+      "descriptionMinChars": "描述：字符少于",
+      "descriptionMaxChars": "描述：字符多于",
+      "descriptionMinPx": "描述：窄于（像素）",
+      "descriptionMaxPx": "描述：宽于（像素）",
+      "thinContentWords": "内容过少：词数少于"
     }
   },
   "compare": {

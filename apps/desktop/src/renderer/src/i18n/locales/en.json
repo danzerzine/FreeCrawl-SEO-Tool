@@ -1039,6 +1039,19 @@
       "chooseLogo": "Choose…",
       "removeLogo": "Remove",
       "logoHint": "PNG, JPEG, SVG or WebP up to 1 MB; shown at up to 44 px tall in the report header."
+    },
+    "thresholds": {
+      "title": "Thresholds",
+      "intro": "Pages beyond these limits are flagged. Counts and labels follow a change at once; widths are measured in Google’s result font. Leave a field empty for its default.",
+      "titleMinChars": "Title: fewer characters than",
+      "titleMaxChars": "Title: more characters than",
+      "titleMinPx": "Title: narrower than, px",
+      "titleMaxPx": "Title: wider than, px",
+      "descriptionMinChars": "Description: fewer characters than",
+      "descriptionMaxChars": "Description: more characters than",
+      "descriptionMinPx": "Description: narrower than, px",
+      "descriptionMaxPx": "Description: wider than, px",
+      "thinContentWords": "Thin content: fewer words than"
     }
   },
   "compare": {

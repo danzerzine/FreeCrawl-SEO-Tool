@@ -1016,6 +1016,19 @@
       "chooseLogo": "선택…",
       "removeLogo": "제거",
       "logoHint": "1 MB 이하의 PNG, JPEG, SVG 또는 WebP; 보고서 헤더에 최대 44 px 높이로 표시됩니다."
+    },
+    "thresholds": {
+      "title": "임계값",
+      "intro": "이 한도를 벗어난 페이지가 표시됩니다. 개수와 라벨은 즉시 바뀌며, 너비는 Google 검색결과 글꼴로 측정합니다. 기본값을 쓰려면 칸을 비워 두세요.",
+      "titleMinChars": "제목: 다음보다 적은 글자",
+      "titleMaxChars": "제목: 다음보다 많은 글자",
+      "titleMinPx": "제목: 다음보다 좁음, px",
+      "titleMaxPx": "제목: 다음보다 넓음, px",
+      "descriptionMinChars": "설명: 다음보다 적은 글자",
+      "descriptionMaxChars": "설명: 다음보다 많은 글자",
+      "descriptionMinPx": "설명: 다음보다 좁음, px",
+      "descriptionMaxPx": "설명: 다음보다 넓음, px",
+      "thinContentWords": "빈약한 콘텐츠: 다음보다 적은 단어"
     }
   },
   "compare": {

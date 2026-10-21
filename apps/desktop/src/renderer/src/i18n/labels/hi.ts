@@ -170,18 +170,21 @@ export const HI_LABELS: Record<string, string> = {
 
   // Title issues
   Missing: 'अनुपस्थित',
-  'Over 60 Characters': '60 अक्षरों से अधिक',
-  'Below 30 Characters': '30 अक्षरों से कम',
+  'Over {{titleMaxChars}} Characters': '{{titleMaxChars}} अक्षरों से अधिक',
+  'Below {{titleMinChars}} Characters': '{{titleMinChars}} अक्षरों से कम',
   Duplicate: 'दोहराव',
   'Multiple <title> Tags': 'एक से अधिक <title> टैग',
-  'Pixel Width Truncated (>600px)': 'पिक्सेल चौड़ाई से कटा (>600 px)',
+  'Pixel Width Truncated (>{{titleMaxPx}}px)': 'पिक्सेल चौड़ाई से कटा (>{{titleMaxPx}} px)',
+  'Pixel Width Below {{titleMinPx}}px': 'चौड़ाई {{titleMinPx}} px से कम',
   'Placeholder Title': 'अस्थायी शीर्षक',
   'Single-Word Title': 'एक शब्द का शीर्षक',
 
   // Meta description
-  'Over 160 Characters': '160 अक्षरों से अधिक',
-  'Below 120 Characters': '120 अक्षरों से कम',
-  'Pixel Width Truncated (>990px)': 'पिक्सेल चौड़ाई से कटा (>990 px)',
+  'Over {{descriptionMaxChars}} Characters': '{{descriptionMaxChars}} अक्षरों से अधिक',
+  'Below {{descriptionMinChars}} Characters': '{{descriptionMinChars}} अक्षरों से कम',
+  'Pixel Width Truncated (>{{descriptionMaxPx}}px)':
+    'पिक्सेल चौड़ाई से कटा (>{{descriptionMaxPx}} px)',
+  'Pixel Width Below {{descriptionMinPx}}px': 'चौड़ाई {{descriptionMinPx}} px से कम',
   'Description = Title': 'विवरण = शीर्षक',
   'Description = H1': 'विवरण = H1',
 
@@ -193,7 +196,7 @@ export const HI_LABELS: Record<string, string> = {
 
   // Content
   'Empty Page (<30 words)': 'खाली पृष्ठ (30 शब्दों से कम)',
-  'Thin Content (<300 words)': 'पतली सामग्री (300 शब्दों से कम)',
+  'Thin Content (<{{thinContentWords}} words)': 'पतली सामग्री ({{thinContentWords}} शब्दों से कम)',
   'Near-Duplicate Content': 'निकट-प्रतिलिपि सामग्री',
   'Duplicate Content (exact)': 'प्रतिलिपि सामग्री (पूर्णतः समान)',
   'Low Text/Code Ratio (<10%)': 'पाठ/कोड अनुपात कम (<10%)',
