@@ -325,6 +325,7 @@ export const KO_LABELS: Record<string, string> = {
   // Social / OG
   'OpenGraph Tags Missing': 'OpenGraph 태그 없음',
   'OG Tag Uses name=': 'name=을 쓰는 OG 태그',
+  'Noindex for Another Search Engine': '다른 검색엔진용 noindex',
   'OG Image Not Absolute': 'OG 이미지가 절대 주소가 아님',
   'OG Image >5MB': 'OG 이미지 5 MB 초과',
   'Twitter Card Missing': 'Twitter Card 없음',
@@ -600,6 +601,7 @@ export const KO_LABELS: Record<string, string> = {
   // URL Details (NameValueView) field labels
   Address: '주소',
   'Indexability Reason': '색인 가능성 사유',
+  'Noindex for Other Engines': '다른 검색엔진용 noindex 목록',
   'Content Kind': '콘텐츠 종류',
   'TTFB (ms)': 'TTFB(밀리초)',
   'HTTP Protocol': 'HTTP 프로토콜',

@@ -182,6 +182,7 @@ const INFO: UrlCategory[] = [
   'issues:lang-missing',
   'issues:og-missing',
   'issues:og-name-attribute',
+  'issues:noindex-other-bot',
   'issues:twitter-missing',
   'issues:csp-missing',
   'issues:structured-data-missing',

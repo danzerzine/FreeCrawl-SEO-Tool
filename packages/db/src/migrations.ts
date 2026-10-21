@@ -2630,6 +2630,20 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 111,
+    name: 'add_meta_noindex_bots',
+    // Meta names (bingbot, yandex, ...) whose noindex the crawl's own bot
+    // does not follow, comma-joined; NULL when none (B75).
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'meta_noindex_bots')) {
+        db.exec('ALTER TABLE urls ADD COLUMN meta_noindex_bots TEXT');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

@@ -465,6 +465,8 @@ export interface ParsedPage {
    */
   mobileAlternate: string | null;
   hasNoindex: boolean;
+  /** Meta names other than robots and the crawl's bot that say noindex, comma-joined; null when none (B75). */
+  metaNoindexBots: string | null;
   hasNofollow: boolean;
 }
 
@@ -687,7 +689,7 @@ export interface ServedHeadSignals {
  * regex pass over `<head>` is enough for these two fields and keeps the
  * second look at the document off the parser's critical path.
  */
-export function readServedHeadSignals(html: string): ServedHeadSignals {
+export function readServedHeadSignals(html: string, robotsBot = 'googlebot'): ServedHeadSignals {
   const headEnd = html.search(/<\/head\s*>/i);
   const head = headEnd >= 0 ? html.slice(0, headEnd) : html.slice(0, 200_000);
   const t = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(head);
@@ -696,7 +698,7 @@ export function readServedHeadSignals(html: string): ServedHeadSignals {
   for (const m of head.matchAll(/<meta\b[^>]*>/gi)) {
     const tag = m[0];
     const name = /\bname\s*=\s*["']?([^"'\s>]+)/i.exec(tag)?.[1]?.toLowerCase();
-    if (name !== 'robots' && name !== 'googlebot') continue;
+    if (name !== 'robots' && name !== robotsBot) continue;
     const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
     const value = (content?.[1] ?? content?.[2] ?? content?.[3] ?? '').toLowerCase();
     if (/\bnoindex\b|\bnone\b/.test(value)) {
@@ -835,6 +837,8 @@ export function parseHtml(
      *  extraction to a specific region. Empty / missing → heuristic
      *  (main/article/body-minus-chrome) is used. */
     contentAreaSelector?: string;
+    /** The robots meta name the crawl acts as (`robotsMetaBot`); default `googlebot` (B75). */
+    robotsBot?: string;
     /** Template shingles to leave out of the near-duplicate fingerprint (B98). */
     templateSet?: TemplateSet;
     /** Return the main text's shingle hashes (the crawl is learning its template set). */
@@ -988,20 +992,27 @@ export function parseHtml(
   // carrying only `<meta name="googlebot" content="noindex">` was being
   // reported as Indexable — the single most consequential thing this column
   // can get wrong.
-  const ROBOTS_META_NAMES = new Set([
-    'robots',
-    'googlebot',
-    'googlebot-news',
-    'bingbot',
-  ]);
+  // Each search engine reads `robots` plus its own name (Google: googlebot,
+  // googlebot-news for News only; Bing: bingbot; Yandex: yandex). The crawl
+  // acts as one of them (`robotsBot`, from its user agent) and applies only
+  // those two; the others' noindex is kept as a list to report (B75).
+  const ROBOTS_META_NAMES = new Set(['robots', 'googlebot', 'googlebot-news', 'bingbot', 'yandex']);
+  const robotsBot = opts.robotsBot ?? 'googlebot';
   const robotsMetaContents: string[] = [];
+  const appliedRobotsContents: string[] = [];
+  const otherBotNoindex = new Set<string>();
   $('meta').each((_, el) => {
     const name = ($(el).attr('name') ?? '').trim().toLowerCase();
     if (!ROBOTS_META_NAMES.has(name)) return;
     const content = ($(el).attr('content') ?? '').trim().toLowerCase();
-    if (content) robotsMetaContents.push(content);
+    if (!content) return;
+    robotsMetaContents.push(content);
+    if (name === 'robots' || name === robotsBot) appliedRobotsContents.push(content);
+    else if (/\bnoindex\b|\bnone\b/.test(content)) otherBotNoindex.add(name);
   });
   const metaRobots = robotsMetaContents.length > 0 ? robotsMetaContents.join(', ') : null;
+  const appliedRobots = appliedRobotsContents.length > 0 ? appliedRobotsContents.join(', ') : null;
+  const metaNoindexBots = otherBotNoindex.size > 0 ? [...otherBotNoindex].sort().join(',') : null;
   const lang = ($('html').attr('lang') ?? '').trim() || null;
   const viewport = ($('meta[name="viewport"]').attr('content') ?? '').trim() || null;
   // OpenGraph asks for `property=`; many sites write `name=`, which readers
@@ -1608,10 +1619,10 @@ export function parseHtml(
   // which would fire on unrelated values. The substring check on the
   // combined string is kept alongside it so any separator we haven't
   // thought of still yields the old, lenient detection.
-  const robotsTokens = new Set((metaRobots ?? '').split(/[\s,;]+/).filter(Boolean));
+  const robotsTokens = new Set((appliedRobots ?? '').split(/[\s,;]+/).filter(Boolean));
   const hasNone = robotsTokens.has('none');
-  const hasNoindex = metaRobots !== null && (metaRobots.includes('noindex') || hasNone);
-  const hasNofollow = metaRobots !== null && (metaRobots.includes('nofollow') || hasNone);
+  const hasNoindex = appliedRobots !== null && (appliedRobots.includes('noindex') || hasNone);
+  const hasNofollow = appliedRobots !== null && (appliedRobots.includes('nofollow') || hasNone);
 
   // Text/code ratio — visible body text bytes divided by raw HTML bytes,
   // rounded to integer percent. Reuses the script/style/noscript-stripped
@@ -2296,6 +2307,7 @@ export function parseHtml(
     invalidLinks: [...invalidLinkSet],
     mobileAlternate,
     hasNoindex,
+    metaNoindexBots,
     hasNofollow,
   };
 }

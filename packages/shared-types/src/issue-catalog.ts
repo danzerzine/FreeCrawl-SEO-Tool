@@ -98,6 +98,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-canonicals-multiple', label: 'Multiple Canonicals', category: 'issues:multiple-canonicals', count: 'multipleCanonicals' },
       { key: 'issues-canonicals-conflicting', label: 'Conflicting Canonicals', category: 'issues:canonical-conflicting', count: 'canonicalConflicting' },
       { key: 'issues-canonicals-cross-domain', label: 'Canonical → Cross-Domain', category: 'issues:canonical-cross-domain', count: 'canonicalCrossDomain' },
+      { key: 'issues-noindex-other-bot', label: 'Noindex for Another Search Engine', category: 'issues:noindex-other-bot', count: 'noindexOtherBot' },
       { key: 'issues-canonicals-noindex-conflict', label: 'Noindex + Canonical Conflict', category: 'issues:noindex-canonical-conflict', count: 'noindexCanonicalConflict' },
       { key: 'issues-canonicals-non-200', label: 'Canonical → Non-200', category: 'issues:canonical-to-non-200', count: 'canonicalToNon200' },
       { key: 'issues-canonicals-redirect', label: 'Canonical → Redirect', category: 'issues:canonical-to-redirect', count: 'canonicalToRedirect' },

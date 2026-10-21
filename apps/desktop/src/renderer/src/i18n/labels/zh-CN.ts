@@ -325,6 +325,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   // Social / OG
   'OpenGraph Tags Missing': '缺少 OpenGraph 标签',
   'OG Tag Uses name=': 'OG 标签使用 name=',
+  'Noindex for Another Search Engine': '针对其他搜索引擎的 noindex',
   'OG Image Not Absolute': 'OG 图片不是绝对地址',
   'OG Image >5MB': 'OG 图片 >5 MB',
   'Twitter Card Missing': '缺少 Twitter Card',
@@ -599,6 +600,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   // URL Details (NameValueView) field labels
   Address: '地址',
   'Indexability Reason': '可索引性原因',
+  'Noindex for Other Engines': '针对其他引擎的 noindex',
   'Content Kind': '内容种类',
   'TTFB (ms)': 'TTFB（毫秒）',
   'HTTP Protocol': 'HTTP 协议',

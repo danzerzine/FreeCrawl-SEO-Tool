@@ -28,6 +28,18 @@ const NOOP: RobotsChecker = {
  * it is absent, the leading product token is the right answer
  * (`FreeCrawlSEO/0.1 (+…)` → `FreeCrawlSEO`).
  */
+/**
+ * The robots meta name a crawl with this user-agent token acts as (B75):
+ * `yandex` for Yandex's bots, `bingbot` for Bing's, `googlebot` for every
+ * other crawl, since the Indexability column stands for Google by default.
+ */
+export function robotsMetaBot(uaToken: string): 'googlebot' | 'yandex' | 'bingbot' {
+  const t = uaToken.toLowerCase();
+  if (t.startsWith('yandex')) return 'yandex';
+  if (t === 'bingbot' || t === 'msnbot') return 'bingbot';
+  return 'googlebot';
+}
+
 export function robotsUserAgentToken(userAgent: string): string {
   const compat = /compatible;\s*([A-Za-z0-9._*-]+)/i.exec(userAgent);
   if (compat?.[1]) return compat[1];

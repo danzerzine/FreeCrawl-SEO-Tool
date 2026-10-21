@@ -123,6 +123,7 @@ const ISSUES: IssueDef[] = [
   { key: 'langMissing', label: 'lang Attribute Missing', severity: 'info' },
   { key: 'ogMissing', label: 'OpenGraph Tags Missing', severity: 'info' },
   { key: 'ogNameAttribute', label: 'OG Tag Uses name=', severity: 'info' },
+  { key: 'noindexOtherBot', label: 'Noindex for Another Search Engine', severity: 'info' },
   { key: 'twitterMissing', label: 'Twitter Card Missing', severity: 'info' },
   { key: 'structuredDataMissing', label: 'JSON-LD Missing', severity: 'info' },
   { key: 'structuredDataInvalid', label: 'Invalid JSON-LD', severity: 'error' },
@@ -233,6 +234,8 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   langMissing: 'Set the html lang attribute so browsers, screen readers and search engines know the page language.',
   ogMissing: 'Add Open Graph title, description and image so shares render a rich preview.',
   ogNameAttribute: 'Write og:* tags with property=, as the OpenGraph protocol asks; some readers ignore name=.',
+  noindexOtherBot:
+    'Check that the noindex is meant only for that search engine: the engine this crawl acts as indexes the page.',
   twitterMissing: 'Add Twitter Card tags (card type + image) for X/Twitter previews.',
   structuredDataMissing: 'Add JSON-LD structured data for the page type to qualify for rich results.',
   structuredDataInvalid: 'Fix JSON-LD syntax errors; invalid blocks are ignored entirely.',

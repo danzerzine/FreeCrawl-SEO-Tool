@@ -185,6 +185,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Canonicalised', category: 'indexability:canonicalised' },
     { label: 'Blocked by Robots', category: 'indexability:blocked-robots' },
     { label: 'Noindex Added by JavaScript', category: 'issues:noindex-js-injected' },
+    { label: 'Noindex for Another Search Engine', category: 'issues:noindex-other-bot' },
   ],
 
   // ─── URL tab ────────────────────────────────────────────────────────────
@@ -940,7 +941,8 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
   ) {
     return 'response-codes';
   }
-  if (cat === 'issues:noindex-js-injected') return 'directives';
+  if (cat === 'issues:noindex-js-injected' || cat === 'issues:noindex-other-bot')
+    return 'directives';
   // Page-level tag checks (no GA4 snippet, legacy UA, …) filter the URL
   // table; the 'analytics' tab is the GA4 traffic grid, which ignores the
   // category entirely and would show unrelated data (or a connect screen).

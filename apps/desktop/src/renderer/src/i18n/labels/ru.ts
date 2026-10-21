@@ -325,6 +325,7 @@ export const RU_LABELS: Record<string, string> = {
   // Social / OG
   'OpenGraph Tags Missing': 'Нет тегов OpenGraph',
   'OG Tag Uses name=': 'OG-тег через name=',
+  'Noindex for Another Search Engine': 'Noindex для другого поисковика',
   'OG Image Not Absolute': 'Изображение OG не абсолютное',
   'OG Image >5MB': 'Изображение OG >5 МБ',
   'Twitter Card Missing': 'Нет Twitter Card',
@@ -607,6 +608,7 @@ export const RU_LABELS: Record<string, string> = {
   // URL Details (NameValueView) field labels
   Address: 'Адрес',
   'Indexability Reason': 'Причина индексируемости',
+  'Noindex for Other Engines': 'Noindex для других поисковиков',
   'Content Kind': 'Вид контента',
   'TTFB (ms)': 'TTFB (мс)',
   'HTTP Protocol': 'Протокол HTTP',

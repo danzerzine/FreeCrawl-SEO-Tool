@@ -325,6 +325,7 @@ export const FR_LABELS: Record<string, string> = {
   // Social / OG
   'OpenGraph Tags Missing': 'Balises OpenGraph absentes',
   'OG Tag Uses name=': 'Balise OG avec name=',
+  'Noindex for Another Search Engine': 'Noindex pour un autre moteur',
   'OG Image Not Absolute': 'Image OG non absolue',
   'OG Image >5MB': 'Image OG >5 Mo',
   'Twitter Card Missing': 'Twitter Card absente',
@@ -610,6 +611,7 @@ export const FR_LABELS: Record<string, string> = {
   // URL Details (NameValueView) field labels
   Address: 'Adresse',
   'Indexability Reason': 'Raison de l’indexabilité',
+  'Noindex for Other Engines': 'Noindex pour d’autres moteurs',
   'Content Kind': 'Nature du contenu',
   'TTFB (ms)': 'TTFB (ms)',
   'HTTP Protocol': 'Protocole HTTP',

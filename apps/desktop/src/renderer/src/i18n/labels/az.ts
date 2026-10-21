@@ -333,6 +333,7 @@ export const AZ_LABELS: Record<string, string> = {
   // Social / OG
   'OpenGraph Tags Missing': 'OpenGraph teqləri yoxdur',
   'OG Tag Uses name=': 'OG teqi name= ilə',
+  'Noindex for Another Search Engine': 'Başqa axtarış sistemi üçün noindex',
   'OG Image Not Absolute': 'OG şəkli mütləq deyil',
   'OG Image >5MB': 'OG şəkli > 5 MB',
   'Twitter Card Missing': 'Twitter Card yoxdur',
@@ -612,6 +613,7 @@ export const AZ_LABELS: Record<string, string> = {
   // URL Details (NameValueView) field labels
   Address: 'Adres',
   'Indexability Reason': 'İndekslənə bilmə səbəbi',
+  'Noindex for Other Engines': 'Digər axtarış sistemləri üçün noindex',
   'Content Kind': 'Məzmun növü',
   'TTFB (ms)': 'TTFB (ms)',
   'HTTP Protocol': 'HTTP protokolu',

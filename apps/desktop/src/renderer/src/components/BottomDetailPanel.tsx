@@ -2135,6 +2135,7 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
     ['Status', row.statusText ?? (row.statusCode === null ? null : httpStatusText(row.statusCode))],
     ['Indexability', row.indexability],
     ['Indexability Reason', row.indexabilityReason],
+    ['Noindex for Other Engines', row.metaNoindexBots],
     ['Content Type', row.contentType],
     ['Content Kind', row.contentKind],
     ['Size (Bytes)', row.contentLength],

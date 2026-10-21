@@ -325,6 +325,7 @@ export const HI_LABELS: Record<string, string> = {
   // Social / OG
   'OpenGraph Tags Missing': 'OpenGraph टैग नहीं',
   'OG Tag Uses name=': 'OG टैग name= का उपयोग करता है',
+  'Noindex for Another Search Engine': 'दूसरे सर्च इंजन के लिए noindex',
   'OG Image Not Absolute': 'OG छवि पूर्ण पता नहीं',
   'OG Image >5MB': 'OG छवि >5 MB',
   'Twitter Card Missing': 'Twitter Card नहीं',
@@ -605,6 +606,7 @@ export const HI_LABELS: Record<string, string> = {
   // URL Details (NameValueView) field labels
   Address: 'पता',
   'Indexability Reason': 'अनुक्रमणीयता का कारण',
+  'Noindex for Other Engines': 'अन्य सर्च इंजनों के लिए noindex',
   'Content Kind': 'सामग्री की किस्म',
   'TTFB (ms)': 'TTFB (मि.से.)',
   'HTTP Protocol': 'HTTP प्रोटोकॉल',

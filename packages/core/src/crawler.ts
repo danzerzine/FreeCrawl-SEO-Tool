@@ -55,7 +55,7 @@ import {
   type ParsedPage,
 } from './html-parser.js';
 import { analyseCookies, extractSetCookies } from './cookies.js';
-import { loadRobots, robotsUserAgentToken, type RobotsChecker } from './robots.js';
+import { loadRobots, robotsMetaBot, robotsUserAgentToken, type RobotsChecker } from './robots.js';
 import {
   BROWSER_FALLBACK_UA,
   buildDigestAuthHeader,
@@ -202,9 +202,9 @@ const X_ROBOTS_DIRECTIVES = new Set([
  * (`X-Robots-Tag: bingbot: noindex`), which only that bot honours. The old
  * check was `header.includes('noindex')`, so a `bingbot: noindex` marked a
  * page non-indexable that Google indexes fine. Honour a directive only when
- * it is un-scoped (applies to every bot) or scoped to a bot we model: the
- * crawl's own UA token, or Googlebot (the indexer the Indexability column
- * fundamentally represents — consistent with the meta-robots handling).
+ * it is un-scoped (applies to every bot) or scoped to the bot the crawl acts
+ * as: its own UA token, or the robots name that token maps to (`googlebot`
+ * unless the crawl is Yandex or Bing) — the same rule as meta robots (B75).
  *
  * `none` is the shorthand for `noindex, nofollow`.
  */
@@ -213,6 +213,8 @@ export function xRobotsTagDirectives(
   uaToken: string,
 ): { noindex: boolean; nofollow: boolean } {
   const ua = uaToken.toLowerCase();
+  const bot = robotsMetaBot(uaToken);
+  const ours = (name: string): boolean => name === bot || name === ua;
   let noindex = false;
   let nofollow = false;
   const apply = (directives: string): void => {
@@ -243,13 +245,13 @@ export function xRobotsTagDirectives(
       // (which would mean this is a valued directive like `max-snippet: 5`).
       if (!X_ROBOTS_DIRECTIVES.has(head)) {
         scope = head;
-        if (head !== 'googlebot' && head !== ua) continue; // other bot
+        if (!ours(head)) continue; // other bot
         apply(segment.slice(colon + 1));
         continue;
       }
     }
     // Inside another bot's group — not ours to honour.
-    if (scope !== null && scope !== 'googlebot' && scope !== ua) continue;
+    if (scope !== null && !ours(scope)) continue;
     apply(segment);
   }
   return { noindex, nofollow };
@@ -2363,7 +2365,9 @@ export class Crawler extends EventEmitter {
         }
         const read = await readBodyCapped(res, this.config.maxFileSizeBytes);
         if (read.overCap) break;
-        const page = parseHtml(new TextDecoder().decode(read.bytes), url);
+        const page = parseHtml(new TextDecoder().decode(read.bytes), url, {
+          robotsBot: robotsMetaBot(robotsUserAgentToken(this.config.userAgent)),
+        });
         if (page.hasNoindex || page.jsNoindexWrite || page.metaRefresh || page.jsRedirectUrl) break;
         verdict = { status, finalUrl: url === probeUrl ? null : url };
         break;
@@ -2516,6 +2520,7 @@ export class Crawler extends EventEmitter {
       urlRewrites: this.urlRewrites,
       customExtractionRules: this.config.customExtractionRules,
       contentAreaSelector: this.config.contentAreaSelector,
+      robotsBot: robotsMetaBot(robotsUserAgentToken(this.config.userAgent)),
     };
     const worker = async (): Promise<void> => {
       while (!this.stopped) {
@@ -4931,6 +4936,7 @@ export class Crawler extends EventEmitter {
         urlRewrites: this.urlRewrites,
         customExtractionRules: this.config.customExtractionRules,
         contentAreaSelector: this.config.contentAreaSelector,
+        robotsBot: robotsMetaBot(robotsUserAgentToken(this.config.userAgent)),
         templateSet: this.templateSet ?? undefined,
         collectShingles: this.templateLearn,
       });
@@ -4969,7 +4975,10 @@ export class Crawler extends EventEmitter {
       let jsTitleChanged = 0;
       let jsTitle: string | null = null;
       if (renderedHtml) {
-        const served = readServedHeadSignals(body);
+        const served = readServedHeadSignals(
+          body,
+          robotsMetaBot(robotsUserAgentToken(this.config.userAgent)),
+        );
         if (parsed.hasNoindex && !served.noindex) jsNoindex = 2;
         if (parsed.title && !sameTitle(parsed.title, served.title)) {
           jsTitleChanged = 2;
@@ -5203,6 +5212,7 @@ export class Crawler extends EventEmitter {
           canonicalOutsideHead: this.config.storeCanonicals ? parsed.canonicalOutsideHead : 0,
           hreflangOutsideHead: this.config.storeHreflang ? parsed.hreflangOutsideHead : 0,
           ogNameAttr: parsed.ogNameAttr,
+          metaNoindexBots: parsed.metaNoindexBots,
           contentLang: parsed.contentLang,
           langMismatch: parsed.langMismatch ? 1 : 0,
           soft404: parsed.soft404Signal && statusCode >= 200 && statusCode < 300 ? 1 : 0,
