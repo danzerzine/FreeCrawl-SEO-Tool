@@ -10,7 +10,8 @@ import {
   writeFileSync,
   writeSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { open, stat } from 'node:fs/promises';
+import { freemem, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import {
   categoryWhereClause,
@@ -93,20 +94,25 @@ interface MinimalRow {
 }
 
 /**
- * Prepared reader of one page's followed internal link targets (distinct).
- * Per `from_url_id` through idx_links_from, so no sort or scan of the table.
+ * Prepared reader of one page's followed internal link targets (distinct),
+ * sorted and joined by newlines, which a URL cannot hold: '' for none. Per
+ * `from_url_id` through idx_links_from, so no sort or scan of the table; one
+ * string per page instead of a row per link, so equal pages compare as two
+ * strings (12 s against 7 s per side on a 261k-page project, B109).
  */
-function outlinkReader(db: ProjectDb): (urlId: number) => Set<string> {
+function outlinkReader(db: ProjectDb): (urlId: number) => string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawDb = (db as any).db as {
-    prepare: (sql: string) => { all: (...args: number[]) => unknown[] };
+    prepare: (sql: string) => { get: (...args: number[]) => unknown };
   };
   const stmt = rawDb.prepare(
-    `SELECT DISTINCT to_url FROM links
-      WHERE from_url_id = ? AND type = 'hyperlink' AND is_internal = 1
-        AND (rel IS NULL OR rel NOT LIKE '%nofollow%')`,
+    `SELECT group_concat(to_url, char(10)) AS targets FROM (
+       SELECT DISTINCT to_url FROM links
+        WHERE from_url_id = ? AND type = 'hyperlink' AND is_internal = 1
+          AND (rel IS NULL OR rel NOT LIKE '%nofollow%')
+        ORDER BY to_url)`,
   );
-  return (urlId) => new Set((stmt.all(urlId) as { to_url: string }[]).map((r) => r.to_url));
+  return (urlId) => (stmt.get(urlId) as { targets: string | null }).targets ?? '';
 }
 
 /**
@@ -204,6 +210,8 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
         copy = join(dir, basename(path));
         copyFileSync(path, copy);
         db = new ProjectDb(copy);
+      } else {
+        await warmOsCache(path);
       }
     }
     if (dir && db.issueMaterialisationStale()) {
@@ -218,6 +226,26 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
     throw err;
   }
   return { db, dispose, rebuiltSaved };
+}
+
+/**
+ * Reads the file front to back in 8 MB blocks so the comparison's page
+ * reads come from the OS file cache. Read page by page from a cold cache, a
+ * 5 GB project goes at about 50 MB/s even on an NVMe disk, in blocks at
+ * several GB/s: 150 s against 67 s for a 261k-page pair (B109). Skipped
+ * when the file would not fit in free memory. A copy just unpacked or
+ * written is in the cache already.
+ */
+async function warmOsCache(path: string): Promise<void> {
+  if ((await stat(path)).size > freemem()) return;
+  const file = await open(path, 'r');
+  try {
+    const block = Buffer.allocUnsafe(8 << 20);
+    let at = 0;
+    for (let n; (n = (await file.read(block, 0, block.length, at)).bytesRead) > 0; ) at += n;
+  } finally {
+    await file.close();
+  }
 }
 
 /**
@@ -477,13 +505,15 @@ export function compareCrawls(
       });
     }
     compared++;
-    // The sets are read one page at a time and dropped, so nothing per URL
+    // The targets are read one page at a time and dropped, so nothing per URL
     // is held in memory; the diff is what the row shows.
-    const ta = outlinksA?.(ra.id) ?? new Set<string>();
-    const tb = outlinksB?.(rb.id) ?? new Set<string>();
-    const dropped = [...ta].filter((t) => !tb.has(t)).sort();
-    const added = [...tb].filter((t) => !ta.has(t)).sort();
-    if (dropped.length > 0 || added.length > 0) {
+    const ja = outlinksA?.(ra.id) ?? '';
+    const jb = outlinksB?.(rb.id) ?? '';
+    if (ja !== jb) {
+      const ta = new Set(ja ? ja.split('\n') : []);
+      const tb = new Set(jb ? jb.split('\n') : []);
+      const dropped = [...ta].filter((t) => !tb.has(t)).sort();
+      const added = [...tb].filter((t) => !ta.has(t)).sort();
       push({
         url,
         category: 'outlinks',
