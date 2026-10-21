@@ -215,3 +215,10 @@ export {
   type RuleOp,
   type AlertRuleResult,
 } from './monitor/rules.js';
+export {
+  sendSlack,
+  sendTelegram,
+  sendWebhook,
+  sendEmail,
+  type SendResult,
+} from './monitor/notify.js';

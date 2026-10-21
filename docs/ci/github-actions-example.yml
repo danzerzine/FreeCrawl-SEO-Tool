@@ -1,7 +1,7 @@
 # FreeCrawl SEO — example GitHub Actions workflow
 #
 # Crawls your site with the headless CLI on every push and on a daily
-# schedule, fails the build when broken links exceed a threshold, validates
+# schedule, fails the build when a rule in freecrawl-rules.json fires, validates
 # the sitemap, and uploads the crawl as a build artifact. Adapt TARGET_URL
 # and the thresholds to your site.
 #
@@ -9,7 +9,7 @@
 # No FreeCrawl install is required on the runner — the workflow clones the
 # source and builds the CLI (plus its workspace packages) from it.
 #
-# See docs/ci/README.md for the CLI exit-code contract, a zero-tolerance
+# See docs/ci/README.md for the CLI exit-code contract, the rule file format, a zero-tolerance
 # (no-script) gate variant, and how to add a regression-compare job.
 
 name: FreeCrawl SEO Audit
@@ -24,8 +24,7 @@ on:
 env:
   TARGET_URL: https://example.com
   MAX_URLS: '5000'
-  BROKEN_LINK_THRESHOLD: '10'
-
+  
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -58,36 +57,23 @@ jobs:
       - name: Crawl ${{ env.TARGET_URL }}
         working-directory: freecrawl
         run: |
-          # --json prints a machine-readable summary to stdout (captured for
-          # the gate); --out writes the full per-URL dump for the artifact.
-          # `|| true` hands pass/fail to the threshold gate below — the CLI
-          # itself exits 1 on ANY 4xx/5xx (see the zero-tolerance variant in
-          # docs/ci/README.md).
+          # The crawl writes a project (--db) and records itself in its history;
+          # the gate below judges it. `|| true`: the CLI itself exits 1 on ANY
+          # 4xx/5xx, and the rules decide what fails the build.
           node apps/cli/dist/index.js "$TARGET_URL" \
             --max "$MAX_URLS" \
-            --json \
-            --out "$GITHUB_WORKSPACE/crawl.json" \
-            > "$GITHUB_WORKSPACE/summary.json" || true
-          cat "$GITHUB_WORKSPACE/summary.json"
+            --db "$GITHUB_WORKSPACE/site.seoproject" \
+            --out "$GITHUB_WORKSPACE/crawl.json" || true
 
-      - name: Gate on broken links
+      - name: Gate on rules
+        working-directory: freecrawl
         run: |
-          # Count 4xx/5xx from the summary's byStatus map — robust against the
-          # full dump's column layout, and cheap (no multi-MB file parse).
-          BROKEN=$(node -e "
-            const s = require('$GITHUB_WORKSPACE/summary.json');
-            const by = (s.summary && s.summary.byStatus) || {};
-            let n = 0;
-            for (const [code, count] of Object.entries(by)) {
-              if (Number(code) >= 400) n += count;
-            }
-            console.log(n);
-          ")
-          echo "Broken-URL count: $BROKEN (threshold: $BROKEN_LINK_THRESHOLD)"
-          if [ "$BROKEN" -gt "$BROKEN_LINK_THRESHOLD" ]; then
-            echo "::error::Broken-URL count $BROKEN exceeds threshold $BROKEN_LINK_THRESHOLD"
-            exit 1
-          fi
+          # freecrawl-rules.json lives in your repo (format: docs/ci/README.md).
+          # Exit 1 when a fail rule fired; the log lists every rule's status.
+          node apps/cli/dist/index.js check \
+            --project "$GITHUB_WORKSPACE/site.seoproject" \
+            --rules "$GITHUB_WORKSPACE/freecrawl-rules.json"
+          # Optional: --notify slack with FREECRAWL_SLACK_WEBHOOK_URL from secrets.
 
       - name: Validate sitemap (non-blocking)
         working-directory: freecrawl
@@ -100,5 +86,4 @@ jobs:
           name: freecrawl-audit-${{ github.run_number }}
           path: |
             crawl.json
-            summary.json
           retention-days: 30

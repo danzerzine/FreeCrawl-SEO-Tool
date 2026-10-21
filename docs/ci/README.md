@@ -11,8 +11,9 @@ Two ready-to-adapt templates live next to this file:
 | [`github-actions-example.yml`](./github-actions-example.yml) | GitHub Actions |
 | [`gitlab-ci-example.yml`](./gitlab-ci-example.yml)           | GitLab CI/CD   |
 
-Both crawl `TARGET_URL`, fail when 4xx/5xx URLs exceed `BROKEN_LINK_THRESHOLD`,
-validate the sitemap (advisory), and upload the crawl as an artifact.
+Both crawl `TARGET_URL` into a project, gate it with `check` against the rule
+file `freecrawl-rules.json` (see below), validate the sitemap (advisory), and
+upload the crawl as an artifact.
 
 ## How the CLI is built in CI
 
@@ -42,6 +43,7 @@ Every command returns a CI-friendly exit code, so most gates need no scripting:
 | `compare <before> <after>` | no differences     | at least one diff category is non-zero                                | a project failed to open |
 | `validate-sitemap <url>`   | valid              | validation warnings                                                   | fetch failure            |
 | `audit-robots <url>`       | URL allowed        | URL disallowed                                                        | invalid URL              |
+| `check --project <file>`   | gate passed        | a `fail` rule fired                                                   | bad rules, project, or no crawl history |
 
 ## Gate variants
 
@@ -52,23 +54,46 @@ any 4xx/5xx fails the build:
 - run: node apps/cli/dist/index.js "$TARGET_URL" --max 5000
 ```
 
-**Threshold (what the templates do).** Tolerate up to N broken URLs. Run the
-crawl with `--json` (append `|| true` so the CLI's exit code doesn't pre-empt
-the gate), then count 4xx/5xx from the summary's `byStatus` map:
+**Rules (what the templates do).** `crawl` writes the project and records the
+crawl in its history; `check` then judges the newest crawl against a rule file.
+`crawl` exits 1 on any 4xx/5xx, so let `check` decide (append `|| true` to the
+crawl step) unless you want zero tolerance:
 
 ```bash
-node apps/cli/dist/index.js "$TARGET_URL" --max 5000 --json > summary.json || true
-node -e "
-  const s = require('./summary.json');
-  const by = (s.summary && s.summary.byStatus) || {};
-  let n = 0;
-  for (const [code, count] of Object.entries(by)) if (Number(code) >= 400) n += count;
-  if (n > Number(process.env.BROKEN_LINK_THRESHOLD)) { console.error('too many broken:', n); process.exit(1); }
-"
+node apps/cli/dist/index.js "$TARGET_URL" --max 5000 --db site.seoproject || true
+node apps/cli/dist/index.js check --project site.seoproject --rules freecrawl-rules.json
+# exit 0 pass (a warn rule may have fired), 1 a fail rule fired, 2 bad rules or project
 ```
 
-Reading `byStatus` (a `{ '200': 1234, '404': 5, … }` map) is robust against the
-full dump's column layout and avoids parsing a multi-MB file just to count.
+`freecrawl-rules.json` (metrics as in `history`: `indexable`, `status.404`,
+`status.4xx`, `issues:<key>`, …):
+
+```json
+{
+  "version": 1,
+  "rules": [
+    { "name": "Broken pages", "metric": "status.4xx", "op": ">", "value": 10 },
+    { "name": "Indexable pages dropped", "metric": "indexable", "vs": "previous",
+      "change": "percent", "op": "<=", "value": -10 },
+    { "name": "New 5xx", "metric": "status.5xx", "op": ">", "value": 0, "level": "warn" }
+  ]
+}
+```
+
+`vs: "previous"` compares with the crawl before it of the same start URL, or with
+`--baseline <project or snapshot.json>`; a fresh runner has no earlier crawl, so
+keep a snapshot between runs: `check ... --write-snapshot snapshot.json` saves
+the current counts (store it as an artifact or cache) and the next run passes it
+back with `--baseline snapshot.json`. Rules that need a baseline are skipped
+without one. A `fail` rule that fires, or whose check is switched off, fails the
+gate; `warn` rules only report. `--json` lists every rule with its status.
+
+`--notify slack,telegram,webhook,email` posts the fired rules when at least one
+fired. Each channel reads its settings from the environment
+(`FREECRAWL_SLACK_WEBHOOK_URL`, `FREECRAWL_TELEGRAM_BOT_TOKEN` +
+`FREECRAWL_TELEGRAM_CHAT_ID`, `FREECRAWL_WEBHOOK_URL`, `FREECRAWL_SMTP_URL` +
+`FREECRAWL_ALERT_EMAIL_TO`): put them in your CI secrets. A missing variable
+exits 2; a failed delivery is reported in `notified` and never changes the gate.
 
 ## Regression gating with `compare`
 

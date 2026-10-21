@@ -10,6 +10,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
   writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,6 +18,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   DEFAULT_CRAWL_CONFIG,
   type CrawlConfig,
+  type CrawlSnapshot,
   type ExportSet,
   type LogIngestInput,
   type MetricaFetchMeta,
@@ -26,6 +28,15 @@ import {
   compareCrawls,
   listMetrics,
   metricValue,
+  parseRules,
+  evaluateRules,
+  gateFails,
+  sendSlack,
+  sendTelegram,
+  sendWebhook,
+  sendEmail,
+  type AlertRuleResult,
+  type SendResult,
   exportUrlsToCsv,
   exportUrlsToJson,
   testUrlAgainstRobots,
@@ -70,6 +81,19 @@ Usage:
                                                   Print the project's crawl history, oldest first, one column per metric
                                                   (CSV with a finishedAt column; --json: {ok, runs: [...]}, not computed = null).
                                                   Metrics: indexable, status.404, status.4xx, issues:<key>, … (a wrong name lists them)
+  freecrawl check --project <file> [--rules <file>] [--baseline <project|snapshot.json>] [--write-snapshot <file>]
+                  [--notify slack,telegram,webhook,email] [--json]
+                                                  Release gate: judge the project's newest crawl against a rule file
+                                                  (without --rules: the rules saved in the project). Baseline = the crawl
+                                                  before it (same start URL) unless --baseline. Exit 0 pass (a warn rule
+                                                  may fire), 1 a fail rule fired or could not be computed, 2 bad arguments,
+                                                  rules, project or no crawl history, 130 interrupted.
+                                                  --notify posts the fired rules, only when one fired, and never changes the
+                                                  exit code. Channels read FREECRAWL_SLACK_WEBHOOK_URL,
+                                                  FREECRAWL_TELEGRAM_BOT_TOKEN + FREECRAWL_TELEGRAM_CHAT_ID,
+                                                  FREECRAWL_WEBHOOK_URL, FREECRAWL_SMTP_URL + FREECRAWL_ALERT_EMAIL_TO.
+                                                  --json: {ok, startUrl, finishedAt, baseline, results: [...], notified: [...]}.
+                                                  In CI run the crawl first, then check.
   freecrawl analyze-logs <access.log> [more.log …] [--project file]
                                                   Parse one or more server access logs (Apache / Nginx / IIS / custom), detect bots,
                                                   and merge the aggregates into a project for crawl × log analysis
@@ -231,6 +255,10 @@ function parseCliArgs() {
       metrics: { type: 'string' },
       limit: { type: 'string' },
       'start-url': { type: 'string' },
+      rules: { type: 'string' },
+      baseline: { type: 'string' },
+      'write-snapshot': { type: 'string' },
+      notify: { type: 'string' },
       what: { type: 'string' },
       urls: { type: 'string' },
       set: { type: 'string' },
@@ -305,6 +333,18 @@ async function main(): Promise<void> {
       metrics: values.metrics,
       limit: values.limit,
       startUrl: values['start-url'],
+      json: Boolean(values.json),
+    });
+    process.exit(exitCode);
+  }
+  if (positionals[0] === 'check') {
+    exitOnInterrupt();
+    const exitCode = await runCheck({
+      projectPath: values.project === undefined ? undefined : resolve(values.project),
+      rules: values.rules === undefined ? undefined : resolve(values.rules),
+      baseline: values.baseline === undefined ? undefined : resolve(values.baseline),
+      writeSnapshot: values['write-snapshot'] === undefined ? undefined : resolve(values['write-snapshot']),
+      notify: values.notify,
       json: Boolean(values.json),
     });
     process.exit(exitCode);
@@ -1135,6 +1175,137 @@ async function runHistory(opts: {
       }
     }
     return 0;
+  } finally {
+    project.dispose();
+  }
+}
+
+/** Alert channels of `check --notify`: the variables each reads and its sender. */
+const NOTIFY_CHANNELS: Record<
+  string,
+  { env: string[]; send: (v: string[], results: AlertRuleResult[]) => Promise<SendResult> }
+> = {
+  slack: { env: ['FREECRAWL_SLACK_WEBHOOK_URL'], send: ([url = ''], r) => sendSlack(url, r) },
+  telegram: {
+    env: ['FREECRAWL_TELEGRAM_BOT_TOKEN', 'FREECRAWL_TELEGRAM_CHAT_ID'],
+    send: ([token = '', chatId = ''], r) =>
+      sendTelegram(
+        { apiBase: process.env.FREECRAWL_TELEGRAM_API_BASE || 'https://api.telegram.org', token, chatId },
+        r,
+      ),
+  },
+  webhook: { env: ['FREECRAWL_WEBHOOK_URL'], send: ([url = ''], r) => sendWebhook(url, r) },
+  email: { env: ['FREECRAWL_SMTP_URL', 'FREECRAWL_ALERT_EMAIL_TO'], send: ([smtp = '', to = ''], r) => sendEmail(smtp, to, r) },
+};
+
+/**
+ * Release gate: the project's newest crawl against a rule file, compared with
+ * the crawl before it (same start URL), a baseline project or a snapshot
+ * file. Read-only. Exit 0 pass, 1 a fail rule fired or could not be computed,
+ * 2 bad arguments, rules, project or no history. Delivery to `--notify`
+ * channels is best effort and never changes the exit code.
+ */
+async function runCheck(opts: {
+  projectPath: string | undefined;
+  rules: string | undefined;
+  baseline: string | undefined;
+  writeSnapshot: string | undefined;
+  notify: string | undefined;
+  json: boolean;
+}): Promise<number> {
+  const fail = (message: string): number => {
+    if (opts.json) process.stdout.write(JSON.stringify({ ok: false, error: message }, null, 2) + '\n');
+    else {
+      console.error(
+        'Usage: freecrawl check --project <file> [--rules <file>] [--baseline <project|snapshot.json>] [--write-snapshot <file>] [--notify slack,telegram,webhook,email] [--json]',
+      );
+      console.error(message);
+    }
+    return 2;
+  };
+  if (!opts.projectPath) return fail('--project <file> is required.');
+  // Channels are checked before any work, naming the variable, never its value.
+  const channels = (opts.notify ?? '').split(',').map((c) => c.trim()).filter((c) => c.length > 0);
+  if (opts.notify !== undefined && channels.length === 0) return fail('--notify needs at least one channel.');
+  const secrets = new Map<string, string[]>();
+  for (const c of channels) {
+    const channel = NOTIFY_CHANNELS[c];
+    if (!channel) return fail(`Unknown channel: ${c}. Valid channels: ${Object.keys(NOTIFY_CHANNELS).join(', ')}`);
+    const missing = channel.env.find((name) => !process.env[name]);
+    if (missing) return fail(`--notify ${c} needs the environment variable ${missing}.`);
+    secrets.set(c, channel.env.map((name) => process.env[name] as string));
+  }
+  let project: OpenedProject;
+  try {
+    project = await openProject(opts.projectPath);
+  } catch (err) {
+    return fail(`Cannot open project ${opts.projectPath}: ${(err as Error).message}`);
+  }
+  try {
+    let rules;
+    try {
+      const text = opts.rules !== undefined ? readFileSync(opts.rules, 'utf8') : project.db.getMeta('monitorRules');
+      if (text === null) return fail('No rules: pass --rules <file>, or save rules in the project.');
+      rules = parseRules(JSON.parse(text));
+    } catch (err) {
+      return fail(`Cannot read rules${opts.rules ? ` ${opts.rules}` : ''}: ${(err as Error).message}`);
+    }
+    const startUrl = project.db.latestCrawlRunStartUrl();
+    const runs = startUrl === null ? [] : project.db.listCrawlRuns(startUrl, 2);
+    const current = runs.at(-1);
+    const older = runs.length > 1 ? runs[0] : undefined;
+    if (!current) return fail('The project has no crawl history (no crawl has finished in it).');
+    let previous: CrawlSnapshot | null = older?.snapshot ?? null;
+    let baselineSource: string | null = older?.finishedAt ?? null;
+    if (opts.baseline !== undefined) {
+      try {
+        if (!existsSync(opts.baseline)) throw new Error('file not found');
+        if (detectProjectFormat(opts.baseline) === 'unknown') {
+          const snap = JSON.parse(readFileSync(opts.baseline, 'utf8')) as CrawlSnapshot;
+          if (snap?.version !== 1 || !snap.summary || !snap.counts) throw new Error('not a snapshot (version 1)');
+          previous = snap;
+        } else {
+          const base = await openProject(opts.baseline);
+          try {
+            const row = base.db.listCrawlRuns(current.startUrl, 1)[0] ?? base.db.listCrawlRuns(base.db.latestCrawlRunStartUrl() ?? '', 1)[0];
+            if (!row) throw new Error('the project has no crawl history');
+            previous = row.snapshot;
+          } finally {
+            base.dispose();
+          }
+        }
+        baselineSource = opts.baseline;
+      } catch (err) {
+        return fail(`Cannot use baseline ${opts.baseline}: ${(err as Error).message}`);
+      }
+    }
+    if (opts.writeSnapshot !== undefined) writeFileSync(opts.writeSnapshot, JSON.stringify(current.snapshot, null, 2) + '\n');
+    const results = evaluateRules(rules, current.snapshot, previous);
+    const failed = gateFails(results);
+    const notified: Array<{ channel: string; ok: boolean; detail: string }> = [];
+    if (results.some((r) => r.status === 'fired')) {
+      for (const c of channels) {
+        const sent = await NOTIFY_CHANNELS[c]!.send(secrets.get(c) ?? [], results);
+        notified.push({ channel: c, ...sent });
+      }
+    }
+    if (opts.json) {
+      process.stdout.write(
+        JSON.stringify(
+          { ok: !failed, startUrl: current.startUrl, finishedAt: current.finishedAt, baseline: baselineSource, results, notified },
+          null,
+          2,
+        ) + '\n',
+      );
+    } else {
+      console.log(`${current.startUrl} (crawl ${current.finishedAt}, baseline ${baselineSource ?? 'none'})`);
+      for (const r of results) {
+        console.log(`${r.status.toUpperCase()} [${r.level}] ${r.name}: ${r.metric} ${r.previous ?? 'n/a'} -> ${r.current ?? 'n/a'}`);
+      }
+      for (const n of notified) console.log(`notify ${n.channel}: ${n.ok ? 'sent' : 'failed'} (${n.detail})`);
+      console.log(failed ? 'GATE FAILED' : 'GATE PASSED');
+    }
+    return failed ? 1 : 0;
   } finally {
     project.dispose();
   }
