@@ -191,6 +191,14 @@ describe('compareCrawls: issues (B22)', () => {
     expect(s.issueChanges['issues:h1-missing']).toBeUndefined();
     expect(JSON.stringify(s.samples)).not.toContain('issues:h1-missing');
   });
+
+  it('a check silenced only in the older project is left out too', () => {
+    const before = project('before', pagesBefore);
+    before.setDisabledIssues(['issues:title-missing']);
+    const s = compareCrawls(before, project('after', pagesAfter));
+    expect(s.issueChanges['issues:title-missing']).toBeUndefined();
+    expect(s.issueChanges['issues:h1-missing']).toEqual({ appeared: 1, resolved: 0 });
+  });
 });
 
 describe('compareCrawls: older project (B22)', () => {
@@ -258,6 +266,16 @@ describe('openCompareProject (B22)', () => {
     handle.dispose();
 
     expect(fs.readFileSync(file).equals(bytes)).toBe(true);
+    expect(compareTemps()).toEqual(before);
+  });
+
+  it('a damaged archive is refused and its temp copy deleted', async () => {
+    const archive = path.join(dir, 'packed.seoproject');
+    await packProject(closedProject('plain'), archive);
+    const bytes = fs.readFileSync(archive);
+    fs.writeFileSync(archive, bytes.subarray(0, Math.floor(bytes.length / 2)));
+    const before = compareTemps();
+    await expect(openCompareProject(archive)).rejects.toThrow();
     expect(compareTemps()).toEqual(before);
   });
 
