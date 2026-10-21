@@ -1267,8 +1267,14 @@ async function runCheck(opts: {
         } else {
           const base = await openProject(opts.baseline);
           try {
-            const row = base.db.listCrawlRuns(current.startUrl, 1)[0] ?? base.db.listCrawlRuns(base.db.latestCrawlRunStartUrl() ?? '', 1)[0];
-            if (!row) throw new Error('the project has no crawl history');
+            const row = base.db.listCrawlRuns(current.startUrl, 1)[0];
+            if (!row) {
+              // Comparing another site's counts would gate on nonsense.
+              const other = base.db.latestCrawlRunStartUrl();
+              throw new Error(
+                other === null ? 'the project has no crawl history' : `no crawl of ${current.startUrl} in it (its last crawl is ${other})`,
+              );
+            }
             previous = row.snapshot;
           } finally {
             base.dispose();
@@ -1279,7 +1285,13 @@ async function runCheck(opts: {
         return fail(`Cannot use baseline ${opts.baseline}: ${(err as Error).message}`);
       }
     }
-    if (opts.writeSnapshot !== undefined) writeFileSync(opts.writeSnapshot, JSON.stringify(current.snapshot, null, 2) + '\n');
+    if (opts.writeSnapshot !== undefined) {
+      try {
+        writeFileSync(opts.writeSnapshot, JSON.stringify(current.snapshot, null, 2) + '\n');
+      } catch (err) {
+        return fail(`Cannot write snapshot ${opts.writeSnapshot}: ${(err as Error).message}`);
+      }
+    }
     const results = evaluateRules(rules, current.snapshot, previous);
     const failed = gateFails(results);
     const notified: Array<{ channel: string; ok: boolean; detail: string }> = [];
