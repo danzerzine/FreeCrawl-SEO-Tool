@@ -66,7 +66,9 @@ async function writePass(
   // Every category listed in one scan, before any `.part` is opened: a
   // category that cannot be listed fails its file only, and leaves no
   // `.part` open.
-  const listed = db.urlIdsByCategories(targets.map((t) => t.file.category).filter((c) => c !== 'all'));
+  const listed = db.urlIdsByCategories(
+    targets.map((t) => t.file.category).filter((c) => c !== 'all'),
+  );
   for (const { file, partPath } of targets) {
     const ids = file.category === 'all' ? null : listed.get(file.category)!;
     if (ids instanceof Error) {
