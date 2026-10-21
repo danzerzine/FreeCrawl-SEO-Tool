@@ -2722,6 +2722,13 @@ export interface UrlDetail {
   headers: HttpHeader[];
 }
 
+/**
+ * Appended to an external probe's error text when the URL gave no answer at
+ * network level on the retry as well. Dead External Domain trusts a single
+ * URL only when it carries this.
+ */
+export const EXTERNAL_NO_ANSWER_CONFIRMED = ' (no answer on 2 attempts)';
+
 export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   mode: 'spider',
   urlList: [],

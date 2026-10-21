@@ -11,6 +11,7 @@ import type {
   DiscoveredLink,
   Indexability,
 } from '@freecrawl/shared-types';
+import { EXTERNAL_NO_ANSWER_CONFIRMED } from '@freecrawl/shared-types';
 import {
   type ProjectDb,
   type ProbeWrite,
@@ -293,6 +294,8 @@ function isCertVerifyError(err: unknown): boolean {
 // so those still get the retry.)
 const HARD_TRANSPORT_ERROR_RE =
   /ENOTFOUND|EAI_AGAIN|ENODATA|ESERVFAIL|ECONNREFUSED|UND_ERR_CONNECT_TIMEOUT/;
+/** Pause before the one retry of an external URL that got no answer at network level. */
+const NO_ANSWER_RETRY_PAUSE_MS = 1_500;
 function isHardTransportError(err: unknown): boolean {
   return HARD_TRANSPORT_ERROR_RE.test(formatFetchError(err));
 }
@@ -3225,6 +3228,23 @@ export class Crawler extends EventEmitter {
       }
     }
 
+    // 4) No answer at network level (DNS, refused, unreachable): one more
+    //    try after a pause, so a resolver or network blip is not reported as
+    //    a dead domain. A second failure is marked as confirmed — Dead
+    //    External Domain trusts a single URL only with that mark.
+    let confirmedNoAnswer = false;
+    if (!res && isHardTransportError(err) && !this.stopped) {
+      await new Promise((r) => setTimeout(r, NO_ANSWER_RETRY_PAUSE_MS));
+      const again = await attempt('HEAD', cfgUa);
+      if (again.res) {
+        res = again.res;
+        err = undefined;
+      } else {
+        confirmedNoAnswer = isHardTransportError(again.err);
+        err = again.err ?? err;
+      }
+    }
+
     const responseTimeMs = Date.now() - t0;
     if (res) {
       try {
@@ -3257,7 +3277,7 @@ export class Crawler extends EventEmitter {
         url,
         {
           statusCode: null,
-          statusText: formatFetchError(err),
+          statusText: formatFetchError(err) + (confirmedNoAnswer ? EXTERNAL_NO_ANSWER_CONFIRMED : ''),
           responseTimeMs,
         },
       ]);

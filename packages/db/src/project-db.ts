@@ -83,6 +83,7 @@ import type {
   LogThreatSummary,
 } from '@freecrawl/shared-types';
 import {
+  EXTERNAL_NO_ANSWER_CONFIRMED,
   GENERIC_ANCHOR_TEXTS,
   ISSUE_CATEGORIES,
   ISSUE_COUNT_KEY,
@@ -11672,52 +11673,53 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '6';
+export const ISSUE_MATERIALISATION_VERSION = '7';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
- * External URL whose probe failed: an HTTP error status, or a network
- * failure, which is stored with a NULL status and the `formatFetchError`
- * chain as status_text. Only real network error codes and the timeout /
- * abort text count, so local request errors, SSRF-guard skips, robots
- * blocks and unprobed stubs do not. 401/403/407/429/999 are excluded: an
- * origin that answers auth walls, bot blocks or rate limits is alive
- * (999 is LinkedIn's bot block).
+ * External URL whose probe got no answer at network level: a NULL status
+ * with a permanent DNS or connection error in the `formatFetchError` chain.
+ * Our own request timeout (`aborted`, header and body timeouts), a reset
+ * connection and a temporary DNS failure (EAI_AGAIN) are left out: a slow
+ * site, one that drops our bot or a resolver hiccup is not a dead one.
  */
-const EXTERNAL_PROBE_FAILED_SQL = `((status_code >= 400 AND status_code NOT IN (401, 403, 407, 429, 999))
-  OR (status_code IS NULL AND (${[
-    'ENOTFOUND',
-    'EAI_AGAIN',
-    'ECONNREFUSED',
-    'ECONNRESET',
-    'ETIMEDOUT',
-    'EHOSTUNREACH',
-    'ENETUNREACH',
-    'UND_ERR_CONNECT_TIMEOUT',
-    'UND_ERR_HEADERS_TIMEOUT',
-    'aborted',
-  ]
-    .map((code) => `status_text LIKE '%${code}%'`)
-    .join(' OR ')})))`;
+const EXTERNAL_NO_ANSWER_SQL = `(status_code IS NULL AND (${[
+  'ENOTFOUND',
+  'ENODATA',
+  'ESERVFAIL',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+]
+  .map((code) => `status_text LIKE '%${code}%'`)
+  .join(' OR ')}))`;
 
 /**
- * External URL (unaliased `urls` row) whose probe failed on a host where at
- * least 80% of three or more probed URLs failed — the target of a Dead
+ * External URL (unaliased `urls` row) with no answer on a host where no
+ * probed URL answered — no HTTP status (418, 5xx and auth walls are
+ * answers) and no bot-protection page — and the failure is confirmed: the
+ * probe's retry failed too (marker in status_text), or the host has two
+ * such URLs (rows probed before the retry existed). The target of a Dead
  * External Domain link.
  */
 const DEAD_EXTERNAL_TARGET_SQL = `is_external = 1
-  AND ${EXTERNAL_PROBE_FAILED_SQL}
-  AND ${urlHostSql('url')} IN (
-    SELECT host_grouped FROM (
-      SELECT
-        ${urlHostSql('url')} AS host_grouped,
-        COUNT(*) AS total,
-        SUM(CASE WHEN ${EXTERNAL_PROBE_FAILED_SQL} THEN 1 ELSE 0 END) AS errors
+  AND ${EXTERNAL_NO_ANSWER_SQL}
+  AND ${urlHostSql('url')} NOT IN (
+    SELECT ${urlHostSql('url')}
       FROM urls
-      WHERE is_external = 1
-        AND (status_code IS NOT NULL OR ${EXTERNAL_PROBE_FAILED_SQL})
-      GROUP BY host_grouped
-      HAVING total >= 3 AND CAST(errors AS REAL) / total >= 0.8
+     WHERE is_external = 1
+       AND (status_code IS NOT NULL OR indexability = 'unknown:bot-blocked')
+  )
+  AND (
+    status_text LIKE ${sqlString(`%${EXTERNAL_NO_ANSWER_CONFIRMED}`)}
+    OR ${urlHostSql('url')} IN (
+      SELECT ${urlHostSql('url')}
+        FROM urls
+       WHERE is_external = 1 AND ${EXTERNAL_NO_ANSWER_SQL}
+       GROUP BY 1
+      HAVING COUNT(*) >= 2
     )
   )`;
 
