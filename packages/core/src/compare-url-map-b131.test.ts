@@ -104,6 +104,19 @@ describe('compareCrawls pairs URLs across scheme and www (B131)', () => {
     });
   });
 
+  it('on a page whose URL did not change, a target moving to https is a change', () => {
+    const a = project('a', [
+      { url: 'https://example.test/', canonical: 'http://example.test/', links: ['http://example.test/x'] },
+    ]);
+    const b = project('b', [
+      { url: 'https://example.test/', canonical: 'https://example.test/', links: ['https://example.test/x'] },
+    ]);
+    const s = compareCrawls(a, b);
+    expect(s.mapped.count).toBe(0);
+    expect(s.counts.canonical).toBe(1);
+    expect(s.counts.outlinks).toBe(1);
+  });
+
   it('a key with two unmatched URLs on one side is left as added and removed', () => {
     const a = project('a', [{ url: 'http://example.test/a' }, { url: 'https://example.test/a' }]);
     const b = project('b', [{ url: 'http://www.example.test/a' }]);

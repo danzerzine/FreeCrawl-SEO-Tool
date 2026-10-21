@@ -551,6 +551,9 @@ export function compareCrawls(
     const rb = mapB.get(urlB);
     if (!rb) continue;
     const url = urlB;
+    // Only a page that moved across scheme / www reads its targets through the
+    // same mapping; elsewhere such a move of a target is a real change.
+    const key = pairs.has(urlA) ? urlMapKey : (u: string) => u;
 
     if (ra.status_code !== rb.status_code) {
       push({
@@ -584,7 +587,7 @@ export function compareCrawls(
         after: rb.h1,
       });
     }
-    if (urlMapKey(ra.canonical ?? '') !== urlMapKey(rb.canonical ?? '')) {
+    if (key(ra.canonical ?? '') !== key(rb.canonical ?? '')) {
       push({
         url,
         category: 'canonical',
@@ -636,11 +639,10 @@ export function compareCrawls(
     if (ja !== jb) {
       const ta = ja ? ja.split('\n') : [];
       const tb = jb ? jb.split('\n') : [];
-      const keysA = new Set(ta.map(urlMapKey));
-      const keysB = new Set(tb.map(urlMapKey));
-      const dropped = ta.filter((t) => !keysB.has(urlMapKey(t))).sort();
-      const added = tb.filter((t) => !keysA.has(urlMapKey(t))).sort();
-      // Targets that differ only by scheme / www are no change.
+      const keysA = new Set(ta.map(key));
+      const keysB = new Set(tb.map(key));
+      const dropped = ta.filter((t) => !keysB.has(key(t))).sort();
+      const added = tb.filter((t) => !keysA.has(key(t))).sort();
       if (dropped.length > 0 || added.length > 0) {
         push({
           url,
