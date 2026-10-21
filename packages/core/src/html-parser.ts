@@ -1638,16 +1638,15 @@ export function parseHtml(
   const hasNoindex = appliedRobots !== null && (appliedRobots.includes('noindex') || hasNone);
   const hasNofollow = appliedRobots !== null && (appliedRobots.includes('nofollow') || hasNone);
 
-  // Text/code ratio — visible body text bytes divided by raw HTML bytes,
-  // rounded to integer percent. Reuses the script/style/noscript-stripped
+  // Text/code ratio — visible body text characters divided by raw HTML
+  // characters, rounded to integer percent. Characters, not UTF-8 bytes:
+  // a Cyrillic letter is two bytes, which doubled the share of Russian text. Reuses the script/style/noscript-stripped
   // `text` computed above: their inner text isn't user-facing content and
   // would inflate the ratio on JS-heavy SPAs that ship a 200 KB script tag
-  // with no markup. Null when the HTML body byte count is zero.
-  const totalHtmlBytes = Buffer.byteLength(html, 'utf8');
+  // with no markup. Null when the HTML is empty.
   let textCodeRatio: number | null = null;
-  if (totalHtmlBytes > 0) {
-    const visibleBytes = Buffer.byteLength(text, 'utf8');
-    textCodeRatio = Math.min(100, Math.round((visibleBytes / totalHtmlBytes) * 100));
+  if (html.length > 0) {
+    textCodeRatio = Math.min(100, Math.round((text.length / html.length) * 100));
   }
 
   let emptyAnchorCount = 0;

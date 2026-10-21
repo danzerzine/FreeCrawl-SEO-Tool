@@ -206,6 +206,8 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:amp-target-broken',
   'issues:amp-target-redirect',
   'issues:h2-duplicate',
+  // Text ratio counts characters since B126; an older crawl counted UTF-8 bytes.
+  'issues:text-code-ratio-low',
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -13741,7 +13743,7 @@ function baseCategoryWhereClause(
       // into the site or nowhere in particular; recorded at parse time.
       return UNCRAWLABLE_INTERNAL_OUTLINKS_SQL;
     case 'issues:text-code-ratio-low':
-      // Visible-text bytes < 10% of total HTML bytes. Almost always a
+      // Visible-text characters < 10% of total HTML characters. Almost always a
       // template-heavy / SPA shell that ships markup but no content.
       // 10% is the conventional Screaming Frog threshold; tunable if
       // a per-project setting is added later.

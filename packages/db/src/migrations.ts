@@ -851,8 +851,8 @@ const MIGRATIONS: Migration[] = [
   {
     version: 41,
     name: 'add_text_code_ratio',
-    // Wave 2 / item 4 — Per-page text/code ratio = visible-text bytes
-    // divided by total HTML bytes, expressed as integer percent
+    // Wave 2 / item 4 — Per-page text/code ratio = visible-text characters
+    // divided by total HTML characters (bytes before B126), integer percent
     // (0–100). Powers the "Low Text/Code Ratio (<10%)" issue filter.
     up: (db) => {
       const cols = db.prepare('PRAGMA table_info(urls)').all() as unknown as {
