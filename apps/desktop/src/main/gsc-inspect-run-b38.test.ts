@@ -7,6 +7,7 @@ import {
   GoogleAuthError,
   GooglePermissionError,
   GoogleQuotaError,
+  GoogleTokenError,
   googleRequest,
   type GoogleDeps,
 } from './google-retry.js';
@@ -193,10 +194,10 @@ describe('B38 runner: a dead Google sign-in (P1)', () => {
       fetch: (async () => {
         throw new Error('the API must not be reached without a token');
       }) as unknown as GoogleDeps['fetch'],
-      // What getAccessToken throws for invalid_grant or a disconnected account: a plain Error.
+      // What getAccessToken throws for invalid_grant or a disconnected account.
       getToken: async () => {
         tokenRequests++;
-        throw new Error('Token has been expired or revoked.');
+        throw new GoogleTokenError('Token has been expired or revoked.', 'dead_grant', true);
       },
       sleep: async () => {},
       now: () => NOW,

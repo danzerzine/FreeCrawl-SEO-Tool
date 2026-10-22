@@ -30,6 +30,7 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
 import type { GoogleAccount, GoogleAuthState } from '@freecrawl/shared-types';
 import { apiFetch } from './api-fetch.js';
+import { GoogleTokenError } from './google-retry.js';
 import { resolveCredentials } from './credentials.js';
 import * as logger from './logger.js';
 import { L } from './menu-i18n.js';
@@ -546,7 +547,11 @@ export async function getAccessToken(
 ): Promise<string> {
   const accountId = resolveAccountId(integrationId, requestedAccountId);
   if (!accountId) {
-    throw new Error(`"${integrationId}" is not connected — sign in with Google first.`);
+    throw new GoogleTokenError(
+      `"${integrationId}" is not connected — sign in with Google first.`,
+      'not_connected',
+      true,
+    );
   }
   const key = accountKey(integrationId, accountId);
   const cached = accessTokens.get(key);
@@ -555,7 +560,11 @@ export async function getAccessToken(
   }
   const record = readRecordByKey(key);
   if (!record) {
-    throw new Error(`"${integrationId}" is not connected — sign in with Google first.`);
+    throw new GoogleTokenError(
+      `"${integrationId}" is not connected — sign in with Google first.`,
+      'not_connected',
+      true,
+    );
   }
   const { clientId, clientSecret } = resolveClient(integrationId);
   const res = await apiFetch(TOKEN_ENDPOINT, {
@@ -583,9 +592,16 @@ export async function getAccessToken(
     // generic "reconnect", which they'd otherwise repeat every week.
     if (code === 'invalid_grant') {
       logger.log('warn', 'main', `google-oauth: refresh rejected for "${integrationId}": ${msg}`);
-      throw new Error(L().oauthRefreshExpired.replace('{reason}', msg));
+      throw new GoogleTokenError(
+        L().oauthRefreshExpired.replace('{reason}', msg),
+        'dead_grant',
+        true,
+      );
     }
-    throw new Error(`${msg} — you may need to reconnect this integration.`);
+    // 5xx, 429 and an unreadable answer are the endpoint failing, not the sign-in being dead:
+    // callers may retry them. Any other 4xx (invalid_client, unauthorized_client) is a no.
+    const kind = res.ok || res.status >= 500 || res.status === 429 || !json ? 'endpoint' : 'dead_grant';
+    throw new GoogleTokenError(`${msg} — you may need to reconnect this integration.`, kind, true);
   }
   const token = json['access_token'] as string;
   const expiresIn = typeof json['expires_in'] === 'number' ? (json['expires_in'] as number) : 3600;

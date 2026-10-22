@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GoogleAuthError, googleRequest, type GoogleDeps } from './google-retry.js';
+import { GoogleAuthError, GoogleTokenError, googleRequest, type GoogleDeps } from './google-retry.js';
 
 type Reply = { status: number; headers?: Record<string, string>; body?: unknown } | 'network';
 
@@ -108,10 +108,10 @@ describe('googleRequest (B60)', () => {
 });
 
 describe('googleRequest token failures (P1)', () => {
-  it('a plain Error from the first token request is a GoogleAuthError, and nothing is sent', async () => {
+  it('a not-connected error from the first token request is a GoogleAuthError, and nothing is sent', async () => {
     const t = makeDeps([{ status: 200 }]);
     t.deps.getToken = async () => {
-      throw new Error('"gsc" is not connected — sign in with Google first.');
+      throw new GoogleTokenError('"gsc" is not connected — sign in with Google first.', 'not_connected', true);
     };
     const err = await googleRequest(t.deps, req).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(GoogleAuthError);
@@ -127,5 +127,51 @@ describe('googleRequest token failures (P1)', () => {
     };
     const err = await googleRequest(t.deps, req).catch((e: unknown) => e);
     expect(err).not.toBeInstanceOf(GoogleAuthError);
+  });
+});
+
+describe('googleRequest token failures by kind (R2-2)', () => {
+  it('a token endpoint failure (5xx/429) at the first request is not an auth stop', async () => {
+    const t = makeDeps([{ status: 200 }]);
+    t.deps.getToken = async () => {
+      throw new GoogleTokenError('token refresh failed (HTTP 503)', 'endpoint');
+    };
+    const err = await googleRequest(t.deps, req).catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(GoogleAuthError);
+    expect((err as Error).message).toContain('HTTP 503');
+    expect(t.calls).toHaveLength(0);
+  });
+
+  it('a dead grant is an auth stop, and its own advice is not followed by a generic reconnect', async () => {
+    const t = makeDeps([{ status: 200 }]);
+    t.deps.getToken = async () => {
+      throw new GoogleTokenError('publish the OAuth client, do not reconnect weekly', 'dead_grant', true);
+    };
+    const err = (await googleRequest(t.deps, req).catch((e: unknown) => e)) as Error;
+    expect(err).toBeInstanceOf(GoogleAuthError);
+    expect(err.message).toContain('publish the OAuth client');
+    expect(err.message).not.toMatch(/Reconnect the Google account/);
+    expect(t.calls).toHaveLength(0);
+  });
+
+  it('a dead grant without advice of its own gets the generic fix', async () => {
+    const t = makeDeps([{ status: 200 }]);
+    t.deps.getToken = async () => {
+      throw new GoogleTokenError('key rejected', 'dead_grant');
+    };
+    const err = (await googleRequest(t.deps, req).catch((e: unknown) => e)) as Error;
+    expect(err).toBeInstanceOf(GoogleAuthError);
+    expect(err.message).toMatch(/Reconnect the Google account/);
+  });
+
+  it('a token endpoint failure during the forced refresh after a 401 is retried, not an auth stop', async () => {
+    const t = makeDeps([{ status: 401 }, { status: 200 }]);
+    let n = 0;
+    t.deps.getToken = async (refresh) => {
+      if (refresh && n++ === 0) throw new GoogleTokenError('token refresh failed (HTTP 503)', 'endpoint');
+      return refresh ? 'fresh' : 'old';
+    };
+    const r = await googleRequest(t.deps, req);
+    expect(r.ok).toBe(true);
   });
 });

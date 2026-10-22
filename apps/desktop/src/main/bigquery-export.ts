@@ -27,7 +27,7 @@ import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
 import { resolveCredentials } from './credentials.js';
 import { apiFetch } from './api-fetch.js';
 import * as logger from './logger.js';
-import { googleRequest, type GoogleDeps } from './google-retry.js';
+import { GoogleTokenError, googleRequest, type GoogleDeps } from './google-retry.js';
 import { datasetTable, type GoogleExportDataset } from './google-export-rows.js';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -145,7 +145,9 @@ async function mintAccessToken(sa: ServiceAccount, forceRefresh = false): Promis
       (json?.error_description as string | undefined) ??
       (json?.error as string | undefined) ??
       `token exchange failed (HTTP ${res.status})`;
-    throw new Error(`BigQuery auth: ${msg}`);
+    // The key is rejected (4xx) or the token endpoint failed (5xx, 429, unreadable answer).
+    const kind = res.ok || res.status >= 500 || res.status === 429 || !json ? 'endpoint' : 'dead_grant';
+    throw new GoogleTokenError(`BigQuery auth: ${msg}`, kind);
   }
   const expiresIn =
     typeof json.expires_in === 'number' ? (json.expires_in as number) : 3600;

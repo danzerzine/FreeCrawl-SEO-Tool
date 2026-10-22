@@ -57,7 +57,7 @@ export class GoogleAuthError extends Error {
   ) {
     super(
       reason
-        ? `${op} failed: no Google sign-in token (${reason}) ${fix}`
+        ? `${op} failed: no Google sign-in token (${reason}) ${fix}`.trimEnd()
         : `${op} failed: Google rejected the sign-in (HTTP 401). ${fix}`,
     );
     this.name = 'GoogleAuthError';
@@ -105,6 +105,28 @@ export function throwIfQuotaOrPermission(op: string, status: number, json: unkno
   }
 }
 
+/**
+ * Why a token request failed, as the token minters (Google OAuth, BigQuery key) report it:
+ * `dead_grant` and `not_connected` mean there is nothing to retry (the sign-in is gone), `endpoint`
+ * is a transient failure of the token endpoint (5xx, 429, unreadable answer). `hasAdvice` is true
+ * when the message already tells the user what to do, so no generic advice is appended to it.
+ */
+export class GoogleTokenError extends Error {
+  constructor(
+    message: string,
+    readonly kind: 'dead_grant' | 'not_connected' | 'endpoint',
+    readonly hasAdvice = false,
+  ) {
+    super(message);
+    this.name = 'GoogleTokenError';
+  }
+}
+
+/** A sign-in that is gone (dead grant, not connected), as opposed to a token endpoint that failed. */
+function isDeadSignIn(err: unknown): err is GoogleTokenError {
+  return err instanceof GoogleTokenError && err.kind !== 'endpoint';
+}
+
 /** A refresh that failed before any answer (timeout, DNS, reset), as opposed to Google saying no. */
 function isNetworkFailure(err: unknown): boolean {
   if (err instanceof TypeError) return true; // undici: "fetch failed"
@@ -134,10 +156,10 @@ export async function googleRequest(deps: GoogleDeps, req: GoogleRequest): Promi
   try {
     token = await deps.getToken();
   } catch (err) {
-    // A dead refresh token or a disconnected account is the same stop as a rejected one; only an
-    // unreachable token endpoint stays a plain (network) error.
-    if (isNetworkFailure(err)) throw err;
-    throw new GoogleAuthError(req.op, deps.authFix, err instanceof Error ? err.message : String(err));
+    // A dead refresh token or a disconnected account is the same stop as a rejected one; a failing
+    // or unreachable token endpoint stays a plain error (the next run may well work).
+    if (!isDeadSignIn(err)) throw err;
+    throw new GoogleAuthError(req.op, err.hasAdvice ? '' : deps.authFix, err.message);
   }
   let refreshed = false;
   let waited = 0;
@@ -170,8 +192,13 @@ export async function googleRequest(deps: GoogleDeps, req: GoogleRequest): Promi
         continue;
       } catch (err) {
         // Revoked grant, expired refresh token, deleted key: Google said no.
-        if (!isNetworkFailure(err)) throw new GoogleAuthError(req.op, deps.authFix);
-        // The token endpoint was unreachable: retry as a network error.
+        if (
+          !isNetworkFailure(err) &&
+          !(err instanceof GoogleTokenError && err.kind === 'endpoint')
+        ) {
+          throw new GoogleAuthError(req.op, deps.authFix);
+        }
+        // The token endpoint was unreachable or failing: retry as a network error.
         res = null;
         refreshed = false;
       }

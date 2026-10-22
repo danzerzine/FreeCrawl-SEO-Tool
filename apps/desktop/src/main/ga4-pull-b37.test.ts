@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
 import { mergeGa4Settings, type Ga4FetchMeta, type Ga4IntegrationSettings } from '@freecrawl/shared-types';
-import type { GoogleDeps } from './google-retry.js';
+import { GoogleTokenError, type GoogleDeps } from './google-retry.js';
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/tmp' },
@@ -468,7 +468,7 @@ describe('B37 two entry points share one helper (r1 M2, r2-L3)', () => {
 describe('GA4 with a dead Google sign-in (P1)', () => {
   const dead = (g: ReturnType<typeof fakeGoogle>) => {
     g.deps.getToken = async () => {
-      throw new Error('Token has been expired or revoked.');
+      throw new GoogleTokenError('Token has been expired or revoked.', 'dead_grant', true);
     };
   };
 
