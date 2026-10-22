@@ -461,7 +461,7 @@ export function SearchConsoleTab() {
         <div className="text-[12px] font-semibold tracking-wide text-surface-100">
           {t('gscTab.title', { defaultValue: 'Search Console' })}
         </div>
-        <div className="relative">
+        <div className="relative w-48 min-w-[80px] shrink">
           <Search
             size={12}
             className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-surface-500"
@@ -473,7 +473,7 @@ export function SearchConsoleTab() {
             placeholder={t('gscTab.filterPlaceholder', {
               defaultValue: 'Filter by URL…',
             })}
-            className="h-6 w-48 rounded border border-surface-700 bg-surface-950 pl-6 pr-2 text-[11px] text-surface-100 placeholder-surface-500 focus:border-blue-500 focus:outline-none"
+            className="h-6 w-full min-w-0 rounded border border-surface-700 bg-surface-950 pl-6 pr-2 text-[11px] text-surface-100 placeholder-surface-500 focus:border-blue-500 focus:outline-none"
           />
         </div>
         <select
@@ -549,7 +549,7 @@ export function SearchConsoleTab() {
             type="button"
             onClick={() => void runFetch()}
             disabled={fetching || inspecting || !property}
-            className="inline-flex h-6 items-center gap-1.5 rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-surface-700 disabled:text-surface-500"
+            className="inline-flex h-6 shrink-0 items-center whitespace-nowrap gap-1.5 rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-surface-700 disabled:text-surface-500"
           >
             {fetching ? (
               <Loader2 size={12} className="animate-spin" />
@@ -562,7 +562,7 @@ export function SearchConsoleTab() {
             type="button"
             onClick={openInspect}
             disabled={inspecting || fetching || !property || rows.length === 0}
-            className="inline-flex h-6 items-center gap-1.5 rounded border border-surface-700 bg-surface-800 px-2.5 text-[11px] font-medium text-surface-200 hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-6 shrink-0 items-center whitespace-nowrap gap-1.5 rounded border border-surface-700 bg-surface-800 px-2.5 text-[11px] font-medium text-surface-200 hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
             title={t('gscTab.inspectTooltip', {
               defaultValue:
                 'Run URL Inspection on the top {{n}} loaded pages (quota: 2 000/day per property)',

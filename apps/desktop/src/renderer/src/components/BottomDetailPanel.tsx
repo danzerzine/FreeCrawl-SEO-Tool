@@ -1265,7 +1265,7 @@ function AnalyticsRow({
   const { i18n } = useTranslation();
   return (
     <div className="flex items-baseline gap-3 text-[11px]">
-      <div className="w-32 shrink-0 text-surface-500" title={hint}>
+      <div className="w-32 shrink-0 truncate text-surface-500" title={hint ?? label}>
         {translateLabel(label, i18n.language)}
       </div>
       <div className="min-w-0 flex-1 truncate text-surface-100" title={value}>

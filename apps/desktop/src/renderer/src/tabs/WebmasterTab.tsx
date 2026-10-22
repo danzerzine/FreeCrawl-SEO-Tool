@@ -21,6 +21,9 @@ const HEADER_HEIGHT = 26;
 const STATUS_BAR_HEIGHT = 22;
 const ROW_HEIGHT = 30;
 const PAGE_SIZE = 1000;
+// Fixed columns plus the URL minimum; narrower windows scroll sideways instead of squeezing URL.
+const EXCLUDED_MIN_WIDTH = 1110;
+const BROKEN_MIN_WIDTH = 890;
 
 type View = 'excluded' | 'broken';
 type Stage = 'loading' | 'unconfigured' | 'ready' | 'error';
@@ -359,7 +362,7 @@ export function WebmasterTab() {
             </option>
           </select>
         )}
-        <div className="relative">
+        <div className="relative w-48 min-w-[80px] shrink">
           <Search
             size={12}
             className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-surface-500"
@@ -369,7 +372,7 @@ export function WebmasterTab() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('webmasterTab.filterPlaceholder', { defaultValue: 'Filter by URL…' })}
-            className="h-6 w-48 rounded border border-surface-700 bg-surface-950 pl-6 pr-2 text-[11px] text-surface-100 placeholder-surface-500 focus:border-blue-500 focus:outline-none"
+            className="h-6 w-full min-w-0 rounded border border-surface-700 bg-surface-950 pl-6 pr-2 text-[11px] text-surface-100 placeholder-surface-500 focus:border-blue-500 focus:outline-none"
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -401,7 +404,7 @@ export function WebmasterTab() {
             <button
               type="button"
               onClick={() => void window.freecrawl.webmasterCancel()}
-              className="h-6 rounded border border-red-700 bg-red-900/40 px-2.5 text-[11px] font-medium text-red-200 hover:bg-red-900/70"
+              className="h-6 shrink-0 whitespace-nowrap rounded border border-red-700 bg-red-900/40 px-2.5 text-[11px] font-medium text-red-200 hover:bg-red-900/70"
             >
               {t('webmasterTab.cancel', { defaultValue: 'Cancel' })}
             </button>
@@ -410,7 +413,7 @@ export function WebmasterTab() {
               type="button"
               onClick={() => void runFetch()}
               disabled={!hostId}
-              className="inline-flex h-6 items-center gap-1.5 rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-surface-700 disabled:text-surface-500"
+              className="inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-surface-700 disabled:text-surface-500"
             >
               <RefreshCw size={12} />
               {t('webmasterTab.fetch', { defaultValue: 'Fetch' })}
@@ -460,108 +463,121 @@ export function WebmasterTab() {
           })}
         </div>
       )}
-      <div
-        className="flex shrink-0 select-none items-center border-b border-surface-800 bg-surface-900/60 text-[10px] font-medium text-surface-400"
-        style={{ height: HEADER_HEIGHT }}
-      >
-        {view === 'excluded' ? (
-          <>
-            <div className="flex-1 px-2">{t('webmasterTab.colUrl', { defaultValue: 'URL' })}</div>
-            <div className="w-[200px] shrink-0">
-              {t('webmasterTab.colReason', { defaultValue: 'Reason' })}
-            </div>
-            <div className="w-[80px] shrink-0 text-center">
-              {t('webmasterTab.colHttp', { defaultValue: 'HTTP status (Yandex)' })}
-            </div>
-            <div className="w-[200px] shrink-0 px-2">
-              {t('webmasterTab.colTarget', { defaultValue: 'Yandex target' })}
-            </div>
-            <div className="w-[96px] shrink-0 text-right">
-              {t('webmasterTab.colEventDate', { defaultValue: 'Excluded on' })}
-            </div>
-            <div className="w-[96px] shrink-0 text-right">
-              {t('webmasterTab.colLastAccess', { defaultValue: 'Last visit' })}
-            </div>
-            <div className="w-[80px] shrink-0 text-center">
-              {t('webmasterTab.colCrawlStatus', { defaultValue: 'Crawl status' })}
-            </div>
-            <div className="w-[110px] shrink-0 px-2">
-              {t('webmasterTab.colCrawlIndex', { defaultValue: 'Crawl indexability' })}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex-1 px-2">
-              {t('webmasterTab.colSource', { defaultValue: 'Source page' })}
-            </div>
-            <div className="flex-1 px-2">
-              {t('webmasterTab.colDestination', { defaultValue: 'Broken link target' })}
-            </div>
-            <div className="w-[96px] shrink-0 text-right">
-              {t('webmasterTab.colDiscovered', { defaultValue: 'Found on' })}
-            </div>
-            <div className="w-[80px] shrink-0 text-center">
-              {t('webmasterTab.colTargetStatus', { defaultValue: 'Crawl status' })}
-            </div>
-            <div className="w-[110px] shrink-0 px-2">
-              {t('webmasterTab.colSeen', { defaultValue: 'Seen by crawl' })}
-            </div>
-          </>
-        )}
-      </div>
-
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        {rowCount === 0 ? (
-          <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-surface-500">
-            {!meta && !search
-              ? t('webmasterTab.emptyNoPull', {
-                  defaultValue:
-                    'No Yandex Webmaster data has been fetched for this site yet. Press Fetch.',
-                })
-              : t('webmasterTab.emptyNoMatch', {
-                  defaultValue: 'No rows match the current filter.',
-                })}
-          </div>
-        ) : (
-          <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
-            {virtualizer.getVirtualItems().map((v) => {
-              const style = {
-                position: 'absolute' as const,
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: ROW_HEIGHT,
-                transform: `translateY(${v.start}px)`,
-              };
-              if (view === 'excluded') {
-                const row = excluded[v.index];
-                if (!row) return null;
-                return (
-                  <div key={v.key} style={style}>
-                    <ExcludedRow
-                      row={row}
-                      reason={reasonLabel(row.reason)}
-                      active={row.id !== null && selectedUrlId === row.id}
-                      notInCrawl={t('webmasterTab.notInCrawl', { defaultValue: 'not in crawl' })}
-                      onSelect={() => {
-                        if (row.id === null) return;
-                        setSelectedUrlId(row.id);
-                        setSelectedUrlIds([row.id]);
-                      }}
-                    />
-                  </div>
-                );
-              }
-              const row = broken[v.index];
-              if (!row) return null;
-              return (
-                <div key={v.key} style={style}>
-                  <BrokenRow row={row} t={t} />
+      <div className="min-h-0 flex-1 overflow-x-auto">
+        <div
+          className="flex h-full flex-col"
+          style={{ minWidth: view === 'excluded' ? EXCLUDED_MIN_WIDTH : BROKEN_MIN_WIDTH }}
+        >
+          <div
+            className="flex shrink-0 select-none items-center border-b border-surface-800 bg-surface-900/60 text-[10px] font-medium text-surface-400"
+            style={{ height: HEADER_HEIGHT }}
+          >
+            {view === 'excluded' ? (
+              <>
+                <div className="min-w-[300px] flex-1 px-2">
+                  {t('webmasterTab.colUrl', { defaultValue: 'URL' })}
                 </div>
-              );
-            })}
+                <div className="w-[170px] shrink-0">
+                  {t('webmasterTab.colReason', { defaultValue: 'Reason' })}
+                </div>
+                <div className="w-[72px] shrink-0 text-center">
+                  {t('webmasterTab.colHttp', { defaultValue: 'HTTP status (Yandex)' })}
+                </div>
+                <div className="w-[180px] shrink-0 px-2">
+                  {t('webmasterTab.colTarget', { defaultValue: 'Yandex target' })}
+                </div>
+                <div className="w-[88px] shrink-0 text-right">
+                  {t('webmasterTab.colEventDate', { defaultValue: 'Excluded on' })}
+                </div>
+                <div className="w-[88px] shrink-0 text-right">
+                  {t('webmasterTab.colLastAccess', { defaultValue: 'Last visit' })}
+                </div>
+                <div className="w-[72px] shrink-0 text-center">
+                  {t('webmasterTab.colCrawlStatus', { defaultValue: 'Crawl status' })}
+                </div>
+                <div className="w-[140px] shrink-0 px-2">
+                  {t('webmasterTab.colCrawlIndex', { defaultValue: 'Crawl indexability' })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="min-w-[260px] flex-1 px-2">
+                  {t('webmasterTab.colSource', { defaultValue: 'Source page' })}
+                </div>
+                <div className="min-w-[260px] flex-1 px-2">
+                  {t('webmasterTab.colDestination', { defaultValue: 'Broken link target' })}
+                </div>
+                <div className="w-[96px] shrink-0 text-right">
+                  {t('webmasterTab.colDiscovered', { defaultValue: 'Found on' })}
+                </div>
+                <div className="w-[80px] shrink-0 text-center">
+                  {t('webmasterTab.colTargetStatus', { defaultValue: 'Crawl status' })}
+                </div>
+                <div className="w-[110px] shrink-0 px-2">
+                  {t('webmasterTab.colSeen', { defaultValue: 'Seen by crawl' })}
+                </div>
+              </>
+            )}
           </div>
-        )}
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto">
+            {rowCount === 0 ? (
+              <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-surface-500">
+                {!meta && !search
+                  ? t('webmasterTab.emptyNoPull', {
+                      defaultValue:
+                        'No Yandex Webmaster data has been fetched for this site yet. Press Fetch.',
+                    })
+                  : t('webmasterTab.emptyNoMatch', {
+                      defaultValue: 'No rows match the current filter.',
+                    })}
+              </div>
+            ) : (
+              <div
+                style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}
+              >
+                {virtualizer.getVirtualItems().map((v) => {
+                  const style = {
+                    position: 'absolute' as const,
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: ROW_HEIGHT,
+                    transform: `translateY(${v.start}px)`,
+                  };
+                  if (view === 'excluded') {
+                    const row = excluded[v.index];
+                    if (!row) return null;
+                    return (
+                      <div key={v.key} style={style}>
+                        <ExcludedRow
+                          row={row}
+                          reason={reasonLabel(row.reason)}
+                          active={row.id !== null && selectedUrlId === row.id}
+                          notInCrawl={t('webmasterTab.notInCrawl', {
+                            defaultValue: 'not in crawl',
+                          })}
+                          onSelect={() => {
+                            if (row.id === null) return;
+                            setSelectedUrlId(row.id);
+                            setSelectedUrlIds([row.id]);
+                          }}
+                        />
+                      </div>
+                    );
+                  }
+                  const row = broken[v.index];
+                  if (!row) return null;
+                  return (
+                    <div key={v.key} style={style}>
+                      <BrokenRow row={row} t={t} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div
@@ -606,31 +622,31 @@ function ExcludedRow({
         active ? 'bg-accent-500/20' : 'odd:bg-surface-900/20 hover:bg-surface-800/40'
       }`}
     >
-      <div className="flex-1 truncate px-2 text-surface-200" title={row.url}>
+      <div className="min-w-[300px] flex-1 truncate px-2 text-surface-200" title={row.url}>
         {row.url}
       </div>
-      <div className="w-[200px] shrink-0 truncate text-surface-300" title={reason}>
+      <div className="w-[170px] shrink-0 truncate text-surface-300" title={reason}>
         {reason}
       </div>
-      <div className="w-[80px] shrink-0 text-center tabular-nums text-surface-300">
+      <div className="w-[72px] shrink-0 text-center tabular-nums text-surface-300">
         {row.badHttpStatus ?? '—'}
       </div>
       <div
-        className="w-[200px] shrink-0 truncate px-2 text-surface-300"
+        className="w-[180px] shrink-0 truncate px-2 text-surface-300"
         title={row.targetUrl ?? undefined}
       >
         {row.targetUrl ?? '—'}
       </div>
-      <div className="w-[96px] shrink-0 text-right tabular-nums text-surface-300">
+      <div className="w-[88px] shrink-0 text-right tabular-nums text-surface-300">
         {dayOf(row.eventDate)}
       </div>
-      <div className="w-[96px] shrink-0 text-right tabular-nums text-surface-500">
+      <div className="w-[88px] shrink-0 text-right tabular-nums text-surface-500">
         {dayOf(row.lastAccess)}
       </div>
-      <div className="w-[80px] shrink-0 text-center tabular-nums text-surface-300">
+      <div className="w-[72px] shrink-0 text-center tabular-nums text-surface-300">
         {row.id === null ? '—' : (row.crawlStatusCode ?? '—')}
       </div>
-      <div className="w-[110px] shrink-0 truncate px-2 text-surface-400">
+      <div className="w-[140px] shrink-0 truncate px-2 text-surface-400">
         {row.id === null ? notInCrawl : (row.crawlIndexability ?? '—')}
       </div>
     </div>
@@ -640,10 +656,13 @@ function ExcludedRow({
 function BrokenRow({ row, t }: { row: WebmasterBrokenRow; t: T }) {
   return (
     <div className="flex h-full items-center text-[11px] odd:bg-surface-900/20 hover:bg-surface-800/40">
-      <div className="flex-1 truncate px-2 text-surface-200" title={row.sourceUrl}>
+      <div className="min-w-[260px] flex-1 truncate px-2 text-surface-200" title={row.sourceUrl}>
         {row.sourceUrl}
       </div>
-      <div className="flex-1 truncate px-2 text-surface-200" title={row.destinationUrl}>
+      <div
+        className="min-w-[260px] flex-1 truncate px-2 text-surface-200"
+        title={row.destinationUrl}
+      >
         {row.destinationUrl}
       </div>
       <div className="w-[96px] shrink-0 text-right tabular-nums text-surface-300">
