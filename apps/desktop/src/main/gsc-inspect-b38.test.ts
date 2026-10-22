@@ -7,14 +7,19 @@ vi.mock('electron', () => ({
   shell: {},
 }));
 
-// Per-file guard (r2-L5): only 127.0.0.1 may be reached; a test that forgets
-// `deps` fails here instead of calling Google. No other test file is touched.
-const realFetch = globalThis.fetch;
-const guard = ((input: string | URL | Request, init?: RequestInit) => {
-  const host = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url).hostname;
-  if (host !== '127.0.0.1') return Promise.reject(new Error(`guard: blocked host ${host}`));
-  return realFetch(input as string, init);
-}) as typeof fetch;
+// Per-file guard (r2-L5, S1): only 127.0.0.1 may be reached. It replaces both the global fetch and
+// `apiFetch` (undici's own fetch, the clients' default transport), so a test that forgets `deps`
+// is stopped here instead of calling Google.
+const guard = vi.hoisted(() => {
+  const realFetch = globalThis.fetch;
+  return ((input: string | URL | Request, init?: RequestInit) => {
+    const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const host = new URL(href).hostname;
+    if (host !== '127.0.0.1') return Promise.reject(new Error(`guard: blocked host ${host}`));
+    return realFetch(input as string, init);
+  }) as typeof fetch;
+});
+vi.mock('./api-fetch.js', () => ({ apiFetch: guard }));
 vi.stubGlobal('fetch', guard);
 
 const { inspectUrl } = await import('./gsc.js');
@@ -213,8 +218,8 @@ describe('guard fetch', () => {
     await expect(fetch('http://127.0.0.1:1/x')).rejects.not.toThrow(/guard/);
   });
 
-  it('an inspectUrl call that forgets deps never reaches Google', async () => {
-    const err = await inspectUrl('p', 'u').catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(Error);
+  it('the default transport of the clients (apiFetch) is the guard, not undici', async () => {
+    const { apiFetch } = await import('./api-fetch.js');
+    await expect(apiFetch('https://searchconsole.googleapis.com/x')).rejects.toThrow(/guard/);
   });
 });

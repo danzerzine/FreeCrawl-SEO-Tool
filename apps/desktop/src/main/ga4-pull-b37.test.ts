@@ -13,14 +13,20 @@ vi.mock('electron', () => ({
   shell: {},
 }));
 
-// Per-file guard (r2-L5): only 127.0.0.1 is reachable; every test passes fake deps anyway.
-const realFetch = globalThis.fetch;
-vi.stubGlobal('fetch', ((input: string | URL | Request, init?: RequestInit) => {
-  const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-  const host = new URL(href).hostname;
-  if (host !== '127.0.0.1') return Promise.reject(new Error(`guard: blocked host ${host}`));
-  return realFetch(input as string, init);
-}) as typeof fetch);
+// Per-file guard (r2-L5, S1): only 127.0.0.1 may be reached. It replaces both the global fetch and
+// `apiFetch` (undici's own fetch, the clients' default transport), so a test that forgets `deps`
+// is stopped here instead of calling Google.
+const guard = vi.hoisted(() => {
+  const realFetch = globalThis.fetch;
+  return ((input: string | URL | Request, init?: RequestInit) => {
+    const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const host = new URL(href).hostname;
+    if (host !== '127.0.0.1') return Promise.reject(new Error(`guard: blocked host ${host}`));
+    return realFetch(input as string, init);
+  }) as typeof fetch;
+});
+vi.mock('./api-fetch.js', () => ({ apiFetch: guard }));
+vi.stubGlobal('fetch', guard);
 
 const { pullGa4, ga4FetchFromDesktop, ga4FetchFromBridge } = await import('./ga4-pull.js');
 const { clearMetadataCache } = await import('./ga4.js');
