@@ -132,10 +132,10 @@ it('robots.txt that keeps failing: the crawl goes on and the warning counts the 
   db.close();
 }, 30_000);
 
-it('a 503 and then timeouts still ends with the warning (B130)', async () => {
+it('a 503 and then a timeout ends with the warning, without retrying the timeout (B130)', async () => {
   robots.A = { fails: 1, hangAfterFails: true, body: '' };
   const { db, warnings } = await crawl('timeout');
-  expect(robotsCalls.A).toBe(3);
-  expect(warnings.some((w) => w.includes('robots.txt') && w.includes('3 attempts'))).toBe(true);
+  expect(robotsCalls.A).toBe(2);
+  expect(warnings.some((w) => w.includes('robots.txt') && w.includes('2 attempts'))).toBe(true);
   db.close();
 }, 30_000);

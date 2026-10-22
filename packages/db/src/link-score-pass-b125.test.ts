@@ -62,8 +62,10 @@ it('a redirect and a canonicalised page pass their score to the target and keep 
   expect(s.get(U('/r'))).toBeNull();
   expect(s.get(U('/c'))).toBeNull();
   expect(s.get(U('/t'))!).toBeGreaterThan(s.get(U('/x'))!);
-  // /y is linked only from the canonicalised page, whose links pass nothing.
+  // /y is linked only from the canonicalised page, whose links pass nothing:
+  // it scores like /u, whose only link (ugc) passes nothing either.
   expect(s.get(U('/y'))!).toBeLessThan(s.get(U('/x'))!);
+  expect(s.get(U('/y'))).toBe(s.get(U('/u')));
 });
 
 it('ugc and sponsored links pass no score unless nofollow links are counted (B125)', () => {
