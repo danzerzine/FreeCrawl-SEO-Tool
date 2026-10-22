@@ -32,6 +32,11 @@ export interface SchemaRule {
    * recommended entry by `level`. Both are entries like those in `required`.
    */
   conditions?: readonly SchemaCondition[];
+  /**
+   * Tested once `rulesForType` has picked the rule: false means the rule does
+   * not apply to this node (no finding, no label).
+   */
+  appliesWhen?: (node: Record<string, unknown>, pageUrl: string) => boolean;
   /** A node this rule matched carries the label, so `CONTEXT_RULES` can look for children by it. */
   label?: string;
 }
@@ -219,6 +224,13 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
     ],
   },
   {
+    source: `${GOOGLE}carousel`,
+    types: ['ItemList'],
+    required: ['itemListElement'],
+    appliesWhen: isCarousel,
+    label: 'carousel',
+  },
+  {
     source: 'https://developers.google.com/search/updates',
     types: ['FAQPage', 'HowTo', 'ClaimReview'],
     retired: 'Google no longer shows these results',
@@ -265,6 +277,35 @@ export const CONTEXT_RULES: readonly ContextRule[] = [
     via: ['interactionStatistic'],
     types: ['InteractionCounter'],
     implied: 'InteractionCounter',
+  },
+  {
+    rule: {
+      source: `${GOOGLE}carousel`,
+      types: ['ListItem'],
+      required: ['position', 'url | item.url'],
+    },
+    from: 'carousel',
+    via: ['itemListElement'],
+    types: ['ListItem'],
+    implied: 'ListItem',
+    label: 'carousel-item',
+  },
+  {
+    rule: {
+      source: `${GOOGLE}movie`,
+      types: ['Movie'],
+      required: ['image', 'name'],
+      recommended: ['dateCreated', 'director', 'aggregateRating', 'review'],
+    },
+    from: 'carousel-item',
+    via: ['item'],
+    types: ['Movie'],
+  },
+  {
+    rule: { source: `${GOOGLE}local-business`, types: ['Restaurant'], required: ['image'] },
+    from: 'carousel-item',
+    via: ['item'],
+    types: ['Restaurant'],
   },
   // The question itself is checked by the QAPage paths; this only passes the label on.
   { from: 'qa-page', via: ['mainEntity'], types: ['Question'], label: 'qa' },
@@ -340,6 +381,29 @@ export function rulesForType(type: string): SchemaRule[] {
       (h) => !hits.some((o) => o !== h && o.root !== h.root && isSchemaTypeOf(o.root, h.root)),
     )
     .map((h) => h.rule);
+}
+
+const CAROUSEL_ITEMS = ['Course', 'Movie', 'Recipe', 'Restaurant'];
+
+/**
+ * An ItemList is a carousel when one of its entries holds a typed item that
+ * Google shows in carousels. A typed reference counts; a bare url or an
+ * untyped object does not.
+ */
+function isCarousel(node: Record<string, unknown>): boolean {
+  return [node['itemListElement']].flat().some((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    return [(entry as Record<string, unknown>)['item']].flat().some((item) => {
+      if (!item || typeof item !== 'object') return false;
+      return [(item as Record<string, unknown>)['@type']]
+        .flat()
+        .some(
+          (t) =>
+            typeof t === 'string' &&
+            CAROUSEL_ITEMS.some((root) => isSchemaTypeOf(normalizeSchemaType(t), root)),
+        );
+    });
+  });
 }
 
 function pointsElsewhere(url: unknown, pageUrl: string): boolean {

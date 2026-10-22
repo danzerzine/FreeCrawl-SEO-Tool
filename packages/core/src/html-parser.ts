@@ -2738,7 +2738,7 @@ function walkSchemaForValidation(
       // The value of `reviewRating` is a rating, even when typed AggregateRating.
       if (reference || via === 'reviewRating') continue;
       for (const rule of rulesForType(t)) {
-        if (rules.includes(rule)) continue;
+        if (rules.includes(rule) || rule.appliesWhen?.(obj, pageUrl) === false) continue;
         rules.push(rule);
         if (rule.label) labels.add(rule.label);
         check(obj, t, rule, skipFor(rule, via));

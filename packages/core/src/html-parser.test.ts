@@ -775,5 +775,86 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(required(qa({ comment: { '@type': 'Answer' } }))).toEqual([req('Answer', 'text')]);
     });
   });
+
+  describe('R12 conditional applicability, and carousels (rows 8, 18, 27)', () => {
+    const movie = { '@type': 'Movie', name: 'M', image: 'https://example.com/m.jpg', url: 'https://example.com/m' };
+    const entry = (extra: object = {}, item: unknown = movie) => ({
+      '@type': 'ListItem',
+      position: 1,
+      item,
+      ...extra,
+    });
+    const list = (itemListElement: unknown) => ({ '@type': 'ItemList', itemListElement });
+
+    it('checks the entries of an ItemList of Movies as carousel entries', () => {
+      expect(required(list([entry()]))).toEqual([]);
+      expect(required(list([entry({ position: undefined })]))).toEqual([req('ListItem', 'position')]);
+    });
+
+    it('asks a carousel entry for a url of its own or of its item', () => {
+      const bare = { '@type': 'Movie', name: 'M', image: 'x' };
+      expect(required(list([entry({}, bare)]))).toEqual([req('ListItem', 'url | item.url')]);
+      expect(required(list([entry({ url: 'https://example.com/m' }, bare)]))).toEqual([]);
+    });
+
+    it('does not make a carousel of an ItemList of Products', () => {
+      const product = { '@type': 'Product', name: 'P', offers: { '@type': 'Offer', price: 1, priceCurrency: 'EUR', availability: 'InStock' } };
+      expect(required(list([entry({ position: undefined }, product)]))).toEqual([]);
+      expect(findings(list([entry({ position: undefined }, product)]))).toEqual([]);
+    });
+
+    it('leaves a BreadcrumbList to the breadcrumb rules only', () => {
+      expect(
+        required({
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', name: 'Home', item: 'https://example.com/' },
+            { '@type': 'ListItem', position: 2, name: 'Page' },
+          ],
+        }),
+      ).toEqual([req('ListItem', 'position')]);
+    });
+
+    it('does not recognise the summary form: entries with a url only', () => {
+      expect(
+        required(list([{ '@type': 'ListItem', url: 'https://example.com/a' }, { '@type': 'ListItem' }])),
+      ).toEqual([]);
+    });
+
+    it('takes a single entry object and a typed reference as the item', () => {
+      expect(required(list(entry({ position: undefined })))).toEqual([req('ListItem', 'position')]);
+      expect(
+        required(
+          list([entry({ position: undefined }, { '@id': 'https://example.com/#m', '@type': 'Movie' })]),
+        ),
+      ).toEqual([req('ListItem', 'position')]);
+    });
+
+    it('does not recognise an item given as a url string or as an untyped object', () => {
+      expect(required(list([entry({ position: undefined }, 'https://example.com/m')]))).toEqual([]);
+      expect(required(list([entry({ position: undefined }, { name: 'M' })]))).toEqual([]);
+    });
+
+    it('asks a carousel Movie for image and name, and a standalone Movie for nothing', () => {
+      expect(required(list([entry({}, { '@type': 'Movie', name: 'M', url: 'https://example.com/m' })]))).toEqual([
+        req('Movie', 'image'),
+      ]);
+      expect(findings({ '@type': 'Movie' })).toEqual([]);
+      expect(recommended(list([entry()]))).toEqual([
+        rec('Movie', 'dateCreated', 'director', 'aggregateRating', 'review'),
+      ]);
+    });
+
+    it('asks a carousel Restaurant for an image next to the local business rule', () => {
+      const restaurant = { '@type': 'Restaurant', name: 'R', address: 'Main St 1', url: 'https://example.com/r' };
+      expect(required(list([entry({}, restaurant)]))).toEqual([req('Restaurant', 'image')]);
+      expect(required(list([entry({}, { ...restaurant, image: 'https://example.com/r.jpg' })]))).toEqual([]);
+      expect(required(list([entry({}, { '@type': 'Restaurant', name: 'R', url: 'https://example.com/r' })]))).toEqual([
+        req('Restaurant', 'address'),
+        req('Restaurant', 'image'),
+      ]);
+      expect(required(restaurant)).toEqual([]);
+    });
+  });
   // PART2-END
 });
