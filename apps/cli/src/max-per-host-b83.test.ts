@@ -45,9 +45,12 @@ beforeEach(async () => {
     if (url.startsWith('/doc/')) {
       return void setTimeout(() => res.writeHead(200, { 'content-type': 'application/pdf' }).end('%PDF'), delayMs);
     }
+    if (url.startsWith('/bad/')) return void req.socket.destroy();
     if (url === '/logo.png') return void res.writeHead(200, { 'content-type': 'image/png' }).end('png');
     const links =
-      url === '/hub'
+      url === '/hubx'
+        ? [1, 2].map((i) => `<a href="${host}/bad/${i}">b</a>`).concat([1, 2, 3, 4, 5, 6].map((i) => `<a href="${host}/p/${i}">p</a>`))
+        : url === '/hub'
         ? ['<img src="/logo.png">', ...[1, 2, 3, 4, 5, 6].map((i) => `<a href="${host}/p/${i}">p</a>`)]
         : url === '/p/6'
           ? ['<a href="/p/7">p</a>']
@@ -109,6 +112,32 @@ function fetchedCount(db: string): number {
     return (
       raw.prepare('SELECT COUNT(*) AS n FROM urls WHERE status_code IS NOT NULL').get() as { n: number }
     ).n;
+  } finally {
+    raw.close();
+  }
+}
+
+/** Failed-fetch rows; 0 while the project file is still being created or locked. */
+function safePages(db: string): number {
+  try {
+    return pagesByHost(db)['127.0.0.1'] ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+function failedRows(db: string): number {
+  try {
+    return failedRowsOf(db);
+  } catch {
+    return 0;
+  }
+}
+
+function failedRowsOf(db: string): number {
+  const raw = new DatabaseSync(db, { readOnly: true });
+  try {
+    return (raw.prepare("SELECT COUNT(*) AS n FROM urls WHERE url LIKE '%/bad/%'").get() as { n: number }).n;
   } finally {
     raw.close();
   }
@@ -222,6 +251,69 @@ describe('--max-per-host (B83)', () => {
     expect(pagesByHost(db)).toEqual({ '127.0.0.1': 8 });
     // Each saved page is fetched once by the resume.
     expect(Object.entries(hits).filter(([u, n]) => u.startsWith('/p/') && n > 1)).toEqual([]);
+  });
+
+  // F1 (acceptance r1): a failed fetch is a row without a status code that the
+  // resume and the end-of-crawl pass queue again; it must count once.
+  describe('failed fetches count once', () => {
+    const hubx = () => `http://127.0.0.1:${port}/hubx`;
+
+    it('an uninterrupted and a stopped-and-resumed crawl save the same pages', async () => {
+      const a = path.join(dir, 'a.seoproject');
+      expect((await start([hubx(), '--max-per-host', '10', '--db', a]).done).code).toBe(0);
+      const full = pagesByHost(a)['127.0.0.1'];
+      expect(full).toBe(8);
+      const b = path.join(dir, 'b.seoproject');
+      delayMs = 1500;
+      const first = start([hubx(), '--max-per-host', '10', '--db', b]);
+      const deadline = Date.now() + 30_000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 100));
+        if (fs.existsSync(b) && failedRows(b) >= 2 && safePages(b) >= 1) break;
+      }
+      first.child.kill('SIGINT');
+      await first.done;
+      delayMs = 0;
+      const r = await start([hubx(), '--max-per-host', '10', '--db', b, '--resume']).done;
+      expect(r.code).toBe(0);
+      expect(pagesByHost(b)['127.0.0.1']).toBe(full);
+    }, 120_000);
+
+    it('reports no skipped URLs when the limit cut nothing', async () => {
+      const db = path.join(dir, 'json.seoproject');
+      const r = await start([hubx(), '--max-per-host', '10', '--db', db, '--json']).done;
+      expect(r.code).toBe(0);
+      expect(pagesByHost(db)['127.0.0.1']).toBe(8);
+      const json = JSON.parse(r.out) as { site: { hostLimitSkipped?: { host: string; skipped: number }[] } };
+      expect(json.site.hostLimitSkipped ?? []).toEqual([]);
+    }, 60_000);
+
+    it('a list resume with a failed row stays within the limit', async () => {
+      const list = path.join(dir, 'urls.txt');
+      fs.writeFileSync(
+        list,
+        [`http://127.0.0.1:${port}/bad/1`, ...listOf('127.0.0.1', 5)].join('\n'),
+      );
+      const a = path.join(dir, 'la.seoproject');
+      await start(['--list', list, '--max-per-host', '4', '--db', a]).done;
+      const full = pagesByHost(a)['127.0.0.1'];
+      expect(full).toBe(3);
+      const b = path.join(dir, 'lb.seoproject');
+      delayMs = 600;
+      const first = start(['--list', list, '--max-per-host', '4', '--db', b]);
+      const deadline = Date.now() + 30_000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 100));
+        if (fs.existsSync(b) && failedRows(b) >= 1 && safePages(b) >= 1) break;
+      }
+      first.child.kill('SIGINT');
+      await first.done;
+      delayMs = 0;
+      const r = await start(['--list', list, '--max-per-host', '4', '--db', b, '--resume']).done;
+      expect(r.code).toBe(0);
+      expect(pagesByHost(b)['127.0.0.1'] ?? 0).toBeLessThanOrEqual(4);
+      expect(pagesByHost(b)['127.0.0.1']).toBe(full);
+    }, 120_000);
   });
 
   it('refuses a limit that is not a positive whole number', async () => {
