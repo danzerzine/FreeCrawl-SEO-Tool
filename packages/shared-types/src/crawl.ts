@@ -1643,6 +1643,8 @@ export function hasPageScript(script: string | undefined | null): boolean {
 }
 /** Bounds of `jsRender.pageScriptTimeoutMs` (B34). */
 export const PAGE_SCRIPT_TIMEOUT_MIN_MS = 500;
+/** Default of `jsRender.pageScriptTimeoutMs`. */
+export const PAGE_SCRIPT_TIMEOUT_DEFAULT_MS = 5_000;
 export const PAGE_SCRIPT_TIMEOUT_MAX_MS = 30_000;
 
 /** Per-crawl Playwright settings — surfaces in Settings → Rendering. */
@@ -3129,7 +3131,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
     a11yAudit: false,
     consoleErrors: false,
     pageScript: '',
-    pageScriptTimeoutMs: 5000,
+    pageScriptTimeoutMs: PAGE_SCRIPT_TIMEOUT_DEFAULT_MS,
     spaRouting: false,
   },
   performanceBudget: {

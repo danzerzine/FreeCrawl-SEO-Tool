@@ -1,4 +1,8 @@
-import { PAGE_SCRIPT_TIMEOUT_MAX_MS, PAGE_SCRIPT_TIMEOUT_MIN_MS } from '@freecrawl/shared-types';
+import {
+  PAGE_SCRIPT_TIMEOUT_DEFAULT_MS,
+  PAGE_SCRIPT_TIMEOUT_MAX_MS,
+  PAGE_SCRIPT_TIMEOUT_MIN_MS,
+} from '@freecrawl/shared-types';
 import type { Page } from 'playwright';
 
 /** Marks the wrapper expression so a test double can tell it from the module's other evaluates. */
@@ -7,8 +11,8 @@ export const PAGE_SCRIPT_MARK = '/*fc-page-script*/';
 /** A returned value above this many characters is replaced, never truncated. */
 export const PAGE_SCRIPT_RESULT_MAX = 16 * 1024;
 
-/** Default of `jsRender.pageScriptTimeoutMs`; the bounds live in shared-types. */
-export const PAGE_SCRIPT_TIMEOUT_DEFAULT_MS = 5_000;
+/** Default of `jsRender.pageScriptTimeoutMs`; it and the bounds live in shared-types. */
+export { PAGE_SCRIPT_TIMEOUT_DEFAULT_MS };
 
 /** How long a page may take to answer a trivial evaluate after the script timed out. */
 export const PAGE_SCRIPT_PROBE_MS = 2_000;
