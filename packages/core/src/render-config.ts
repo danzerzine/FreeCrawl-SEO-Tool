@@ -47,18 +47,51 @@ export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
   };
 }
 
-export type RenderHook = (
-  url: string,
-  urlId: number | null,
-  signal: AbortSignal,
-) => Promise<{
+/** What one render hook call returns. The one place the shape is written; the crawler and both products use it. */
+export interface RenderHookResult {
   ok: boolean;
   html: string;
   timingMs: number;
   error?: string;
+  screenshots?: { fullpage?: string; fold?: string; mobile?: string };
+  lcp?: {
+    selector: string;
+    tagName: string;
+    width: number;
+    height: number;
+    coverage: number;
+    resourceUrl: string | null;
+  } | null;
+  mobileUsability?: {
+    ok: boolean;
+    overflowPx: number;
+    hasViewportMeta: boolean;
+  } | null;
+  a11y?: {
+    lowContrast: number;
+    sampled: number;
+    focusSuppressed: boolean;
+    smallFont: number;
+    tapTargetsSmall: number;
+    tapTargetsSampled: number;
+  } | null;
+  /** Client-side routes the SPA reached during render (Bölüm 29). */
   spaRoutes?: string[];
+  /** The document was replaced during the render (meta refresh / JS redirect) — the URL it ended on. */
   navigatedTo?: string | null;
-}>;
+  /** The browser's own main-document response body (B33): the served side of the raw-vs-rendered compare. */
+  servedHtml?: string;
+  /** A page script ran for this page (B34). */
+  scriptRan?: boolean;
+  /** `page.content()` taken before the page script ran (B34, read by B33's compare). */
+  renderedHtmlPreScript?: string;
+}
+
+export type RenderHook = (
+  url: string,
+  urlId: number | null,
+  signal: AbortSignal,
+) => Promise<RenderHookResult>;
 
 /**
  * The crawler's `renderUrl` hook over a pool: the DOM after the scripts

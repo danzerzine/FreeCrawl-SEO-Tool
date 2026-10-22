@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import { fetch as undiciFetch, type Dispatcher } from 'undici';
 import { load as cheerioLoad } from 'cheerio';
 import PQueue from 'p-queue';
+import type { RenderHook } from './render-config.js';
 import type {
   ContentKind,
   CrawlConfig,
@@ -825,42 +826,7 @@ export class Crawler extends EventEmitter {
    * a URL when `renderingMode === 'js'`. Without one the crawl reads the
    * served HTML and warns once at start.
    */
-  private readonly renderUrlHook?: (
-    url: string,
-    urlId: number | null,
-    signal: AbortSignal,
-  ) => Promise<{
-    ok: boolean;
-    html: string;
-    timingMs: number;
-    error?: string;
-    screenshots?: { fullpage?: string; fold?: string; mobile?: string };
-    lcp?: {
-      selector: string;
-      tagName: string;
-      width: number;
-      height: number;
-      coverage: number;
-      resourceUrl: string | null;
-    } | null;
-    mobileUsability?: {
-      ok: boolean;
-      overflowPx: number;
-      hasViewportMeta: boolean;
-    } | null;
-    a11y?: {
-      lowContrast: number;
-      sampled: number;
-      focusSuppressed: boolean;
-      smallFont: number;
-      tapTargetsSmall: number;
-      tapTargetsSampled: number;
-    } | null;
-    /** Client-side routes the SPA reached during render (Bölüm 29). */
-    spaRoutes?: string[];
-    /** The document was replaced during the render (meta refresh / JS redirect) — the URL it ended on. */
-    navigatedTo?: string | null;
-  }>;
+  private readonly renderUrlHook?: RenderHook;
 
   constructor(
     config: CrawlConfig,
@@ -893,40 +859,7 @@ export class Crawler extends EventEmitter {
        * the crawler stores these via dbCall hooks. The host decides
        * which extras to compute via its own config.
        */
-      renderUrl?: (
-        url: string,
-        urlId: number | null,
-        signal: AbortSignal,
-      ) => Promise<{
-        ok: boolean;
-        html: string;
-        timingMs: number;
-        error?: string;
-        screenshots?: { fullpage?: string; fold?: string; mobile?: string };
-        lcp?: {
-          selector: string;
-          tagName: string;
-          width: number;
-          height: number;
-          coverage: number;
-          resourceUrl: string | null;
-        } | null;
-        mobileUsability?: {
-          ok: boolean;
-          overflowPx: number;
-          hasViewportMeta: boolean;
-        } | null;
-        a11y?: {
-          lowContrast: number;
-          sampled: number;
-          focusSuppressed: boolean;
-          smallFont: number;
-          tapTargetsSmall: number;
-          tapTargetsSampled: number;
-        } | null;
-        /** Client-side routes the SPA reached during render (Bölüm 29). */
-        spaRoutes?: string[];
-      }>;
+      renderUrl?: RenderHook;
       /**
        * Re-fetch exactly these URLs instead of walking the site from the
        * seed — the "Re-Spider" affordance when no crawl is running.

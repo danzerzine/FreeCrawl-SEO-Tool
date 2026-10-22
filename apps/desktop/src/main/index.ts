@@ -287,6 +287,7 @@ import {
   PlaywrightBrowserMissingError,
   browserPoolOptionsFromConfig,
   renderOptionsFromConfig,
+  type RenderHook,
   Crawler,
   renderUrl,
   auditMobileUsability,
@@ -7974,40 +7975,7 @@ function registerIpc(): void {
     // pool first; pool reuse across runs would carry over routes /
     // viewport from a config that may have changed.
     void disposeBrowserPool(sess);
-    let renderHook:
-      | ((
-          url: string,
-          urlId: number | null,
-          signal: AbortSignal,
-        ) => Promise<{
-          ok: boolean;
-          html: string;
-          timingMs: number;
-          error?: string;
-          screenshots?: { fullpage?: string; fold?: string; mobile?: string };
-          lcp?: {
-            selector: string;
-            tagName: string;
-            width: number;
-            height: number;
-            coverage: number;
-            resourceUrl: string | null;
-          } | null;
-          mobileUsability?: {
-            ok: boolean;
-            overflowPx: number;
-            hasViewportMeta: boolean;
-          } | null;
-          a11y?: {
-            lowContrast: number;
-            sampled: number;
-            focusSuppressed: boolean;
-            smallFont: number;
-            tapTargetsSmall: number;
-            tapTargetsSampled: number;
-          } | null;
-        }>)
-      | undefined;
+    let renderHook: RenderHook | undefined;
     if (config.renderingMode === 'js') {
       const pool = new BrowserPool(browserPoolOptionsFromConfig(config));
       sess.activeBrowserPool = pool;

@@ -25,6 +25,7 @@ export {
   createRenderHook,
   renderOptionsFromConfig,
   type RenderHook,
+  type RenderHookResult,
 } from './render-config.js';
 export {
   runBrowserLogin,
