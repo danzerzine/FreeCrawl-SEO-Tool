@@ -7413,6 +7413,13 @@ export class ProjectDb {
     return { events, links };
   }
 
+  /** B39: how many rows of each Webmaster table the host holds. */
+  countWebmasterRows(hostId: string): { events: number; links: number } {
+    const one = (t: string): number =>
+      (this.db.prepare(`SELECT COUNT(*) AS c FROM ${t} WHERE host_id = ?`).get(hostId) as { c: number }).c;
+    return { events: one('webmaster_events'), links: one('webmaster_broken_links') };
+  }
+
   private webmasterMeta(hostId: string): WebmasterFetchMeta | null {
     try {
       const raw = this.getMeta(`webmasterFetchMeta:${hostId}`);

@@ -59,6 +59,10 @@ export interface WebmasterRunProgress {
   linksCount: number | null;
   /** UTC ISO time at which Yandex's daily quota opens again, set by a QUOTA_EXCEEDED stop. */
   exceededUntil?: string | null;
+  /** Rows whose URL normalised to nothing so far in this run. */
+  skippedRows?: number;
+  /** A list was cut at the 50 000 row cap. */
+  truncatedAtCap?: boolean;
 }
 
 /** Written to project_meta `webmasterFetchMeta:<hostId>` when both phases finish. */
@@ -120,3 +124,31 @@ export interface WebmasterQueryResult<T> {
   /** The last finished pull of the host; null before any pull («no pull yet»). */
   meta: WebmasterFetchMeta | null;
 }
+
+/** Progress event of a Webmaster pull. */
+export interface WebmasterProgress {
+  running: boolean;
+  phase: 'events' | 'links';
+  /** Rows saved so far in this phase / the list's size. */
+  done: number;
+  total: number;
+}
+
+export type WebmasterFetchResult =
+  | {
+      ok: true;
+      meta: WebmasterFetchMeta;
+      error: null;
+      errorCode: null;
+      exceededUntil: null;
+      cancelled: false;
+    }
+  | {
+      ok: false;
+      meta: null;
+      error: string;
+      errorCode: WebmasterErrorCode | null;
+      /** Quota stop: UTC ISO time at which the daily quota opens again. */
+      exceededUntil: string | null;
+      cancelled: boolean;
+    };
