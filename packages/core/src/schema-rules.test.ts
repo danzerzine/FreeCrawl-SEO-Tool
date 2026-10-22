@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AGGREGATE_OFFER_RULE,
   BREADCRUMB_ITEM_RULE,
+  CONTEXT_RULES,
   OFFER_RULE,
   SCHEMA_RULES,
   isSchemaTypeOf,
@@ -35,7 +36,8 @@ describe('structured-data rules', () => {
   });
 
   it('knows every type a rule names, so the generated map is current', () => {
-    for (const rule of [...SCHEMA_RULES, OFFER_RULE, AGGREGATE_OFFER_RULE]) {
+    const contextRules = CONTEXT_RULES.flatMap((c) => (c.rule ? [c.rule] : []));
+    for (const rule of [...SCHEMA_RULES, ...contextRules, OFFER_RULE, AGGREGATE_OFFER_RULE]) {
       for (const t of [...rule.types, ...(rule.exclude ?? [])]) {
         expect(SCHEMA_ANCESTORS, t).toHaveProperty(t);
       }
@@ -44,7 +46,14 @@ describe('structured-data rules', () => {
   });
 
   it('cites a Google Search Central page for every rule', () => {
-    for (const rule of [...SCHEMA_RULES, OFFER_RULE, AGGREGATE_OFFER_RULE, BREADCRUMB_ITEM_RULE]) {
+    const contextRules = CONTEXT_RULES.flatMap((c) => (c.rule ? [c.rule] : []));
+    for (const rule of [
+      ...SCHEMA_RULES,
+      ...contextRules,
+      OFFER_RULE,
+      AGGREGATE_OFFER_RULE,
+      BREADCRUMB_ITEM_RULE,
+    ]) {
       expect(rule.source).toMatch(/^https:\/\/developers\.google\.com\/search\//);
     }
   });

@@ -28,10 +28,12 @@ import { runExtractionRules } from './extraction.js';
 import {
   AGGREGATE_OFFER_RULE,
   BREADCRUMB_ITEM_RULE,
+  CONTEXT_RULES,
   OFFER_RULE,
   isSchemaTypeOf,
   normalizeSchemaType,
   rulesForType,
+  type SchemaCondition,
   type SchemaRule,
 } from './schema-rules.js';
 
@@ -2661,21 +2663,37 @@ function walkSchemaForValidation(
           .filter((path) => rule.only?.[path]?.(obj, pageUrl) ?? true);
         return paths.some((path) => hasSchemaPath(obj, path)) ? [] : [paths.join(' | ')];
       });
-    const missingRequired = missing(rule.required);
+    const conditional = (level: 'required' | 'recommended'): string[] =>
+      (rule.conditions ?? [])
+        .filter((c) => c.level === level && !skip.includes(c.then))
+        .flatMap((c) => {
+          if (!conditionFires(obj, c)) return [];
+          const paths = c.then
+            .split(' | ')
+            .filter((path) => rule.only?.[path]?.(obj, pageUrl) ?? true);
+          const found = paths.filter((path) => hasSchemaPath(obj, path));
+          if (found.length === 0) return [paths.join(' | ')];
+          const thenIs = c.thenIs;
+          if (thenIs && !found.some((p) => schemaValues(obj, p).some((v) => thenIs.includes(v)))) {
+            return [`${c.then} = ${thenIs.join(' | ')}`];
+          }
+          return [];
+        });
+    const missingRequired = [...conditional('required'), ...missing(rule.required)];
     if (missingRequired.length > 0) {
       missingRequiredCount++;
       findings.push({ block, type, kind: 'missing-required', props: missingRequired });
       return;
     }
-    const missingRecommended = missing(rule.recommended);
+    const missingRecommended = [...conditional('recommended'), ...missing(rule.recommended)];
     if (missingRecommended.length > 0) {
       missingRecommendedCount++;
       findings.push({ block, type, kind: 'missing-recommended', props: missingRecommended });
     }
   };
 
-  /** `via` is the property the node was reached through; `parent` the rules of the node holding it. */
-  const visit = (n: unknown, via: string, parent: readonly SchemaRule[]): void => {
+  /** `via`: the property the node hangs from; `parent`: the rules and labels of the node holding it. */
+  const visit = (n: unknown, via: string, parent: SchemaContext): void => {
     if (!n) return;
     if (Array.isArray(n)) {
       for (const item of n) visit(item, via, parent);
@@ -2707,6 +2725,7 @@ function walkSchemaForValidation(
       for (const t of typeRaw) if (typeof t === 'string') types.push(t);
     }
     const rules: SchemaRule[] = [];
+    const labels = new Set<string>();
     const reference = isSchemaReference(obj);
     for (const raw of types) {
       const t = normalizeSchemaType(raw);
@@ -2721,15 +2740,31 @@ function walkSchemaForValidation(
       for (const rule of rulesForType(t)) {
         if (rules.includes(rule)) continue;
         rules.push(rule);
+        if (rule.label) labels.add(rule.label);
         check(obj, t, rule, skipFor(rule, via));
       }
     }
 
     // Context rules: a Product's offers, a breadcrumb list's items.
-    if (!reference && via === 'offers' && parent.some((r) => r.types.includes('Product'))) {
+    if (!reference && via === 'offers' && parent.rules.some((r) => r.types.includes('Product'))) {
       const t = types.map(normalizeSchemaType).find((x) => x) ?? 'Offer';
       if (isSchemaTypeOf(t, 'AggregateOffer')) check(obj, t, AGGREGATE_OFFER_RULE);
       else if (isSchemaTypeOf(t, 'Offer')) check(obj, t, OFFER_RULE);
+    }
+
+    // Context rules: a node by the label of the node holding it and the property it hangs from.
+    if (!reference) {
+      const named = types.map(normalizeSchemaType);
+      for (const cr of CONTEXT_RULES) {
+        if (!cr.via.includes(via) || !parent.labels.has(cr.from)) continue;
+        const hit =
+          named.length > 0
+            ? named.find((t) => cr.types.some((x) => isSchemaTypeOf(t, x)))
+            : cr.implied;
+        if (!hit) continue;
+        if (cr.label) labels.add(cr.label);
+        if (cr.rule) check(obj, hit, cr.rule);
+      }
     }
 
     for (const [key, value] of Object.entries(obj)) {
@@ -2737,7 +2772,7 @@ function walkSchemaForValidation(
       if (key === 'itemListElement' && rules.some((r) => r.types.includes('BreadcrumbList'))) {
         checkBreadcrumbItems(value);
       }
-      visit(value, key, rules);
+      visit(value, key, { rules, labels });
     }
   };
 
@@ -2756,8 +2791,14 @@ function walkSchemaForValidation(
     });
   };
 
-  visit(node, '', []);
+  visit(node, '', { rules: [], labels: new Set() });
   return { unknownTypeCount, missingRequiredCount, missingRecommendedCount };
+}
+
+/** What a node's children need to know about it: the rules it matched and the labels it carries. */
+interface SchemaContext {
+  rules: readonly SchemaRule[];
+  labels: ReadonlySet<string>;
 }
 
 /**
@@ -2797,6 +2838,39 @@ function hasSchemaPath(obj: Record<string, unknown>, path: string): boolean {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
     const o = v as Record<string, unknown>;
     return isSchemaReference(o) || hasSchemaPath(o, rest);
+  });
+}
+
+function isSchemaObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** The condition's `if` is present on the node, holding one of `ifIs` when that is given. */
+function conditionFires(obj: Record<string, unknown>, c: SchemaCondition): boolean {
+  const present = c.if.split(' | ').filter((path) => hasSchemaPath(obj, path));
+  if (present.length === 0) return false;
+  const ifIs = c.ifIs;
+  return !ifIs || present.some((p) => schemaValues(obj, p).some((v) => ifIs.includes(v)));
+}
+
+/**
+ * The values at dotted `path`, read as names: a string or number as itself, an
+ * object by its `@id`, schema.org IRIs and prefixes reduced to the bare name.
+ */
+function schemaValues(obj: Record<string, unknown>, path: string): string[] {
+  const dot = path.indexOf('.');
+  const value = obj[dot < 0 ? path : path.slice(0, dot)];
+  const items = Array.isArray(value) ? value : [value];
+  if (dot >= 0) {
+    return items.flatMap((v) =>
+      isSchemaObject(v) && !isSchemaReference(v) ? schemaValues(v, path.slice(dot + 1)) : [],
+    );
+  }
+  return items.flatMap((v) => {
+    if (typeof v === 'string') return [normalizeSchemaType(v)];
+    if (typeof v === 'number') return [String(v)];
+    const id = v && typeof v === 'object' ? (v as Record<string, unknown>)['@id'] : undefined;
+    return typeof id === 'string' ? [normalizeSchemaType(id)] : [];
   });
 }
 

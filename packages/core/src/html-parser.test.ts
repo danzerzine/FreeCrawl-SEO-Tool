@@ -496,3 +496,284 @@ describe('parseHtml: performance', () => {
     expect(p.wordCount).toBeGreaterThan(30_000);
   });
 });
+
+describe('parseHtml: structured-data rules, part 2', () => {
+  const ld = (json: unknown): string =>
+    `<script type="application/ld+json">${JSON.stringify(json)}</script>`;
+  const findings = (...blocks: unknown[]) =>
+    parseHtml(doc(blocks.map(ld).join('')), PAGE).schemaFindings;
+  const required = (...blocks: unknown[]) =>
+    findings(...blocks).filter((f) => f.kind === 'missing-required');
+  const recommended = (...blocks: unknown[]) =>
+    findings(...blocks).filter((f) => f.kind === 'missing-recommended');
+  const req = (type: string, ...props: string[]) => ({
+    block: 0,
+    type,
+    kind: 'missing-required',
+    props,
+  });
+  const rec = (type: string, ...props: string[]) => ({
+    block: 0,
+    type,
+    kind: 'missing-recommended',
+    props,
+  });
+
+  describe('R9 conditional rows', () => {
+    const recipe = { '@type': 'Recipe', name: 'Soup', image: 'https://example.com/s.jpg' };
+    const event = {
+      '@type': 'Event',
+      name: 'Gig',
+      startDate: '2026-11-01',
+      location: { '@type': 'Place', address: 'Main St 1' },
+    };
+    const job = {
+      '@type': 'JobPosting',
+      title: 'Dev',
+      description: 'Build',
+      datePosted: '2026-10-01',
+      hiringOrganization: 'Acme',
+    };
+
+    it('asks a Recipe with nutrition.calories for recipeYield', () => {
+      expect(required({ ...recipe, nutrition: { calories: '200 kcal' } })).toEqual([
+        req('Recipe', 'recipeYield'),
+      ]);
+      expect(
+        required({ ...recipe, nutrition: { calories: '200 kcal' }, recipeYield: '4 servings' }),
+      ).toEqual([]);
+      expect(required(recipe)).toEqual([]);
+    });
+
+    it('does not fire on an empty trigger value', () => {
+      expect(required({ ...recipe, nutrition: { calories: '' } })).toEqual([]);
+      expect(required({ ...recipe, nutrition: {} })).toEqual([]);
+      expect(required({ ...recipe, nutrition: [] })).toEqual([]);
+    });
+
+    it('asks an Event with previousStartDate for eventStatus = EventRescheduled', () => {
+      const moved = { ...event, previousStartDate: '2026-10-01' };
+      expect(required(moved)).toEqual([req('Event', 'eventStatus')]);
+      expect(required({ ...moved, eventStatus: 'EventScheduled' })).toEqual([
+        req('Event', 'eventStatus = EventRescheduled'),
+      ]);
+      expect(required({ ...moved, eventStatus: 'EventRescheduled' })).toEqual([]);
+      expect(required({ ...moved, eventStatus: 'https://schema.org/EventRescheduled' })).toEqual(
+        [],
+      );
+      expect(
+        required({ ...moved, eventStatus: { '@id': 'https://schema.org/EventRescheduled' } }),
+      ).toEqual([]);
+      expect(required({ ...moved, eventStatus: ['EventScheduled', 'schema:EventRescheduled'] })).toEqual(
+        [],
+      );
+    });
+
+    it('compares values case-sensitively', () => {
+      const moved = { ...event, previousStartDate: '2026-10-01', eventStatus: 'eventrescheduled' };
+      expect(required(moved)).toEqual([req('Event', 'eventStatus = EventRescheduled')]);
+    });
+
+    it('a node without the trigger is checked exactly as before', () => {
+      expect(required(event)).toEqual([]);
+      expect(recommended(event)).toEqual([
+        rec('Event', 'endDate', 'image', 'offers', 'organizer', 'performer', 'eventStatus', 'description'),
+      ]);
+    });
+
+    it('asks a JobPosting with jobLocation for the address country', () => {
+      const place = (address: unknown) => ({ ...job, jobLocation: { '@type': 'Place', address } });
+      expect(required(place({ '@type': 'PostalAddress', addressLocality: 'Berlin' }))).toEqual([
+        req('JobPosting', 'jobLocation.address.addressCountry'),
+      ]);
+      expect(required(place('Berlin, Germany'))).toEqual([
+        req('JobPosting', 'jobLocation.address.addressCountry'),
+      ]);
+      expect(required(place({ addressCountry: 'DE' }))).toEqual([]);
+    });
+
+    it('a remote job with only applicantLocationRequirements is not asked', () => {
+      expect(
+        required({
+          ...job,
+          jobLocationType: 'TELECOMMUTE',
+          applicantLocationRequirements: { '@type': 'Country', name: 'DE' },
+        }),
+      ).toEqual([]);
+    });
+
+    it('a reference jobLocation counts as present and as carrying the path', () => {
+      expect(required({ ...job, jobLocation: { '@id': 'https://example.com/#hq' } })).toEqual([]);
+    });
+
+    it('several jobLocation values: one with a country is enough', () => {
+      expect(
+        required({
+          ...job,
+          jobLocation: [
+            { '@type': 'Place', address: { addressLocality: 'Berlin' } },
+            { '@type': 'Place', address: { addressCountry: 'DE' } },
+          ],
+        }),
+      ).toEqual([]);
+    });
+
+    it('MerchantReturnPolicy: the finite window asks for merchantReturnDays (ifIs, IRI too)', () => {
+      const policy = {
+        '@type': 'MerchantReturnPolicy',
+        applicableCountry: 'DE',
+        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+      };
+      expect(required(policy)).toEqual([req('MerchantReturnPolicy', 'merchantReturnDays')]);
+      expect(required({ ...policy, merchantReturnDays: 30 })).toEqual([]);
+      expect(
+        required({ ...policy, returnPolicyCategory: 'MerchantReturnNotPermitted' }),
+      ).toEqual([]);
+      expect(
+        required({
+          ...policy,
+          returnPolicyCategory: { '@id': 'https://schema.org/MerchantReturnFiniteReturnWindow' },
+        }),
+      ).toEqual([req('MerchantReturnPolicy', 'merchantReturnDays')]);
+    });
+  });
+
+  describe('R10 context rules with labels', () => {
+    const post = {
+      '@type': 'DiscussionForumPosting',
+      author: { '@type': 'Person', name: 'Ann' },
+      datePublished: '2026-10-01',
+      text: 'Hello',
+    };
+    const goodComment = {
+      '@type': 'Comment',
+      author: { '@type': 'Person', name: 'Bob' },
+      datePublished: '2026-10-02',
+      text: 'Hi',
+    };
+    const qa = (mainEntity: unknown) => ({
+      '@type': 'QAPage',
+      mainEntity: {
+        '@type': 'Question',
+        name: 'Why?',
+        answerCount: 1,
+        acceptedAnswer: { '@type': 'Answer', text: 'Because' },
+        ...(mainEntity as object),
+      },
+    });
+
+    it('checks an untyped and a typed comment of a forum post as Comment', () => {
+      expect(
+        required({
+          ...post,
+          comment: [
+            { author: { name: 'Bob' }, text: 'Hi' },
+            { '@type': 'Comment', author: { name: 'Cy' }, text: 'Yo' },
+          ],
+        }),
+      ).toEqual([
+        req('Comment', 'datePublished'),
+        req('Comment', 'datePublished'),
+      ]);
+      expect(required({ ...post, comment: goodComment })).toEqual([]);
+    });
+
+    it('checks a reply nested in a forum comment', () => {
+      expect(
+        required({ ...post, comment: { ...goodComment, comment: { text: 'Reply' } } }),
+      ).toEqual([req('Comment', 'author', 'datePublished')]);
+    });
+
+    it('gives a comment under another parent no Comment rule', () => {
+      expect(required({ '@type': 'Article', comment: { text: 'x' } })).toEqual([]);
+      expect(required({ '@type': 'Article', comment: { '@type': 'Comment' } })).toEqual([]);
+    });
+
+    it('does not skip levels: a comment two steps below the post is not matched', () => {
+      expect(required({ ...post, about: { comment: { '@type': 'Comment' } } })).toEqual([]);
+    });
+
+    it('a node typed differently from the expected gets no Comment rule', () => {
+      const review = {
+        '@type': 'Review',
+        author: 'x',
+        reviewRating: { '@type': 'Rating', ratingValue: 5 },
+        itemReviewed: { '@type': 'Thing', name: 'T' },
+      };
+      expect(required({ ...post, comment: review })).toEqual([]);
+    });
+
+    it('never matches a reference, typed or not', () => {
+      expect(
+        required({
+          ...post,
+          comment: [{ '@id': 'https://example.com/#c' }, { '@id': 'https://example.com/#d', '@type': 'Comment' }],
+        }),
+      ).toEqual([]);
+    });
+
+    it('walks an array item by item and ignores strings in it', () => {
+      expect(required({ ...post, comment: ['plain', { '@type': 'Comment', text: 'x' }] })).toEqual([
+        req('Comment', 'author', 'datePublished'),
+      ]);
+    });
+
+    it('checks the interaction counters of a forum post, not of a video', () => {
+      expect(
+        required({ ...post, interactionStatistic: { '@type': 'InteractionCounter' } }),
+      ).toEqual([req('InteractionCounter', 'userInteractionCount', 'interactionType')]);
+      expect(required({ ...post, interactionStatistic: { userInteractionCount: 3 } })).toEqual([
+        req('InteractionCounter', 'interactionType'),
+      ]);
+      expect(
+        required({
+          '@type': 'VideoObject',
+          name: 'v',
+          thumbnailUrl: 'https://example.com/t.jpg',
+          uploadDate: '2026-10-01',
+          interactionStatistic: { '@type': 'InteractionCounter' },
+        }),
+      ).toEqual([]);
+    });
+
+    it('checks the answers of a Q&A page as Answer, but not those of an FAQ question', () => {
+      expect(required(qa({ acceptedAnswer: { '@type': 'Answer' } }))).toEqual([
+        req('Answer', 'text'),
+      ]);
+      expect(
+        required(
+          qa({ suggestedAnswer: [{ '@type': 'Answer', text: 'ok' }, { '@type': 'Answer' }] }),
+        ),
+      ).toEqual([req('Answer', 'text')]);
+      expect(
+        required({
+          '@type': 'FAQPage',
+          mainEntity: { '@type': 'Question', name: 'Q', acceptedAnswer: { '@type': 'Answer' } },
+        }),
+      ).toEqual([]);
+    });
+
+    it('checks the comments of a Q&A question and its answers as Comment needing text', () => {
+      expect(required(qa({ comment: { '@type': 'Comment' } }))).toEqual([req('Comment', 'text')]);
+      expect(required(qa({ comment: { author: 'x' } }))).toEqual([req('Comment', 'text')]);
+      expect(required(qa({ comment: { '@type': 'Comment', text: 'ok' } }))).toEqual([]);
+      expect(
+        required(qa({ acceptedAnswer: { '@type': 'Answer', text: 'a', comment: { author: 'x' } } })),
+      ).toEqual([req('Comment', 'text')]);
+    });
+
+    it('a Q&A question outside a QAPage gets no context rules', () => {
+      expect(
+        required({
+          '@type': 'WebPage',
+          mainEntity: { '@type': 'Question', acceptedAnswer: { '@type': 'Answer' } },
+        }),
+      ).toEqual([]);
+    });
+
+    it('reads an Answer in a comment slot as the Comment it is a kind of', () => {
+      expect(required(qa({ comment: { '@type': 'Answer' } }))).toEqual([req('Answer', 'text')]);
+    });
+  });
+  // PART2-END
+});

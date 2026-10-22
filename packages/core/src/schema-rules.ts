@@ -26,6 +26,22 @@ export interface SchemaRule {
   only?: Readonly<Record<string, (node: Record<string, unknown>, pageUrl: string) => boolean>>;
   /** Google no longer shows this result: the node gets no findings. */
   retired?: string;
+  /**
+   * Rows that depend on another property of the node: when `if` is present
+   * (holding one of `ifIs`, if given) `then` is asked for, as a required or a
+   * recommended entry by `level`. Both are entries like those in `required`.
+   */
+  conditions?: readonly SchemaCondition[];
+  /** A node this rule matched carries the label, so `CONTEXT_RULES` can look for children by it. */
+  label?: string;
+}
+
+export interface SchemaCondition {
+  if: string;
+  ifIs?: readonly string[];
+  then: string;
+  thenIs?: readonly string[];
+  level: 'required' | 'recommended';
 }
 
 export const SCHEMA_RULES_CHECKED = '2026-10-22';
@@ -60,6 +76,14 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
       'eventStatus',
       'description',
     ],
+    conditions: [
+      {
+        if: 'previousStartDate',
+        then: 'eventStatus',
+        thenIs: ['EventRescheduled'],
+        level: 'required',
+      },
+    ],
   },
   {
     source: `${GOOGLE}job-posting`,
@@ -72,6 +96,13 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
       'jobLocation | applicantLocationRequirements',
     ],
     recommended: ['employmentType'],
+    conditions: [
+      {
+        if: 'jobLocation',
+        then: 'jobLocation.address.addressCountry',
+        level: 'required',
+      },
+    ],
     // A fully remote job names the countries it hires from instead of a place.
     only: {
       applicantLocationRequirements: (node) =>
@@ -101,6 +132,7 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
     types: ['Recipe'],
     required: ['name', 'image'],
     recommended: ['recipeIngredient', 'recipeInstructions', 'author'],
+    conditions: [{ if: 'nutrition.calories', then: 'recipeYield', level: 'required' }],
   },
   {
     source: `${GOOGLE}review-snippet`,
@@ -148,6 +180,7 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
     source: `${GOOGLE}qapage`,
     types: ['QAPage'],
+    label: 'qa-page',
     required: [
       'mainEntity',
       'mainEntity.name',
@@ -158,14 +191,97 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
     source: `${GOOGLE}discussion-forum`,
     types: ['DiscussionForumPosting'],
+    label: 'forum',
     required: ['author', 'author.name', 'datePublished', 'text | image | video | url'],
     // A post that stands for a thread on another page needs no content of its own.
     only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
   },
   {
+    source: `${GOOGLE}return-policy`,
+    types: ['MerchantReturnPolicy'],
+    required: [
+      'applicableCountry | merchantReturnLink',
+      'returnPolicyCategory | merchantReturnLink',
+    ],
+    conditions: [
+      {
+        if: 'returnPolicyCategory',
+        ifIs: ['MerchantReturnFiniteReturnWindow'],
+        then: 'merchantReturnDays',
+        level: 'required',
+      },
+      {
+        if: 'returnFees',
+        ifIs: ['ReturnShippingFees'],
+        then: 'returnShippingFeesAmount',
+        level: 'required',
+      },
+    ],
+  },
+  {
     source: 'https://developers.google.com/search/updates',
     types: ['FAQPage', 'HowTo', 'ClaimReview'],
     retired: 'Google no longer shows these results',
+  },
+];
+
+/**
+ * A rule for a node by where it sits: reached from a node carrying the label
+ * `from`, through a property in `via`. It matches a node whose `@type` is one
+ * of `types` (or a subtype), or, when `implied` is set, a node with no
+ * `@type`, which is then checked as `implied`. A match gives the node `label`,
+ * so the rules for its own children can look for it. `rule` is left out when
+ * the entry only passes a label on.
+ */
+export interface ContextRule {
+  rule?: SchemaRule;
+  from: string;
+  via: readonly string[];
+  types: readonly string[];
+  implied?: string;
+  label?: string;
+}
+
+export const CONTEXT_RULES: readonly ContextRule[] = [
+  {
+    rule: {
+      source: `${GOOGLE}discussion-forum`,
+      types: ['Comment'],
+      required: ['author', 'datePublished', 'text | image | video'],
+    },
+    from: 'forum',
+    via: ['comment'],
+    types: ['Comment'],
+    implied: 'Comment',
+    label: 'forum',
+  },
+  {
+    rule: {
+      source: `${GOOGLE}discussion-forum`,
+      types: ['InteractionCounter'],
+      required: ['userInteractionCount', 'interactionType'],
+    },
+    from: 'forum',
+    via: ['interactionStatistic'],
+    types: ['InteractionCounter'],
+    implied: 'InteractionCounter',
+  },
+  // The question itself is checked by the QAPage paths; this only passes the label on.
+  { from: 'qa-page', via: ['mainEntity'], types: ['Question'], label: 'qa' },
+  {
+    rule: { source: `${GOOGLE}qapage`, types: ['Answer'], required: ['text'] },
+    from: 'qa',
+    via: ['acceptedAnswer', 'suggestedAnswer'],
+    types: ['Answer'],
+    implied: 'Answer',
+    label: 'qa',
+  },
+  {
+    rule: { source: `${GOOGLE}qapage`, types: ['Comment'], required: ['text'] },
+    from: 'qa',
+    via: ['comment'],
+    types: ['Comment'],
+    implied: 'Comment',
   },
 ];
 
