@@ -13699,18 +13699,17 @@ function baseCategoryWhereClause(
       return `is_external = 0 AND content_kind = 'html'
               AND schema_unknown_types > 0`;
     case 'issues:schema-missing-required':
-      // Page has at least one JSON-LD node whose `@type` is one of
-      // the Google-documented high-traffic types (Article / Product
-      // / Recipe / Event / FAQPage / HowTo / BreadcrumbList /
-      // Organization / VideoObject) and which is missing one or
-      // more required properties.
+      // Page has at least one JSON-LD node that lacks a property
+      // Google's rich-result rules require for its type
+      // (`schema-rules.ts` in core: Product, Event, LocalBusiness,
+      // Recipe, BreadcrumbList items, …).
       return `is_external = 0 AND content_kind = 'html'
               AND schema_missing_required > 0`;
     case 'issues:schema-missing-recommended':
       // Page has at least one JSON-LD node that satisfies its required
       // props but omits one or more of the type's Google-recommended
-      // properties (e.g. an Article without author/dateModified, a
-      // Product without aggregateRating/review). Warning-level — the
+      // properties (e.g. an Article without author/dateModified, an
+      // offer without availability). Warning-level — the
       // markup is valid but not eligible for richer result features.
       return `is_external = 0 AND content_kind = 'html'
               AND schema_missing_recommended > 0`;

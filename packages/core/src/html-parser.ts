@@ -25,6 +25,15 @@ import {
 import { computeContentFingerprint } from './simhash.js';
 import { assessContentLanguage, primaryLanguage } from './content-language.js';
 import { runExtractionRules } from './extraction.js';
+import {
+  AGGREGATE_OFFER_RULE,
+  BREADCRUMB_ITEM_RULE,
+  OFFER_RULE,
+  isSchemaTypeOf,
+  normalizeSchemaType,
+  rulesForType,
+  type SchemaRule,
+} from './schema-rules.js';
 
 const GENERIC_ANCHORS: ReadonlySet<string> = new Set(GENERIC_ANCHOR_TEXTS);
 
@@ -1112,6 +1121,7 @@ export function parseHtml(
         schemaIdCounts,
         schemaBlockCount + schemaInvalidCount,
         schemaFindings,
+        pageUrl,
       );
       schemaUnknownTypes += validation.unknownTypeCount;
       schemaMissingRequired += validation.missingRequiredCount;
@@ -2581,114 +2591,6 @@ function collectSchemaTypes(node: unknown, out: Set<string>): void {
 }
 
 /**
- * Required-property whitelist for the high-traffic Schema.org types Google
- * documents validation rules for. Source:
- * <https://developers.google.com/search/docs/appearance/structured-data>.
- * Each entry lists "must be present" properties — for types where Google
- * accepts one of several alternatives (e.g. Product needs `image` OR
- * `offers`), those are listed in `oneOf` instead.
- *
- * The check is intentionally permissive: a node passes validation if it
- * declares one of the listed `@type` values AND every required property
- * is present (truthy). Additional properties are fine. Types not in this
- * map are skipped — we don't want to raise false positives for niche
- * types (Movie, ComicBook, …) where the page may legitimately ship a
- * minimal subset.
- */
-const SCHEMA_REQUIRED_PROPS: Record<
-  string,
-  { required: string[]; oneOf?: string[][]; recommended?: string[] }
-> = {
-  Article: {
-    required: ['headline', 'image', 'datePublished'],
-    recommended: ['author', 'dateModified', 'publisher'],
-  },
-  NewsArticle: {
-    required: ['headline', 'image', 'datePublished'],
-    recommended: ['author', 'dateModified', 'publisher'],
-  },
-  BlogPosting: {
-    required: ['headline', 'image', 'datePublished'],
-    recommended: ['author', 'dateModified', 'publisher'],
-  },
-  Product: {
-    required: ['name'],
-    oneOf: [['image', 'offers']],
-    recommended: ['description', 'brand', 'review', 'aggregateRating', 'sku'],
-  },
-  BreadcrumbList: { required: ['itemListElement'] },
-  Recipe: {
-    required: ['name', 'image'],
-    oneOf: [['recipeIngredient', 'recipeInstructions']],
-    recommended: [
-      'author',
-      'datePublished',
-      'aggregateRating',
-      'nutrition',
-      'prepTime',
-      'cookTime',
-      'totalTime',
-      'recipeYield',
-    ],
-  },
-  Event: {
-    required: ['name', 'startDate', 'location'],
-    recommended: ['endDate', 'offers', 'performer', 'image', 'description'],
-  },
-  FAQPage: { required: ['mainEntity'] },
-  HowTo: {
-    required: ['name', 'step'],
-    recommended: ['image', 'totalTime', 'supply', 'tool'],
-  },
-  Organization: {
-    required: [],
-    oneOf: [['name', 'url']],
-    recommended: ['logo', 'contactPoint', 'sameAs'],
-  },
-  VideoObject: {
-    required: ['name', 'thumbnailUrl', 'uploadDate'],
-    recommended: ['description', 'duration', 'contentUrl', 'embedUrl'],
-  },
-  LocalBusiness: {
-    required: ['name'],
-    recommended: [
-      'address',
-      'telephone',
-      'openingHours',
-      'geo',
-      'priceRange',
-      'image',
-    ],
-  },
-  JobPosting: {
-    required: ['title', 'description', 'datePosted', 'hiringOrganization'],
-    recommended: ['validThrough', 'employmentType', 'jobLocation', 'baseSalary'],
-  },
-  Course: {
-    required: ['name', 'description'],
-    recommended: ['provider', 'offers', 'hasCourseInstance'],
-  },
-  Review: {
-    required: ['reviewRating'],
-    oneOf: [['itemReviewed', 'author']],
-    recommended: ['datePublished', 'publisher'],
-  },
-  Person: {
-    required: ['name'],
-    recommended: ['url', 'image', 'jobTitle', 'sameAs'],
-  },
-  WebSite: {
-    required: ['name', 'url'],
-    recommended: ['potentialAction'],
-  },
-  SoftwareApplication: {
-    required: ['name'],
-    oneOf: [['offers', 'aggregateRating', 'review']],
-    recommended: ['applicationCategory', 'operatingSystem'],
-  },
-};
-
-/**
  * Walk a parsed JSON-LD payload and accumulate four structured-data
  * health signals into the caller's tallies / map:
  *
@@ -2703,16 +2605,25 @@ const SCHEMA_REQUIRED_PROPS: Record<
  *     letter (Schema.org convention is PascalCase), or contain
  *     characters outside `[A-Za-z0-9_]`. This catches typos like
  *     `"product"` (lowercase) or `"News Article"` (whitespace) without
- *     us needing to ship the full ~750-entry Schema.org taxonomy.
- *   - **Missing required props** — when a node's `@type` matches an
- *     entry in `SCHEMA_REQUIRED_PROPS`, every entry in `required` and
- *     at least one entry of each `oneOf[i]` group must be present.
+ *     us needing to ship the full ~750-entry Schema.org taxonomy. A
+ *     schema.org IRI (`https://schema.org/Product`, `schema:Product`) is
+ *     read as the bare name first.
+ *   - **Missing required props** — the node's type has a rule in
+ *     `SCHEMA_RULES` (Google's rich-result requirements) and lacks one of
+ *     its required entries.
  *   - **Missing recommended props** — a node that satisfies its
- *     required props but is missing one or more of the type's
- *     `recommended` props (Google Rich Results "recommended" fields).
- *     Counted once per node — a warning-level enrichment signal, not a
- *     hard validation failure. A node already flagged as missing
- *     *required* props is not double-counted as recommended.
+ *     required props but is missing one or more of the rule's
+ *     recommended entries. Counted once per node — a warning-level
+ *     enrichment signal, not a hard validation failure. A node already
+ *     flagged as missing *required* props is not double-counted as
+ *     recommended.
+ *
+ * Some rules depend on where a node sits: an offer is checked as a
+ * Product's offer only inside that Product's `offers`, each breadcrumb as
+ * an item of its list, and a review nested in the thing it reviews needs
+ * no `itemReviewed`. A reference (`{"@id": …}` with at most a `@type`) is
+ * checked where it is defined, not where it is used, and `@context` is not
+ * markup at all.
  *
  * Every failed node is also appended to `findings` with its `@type` and
  * the full list of properties it lacks — the counters say how many nodes
@@ -2726,6 +2637,7 @@ function walkSchemaForValidation(
   idCounts: Map<string, number>,
   block: number,
   findings: SchemaFinding[],
+  pageUrl: string,
 ): {
   unknownTypeCount: number;
   missingRequiredCount: number;
@@ -2735,10 +2647,38 @@ function walkSchemaForValidation(
   let missingRequiredCount = 0;
   let missingRecommendedCount = 0;
 
-  const visit = (n: unknown): void => {
+  const check = (
+    obj: Record<string, unknown>,
+    type: string,
+    rule: SchemaRule,
+    skip: readonly string[] = [],
+  ): void => {
+    if (rule.retired) return;
+    const missing = (entries: readonly string[] = []): string[] =>
+      entries.filter((e) => !skip.includes(e)).flatMap((entry) => {
+        const paths = entry
+          .split(' | ')
+          .filter((path) => rule.only?.[path]?.(obj, pageUrl) ?? true);
+        return paths.some((path) => hasSchemaPath(obj, path)) ? [] : [paths.join(' | ')];
+      });
+    const missingRequired = missing(rule.required);
+    if (missingRequired.length > 0) {
+      missingRequiredCount++;
+      findings.push({ block, type, kind: 'missing-required', props: missingRequired });
+      return;
+    }
+    const missingRecommended = missing(rule.recommended);
+    if (missingRecommended.length > 0) {
+      missingRecommendedCount++;
+      findings.push({ block, type, kind: 'missing-recommended', props: missingRecommended });
+    }
+  };
+
+  /** `via` is the property the node was reached through; `parent` the rules of the node holding it. */
+  const visit = (n: unknown, via: string, parent: readonly SchemaRule[]): void => {
     if (!n) return;
     if (Array.isArray(n)) {
-      for (const item of n) visit(item);
+      for (const item of n) visit(item, via, parent);
       return;
     }
     if (typeof n !== 'object') return;
@@ -2760,68 +2700,94 @@ function walkSchemaForValidation(
       idCounts.set(idVal, (idCounts.get(idVal) ?? 0) + 1);
     }
 
-    // Validate `@type` shape and check required props for known types.
     const typeRaw = obj['@type'];
     const types: string[] = [];
     if (typeof typeRaw === 'string') types.push(typeRaw);
     else if (Array.isArray(typeRaw)) {
       for (const t of typeRaw) if (typeof t === 'string') types.push(t);
     }
-    for (const t of types) {
+    const rules: SchemaRule[] = [];
+    const reference = isSchemaReference(obj);
+    for (const raw of types) {
+      const t = normalizeSchemaType(raw);
       // Malformed shapes — Schema.org PascalCase convention.
-      if (
-        !t ||
-        /\s/.test(t) ||
-        !/^[A-Z][A-Za-z0-9_]*$/.test(t)
-      ) {
+      if (!t || /\s/.test(t) || !/^[A-Z][A-Za-z0-9_]*$/.test(t)) {
         unknownTypeCount++;
-        findings.push({ block, type: t, kind: 'unknown-type', props: [] });
+        findings.push({ block, type: raw, kind: 'unknown-type', props: [] });
         continue;
       }
-      // Required-prop check for the curated high-traffic types. The
-      // counter moves once per node; the finding lists every gap.
-      const rule = SCHEMA_REQUIRED_PROPS[t];
-      if (!rule) continue;
-      const missingRequired: string[] = [];
-      for (const key of rule.required) {
-        if (!isTruthyProp(obj[key])) missingRequired.push(key);
-      }
-      if (rule.oneOf) {
-        for (const group of rule.oneOf) {
-          if (!group.some((k) => isTruthyProp(obj[k]))) missingRequired.push(group.join(' | '));
-        }
-      }
-      if (missingRequired.length > 0) {
-        missingRequiredCount++;
-        findings.push({ block, type: t, kind: 'missing-required', props: missingRequired });
-        continue;
-      }
-      // Recommended-prop check — only when the node is otherwise valid,
-      // so a node already failing a required prop isn't double-flagged.
-      if (rule.recommended) {
-        const missingRecommended = rule.recommended.filter((key) => !isTruthyProp(obj[key]));
-        if (missingRecommended.length > 0) {
-          missingRecommendedCount++;
-          findings.push({
-            block,
-            type: t,
-            kind: 'missing-recommended',
-            props: missingRecommended,
-          });
-        }
+      // The value of `reviewRating` is a rating, even when typed AggregateRating.
+      if (reference || via === 'reviewRating') continue;
+      for (const rule of rulesForType(t)) {
+        if (rules.includes(rule)) continue;
+        rules.push(rule);
+        // A review or rating nested in the thing it rates is about that thing.
+        const nested = via === 'review' || via === 'aggregateRating';
+        check(obj, t, rule, nested ? ['itemReviewed', 'itemReviewed.name'] : []);
       }
     }
 
-    // Recurse into nested objects/arrays (e.g. `@graph`, `mainEntity`).
-    for (const value of Object.values(obj)) {
-      if (value && (typeof value === 'object' || Array.isArray(value))) {
-        visit(value);
+    // Context rules: a Product's offers, a breadcrumb list's items.
+    if (!reference && via === 'offers' && parent.some((r) => r.types.includes('Product'))) {
+      const t = types.map(normalizeSchemaType).find((x) => x) ?? 'Offer';
+      if (isSchemaTypeOf(t, 'AggregateOffer')) check(obj, t, AGGREGATE_OFFER_RULE);
+      else if (types.length === 0 || isSchemaTypeOf(t, 'Offer')) check(obj, t, OFFER_RULE);
+    }
+
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '@context' || !value || typeof value !== 'object') continue;
+      if (key === 'itemListElement' && rules.some((r) => r.types.includes('BreadcrumbList'))) {
+        checkBreadcrumbItems(value);
       }
+      visit(value, key, rules);
     }
   };
 
-  visit(node);
+  const checkBreadcrumbItems = (value: object): void => {
+    const items = (Array.isArray(value) ? value : [value]).filter(
+      (v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v),
+    );
+    // The last crumb is the page itself and needs no link: highest position, else last listed.
+    const positions = items.map((i) => Number(i['position']));
+    const last = positions.every(Number.isFinite)
+      ? positions.indexOf(Math.max(...positions))
+      : items.length - 1;
+    items.forEach((item, i) => {
+      if (isSchemaReference(item)) return;
+      const t = typeof item['@type'] === 'string' ? normalizeSchemaType(item['@type']) : 'ListItem';
+      check(item, t, BREADCRUMB_ITEM_RULE, i === last ? ['item'] : []);
+    });
+  };
+
+  visit(node, '', []);
   return { unknownTypeCount, missingRequiredCount, missingRecommendedCount };
+}
+
+/** `{"@id": …}`, optionally with `@type`: a pointer to a node defined elsewhere. */
+function isSchemaReference(obj: Record<string, unknown>): boolean {
+  return (
+    typeof obj['@id'] === 'string' &&
+    Object.keys(obj).every((k) => k === '@id' || k === '@type' || k === '@context')
+  );
+}
+
+/**
+ * Dotted `path` is present on `obj`: each step present, and for a nested
+ * step at least one value of the parent (an array is its items) carries it.
+ * A reference stands for its definition elsewhere, so it carries any path.
+ */
+function hasSchemaPath(obj: Record<string, unknown>, path: string): boolean {
+  const dot = path.indexOf('.');
+  const head = dot < 0 ? path : path.slice(0, dot);
+  const value = obj[head];
+  if (!isTruthyProp(value)) return false;
+  if (dot < 0) return true;
+  const rest = path.slice(dot + 1);
+  return (Array.isArray(value) ? value : [value]).some((v) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+    const o = v as Record<string, unknown>;
+    return isSchemaReference(o) || hasSchemaPath(o, rest);
+  });
 }
 
 function isTruthyProp(v: unknown): boolean {

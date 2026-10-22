@@ -125,7 +125,7 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
   { label: 'Structured Data — Missing', file: 'structured-data-missing.csv', category: 'issues:structured-data-missing' },
   { label: 'Structured Data — Invalid', file: 'structured-data-invalid.csv', category: 'issues:structured-data-invalid' },
   { label: 'Structured Data — Duplicate @id', file: 'structured-data-duplicate-id.csv', category: 'issues:schema-duplicate-id' },
-  { label: 'Structured Data — Missing Required Property', file: 'structured-data-missing-required.csv', category: 'issues:schema-missing-required' },
+  { label: 'Structured Data — Missing Required Property', file: 'structured-data-missing-required.csv', category: 'issues:schema-missing-required', columns: ['schemaFindings'] },
   { label: 'Structured Data — Missing Recommended Property', file: 'structured-data-missing-recommended.csv', category: 'issues:schema-missing-recommended', columns: ['schemaFindings'] },
   { label: 'Structured Data — Malformed @type', file: 'structured-data-unknown-type.csv', category: 'issues:schema-unknown-type', columns: ['schemaFindings'] },
   { label: 'AMP Pages', file: 'amp-pages.csv', category: 'tab:amp' },
