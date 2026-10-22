@@ -1756,6 +1756,7 @@ export class Crawler extends EventEmitter {
     this.seen.clear();
     this.robotsBlocked.clear();
     this.hostAdmitted.clear();
+    this.hostCounted.clear();
     this.externalSeen.clear();
     this.emitProgressFinal();
     this.setOp('idle');
@@ -3212,6 +3213,7 @@ export class Crawler extends EventEmitter {
     this.seen.clear();
     this.robotsBlocked.clear();
     this.hostAdmitted.clear();
+    this.hostCounted.clear();
     this.externalSeen.clear();
     this.finishing = false;
     this.emitProgressFinal();
@@ -3418,8 +3420,10 @@ export class Crawler extends EventEmitter {
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));
     // Before the saved queue is re-admitted, which counts its own pages.
-    if (opts.refresh) this.hostAdmitted.clear();
-    else this.seedHostAdmitted();
+    if (opts.refresh) {
+      this.hostAdmitted.clear();
+      this.hostCounted.clear();
+    } else this.seedHostAdmitted();
     this.queueCheckpointed();
     // A refresh counts its own work from zero — the progress bar should
     // read "0 of 122 re-crawled", not start at 122 and never move.
@@ -4206,6 +4210,12 @@ export class Crawler extends EventEmitter {
    * so it counts from zero like `resourceAdmitted`.
    */
   private hostAdmitted = new Map<string, number>();
+  /**
+   * URLs already counted in `hostAdmitted`. A failed or unfinished page is
+   * queued again (resume, end-of-crawl pass); it keeps its slot and does not
+   * count, or get turned away, a second time.
+   */
+  private hostCounted = new Set<string>();
   /** URLs `maxUrlsPerHost` turned away, per host, at most HOST_SKIP_CAP each. */
   private hostSkipped = new Map<string, Set<string>>();
   private static readonly HOST_SKIP_CAP = 10_000;
@@ -4239,8 +4249,11 @@ export class Crawler extends EventEmitter {
   }
 
   private seedHostAdmitted(): void {
+    this.hostCounted.clear();
     this.hostAdmitted =
-      this.config.maxUrlsPerHost > 0 ? this.db.countAdmittedPagesByHost() : new Map();
+      this.config.maxUrlsPerHost > 0
+        ? this.db.countAdmittedPagesByHost(this.hostCounted)
+        : new Map();
   }
 
   /**
@@ -4420,7 +4433,12 @@ export class Crawler extends EventEmitter {
     // stays out of `seen`, so it is met and skipped again; `hostSkipped`
     // counts it once.
     const hostKey = this.perHostKey(item);
-    if (hostKey !== null && (this.hostAdmitted.get(hostKey) ?? 0) >= this.config.maxUrlsPerHost) {
+    const recounted = hostKey !== null && this.hostCounted.has(item.url);
+    if (
+      hostKey !== null &&
+      !recounted &&
+      (this.hostAdmitted.get(hostKey) ?? 0) >= this.config.maxUrlsPerHost
+    ) {
       let skipped = this.hostSkipped.get(hostKey);
       if (!skipped) this.hostSkipped.set(hostKey, (skipped = new Set()));
       if (skipped.size < Crawler.HOST_SKIP_CAP) skipped.add(item.url);
@@ -4429,7 +4447,10 @@ export class Crawler extends EventEmitter {
 
     this.seen.add(item.url);
     if (item.resourceRow) this.resourceAdmitted++;
-    if (hostKey !== null) this.hostAdmitted.set(hostKey, (this.hostAdmitted.get(hostKey) ?? 0) + 1);
+    if (hostKey !== null && !recounted) {
+      this.hostAdmitted.set(hostKey, (this.hostAdmitted.get(hostKey) ?? 0) + 1);
+      this.hostCounted.add(item.url);
+    }
     this.pending++;
     const saved: SavedQueueItem = {
       url: item.url,

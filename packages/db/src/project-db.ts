@@ -2536,22 +2536,25 @@ export class ProjectDb {
    * subresources (by kind), robots-blocked URLs and the saved queue, which
    * the resume counts again as it re-queues it. A PDF, an error page or a
    * failed fetch counts, as it did while the crawl ran. Seeds the crawler's
-   * per-host page counts (`maxUrlsPerHost`) on a resume.
+   * per-host page counts (`maxUrlsPerHost`) on a resume. `unfinished`
+   * collects the counted URLs without a status code: the resume queues
+   * those again and must not count them a second time.
    */
-  countAdmittedPagesByHost(): Map<string, number> {
+  countAdmittedPagesByHost(unfinished?: Set<string>): Map<string, number> {
     const counts = new Map<string, number>();
     const rows = this.db
       .prepare(
-        `SELECT url FROM urls WHERE is_external = 0
+        `SELECT url, status_code FROM urls WHERE is_external = 0
            AND content_kind NOT IN ('css', 'js', 'image', 'font')
            AND (indexability IS NULL OR indexability <> 'non-indexable:robots-blocked')
            AND url NOT IN (SELECT url FROM crawl_queue)`,
       )
-      .iterate() as Iterable<{ url: string }>;
-    for (const { url } of rows) {
+      .iterate() as Iterable<{ url: string; status_code: number | null }>;
+    for (const { url, status_code } of rows) {
       try {
         const host = new URL(url).hostname;
         counts.set(host, (counts.get(host) ?? 0) + 1);
+        if (status_code === null) unfinished?.add(url);
       } catch {
         /* a malformed stored URL counts toward no host */
       }
