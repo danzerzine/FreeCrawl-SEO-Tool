@@ -8145,6 +8145,7 @@ function registerIpc(): void {
           a11y: res.a11y ?? null,
           spaRoutes: res.spaRoutes,
           navigatedTo: res.navigatedTo ?? null,
+          servedHtml: res.servedHtml,
         };
       };
     }

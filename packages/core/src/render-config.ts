@@ -110,6 +110,7 @@ export function createRenderHook(pool: BrowserPool, config: CrawlConfig): Render
       error: res.error,
       spaRoutes: res.spaRoutes,
       navigatedTo: res.navigatedTo ?? null,
+      servedHtml: res.servedHtml,
     };
   };
 }

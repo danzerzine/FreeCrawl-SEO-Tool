@@ -79,6 +79,13 @@ export interface RenderResult {
    * never sets this.
    */
   navigatedTo?: string | null;
+  /**
+   * The browser's own main-document response body (`response.text()` of the
+   * `goto` response): the served side of the raw-vs-rendered compare, the
+   * same request the rendered DOM came from. Unset when the body could not
+   * be read (JavaScript navigation, closed page).
+   */
+  servedHtml?: string;
 }
 
 /** V2 Faz 16 — in-page accessibility audit result. */
@@ -456,6 +463,16 @@ export async function renderUrl(
 
     const html = await page.content();
     const headers = response ? await response.allHeaders() : {};
+    // Same request as the DOM above, so only JavaScript explains a difference.
+    // A body that can no longer be read counts as absent, never as a failure.
+    let servedHtml: string | undefined;
+    if (response) {
+      try {
+        servedHtml = await response.text();
+      } catch {
+        servedHtml = undefined;
+      }
+    }
     const finalUrl = response?.url() ?? page.url();
     // The current document's own navigation entry names the URL it was
     // loaded from. History-API routing leaves it alone; a meta refresh or
@@ -551,6 +568,7 @@ export async function renderUrl(
       a11y: opts.detectA11y ? a11y : undefined,
       spaRoutes,
       navigatedTo,
+      servedHtml,
     };
   } catch (err) {
     result = {
