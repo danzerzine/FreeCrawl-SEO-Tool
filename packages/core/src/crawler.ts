@@ -5130,17 +5130,26 @@ export class Crawler extends EventEmitter {
           statusCode < 300 &&
           this.config.checkCss;
         // Otherwise only download the body when a JSONPath rule needs it.
-        // `contentLength` is read from the Content-Length header (below), not
-        // the body, so for plain resources (images, fonts, JS, PDFs) we
-        // discard the stream without buffering megabytes into memory — this is
-        // what makes "Check Images / CSS / JS" resource crawling lightweight.
+        // The size of an unencoded answer is its Content-Length header, so
+        // for plain resources (images, fonts, JS, PDFs) we discard the stream
+        // without buffering megabytes into memory — this is what makes
+        // "Check Images / CSS / JS" resource crawling lightweight. Without
+        // the header, or for a compressed answer, the size is the decoded
+        // length as for HTML: the body read here, else the stream's bytes
+        // counted and dropped.
+        const headerSize = contentEncoding ? null : parseIntSafe(contentLengthHeader);
+        const storesRow = !item.resourceRow || this.storesResourceRow(item.resourceRow);
+        let bodySize = headerSize;
         let nonHtmlBody = '';
         if (needsJsonExtraction || needsCssParse) {
           try {
             nonHtmlBody = await res.text();
+            bodySize ??= Buffer.byteLength(nonHtmlBody);
           } catch {
             /* ignore */
           }
+        } else if (bodySize === null && storesRow) {
+          bodySize = await countBodyBytes(res.body);
         } else {
           try {
             await res.body?.cancel();
@@ -5172,7 +5181,7 @@ export class Crawler extends EventEmitter {
         // `@font-face` targets — but drops the URL row, so the Internal
         // tab isn't buried under a few hundred assets. Anything not
         // enqueued as a resource has no `resourceRow` and is unaffected.
-        if (item.resourceRow && !this.storesResourceRow(item.resourceRow)) {
+        if (!storesRow) {
           this.crawled++;
           if (needsCssParse && nonHtmlBody) {
             this.enqueueCssResources(nonHtmlBody, item.url, item.depth);
@@ -5191,7 +5200,7 @@ export class Crawler extends EventEmitter {
             indexabilityReason: indexability === 'indexable' ? null : `HTTP ${statusCode}`,
             contentType,
             extractionResults: jsonExtraction ? JSON.stringify(jsonExtraction) : null,
-            contentLength: parseIntSafe(contentLengthHeader),
+            contentLength: bodySize,
             xRobotsTag,
             responseTimeMs,
             ttfbMs,
@@ -6761,6 +6770,29 @@ function parseIntSafe(v: string | null | undefined): number | null {
  * in when there isn't one.
  */
 const ABSOLUTE_BODY_CAP_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Bytes of a response body, read and dropped; past the body cap the reading
+ * stops and the cap is the size. Null when the stream fails.
+ */
+async function countBodyBytes(body: ReadableStream<Uint8Array> | null): Promise<number | null> {
+  if (!body) return null;
+  const reader = body.getReader();
+  let n = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return n;
+      n += value.byteLength;
+      if (n >= ABSOLUTE_BODY_CAP_BYTES) {
+        await reader.cancel();
+        return ABSOLUTE_BODY_CAP_BYTES;
+      }
+    }
+  } catch {
+    return null;
+  }
+}
 
 /** The byte cap actually enforced: the user's, or the safety ceiling. */
 function effectiveBodyCap(configured: number): number {

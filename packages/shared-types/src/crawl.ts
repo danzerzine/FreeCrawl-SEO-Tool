@@ -381,6 +381,10 @@ export interface CrawlUrlRow {
   metaRobots: string | null;
   xRobotsTag: string | null;
   contentType: string | null;
+  /**
+   * Decoded size of the body in bytes; for an unencoded non-HTML answer the
+   * Content-Length header (the same number), so its body is not downloaded.
+   */
   contentLength: number | null;
   responseTimeMs: number | null;
   /**
