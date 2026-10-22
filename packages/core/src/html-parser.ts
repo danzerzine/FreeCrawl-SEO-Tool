@@ -2716,8 +2716,9 @@ function walkSchemaForValidation(
         findings.push({ block, type: raw, kind: 'unknown-type', props: [] });
         continue;
       }
-      // The value of `reviewRating` is a rating, even when typed AggregateRating.
-      if (reference || via === 'reviewRating') continue;
+      // The value of `reviewRating` is a rating, even when typed AggregateRating;
+      // the thing a review rates is checked through the review's own rule.
+      if (reference || via === 'reviewRating' || via === 'itemReviewed') continue;
       for (const rule of rulesForType(t)) {
         if (rules.includes(rule)) continue;
         rules.push(rule);
@@ -2744,16 +2745,15 @@ function walkSchemaForValidation(
   };
 
   const checkBreadcrumbItems = (value: object): void => {
-    const items = (Array.isArray(value) ? value : [value]).filter(
-      (v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v),
-    );
+    const items = (Array.isArray(value) ? value : [value])
+      .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v))
+      .filter((v) => !isSchemaReference(v));
     // The last crumb is the page itself and needs no link: highest position, else last listed.
     const positions = items.map((i) => Number(i['position']));
     const last = positions.every(Number.isFinite)
       ? positions.indexOf(Math.max(...positions))
       : items.length - 1;
     items.forEach((item, i) => {
-      if (isSchemaReference(item)) return;
       const t = typeof item['@type'] === 'string' ? normalizeSchemaType(item['@type']) : 'ListItem';
       check(item, t, BREADCRUMB_ITEM_RULE, i === last ? ['item'] : []);
     });
