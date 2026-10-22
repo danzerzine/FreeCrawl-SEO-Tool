@@ -102,3 +102,28 @@ describe('B59 single-file exports go through .part', () => {
     expect(noPart(dir)).toEqual([]);
   });
 });
+
+describe('B36 structured-data export', () => {
+  it('names the missing required properties in the missing-required file', async () => {
+    const file = path.join(dir, 'p.seoproject');
+    db.close();
+    const raw = new DatabaseSync(file);
+    const finding = { block: 0, type: 'Restaurant', kind: 'missing-required', props: ['address'] };
+    raw
+      .prepare(
+        `UPDATE urls SET content_kind = 'html', schema_missing_required = 1, schema_findings = ? WHERE id = 1`,
+      )
+      .run(JSON.stringify([finding]));
+    raw.close();
+    db = new ProjectDb(file);
+    const out = path.join(dir, 'sd');
+    const task = BULK_EXPORT_TASKS.filter((t) => t.file === 'structured-data-missing-required.csv');
+    await runBulkExport(db, out, { tasks: task, headers: 'keys' });
+    const [head, row] = fs
+      .readFileSync(path.join(out, 'structured-data-missing-required.csv'), 'utf8')
+      .replace(/^\uFEFF/, '')
+      .split('\n');
+    expect(head!.split(',')).toContain('schemaFindings');
+    expect(row).toContain('address');
+  });
+});
