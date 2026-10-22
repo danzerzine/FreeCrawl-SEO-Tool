@@ -6741,8 +6741,9 @@ export class ProjectDb {
           fetched_at: string;
         }
       | undefined;
-    const custom = ga4Custom
-      ? this.ga4CustomValuesFor([url], ga4AccountId, ga4Custom.property, ga4Custom.fields).get(url)
+    const sel = ga4Custom ?? this.ga4CustomSelection(ga4AccountId);
+    const custom = sel
+      ? this.ga4CustomValuesFor([url], ga4AccountId, sel.property, sel.fields).get(url)
       : undefined;
     if (!g && !a && !m && !i && !custom) return null;
     return {
@@ -7354,6 +7355,22 @@ export class ProjectDb {
     ).c;
   }
 
+  /**
+   * B37 — which custom fields the tab shows: the ok fields in the last pull's stored metadata,
+   * valid for the property that pull used. Null when there is no pull or no ok field.
+   */
+  private ga4CustomSelection(accountId: string): { property: string; fields: string[] } | null {
+    const raw = this.getMeta(accountId ? `ga4FetchMeta:${accountId}` : 'ga4FetchMeta');
+    if (!raw) return null;
+    try {
+      const m = JSON.parse(raw) as { property?: string; customFields?: { field: string; ok: boolean }[] };
+      const fields = (m.customFields ?? []).filter((f) => f.ok).map((f) => f.field);
+      return m.property && fields.length > 0 ? { property: m.property, fields } : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** B37 — custom values of the given pages by URL then field; dimension values by sessions. */
   private ga4CustomValuesFor(
     urls: string[],
@@ -7443,11 +7460,15 @@ export class ProjectDb {
     >[];
 
     // One extra query for the page's URLs (B37), never a join per field.
+    const sel =
+      params.customFields !== undefined
+        ? { property: params.customProperty ?? '', fields: params.customFields }
+        : this.ga4CustomSelection(params.accountId ?? '');
     const custom = this.ga4CustomValuesFor(
       rowsDb.map((r) => r['url'] as string),
       params.accountId ?? '',
-      params.customProperty ?? '',
-      params.customFields ?? [],
+      sel?.property ?? '',
+      sel?.fields ?? [],
     );
 
     return {

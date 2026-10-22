@@ -183,3 +183,41 @@ describe('B37 storage', () => {
     expect(db.ga4CustomFieldRowCounts('acc')).toEqual({});
   });
 });
+
+describe('B37 what the tab shows comes from the stored pull metadata', () => {
+  const metaWith = (db: ProjectDb, property: string, fields: { field: string; ok: boolean }[]) =>
+    db.setMeta(
+      'ga4FetchMeta:acc',
+      JSON.stringify({
+        property,
+        propertyName: 'p',
+        startDate: '2026-10-01',
+        endDate: '2026-10-22',
+        fetchedAt: 't',
+        rowCount: 1,
+        customFields: fields.map((f) => ({ ...f, kind: 'dimension', rows: 1 })),
+      }),
+    );
+
+  it('queryGa4 and getUrlAnalytics attach only the ok fields of the last pull, for its property', () => {
+    const raw = new DatabaseSync(file);
+    runMigrations(raw);
+    seedPages(raw);
+    raw.close();
+    const db = new ProjectDb(file);
+    const base = { accountId: 'acc', property: 'properties/1', fetchedAt: 't', wipeAll: false };
+    db.storeGa4CustomValues({ ...base, fields: ['d1'], rows: [{ url: A, field: 'd1', value: 'x', sessions: 3 }] });
+    db.storeGa4CustomValues({ ...base, fields: ['d2'], rows: [{ url: A, field: 'd2', value: 'y', sessions: 2 }] });
+
+    metaWith(db, 'properties/1', [{ field: 'd1', ok: true }, { field: 'd2', ok: false }]);
+    const rowA = () => db.queryGa4({ limit: 10, offset: 0, accountId: 'acc' }).rows.find((r) => r.url === A)!;
+    expect(Object.keys(rowA().custom ?? {})).toEqual(['d1']);
+    expect(Object.keys(db.getUrlAnalytics(A, '', 'acc', '')?.ga4Custom ?? {})).toEqual(['d1']);
+
+    metaWith(db, 'properties/2', [{ field: 'd1', ok: true }]); // rows belong to property 1
+    expect(rowA().custom).toBeUndefined();
+    db.setMeta('ga4FetchMeta:acc', '');
+    expect(rowA().custom).toBeUndefined();
+    db.close();
+  });
+});

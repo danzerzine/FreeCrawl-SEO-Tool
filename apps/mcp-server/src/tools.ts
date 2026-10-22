@@ -654,7 +654,7 @@ export function buildTools(): Tool[] {
     {
       name: 'get_url_analytics',
       description:
-        'GSC + GA4 + Yandex Metrica + URL Inspection roll-up for one URL: clicks/impressions/CTR/position (GSC), sessions/users/pageviews/engagement (GA4), pageviews (hit-level) and visits/users/searchVisits (session-level, sessions that started on this page) from the Metrica counter last picked or fetched for this project, and the GSC URL Inspection verdict. Returns null fields for integrations that have not been fetched yet.',
+        'GSC + GA4 + Yandex Metrica + URL Inspection roll-up for one URL: clicks/impressions/CTR/position (GSC), sessions/users/pageviews/engagement and chosen custom fields as `ga4Custom` (GA4), pageviews (hit-level) and visits/users/searchVisits (session-level, sessions that started on this page) from the Metrica counter last picked or fetched for this project, and the GSC URL Inspection verdict. Returns null fields for integrations that have not been fetched yet.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -734,7 +734,7 @@ export function buildTools(): Tool[] {
     {
       name: 'query_ga4',
       description:
-        'GA4 rows: sessions, users, bounceRate, engagementRate per crawled page, from the Google account the project uses (switch with `google_account_set`). Configure the integration in Settings → Integrations → GA4 to populate.',
+        'GA4 rows: sessions, users, pageviews, engagementRate, avgSessionDuration per crawled page, from the Google account the project uses (switch with `google_account_set`). When custom GA4 metrics or dimensions were pulled, each row also has `custom`: field name to a list of {value, sessions} (a metric has one value and null sessions; a dimension lists its values by sessions); `ga4_fetch` meta lists every chosen field with ok/error. Configure the integration in Settings → Integrations → GA4 to populate.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2016,7 +2016,7 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'ga4_fetch',
       description:
-        'Pull per-page GA4 metrics (sessions, users, bounceRate, engagementRate) for one property over a trailing window (7/28/90 days). Data is stored against crawled URLs; query the result via `query_ga4` or `get_url_analytics`. GA4 data is near-realtime so the window ends at today. Blocks until the pull finishes. Requires GA4 integration connected.',
+        'Pull per-page GA4 metrics (sessions, users, pageviews, engagementRate, avgSessionDuration, plus the custom metrics and dimensions chosen in the GA4 settings) for one property over a trailing window (7/28/90 days). Data is stored against crawled URLs; query the result via `query_ga4` or `get_url_analytics`. GA4 data is near-realtime so the window ends at today. Blocks until the pull finishes. Requires GA4 integration connected.',
       inputSchema: {
         type: 'object',
         properties: {
