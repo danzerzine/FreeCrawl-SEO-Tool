@@ -603,7 +603,12 @@ export class Crawler extends EventEmitter {
     const patch = full
       ? {
           replaceAll: true,
-          added: Array.from(this.pendingItems, ([url, depth]) => ({ url, depth })),
+          // The held saved queue too: a stop before it is queued would
+          // otherwise replace the checkpoint without it.
+          added: [
+            ...this.checkpointed,
+            ...Array.from(this.pendingItems, ([url, depth]) => ({ url, depth })),
+          ],
           removed: [],
         }
       : {
