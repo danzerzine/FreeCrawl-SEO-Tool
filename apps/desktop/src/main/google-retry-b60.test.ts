@@ -96,13 +96,13 @@ describe('googleRequest (B60)', () => {
     expect(t.calls).toHaveLength(1);
   });
 
-  it('refreshes the token once on 401, then returns a second 401', async () => {
+  it('refreshes the token once on 401 (a second 401 is an auth error: see google-auth-review1.test.ts)', async () => {
     const t = makeDeps([{ status: 401 }, { status: 200 }]);
     expect((await googleRequest(t.deps, req)).ok).toBe(true);
     expect(t.tokens).toEqual([false, true]);
     expect(t.calls.map((c) => c.auth)).toEqual(['Bearer old', 'Bearer fresh']);
     const t2 = makeDeps([{ status: 401 }]);
-    expect((await googleRequest(t2.deps, req)).status).toBe(401);
+    await expect(googleRequest(t2.deps, req)).rejects.toThrow(/Reconnect the Google account/);
     expect(t2.calls).toHaveLength(2);
   });
 });

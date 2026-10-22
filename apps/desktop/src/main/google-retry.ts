@@ -5,7 +5,10 @@
  * backoff (1, 2, 4 ... 64 s, each plus 0-1 s of jitter); a longer
  * `Retry-After` replaces the computed delay. The total wait per request is
  * capped, then the error names the operation, the last status and the wait.
- * A 401 refreshes the token once. Other 4xx answers are returned as they
+ * A 401 refreshes the token once; a 401 that stays (or a refresh that fails)
+ * is a {@link GoogleAuthError}: the grant is revoked or the key deleted, so
+ * nothing is retried and the message says to reconnect the account. Time
+ * spent inside the requests counts toward the wait cap. Other 4xx answers are returned as they
  * are for the caller to read.
  *
  * Everything that touches the outside world comes in through `GoogleDeps`,
@@ -41,6 +44,16 @@ export interface GoogleResponse {
   json: unknown;
 }
 
+/** The Google sign-in no longer works: reconnecting the account is the only fix. */
+export class GoogleAuthError extends Error {
+  constructor(op: string) {
+    super(
+      `${op} failed: Google rejected the sign-in (HTTP 401). Reconnect the Google account in Settings → Integrations and try again.`,
+    );
+    this.name = 'GoogleAuthError';
+  }
+}
+
 const MAX_TOTAL_WAIT_MS = 180_000;
 const MAX_BACKOFF_MS = 64_000;
 
@@ -66,8 +79,10 @@ export async function googleRequest(deps: GoogleDeps, req: GoogleRequest): Promi
   for (;;) {
     let status: number | null = null;
     let retryAfter = 0;
+    const startedAt = deps.now();
+    let res: Response | null = null;
     try {
-      const res = await deps.fetch(req.url, {
+      res = await deps.fetch(req.url, {
         method: req.method,
         headers: {
           Authorization: `Bearer ${token}`,
@@ -76,25 +91,35 @@ export async function googleRequest(deps: GoogleDeps, req: GoogleRequest): Promi
         body: req.body === undefined ? undefined : JSON.stringify(req.body),
         signal: AbortSignal.timeout(req.timeoutMs ?? 120_000),
       });
-      if (res.status === 401 && !refreshed) {
-        refreshed = true;
-        token = await deps.getToken(true);
-        continue;
-      }
-      if (!isRetryable(res.status)) {
-        return {
-          status: res.status,
-          ok: res.ok,
-          json: await res.json().catch(() => null),
-        };
-      }
-      status = res.status;
-      retryAfter = retryAfterMs(res.headers.get('retry-after'), deps.now());
     } catch {
       if (!retryNetwork) {
         throw new Error(`${req.op} failed: network error, not retried`);
       }
     }
+    if (res && res.status === 401) {
+      if (refreshed) throw new GoogleAuthError(req.op);
+      refreshed = true;
+      try {
+        token = await deps.getToken(true);
+      } catch {
+        // Revoked grant, expired refresh token, deleted key: not the network.
+        throw new GoogleAuthError(req.op);
+      }
+      continue;
+    }
+    if (res && !isRetryable(res.status)) {
+      return {
+        status: res.status,
+        ok: res.ok,
+        json: await res.json().catch(() => null),
+      };
+    }
+    if (res) {
+      status = res.status;
+      retryAfter = retryAfterMs(res.headers.get('retry-after'), deps.now());
+    }
+    // A request that hung to its timeout used up part of the budget too.
+    waited += Math.max(0, deps.now() - startedAt);
     const backoff = Math.min(2 ** attempt * 1000, MAX_BACKOFF_MS) + deps.random() * 1000;
     const delay = Math.max(backoff, retryAfter);
     if (waited + delay > MAX_TOTAL_WAIT_MS) {

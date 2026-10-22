@@ -25,14 +25,14 @@ import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
 import { getAccessToken } from './google-oauth.js';
 import { apiFetch } from './api-fetch.js';
 import * as logger from './logger.js';
-import { googleRequest, type GoogleDeps } from './google-retry.js';
+import { GoogleAuthError, googleRequest, type GoogleDeps } from './google-retry.js';
 import { datasetTable, type GoogleExportDataset, type RawCell } from './google-export-rows.js';
 
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 /** Cells a whole spreadsheet may hold, all tabs together. */
 const SHEET_CELL_LIMIT = 10_000_000;
 const BATCH_ROWS = 5_000;
-/** Google advises at most 2 MB per request. */
+/** Google advises at most 2 MB per request; counted in UTF-8 bytes (Cyrillic is 2 per letter). */
 const BATCH_BYTES = 1_500_000;
 const FAILED_TITLE = 'FreeCrawl — FAILED export (partial)';
 
@@ -150,7 +150,7 @@ export async function exportCategoryToSheets(
       if (!item) {
         const n = iter.next();
         if (n.done) break;
-        item = { row: n.value, bytes: JSON.stringify(n.value).length + 1 };
+        item = { row: n.value, bytes: Buffer.byteLength(JSON.stringify(n.value)) + 1 };
       }
       if (batch.length > 0 && bytes + item.bytes > batchBytes) {
         carry = item;
@@ -181,7 +181,8 @@ export async function exportCategoryToSheets(
     timeoutMs: 30_000,
     retryNetwork: false,
   }).catch((err: unknown) => {
-    // The request may have landed with no id known to us.
+    // A rejected sign-in created nothing; any other failure may have landed with no id known to us.
+    if (err instanceof GoogleAuthError) throw err;
     throw new Error(
       `${err instanceof Error ? err.message : 'Sheets create failed'}; create failed, check Drive for an empty spreadsheet`,
     );
@@ -205,7 +206,10 @@ export async function exportCategoryToSheets(
 
   const send = async (op: string, method: string, url: string, body: unknown) => {
     const res = await googleRequest(deps, { op, method, url, body });
-    if (!res.ok) throw new Error(`${op} failed: HTTP ${res.status}`);
+    if (!res.ok) {
+      const why = (res.json as { error?: { message?: unknown } } | null)?.error?.message;
+      throw new Error(`${op} failed: HTTP ${res.status}${typeof why === 'string' ? ` (${why})` : ''}`);
+    }
   };
 
   // 2. Write batch by batch; a later failure renames the spreadsheet.
