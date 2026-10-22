@@ -2663,7 +2663,9 @@ function walkSchemaForValidation(
     const missing = (entries: readonly string[] = []): string[] =>
       entries.filter((e) => !skip.includes(e)).flatMap((entry) => {
         const paths = entryPaths(entry).filter((path) => rule.only?.[path]?.(obj, pageUrl) ?? true);
-        return paths.some((path) => hasSchemaPath(obj, path)) ? [] : [paths.join(' | ')];
+        const met = (path: string): boolean =>
+          [path, ...(rule.aliases?.[path] ?? [])].some((p) => hasSchemaPath(obj, p));
+        return paths.some(met) ? [] : [paths.join(' | ')];
       });
     const conditional = (level: 'required' | 'recommended'): string[] =>
       (rule.conditions ?? [])

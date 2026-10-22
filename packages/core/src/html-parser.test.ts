@@ -1102,11 +1102,14 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(findings({ ...image, acquireLicensePage: 'https://example.com/buy' })).toEqual([]);
     });
 
-    it('SpeakableSpecification: a cssSelector or an xPath', () => {
+    it('SpeakableSpecification: a cssSelector or an xpath', () => {
       expect(required({ '@type': 'SpeakableSpecification' })).toEqual([
-        req('SpeakableSpecification', 'cssSelector | xPath'),
+        req('SpeakableSpecification', 'cssSelector | xpath'),
       ]);
+      // schema.org spells the property `xpath`; Google's prose says xPath, so both count.
+      expect(required({ '@type': 'SpeakableSpecification', xpath: ['/html/head/title'] })).toEqual([]);
       expect(required({ '@type': 'SpeakableSpecification', xPath: ['/html/head/title'] })).toEqual([]);
+      expect(required({ '@type': 'SpeakableSpecification', cssSelector: ['h1'] })).toEqual([]);
     });
 
     it('MemberProgram and tiers', () => {

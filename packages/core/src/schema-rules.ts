@@ -24,6 +24,11 @@ export interface SchemaRule {
    * left out of the finding's text.
    */
   only?: Readonly<Record<string, (node: Record<string, unknown>, pageUrl: string) => boolean>>;
+  /**
+   * Other spellings that meet an entry path without being named in the finding,
+   * e.g. Google's prose says `xPath` where schema.org's property is `xpath`.
+   */
+  aliases?: Readonly<Record<string, readonly string[]>>;
   /** Google no longer shows this result: the node gets no findings. */
   retired?: string;
   /**
@@ -273,7 +278,8 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
     source: `${GOOGLE}speakable`,
     types: ['SpeakableSpecification'],
-    required: ['cssSelector | xPath'],
+    required: ['cssSelector | xpath'],
+    aliases: { xpath: ['xPath'] },
   },
   {
     source: `${GOOGLE}loyalty-program`,
