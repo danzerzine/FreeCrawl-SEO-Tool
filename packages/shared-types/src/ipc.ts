@@ -1134,6 +1134,12 @@ export interface SitemapGenerateInput {
   gzip?: boolean;
   /** Per-file URL cap (≤50,000). Sharding kicks in when exceeded. */
   splitAtUrlCount?: number;
+  /**
+   * Where `<lastmod>` comes from: `chain` (default; the page's trustworthy
+   * Last-Modified, else the sitemap's own lastmod, else none), `last-modified`,
+   * `sitemap`, `crawl` (the crawl date) or `none`.
+   */
+  lastmod?: 'chain' | 'last-modified' | 'sitemap' | 'crawl' | 'none';
 }
 
 export interface SitemapGenerateResult {

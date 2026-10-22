@@ -1595,6 +1595,15 @@ const LINK_TARGET_REPORT_SQL: Record<LinkTargetReportInput['report'], string> = 
  */
 const META_KEYS_KEPT_BY_RESET = ['monitorRules', 'monitorChannels'] as const;
 
+/** Internal, crawled, indexable HTML pages with a 2xx answer: what an XML sitemap lists. */
+const INDEXABLE_URLS_WHERE = `is_external = 0
+         AND content_kind = 'html'
+         AND indexability = 'indexable'
+         AND status_code >= 200 AND status_code < 300`;
+
+/** Narrows {@link INDEXABLE_URLS_WHERE} to the pages with a video, as a video sitemap lists them. */
+const VIDEO_URLS_AND = " AND videos IS NOT NULL AND videos != '' AND videos != '[]'";
+
 export class ProjectDb {
   /** Parse cache for `getDisabledIssues()` — keyed by the raw meta string. */
   private disabledIssuesRaw: string | null = null;
@@ -9880,10 +9889,7 @@ export class ProjectDb {
     const BATCH = 2000;
     const stmt = this.db.prepare(
       `SELECT * FROM urls
-       WHERE is_external = 0
-         AND content_kind = 'html'
-         AND indexability = 'indexable'
-         AND status_code >= 200 AND status_code < 300
+       WHERE ${INDEXABLE_URLS_WHERE}
          AND (depth > ? OR (depth = ? AND id > ?))
        ORDER BY depth, id
        LIMIT ?`,
@@ -9900,6 +9906,109 @@ export class ProjectDb {
       }
       if (rows.length < BATCH) return;
     }
+  }
+
+  /**
+   * How many URLs `iterateSitemapUrlRows` yields (same WHERE). `videoOnly`
+   * counts the pages a video sitemap lists.
+   */
+  countIndexableUrls(options: { videoOnly?: boolean } = {}): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM urls WHERE ${INDEXABLE_URLS_WHERE}${options.videoOnly ? VIDEO_URLS_AND : ''}`,
+      )
+      .get() as unknown as { n: number };
+    return row.n;
+  }
+
+  /**
+   * The URLs `iterateIndexableUrls` yields, in the same depth-then-id order,
+   * with only the columns an XML sitemap reads: whole `urls` rows would fill
+   * the heap with garbage the export never looks at. `videoOnly` keeps the
+   * pages with a non-empty video list (the video sitemap).
+   */
+  *iterateSitemapUrlRows(options: { videoOnly?: boolean } = {}): IterableIterator<{
+    id: number;
+    url: string;
+    depth: number;
+    crawledAt: string;
+    hreflangs: string | null;
+    title: string | null;
+    lang: string | null;
+    ogSiteName: string | null;
+    videos: string | null;
+    metaDescription: string | null;
+    ogImage: string | null;
+  }> {
+    const BATCH = 2000;
+    const stmt = this.db.prepare(
+      `SELECT id, url, depth, crawled_at, hreflangs, title, lang, og_site_name, videos,
+              meta_description, og_image
+         FROM urls
+        WHERE ${INDEXABLE_URLS_WHERE}${options.videoOnly ? VIDEO_URLS_AND : ''}
+          AND (depth > ? OR (depth = ? AND id > ?))
+        ORDER BY depth, id
+        LIMIT ?`,
+    );
+    let lastDepth = -1;
+    let lastId = 0;
+    for (;;) {
+      const rows = stmt.all(lastDepth, lastDepth, lastId, BATCH) as unknown as {
+        id: number;
+        url: string;
+        depth: number;
+        crawled_at: string;
+        hreflangs: string | null;
+        title: string | null;
+        lang: string | null;
+        og_site_name: string | null;
+        videos: string | null;
+        meta_description: string | null;
+        og_image: string | null;
+      }[];
+      for (const r of rows) {
+        lastDepth = r.depth;
+        lastId = r.id;
+        yield {
+          id: r.id,
+          url: r.url,
+          depth: r.depth,
+          crawledAt: r.crawled_at,
+          hreflangs: r.hreflangs,
+          title: r.title,
+          lang: r.lang,
+          ogSiteName: r.og_site_name,
+          videos: r.videos,
+          metaDescription: r.meta_description,
+          ogImage: r.og_image,
+        };
+      }
+      if (rows.length < BATCH) return;
+    }
+  }
+
+  /**
+   * Keyed lookup of what a sitemap `<lastmod>` can come from, for one URL at
+   * a time: the `last-modified`, `date` and `age` response headers and the
+   * lastmod the original sitemap declared (exact URL equality). Prepared once;
+   * nothing is held per URL, so a streaming export stays flat in memory.
+   */
+  lastmodSourceLookup(): (
+    urlId: number,
+    url: string,
+  ) => { headers: { 'last-modified'?: string; date?: string; age?: string }; sitemapLastmod: string | null } {
+    const headerStmt = this.db.prepare(
+      "SELECT name, value FROM headers WHERE url_id = ? AND name IN ('last-modified', 'date', 'age')",
+    );
+    const sitemapStmt = this.db.prepare('SELECT lastmod FROM sitemap_urls WHERE url = ?');
+    return (urlId, url) => {
+      const headers: { 'last-modified'?: string; date?: string; age?: string } = {};
+      for (const h of headerStmt.all(urlId) as unknown as { name: 'last-modified' | 'date' | 'age'; value: string }[]) {
+        headers[h.name] = h.value;
+      }
+      const sm = sitemapStmt.get(url) as unknown as { lastmod: string | null } | undefined;
+      return { headers, sitemapLastmod: sm?.lastmod ?? null };
+    };
   }
 
   /**

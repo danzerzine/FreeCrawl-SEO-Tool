@@ -8588,6 +8588,7 @@ function registerIpc(): void {
         variant: i.variant,
         gzip: i.gzip,
         splitAtUrlCount: i.splitAtUrlCount,
+        lastmod: i.lastmod,
         baseUrl: getDb().getMeta('lastStartUrl') ?? undefined,
       });
     },
@@ -10788,6 +10789,7 @@ function registerIpc(): void {
         variant,
         gzip,
         splitAtUrlCount: input.splitAtUrlCount,
+        lastmod: input.lastmod,
         baseUrl: getDb().getMeta('lastStartUrl') ?? undefined,
       });
       if (mainWindow) {

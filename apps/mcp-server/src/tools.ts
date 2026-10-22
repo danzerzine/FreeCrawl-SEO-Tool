@@ -1486,6 +1486,12 @@ export function buildTools(): Tool[] {
           },
           gzip: { type: 'boolean' },
           splitAtUrlCount: { type: 'integer', minimum: 1, maximum: 50_000 },
+          lastmod: {
+            type: 'string',
+            enum: ['chain', 'last-modified', 'sitemap', 'crawl', 'none'],
+            description:
+              '`<lastmod>` source. `chain` (default): the page\'s own Last-Modified when trustworthy (not within 60 s of the response Date, not in the future), else the lastmod the site\'s sitemap declared, else none. `last-modified` / `sitemap`: only that source. `crawl`: the crawl date. `none`: omit.',
+          },
         },
         required: ['filePath'],
       },

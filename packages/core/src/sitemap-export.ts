@@ -5,6 +5,7 @@ import { createGzip } from 'node:zlib';
 import path from 'node:path';
 import type { ProjectDb } from '@freecrawl/db';
 import { writeExportFile } from './export-file.js';
+import { acceptedLastModified, parseSitemapLastmod } from './sitemap-lastmod.js';
 
 export type SitemapVariant =
   | 'standard'
@@ -13,7 +14,20 @@ export type SitemapVariant =
   | 'news'
   | 'video';
 
+/**
+ * Where each `<lastmod>` comes from.
+ *  - `chain` (default) — the page's own `Last-Modified` when it can be trusted
+ *    (see `acceptedLastModified`), else the lastmod the site's own sitemap
+ *    declared, else no `<lastmod>`: a missing date beats a false one.
+ *  - `last-modified` / `sitemap` — only that source.
+ *  - `crawl` — the crawl date (the pre-B61 behaviour).
+ *  - `none` — no `<lastmod>`.
+ */
+export type SitemapLastmodSource = 'chain' | 'last-modified' | 'sitemap' | 'crawl' | 'none';
+
 export interface SitemapOptions {
+  /** Default `'chain'`. */
+  lastmod?: SitemapLastmodSource;
   /** Default `'weekly'`. Sitemaps.org change-frequency hint. */
   changefreq?:
     | 'always'
@@ -157,6 +171,15 @@ interface UrlEntry {
   videos: string | null;
   metaDescription: string | null;
   ogImage: string | null;
+  /** `YYYY-MM-DD` for the `<lastmod>`, null for none. */
+  lastmod: string | null;
+}
+
+/** Facts about one written part, read after it is written. */
+interface PartStats {
+  count: number;
+  /** Newest `<lastmod>` of the part's URLs, null when none has one. */
+  newest: string | null;
 }
 
 /** Google caps `<video:title>` at 100 chars and `<video:description>` at
@@ -167,7 +190,8 @@ function clamp(s: string, max: number): string {
 
 async function writePart(
   filePath: string,
-  entries: UrlEntry[],
+  entries: Iterable<UrlEntry>,
+  stats: PartStats,
   variant: SitemapVariant,
   changefreq: string,
   depthBased: boolean,
@@ -178,13 +202,15 @@ async function writePart(
     yield '<?xml version="1.0" encoding="UTF-8"?>\n';
     yield urlsetOpen(variant);
     for (const e of entries) {
+      stats.count++;
+      if (e.lastmod && (!stats.newest || e.lastmod > stats.newest)) stats.newest = e.lastmod;
       yield '  <url>\n';
       yield `    <loc>${escapeXml(e.url)}</loc>\n`;
       // News entries carry their own <news:publication_date>; the core
       // <lastmod>/<changefreq>/<priority> hints aren't part of the news
       // schema, so we omit them for a clean, valid news sitemap.
       if (variant !== 'news') {
-        if (e.crawledAt) yield `    <lastmod>${formatLastmod(e.crawledAt)}</lastmod>\n`;
+        if (e.lastmod) yield `    <lastmod>${e.lastmod}</lastmod>\n`;
         yield `    <changefreq>${changefreq}</changefreq>\n`;
         yield `    <priority>${priorityForDepth(e.depth, depthBased)}</priority>\n`;
       }
@@ -292,17 +318,16 @@ function stringEncodeStream(): Transform {
 
 async function writeIndex(
   filePath: string,
-  partUrls: string[],
+  parts: { loc: string; lastmod: string | null }[],
   gzip: boolean,
 ): Promise<void> {
   const gen = async function* (): AsyncGenerator<string> {
     yield '<?xml version="1.0" encoding="UTF-8"?>\n';
     yield '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-    const today = new Date().toISOString().slice(0, 10);
-    for (const u of partUrls) {
+    for (const part of parts) {
       yield '  <sitemap>\n';
-      yield `    <loc>${escapeXml(u)}</loc>\n`;
-      yield `    <lastmod>${today}</lastmod>\n`;
+      yield `    <loc>${escapeXml(part.loc)}</loc>\n`;
+      if (part.lastmod) yield `    <lastmod>${part.lastmod}</lastmod>\n`;
       yield '  </sitemap>\n';
     }
     yield '</sitemapindex>\n';
@@ -323,46 +348,73 @@ async function writeIndex(
  * crawl DB's indexable internal HTML URLs. Returns the list of files
  * written so the UI can surface them all to the user.
  *
+ * Streamed: the URLs are read in pages and written as they come, so memory
+ * does not grow with the site. Whether the result is one file or an index
+ * with parts is decided up front by a COUNT with the same filter as the
+ * stream.
+ *
  * Sharding: when the input set exceeds `splitAtUrlCount` (default 50K),
  * the export switches to:
  *   - `<filePath>` (or `<filePath>.gz`) — the **index** file
  *   - `<filePath>-1.xml`, `<filePath>-2.xml`, … (or `.xml.gz`) — parts
  * Index file always points to the parts via fully-qualified URLs that
  * preserve the input file's extension (so the user can drop the whole
- * directory into a webroot as-is).
+ * directory into a webroot as-is). Each part's `<lastmod>` in the index is
+ * the newest of its URLs (none when it has none; the crawl date in `crawl`
+ * mode).
  */
-export async function exportSitemap(
+export function exportSitemap(
   db: ProjectDb,
   filePath: string,
   options: SitemapOptions = {},
+): Promise<SitemapExportResult> {
+  // Read through SQLite's page cache, not the memory map: the map would
+  // pull every page of a big project into the process as the export reads it.
+  return db.withoutMmap(() => writeSitemap(db, filePath, options));
+}
+
+async function writeSitemap(
+  db: ProjectDb,
+  filePath: string,
+  options: SitemapOptions,
 ): Promise<SitemapExportResult> {
   const changefreq = options.changefreq ?? 'weekly';
   const depthBased = options.depthPriority ?? true;
   const variant: SitemapVariant = options.variant ?? 'standard';
   const gzip = options.gzip ?? false;
+  const lastmodSource = options.lastmod ?? 'chain';
   const splitAt = Math.min(HARD_URL_LIMIT, options.splitAtUrlCount ?? HARD_URL_LIMIT);
+  const now = Date.now();
+  const lookup = lastmodSource === 'crawl' || lastmodSource === 'none' ? null : db.lastmodSourceLookup();
 
-  // Snapshot all indexable URLs into memory — the worst case is 50K URLs
-  // (sitemap-spec hard cap per file) so this is bounded. For sharded
-  // outputs we still need the full set up front to compute part counts.
-  const entries: UrlEntry[] = [];
-  for (const row of db.iterateIndexableUrls()) {
-    // A video sitemap only lists pages that actually have a video.
-    if (variant === 'video' && (!row.videos || row.videos === '[]')) continue;
-    entries.push({
-      id: row.id,
-      url: row.url,
-      depth: row.depth,
-      crawledAt: row.crawledAt,
-      hreflangs: row.hreflangs,
-      title: row.title,
-      lang: row.lang,
-      ogSiteName: row.ogSiteName,
-      videos: row.videos,
-      metaDescription: row.metaDescription,
-      ogImage: row.ogImage,
-    });
-  }
+  const lastmodFor = (row: { id: number; url: string; crawledAt: string }): string | null => {
+    if (lastmodSource === 'none') return null;
+    if (lastmodSource === 'crawl') return row.crawledAt ? formatLastmod(row.crawledAt) : null;
+    const src = lookup!(row.id, row.url);
+    const fromHeader =
+      lastmodSource === 'sitemap' ? null : (acceptedLastModified(src.headers, row.crawledAt, now)?.day ?? null);
+    if (fromHeader || lastmodSource === 'last-modified') return fromHeader;
+    const declared = src.sitemapLastmod ? parseSitemapLastmod(src.sitemapLastmod) : null;
+    return declared && declared.ms <= now ? declared.day : null;
+  };
+
+  // One pass over the URLs, one entry at a time. The video sitemap's filter
+  // is in the query, the same one `countIndexableUrls` uses.
+  const stream = (function* (): Generator<UrlEntry> {
+    for (const row of db.iterateSitemapUrlRows({ videoOnly: variant === 'video' })) {
+      yield { ...row, lastmod: lastmodFor(row) };
+    }
+  })();
+  // One entry of lookahead, so a part knows whether more follow.
+  let ahead = stream.next();
+  const take = function* (limit: number): Generator<UrlEntry> {
+    for (let n = 0; n < limit && !ahead.done; n++) {
+      const entry = ahead.value;
+      ahead = stream.next();
+      yield entry;
+    }
+  };
+  const firstUrl = ahead.done ? '' : ahead.value.url;
 
   const ext = gzip ? '.xml.gz' : path.extname(filePath) || '.xml';
   const base =
@@ -374,12 +426,14 @@ export async function exportSitemap(
     variant === 'image' ? db.imagesForUrl(urlId, 1000) : [];
 
   // Single-file path: total fits in one shard, no index needed.
-  if (entries.length <= splitAt) {
+  const total = db.countIndexableUrls({ videoOnly: variant === 'video' });
+  if (total <= splitAt) {
     const out = gzip && !filePath.endsWith('.gz') ? `${filePath}.gz` : filePath;
-    await writePart(out, entries, variant, changefreq, depthBased, gzip, imagesFor);
+    const stats: PartStats = { count: 0, newest: null };
+    await writePart(out, take(Infinity), stats, variant, changefreq, depthBased, gzip, imagesFor);
     return {
       files: [out],
-      urlsWritten: entries.length,
+      urlsWritten: stats.count,
       truncated: false,
       sharded: false,
     };
@@ -391,14 +445,16 @@ export async function exportSitemap(
   const files: string[] = [];
   let written = 0;
   const partFiles: string[] = [];
+  const partLastmods: (string | null)[] = [];
   let partIndex = 1;
-  for (let i = 0; i < entries.length; i += splitAt) {
-    const slice = entries.slice(i, i + splitAt);
+  while (!ahead.done) {
     const partPath = `${base}-${partIndex}${ext}`;
-    await writePart(partPath, slice, variant, changefreq, depthBased, gzip, imagesFor);
+    const stats: PartStats = { count: 0, newest: null };
+    await writePart(partPath, take(splitAt), stats, variant, changefreq, depthBased, gzip, imagesFor);
     partFiles.push(partPath);
+    partLastmods.push(stats.newest);
     files.push(partPath);
-    written += slice.length;
+    written += stats.count;
     partIndex++;
   }
 
@@ -409,7 +465,7 @@ export async function exportSitemap(
   // first crawled URL's origin). If no origin can be derived we fall back to
   // basenames rather than failing the export.
   let origin = '';
-  const rawBase = (options.baseUrl ?? entries[0]?.url ?? '').trim();
+  const rawBase = (options.baseUrl ?? firstUrl).trim();
   if (rawBase) {
     try {
       origin = new URL(rawBase).origin;
@@ -421,7 +477,15 @@ export async function exportSitemap(
     const name = path.basename(p);
     return origin ? `${origin}/${name}` : name;
   };
-  await writeIndex(indexPath, partFiles.map(locFor), gzip);
+  const today = new Date(now).toISOString().slice(0, 10);
+  await writeIndex(
+    indexPath,
+    partFiles.map((p, i) => ({
+      loc: locFor(p),
+      lastmod: lastmodSource === 'crawl' ? today : (partLastmods[i] ?? null),
+    })),
+    gzip,
+  );
   files.unshift(indexPath);
 
   return {

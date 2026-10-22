@@ -92,7 +92,9 @@ export {
   type SitemapOptions,
   type SitemapVariant,
   type SitemapExportResult,
+  type SitemapLastmodSource,
 } from './sitemap-export.js';
+export { acceptedLastModified, parseSitemapLastmod } from './sitemap-lastmod.js';
 export { previewExtractionRules } from './extraction.js';
 export { exportHtmlReport, renderHtmlReport, type HtmlReportOptions } from './html-report.js';
 export {
