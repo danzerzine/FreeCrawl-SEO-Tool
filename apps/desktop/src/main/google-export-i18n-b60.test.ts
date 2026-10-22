@@ -22,7 +22,7 @@ describe('Google export dialog labels (B60)', () => {
   it('English holds the keys the dialog and the result messages use', () => {
     expect(Object.keys(en).sort()).toEqual(
       [
-        'titleSheets', 'titleBigquery', 'tableLabel', 'truncated', 'rejected',
+        'titleSheets', 'titleBigquery', 'tableLabel', 'truncated', 'empty', 'rejected',
         'dataset.urls', 'dataset.issues-long', 'dataset.broken-links', 'dataset.images',
         'dataset.sitemap-urls', 'dataset.response-headers', 'dataset.crawl-queue',
       ].sort(),

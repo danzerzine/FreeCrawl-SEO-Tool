@@ -161,3 +161,13 @@ describe('cells that look like formulas or numbers (8b) and create count (8c)', 
     expect(s.bodies.filter((b) => b.method === 'POST' && b.url.endsWith('/v4/spreadsheets'))).toHaveLength(1);
   });
 });
+
+describe('an empty table', () => {
+  it('BigQuery creates no dataset and no table, like Sheets creates no spreadsheet', async () => {
+    const r = recorder();
+    const empty = { iterateUrlsByCategory: () => [][Symbol.iterator]() } as unknown as ProjectDb;
+    const out = await exportCategoryToBigQuery(empty, 'all', { creds: () => ({ projectId: 'p' }), deps: r.deps });
+    expect(r.bodies).toEqual([]);
+    expect(out).toMatchObject({ rowsWritten: 0, tableRef: '' });
+  });
+});

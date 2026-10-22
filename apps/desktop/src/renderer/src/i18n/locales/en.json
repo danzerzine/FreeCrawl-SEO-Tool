@@ -2537,6 +2537,7 @@
       "crawl-queue": "Crawl queue"
     },
     "truncated": "Exported {{rows}} of {{total}} rows (Google Sheets holds at most 10 million cells).",
+    "empty": "Nothing to export: this table has no rows.",
     "rejected": "Rows rejected by BigQuery: {{rejectedCount}}. First error: {{error}}"
   }
 }

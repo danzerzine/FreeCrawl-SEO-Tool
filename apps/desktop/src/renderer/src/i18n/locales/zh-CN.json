@@ -2480,6 +2480,7 @@
       "crawl-queue": "抓取队列"
     },
     "truncated": "已导出 {{total}} 行中的 {{rows}} 行（Google Sheets 最多容纳 1000 万个单元格）。",
+    "empty": "没有可导出的内容：此表没有行。",
     "rejected": "BigQuery 拒绝的行数：{{rejectedCount}}。第一个错误：{{error}}"
   }
 }

@@ -517,6 +517,8 @@ export function App() {
           }
           window.alert(lines.join('\n\n'));
           void navigator.clipboard.writeText(res.url).catch(() => undefined);
+        } else if (res.empty) {
+          window.alert(t('googleExport.empty', { defaultValue: 'Nothing to export: this table has no rows.' }));
         } else {
           window.alert(
             t('app.sheetsExportFail', {
@@ -551,6 +553,8 @@ export function App() {
         }
         window.alert(lines.join('\n\n'));
         void navigator.clipboard.writeText(res.consoleUrl).catch(() => undefined);
+      } else if (res.empty) {
+        window.alert(t('googleExport.empty', { defaultValue: 'Nothing to export: this table has no rows.' }));
       } else {
         window.alert(
           t('app.bigqueryExportFail', {

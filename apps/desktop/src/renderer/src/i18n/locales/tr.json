@@ -2526,6 +2526,7 @@
       "crawl-queue": "Tarama kuyruğu"
     },
     "truncated": "{{total}} satırdan {{rows}} tanesi aktarıldı (Google Sheets en fazla 10 milyon hücre alır).",
+    "empty": "Dışa aktarılacak bir şey yok: bu tabloda satır yok.",
     "rejected": "BigQuery'nin reddettiği satırlar: {{rejectedCount}}. İlk hata: {{error}}"
   }
 }

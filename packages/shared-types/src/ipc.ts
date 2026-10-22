@@ -2066,6 +2066,9 @@ export interface ExportSheetsInput {
   dataset?: 'urls' | ExportDatasetKey;
 }
 
+/** What a Google Sheets / BigQuery export writes: the current tab's pages, or one dataset. */
+export type GoogleExportDataset = 'urls' | ExportDatasetKey;
+
 export interface ExportSheetsResult {
   ok: boolean;
   error: string | null;
@@ -2077,6 +2080,8 @@ export interface ExportSheetsResult {
   /** The export stopped at the 10 million cell limit of a spreadsheet. */
   truncated: boolean;
   dataset: 'urls' | ExportDatasetKey;
+  /** The table has no rows: nothing was created, which is not a failure of the account. */
+  empty?: boolean;
 }
 
 export interface ExportBigqueryInput {
@@ -2097,6 +2102,8 @@ export interface ExportBigqueryResult {
   rowsRejected: number;
   firstRejectionError: string | null;
   dataset: 'urls' | ExportDatasetKey;
+  /** The table has no rows: nothing was created. */
+  empty?: boolean;
 }
 
 export interface LogEntry {

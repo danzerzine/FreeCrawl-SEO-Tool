@@ -7416,7 +7416,8 @@ function registerIpc(): void {
         return {
           // Nothing to export creates no spreadsheet, so there is no link to show.
           ok: result.totalRows > 0,
-          error: result.totalRows > 0 ? null : 'No rows to export.',
+          error: null,
+          ...(result.totalRows > 0 ? {} : { empty: true }),
           url: result.totalRows > 0 ? result.spreadsheetUrl : null,
           rowsWritten: result.rowsWritten,
           totalRows: result.totalRows,
@@ -7468,11 +7469,13 @@ function registerIpc(): void {
         const result = await exportCategoryToBigQuery(getDb(), input.category, {
           dataset: input.dataset,
         });
+        const empty = result.tableRef === '';
         return {
-          ok: true,
+          ok: !empty,
+          ...(empty ? { empty: true } : {}),
           error: null,
-          consoleUrl: result.consoleUrl,
-          tableRef: result.tableRef,
+          consoleUrl: empty ? null : result.consoleUrl,
+          tableRef: empty ? null : result.tableRef,
           rowsWritten: result.rowsWritten,
           rowsRejected: result.rowsRejected,
           firstRejectionError: result.firstRejectionError,

@@ -2572,6 +2572,7 @@
       "crawl-queue": "Cola de rastreo"
     },
     "truncated": "Se exportaron {{rows}} de {{total}} filas (Google Sheets admite como máximo 10 millones de celdas).",
+    "empty": "No hay nada que exportar: esta tabla no tiene filas.",
     "rejected": "Filas rechazadas por BigQuery: {{rejectedCount}}. Primer error: {{error}}"
   }
 }

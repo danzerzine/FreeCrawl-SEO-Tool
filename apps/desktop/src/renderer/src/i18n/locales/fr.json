@@ -2572,6 +2572,7 @@
       "crawl-queue": "File d'attente d'exploration"
     },
     "truncated": "{{rows}} lignes exportées sur {{total}} (Google Sheets accepte au maximum 10 millions de cellules).",
+    "empty": "Rien à exporter : ce tableau n'a aucune ligne.",
     "rejected": "Lignes rejetées par BigQuery : {{rejectedCount}}. Première erreur : {{error}}"
   }
 }

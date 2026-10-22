@@ -2526,6 +2526,7 @@
       "crawl-queue": "Tarama növbəsi"
     },
     "truncated": "{{total}} sətirdən {{rows}} sətir ixrac edildi (Google Sheets ən çox 10 milyon xana tutur).",
+    "empty": "İxrac ediləcək heç nə yoxdur: bu cədvəldə sətir yoxdur.",
     "rejected": "BigQuery-nin rədd etdiyi sətirlər: {{rejectedCount}}. İlk xəta: {{error}}"
   }
 }

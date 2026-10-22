@@ -325,6 +325,17 @@ export async function exportCategoryToBigQuery(
     ({ schema, rows } = datasetPlan(db, dataset));
   }
 
+  // Nothing to export creates nothing (Sheets does the same), not an empty table.
+  const iter = rows[Symbol.iterator]();
+  const first = iter.next();
+  if (first.done) {
+    return { tableId: '', tableRef: '', consoleUrl: '', rowsWritten: 0, rowsRejected: 0, firstRejectionError: null, dataset };
+  }
+  const allRows: Iterable<InsertRow> = (function* () {
+    yield first.value;
+    for (let n = iter.next(); !n.done; n = iter.next()) yield n.value;
+  })();
+
   await deps.getToken();
   await ensureDataset(deps, projectId, DATASET_ID);
 
@@ -369,7 +380,7 @@ export async function exportCategoryToBigQuery(
     rowsWritten += chunk.length - bad.size;
   };
   let buf: InsertRow[] = [];
-  for (const row of rows) {
+  for (const row of allRows) {
     buf.push(row);
     if (buf.length >= INSERT_CHUNK) {
       await insertChunk(buf);

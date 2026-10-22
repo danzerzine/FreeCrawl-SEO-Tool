@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ExportDatasetKey } from '@freecrawl/shared-types';
+import type { GoogleExportDataset } from '@freecrawl/shared-types';
 
-export type GoogleExportDataset = 'urls' | ExportDatasetKey;
+export type { GoogleExportDataset };
 
 /** Tables offered to Google Sheets / BigQuery: the ones that need no per-account context. */
 const DATASETS: GoogleExportDataset[] = [
@@ -44,6 +44,16 @@ export function GoogleExportDialog({
     if (target) setDataset('urls');
   }, [target]);
 
+  // Escape closes the dialog wherever the focus is: the dialog never takes focus itself.
+  useEffect(() => {
+    if (!target) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [target, onCancel]);
+
   if (!target) return null;
 
   const title =
@@ -53,6 +63,9 @@ export function GoogleExportDialog({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
@@ -60,12 +73,6 @@ export function GoogleExportDialog({
     >
       <div
         className="w-[420px] rounded-md border border-surface-700 bg-surface-900 p-5 text-surface-100 shadow-xl"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
       >
         <h2 className="mb-3 text-[15px] font-semibold">{title}</h2>
         <label className="mb-1 block text-[11px] font-medium text-surface-300">

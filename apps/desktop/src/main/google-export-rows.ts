@@ -6,9 +6,13 @@
  */
 import type { ProjectDb } from '@freecrawl/db';
 import { datasetRows, readCell } from '@freecrawl/core';
-import { EXPORT_DATASET_COLUMNS, type ExportDatasetKey } from '@freecrawl/shared-types';
+import {
+  EXPORT_DATASET_COLUMNS,
+  type ExportDatasetKey,
+  type GoogleExportDataset,
+} from '@freecrawl/shared-types';
 
-export type GoogleExportDataset = 'urls' | ExportDatasetKey;
+export type { GoogleExportDataset };
 export type RawCell = string | number | boolean | null;
 
 function rawCell(value: unknown): RawCell {

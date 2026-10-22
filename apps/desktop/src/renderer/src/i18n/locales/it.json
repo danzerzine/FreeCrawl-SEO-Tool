@@ -2572,6 +2572,7 @@
       "crawl-queue": "Coda di scansione"
     },
     "truncated": "Esportate {{rows}} righe su {{total}} (Google Sheets contiene al massimo 10 milioni di celle).",
+    "empty": "Niente da esportare: questa tabella non ha righe.",
     "rejected": "Righe rifiutate da BigQuery: {{rejectedCount}}. Primo errore: {{error}}"
   }
 }
