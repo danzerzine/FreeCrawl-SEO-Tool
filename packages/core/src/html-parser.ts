@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { decodeHTML } from 'entities';
 import type {
   ContentKind,
   CustomExtractionRule,
@@ -3421,40 +3422,17 @@ function detectLinkPosition(el: unknown): LinkPosition {
   return 'content';
 }
 
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-  copy: '©',
-  reg: '®',
-  trade: '™',
-  hellip: '…',
-  mdash: '—',
-  ndash: '–',
-  lsquo: '‘',
-  rsquo: '’',
-  ldquo: '“',
-  rdquo: '”',
-  laquo: '«',
-  raquo: '»',
-};
-
+/**
+ * Text decoded the way a browser's HTML parser does it: every named entity of
+ * the HTML5 table (including the legacy ones without a semicolon, `&copy 2026`),
+ * decimal and hex numbers, the windows-1252 remap of 0x80-0x9F and U+FFFD for
+ * out-of-range numbers. An unknown `&foo;` stays as written. The old small
+ * table left `&para;` and friends literal, so the served H1 never matched the
+ * rendered DOM's `\u00b6` (B33 false positive on every Sphinx / MkDocs site).
+ */
 function decodeEntities(s: string): string {
   if (!s || s.indexOf('&') === -1) return s;
-  return s.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) => {
-    if (dec) {
-      const code = parseInt(dec, 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : m;
-    }
-    if (hex) {
-      const code = parseInt(hex, 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : m;
-    }
-    return NAMED_ENTITIES[name.toLowerCase()] ?? m;
-  });
+  return decodeHTML(s);
 }
 
 /**
