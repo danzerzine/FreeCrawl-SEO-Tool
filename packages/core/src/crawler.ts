@@ -417,6 +417,8 @@ export class Crawler extends EventEmitter {
   private queue: PQueue;
   private externalQueue: PQueue;
   private seen = new Set<string>();
+  /** Saved-queue URLs handed over before `start()`; see `enqueueCheckpointed`. */
+  private checkpointed: { url: string; depth: number }[] = [];
   private externalSeen = new Set<string>();
   /** AMP versions probed (or queued) in this crawl, B24. */
   private ampSeen = new Set<string>();
@@ -3139,9 +3141,9 @@ export class Crawler extends EventEmitter {
     // resumed List/Sitemap run re-fetches the whole source list — the exact
     // "it didn't carry on where it left off" the checkpoint exists to
     // prevent. Spider mode gets the same treatment from `hydrateFromDb`.
-    // The checkpointed pending URLs are already queued by the caller
-    // (`enqueueCheckpointed`) before `start()`, so they survive this sweep;
-    // list entries added since the interruption are still picked up below.
+    // The checkpointed pending URLs the caller handed over before `start()`
+    // are queued right after this sweep, so they survive it; list entries
+    // added since the interruption are still picked up below.
     if (this.resumeOnly) {
       for (const known of this.db.getAllUrls()) {
         this.seen.add(known);
@@ -3150,6 +3152,7 @@ export class Crawler extends EventEmitter {
       this.resourceAdmitted = this.db.countSubresourceUrls();
     }
 
+    this.queueCheckpointed();
     for (const u of urls) {
       this.enqueue({ url: u, depth: 0 });
     }
@@ -3373,6 +3376,7 @@ export class Crawler extends EventEmitter {
       : this.db.getUrlsByScope(false)) {
       this.seen.add(url);
     }
+    this.queueCheckpointed();
     // A refresh counts its own work from zero — the progress bar should
     // read "0 of 122 re-crawled", not start at 122 and never move.
     this.crawled = opts.refresh ? 0 : this.db.countCrawledUrls();
@@ -4057,10 +4061,24 @@ export class Crawler extends EventEmitter {
    * have a row for it (the upsert handles dedup at the DB level).
    */
   enqueueCheckpointed(items: ReadonlyArray<{ url: string; depth: number }>): void {
+    // Before `start()` they wait until the project is read back into
+    // `seen`: queued at once, they were fetched while the start URL was
+    // still being checked, and every known page they linked counted as new.
+    if (!this.running) {
+      this.checkpointed.push(...items);
+      return;
+    }
     for (const item of items) {
       this.seen.delete(item.url);
       this.enqueue({ url: item.url, depth: item.depth });
     }
+  }
+
+  /** Queues what `enqueueCheckpointed` held back until `seen` was filled. */
+  private queueCheckpointed(): void {
+    const items = this.checkpointed;
+    this.checkpointed = [];
+    this.enqueueCheckpointed(items);
   }
 
   enqueueManual(rawUrl: string): boolean {
