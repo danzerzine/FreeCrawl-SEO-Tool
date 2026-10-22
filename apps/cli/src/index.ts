@@ -14,6 +14,7 @@ import {
   writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { mergeCrawlConfig } from './crawl-config.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   COMPARE_CATEGORIES,
@@ -128,7 +129,7 @@ Options:
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
   --no-robots         Ignore robots.txt (it is still read once for its Sitemap: lines while sitemap
-                        discovery is on)
+                        discovery is on); --robots turns it back on over a --config file
   --respect-crawl-delay
                       Honour a robots.txt Crawl-delay directive as a global rate limit
                         (one request every N seconds). Off by default — the directive is
@@ -141,13 +142,22 @@ Options:
                         a WordPress blog can go from ~2k to ~40k image requests with this on)
   --adaptive-speed    Back off automatically on HTTP 429/503 and Retry-After, then recover
                         (off by default; the fixed --rps / --concurrency hold otherwise)
-  --header <K: V>     Extra request header; repeatable (e.g. --header "Authorization: Bearer X")
+  --header <K: V>     Extra request header; repeatable (e.g. --header "Authorization: Bearer X");
+                        replaces the headers of a --config file
+  --sitemap <url>     Read this sitemap and crawl its URLs too; repeatable
+  --no-sitemap-discovery
+                      Do not look for sitemaps (robots.txt Sitemap: lines, /sitemap.xml)
+  --proxy <url>       Send every request through this proxy (http://user:pass@host:port or
+                        socks5://…); replaces a proxy profile chosen in a --config file
   --include <regex>   Only crawl URLs matching this regex; repeatable
   --exclude <regex>   Skip URLs matching this regex; repeatable
   --list <file>       List-mode crawl: fetch every URL in <file> (one per line), no link follow
   --config <file>     Load CrawlConfig from a JSON file (matches Settings → Export Settings format).
                         Per-flag overrides on the command line still win — useful for CI
-                        ("scheduled config + per-run --max").
+                        ("scheduled config + per-run --max"). Nested settings merge field by
+                        field. Without a URL or --list, the file's startUrl or list is crawled.
+                        A form login (formLogin) is set only here. On/off flags also take a
+                        --no- form (--no-external, --no-adaptive-speed, …) to override the file.
   --db <file>         SQLite project file (default: ./crawl.seoproject)
   --resume            Continue the crawl in --db where it stopped: pages already fetched are not
                         fetched again. Without it, a crawl into a --db holding the same site fetches
@@ -267,20 +277,36 @@ Projects:
 `);
 }
 
+/** On/off flags that also take a `--no-` form; any other `--no-` form is refused. */
+const NEGATABLE = new Set([
+  'robots',
+  'respect-crawl-delay',
+  'external',
+  'check-external',
+  'image-variants',
+  'adaptive-speed',
+  'sitemap-discovery',
+]);
+
 /** The command line, strict: an unknown option or a missing value throws. */
 function parseCliArgs() {
-  return parseArgs({
+  const parsed = parseArgs({
     allowPositionals: true,
+    allowNegative: true,
+    tokens: true,
     options: {
       depth: { type: 'string' },
       max: { type: 'string' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'user-agent': { type: 'string' },
-      'no-robots': { type: 'boolean' },
+      robots: { type: 'boolean' },
       'respect-crawl-delay': { type: 'boolean' },
       external: { type: 'boolean' },
-      'no-check-external': { type: 'boolean' },
+      'check-external': { type: 'boolean' },
+      'sitemap-discovery': { type: 'boolean' },
+      sitemap: { type: 'string', multiple: true },
+      proxy: { type: 'string' },
       'image-variants': { type: 'boolean' },
       'adaptive-speed': { type: 'boolean' },
       header: { type: 'string', multiple: true },
@@ -320,6 +346,16 @@ function parseCliArgs() {
       help: { type: 'boolean', short: 'h' },
     },
   });
+  for (const token of parsed.tokens) {
+    if (
+      token.kind === 'option' &&
+      token.rawName.startsWith('--no-') &&
+      !NEGATABLE.has(token.name)
+    ) {
+      throw new Error(`Unknown option '${token.rawName}'`);
+    }
+  }
+  return parsed;
 }
 
 async function main(): Promise<void> {
@@ -451,7 +487,7 @@ async function main(): Promise<void> {
 
   // List mode is selected by `--list`; otherwise we need a positional URL.
   const listFile = values.list;
-  if (values.help || (!listFile && positionals.length === 0)) {
+  if (values.help || (!listFile && positionals.length === 0 && !values.config)) {
     help();
     process.exit(values.help ? 0 : 1);
   }
@@ -473,9 +509,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // In list mode the first listed URL doubles as `startUrl` for progress
-  // labels; in spider mode the positional argument is the start URL.
-  const startUrl = listFile ? (listUrls[0] ?? '') : positionals[0]!;
   const dbPath = resolve(values.db ?? 'crawl.seoproject');
 
   // Layered config: defaults → file (if `--config`) → command-line flags.
@@ -499,12 +532,7 @@ async function main(): Promise<void> {
   // `?? DEFAULT` fallback silently overwrite a value the user set in the
   // --config file (the help text promises "the command line still win[s]",
   // not "defaults clobber the file").
-  const config = {
-    ...DEFAULT_CRAWL_CONFIG,
-    ...fileConfig,
-    mode: listFile ? ('list' as const) : ('spider' as const),
-    urlList: listUrls,
-    startUrl,
+  const flagConfig: Partial<CrawlConfig> = {
     ...(values.depth !== undefined
       ? { maxDepth: parseNumeric('depth', values.depth, DEFAULT_CRAWL_CONFIG.maxDepth) }
       : {}),
@@ -518,18 +546,43 @@ async function main(): Promise<void> {
       ? { maxRps: parseNumeric('rps', values.rps, DEFAULT_CRAWL_CONFIG.maxRps, { integer: false }) }
       : {}),
     ...(values['user-agent'] !== undefined ? { userAgent: values['user-agent'] } : {}),
-    // `--no-robots` / `--external` only flip the flag ON in their direction;
+    // On/off flags in either direction (`--robots` / `--no-robots`);
     // absent, the file value (or default) stands.
-    ...(values['no-robots'] ? { respectRobotsTxt: false } : {}),
-    ...(values['respect-crawl-delay'] ? { respectCrawlDelay: true } : {}),
-    ...(values.external ? { crawlExternal: true } : {}),
-    ...(values['no-check-external'] ? { checkExternalLinks: false } : {}),
-    ...(values['image-variants'] ? { crawlImageVariants: true } : {}),
-    ...(values['adaptive-speed'] ? { adaptiveSpeed: true } : {}),
+    respectRobotsTxt: values.robots,
+    respectCrawlDelay: values['respect-crawl-delay'],
+    crawlExternal: values.external,
+    checkExternalLinks: values['check-external'],
+    crawlImageVariants: values['image-variants'],
+    adaptiveSpeed: values['adaptive-speed'],
+    discoverSitemaps: values['sitemap-discovery'],
+    ...(values.sitemap !== undefined ? { seedSitemapUrls: values.sitemap } : {}),
+    ...(values.proxy !== undefined ? { proxyUrl: values.proxy } : {}),
     ...(values.header !== undefined ? { customHeaders: parseHeaders(values.header) } : {}),
     ...(values.include !== undefined ? { includePatterns: values.include } : {}),
     ...(values.exclude !== undefined ? { excludePatterns: values.exclude } : {}),
   };
+  const merged = mergeCrawlConfig(
+    fileConfig,
+    flagConfig,
+    listFile ? { listUrls } : positionals.length > 0 ? { url: positionals[0]! } : {},
+  );
+  if (merged.kind === 'usage') {
+    help();
+    process.exit(1);
+  }
+  if (merged.kind === 'error') {
+    console.error(merged.message);
+    process.exit(2);
+  }
+  const { config, listMode } = merged;
+  const startUrl = config.startUrl;
+  for (const message of merged.notes) {
+    process.stderr.write(
+      values.json
+        ? JSON.stringify({ type: 'warn', time: new Date().toISOString(), message }) + '\n'
+        : `[warn] ${message}\n`,
+    );
+  }
 
   // `--export-dir` exports right after the crawl; checked up front so a
   // typo fails before a long crawl instead of after it.
@@ -582,7 +635,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const resume = values.resume
-    ? resumeTarget(dbPath, listFile !== undefined, startUrl, Boolean(values.json))
+    ? resumeTarget(dbPath, listMode, startUrl, Boolean(values.json))
     : null;
   if (resume !== null) config.startUrl = resume;
 
