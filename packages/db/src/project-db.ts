@@ -2524,6 +2524,23 @@ export class ProjectDb {
     ).c;
   }
 
+  /**
+   * URLs robots.txt disallows, recorded but never fetched. Seeds the
+   * crawler's set of them on a resume, so they do not take page slots.
+   * `internalOnly` matches the rows the caller marks as seen.
+   */
+  getRobotsBlockedUrls(internalOnly: boolean): string[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT url FROM urls WHERE indexability = 'non-indexable:robots-blocked'${
+            internalOnly ? ' AND is_external = 0' : ''
+          }`,
+        )
+        .all() as unknown as { url: string }[]
+    ).map((r) => r.url);
+  }
+
   countCrawledUrls(): number {
     return (
       this.db

@@ -946,6 +946,7 @@ async function main(): Promise<void> {
           (soft404Probe.finalUrl ? ` -> ${soft404Probe.finalUrl}` : ''),
       );
     }
+    if (crawlStoppedAtLimit) console.log(`Stopped at the page limit (${crawlStoppedAtLimit}).`);
     for (const f of sitemapFindings?.overUrls ?? []) {
       console.log(`Warning: sitemap over 50,000 URLs — ${f.url}`);
     }

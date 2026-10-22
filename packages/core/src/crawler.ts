@@ -423,6 +423,13 @@ export class Crawler extends EventEmitter {
   /** Saved-queue URLs handed over before `start()`; see `enqueueCheckpointed`. */
   private checkpointed: { url: string; depth: number }[] = [];
   private externalSeen = new Set<string>();
+  /**
+   * URLs in `seen` that robots.txt disallows. They are recorded, not fetched,
+   * so the page limit leaves them out (`seen.size - robotsBlocked.size`). A
+   * set, not a count: a resume puts saved queue entries back through
+   * `enqueue`, and a blocked one must not be counted twice.
+   */
+  private robotsBlocked = new Set<string>();
   /** AMP versions probed (or queued) in this crawl, B24. */
   private ampSeen = new Set<string>();
   private pageLimitHit = false;
@@ -1738,6 +1745,7 @@ export class Crawler extends EventEmitter {
     // Release per-URL dedup sets — at 1M URLs this is ~80–120 MB of string
     // heap that's no longer needed once the queue is drained.
     this.seen.clear();
+    this.robotsBlocked.clear();
     this.externalSeen.clear();
     this.emitProgressFinal();
     this.setOp('idle');
@@ -3158,6 +3166,7 @@ export class Crawler extends EventEmitter {
       }
       this.crawled = this.db.countCrawledUrls();
       this.resourceAdmitted = this.db.countSubresourceUrls();
+      this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(false));
     }
 
     this.queueCheckpointed();
@@ -3187,6 +3196,7 @@ export class Crawler extends EventEmitter {
     this.running = false;
     this.stopMemoryMonitor();
     this.seen.clear();
+    this.robotsBlocked.clear();
     this.externalSeen.clear();
     this.finishing = false;
     this.emitProgressFinal();
@@ -3384,6 +3394,7 @@ export class Crawler extends EventEmitter {
       : this.db.getUrlsByScope(false)) {
       this.seen.add(url);
     }
+    this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));
     this.queueCheckpointed();
     // A refresh counts its own work from zero — the progress bar should
     // read "0 of 122 re-crawled", not start at 122 and never move.
@@ -4257,7 +4268,7 @@ export class Crawler extends EventEmitter {
   private enqueue(item: QueueItem): void {
     if (this.stopped) return;
     if (this.seen.has(item.url)) return;
-    if (this.seen.size >= this.config.maxUrls) {
+    if (this.seen.size - this.robotsBlocked.size >= this.config.maxUrls) {
       if (!this.pageLimitHit) {
         // Recorded so «sitemap URLs not crawled» can say the limit, not the site, is why (B76).
         this.pageLimitHit = true;
@@ -4293,9 +4304,14 @@ export class Crawler extends EventEmitter {
       // because the disallowed URL was never written anywhere. Mark it seen
       // so it is recorded exactly once, then persist a lightweight row.
       // Fire-and-forget to keep enqueue synchronous, matching the other
-      // write paths.
-      if (!this.seen.has(item.url) && this.seen.size < this.config.maxUrls) {
+      // write paths. At most `maxUrls` of them are recorded; past that a
+      // blocked URL stays out of `seen`, is met again and skipped again, so
+      // nothing grows and the overflow is not counted anywhere.
+      if (this.robotsBlocked.has(item.url)) {
         this.seen.add(item.url);
+      } else if (this.robotsBlocked.size < this.config.maxUrls) {
+        this.seen.add(item.url);
+        this.robotsBlocked.add(item.url);
         void this.recordRobotsBlocked(item);
       }
       return;
@@ -4696,6 +4712,8 @@ export class Crawler extends EventEmitter {
     // Queued while its origin's robots.txt was still loading: ask again
     // now that it has loaded, and record it instead of fetching if blocked.
     if (this.config.respectRobotsTxt && !(await this.robotsAllowsAfterLoad(item.url))) {
+      // Admitted as a page, it is a blocked row now: its page slot is free.
+      this.robotsBlocked.add(item.url);
       if (!this.stopped) await this.recordRobotsBlocked(item);
       return;
     }
