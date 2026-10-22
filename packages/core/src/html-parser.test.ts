@@ -930,5 +930,40 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(required(product)).toEqual([gap]);
     });
   });
+
+  describe('row 1: SocialMediaPosting', () => {
+    const social = { '@type': 'SocialMediaPosting', datePublished: '2026-10-01', text: 'Hi' };
+
+    it('asks a SocialMediaPosting for an author with a name', () => {
+      expect(required(social)).toEqual([
+        req('SocialMediaPosting', 'author', 'author.name'),
+      ]);
+      expect(required({ ...social, author: { '@type': 'Person', name: 'Ann' } })).toEqual([]);
+    });
+
+    it('lets a posting that points to another page go without content', () => {
+      const author = { '@type': 'Person', name: 'Ann' };
+      const bare = { '@type': 'SocialMediaPosting', author, datePublished: '2026-10-01' };
+      expect(required(bare)).toEqual([req('SocialMediaPosting', 'text | image | video')]);
+      expect(required({ ...bare, url: 'https://elsewhere.example/thread' })).toEqual([]);
+    });
+
+    it('leaves a BlogPosting to the Article rule, which asks for nothing', () => {
+      expect(required({ '@type': 'BlogPosting' })).toEqual([]);
+      expect(required({ '@type': 'LiveBlogPosting' })).toEqual([]);
+    });
+
+    it('gives a DiscussionForumPosting its own rule only: one finding', () => {
+      expect(required({ '@type': 'DiscussionForumPosting', datePublished: '2026-10-01', text: 'x' })).toEqual([
+        req('DiscussionForumPosting', 'author', 'author.name'),
+      ]);
+    });
+
+    it('checks the comments of a social posting like those of a forum post', () => {
+      expect(
+        required({ ...social, author: { name: 'Ann' }, comment: { '@type': 'Comment' } }),
+      ).toEqual([req('Comment', 'author', 'datePublished', 'text | image | video')]);
+    });
+  });
   // PART2-END
 });

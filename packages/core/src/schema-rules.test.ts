@@ -79,4 +79,11 @@ describe('structured-data rules', () => {
     expect(isSchemaTypeOf('VacationRental', 'LocalBusiness')).toBe(true);
     expect(isSchemaTypeOf('Dataset', 'DataFeed')).toBe(false);
   });
+
+  it('resolves the social posting family: articles keep Article, forum posts keep their own rule', () => {
+    expect(rootOf('SocialMediaPosting')).toEqual(['SocialMediaPosting']);
+    expect(rootOf('BlogPosting')).toEqual(['Article']);
+    expect(rootOf('LiveBlogPosting')).toEqual(['Article']);
+    expect(rootOf('DiscussionForumPosting')).toEqual(['DiscussionForumPosting']);
+  });
 });

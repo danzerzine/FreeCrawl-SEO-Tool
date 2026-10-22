@@ -218,6 +218,16 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
     only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
   },
   {
+    source: `${GOOGLE}discussion-forum`,
+    types: ['SocialMediaPosting'],
+    // BlogPosting (and LiveBlogPosting) are articles: they keep the Article rule.
+    exclude: ['BlogPosting'],
+    label: 'forum',
+    required: ['author', 'author.name', 'datePublished', 'text | image | video | url'],
+    // A post that stands for a thread on another page needs no content of its own.
+    only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
+  },
+  {
     source: `${GOOGLE}return-policy`,
     types: ['MerchantReturnPolicy'],
     required: [
