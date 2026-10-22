@@ -174,7 +174,7 @@ export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
 ];
 
 const NO_SITEMAP_REASON =
-  'No sitemap URLs are stored for this crawl: it read no sitemap (sitemap discovery was off or none was found), so no file written.';
+  'No sitemap URLs are stored in this project (no sitemap was read, or the ones read held no URLs), so no file written.';
 
 /**
  * Subfolder of the per-issue inlinks files (`inlinks-<issue>.csv`). One

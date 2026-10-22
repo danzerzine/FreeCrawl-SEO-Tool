@@ -83,7 +83,7 @@ export interface TabularExportResult {
 const EMPTY_DATASET_REASONS: Partial<Record<ExportDatasetKey, string>> = {
   'response-headers': 'No response headers are stored for this crawl.',
   'sitemap-reconciliation':
-    'No sitemap URLs are stored for this crawl: it read no sitemap (sitemap discovery was off or none was found), so there is nothing to compare the crawl with.',
+    'No sitemap URLs are stored in this project (no sitemap was read, or the ones read held no URLs), so there is nothing to compare the crawl with.',
   'page-html':
     'No page HTML is stored: the crawl ran with storeBodySnapshots off, or it fetched no HTML pages.',
   'page-text':

@@ -1490,7 +1490,7 @@ export function buildTools(): Tool[] {
             type: 'string',
             enum: ['chain', 'last-modified', 'sitemap', 'crawl', 'none'],
             description:
-              '`<lastmod>` source. `chain` (default): the page\'s own Last-Modified when trustworthy (not within 60 s of the response Date, not in the future), else the lastmod the site\'s sitemap declared, else none. `last-modified` / `sitemap`: only that source. `crawl`: the crawl date. `none`: omit.',
+              '`<lastmod>` source. `chain` (default): the page\'s own Last-Modified when trustworthy (rejected when it is at or after the response Date minus 60 s, which includes later than Date), else the lastmod the site\'s sitemap declared, else none. `last-modified` / `sitemap`: only that source. `crawl`: the crawl date. `none`: omit.',
           },
         },
         required: ['filePath'],
