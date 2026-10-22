@@ -171,3 +171,13 @@ describe('an empty table', () => {
     expect(out).toMatchObject({ rowsWritten: 0, tableRef: '' });
   });
 });
+
+describe('an unknown table key from the renderer', () => {
+  it('is a clear error before anything is created', async () => {
+    const r = recorder();
+    await expect(
+      exportCategoryToSheets(db, 'all', 't', { dataset: 'nope' as never, deps: r.deps }),
+    ).rejects.toThrow(/Unknown table to export: nope/);
+    expect(r.bodies).toEqual([]);
+  });
+});
