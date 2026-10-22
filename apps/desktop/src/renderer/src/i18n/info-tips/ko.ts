@@ -678,4 +678,26 @@ export const KO_INFO_TIPS: Record<string, string> = {
   ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
     "각 페이지를 렌더링하는 동안 브라우저의 콘솔 오류, 처리되지 않은 페이지 오류, 불러오지 못한 리소스(네트워크 실패 및 4xx/5xx 응답)를 기록합니다. 콘솔 오류와 로드 실패 리소스 문제 필터를 채웁니다. 크롤이 의도적으로 차단한 요청은 세지 않습니다. 페이지당 최대 50개 항목만 보관합니다.",
   ["On to find broken scripts, images and API calls the HTML check does not see."]: "HTML 검사로는 보이지 않는 깨진 스크립트, 이미지, API 호출을 찾으려면 켜세요.",
+  ["Whether the H1 differs between the HTML the server sent and the rendered page: 1 differs, 0 equal, empty when the page was not compared (text mode, failed render, older project)."]:
+    "서버가 보낸 HTML과 렌더링된 페이지 사이에 H1이 다른지 여부: 1 다름, 0 같음, 페이지를 비교하지 않았으면 비어 있음(텍스트 모드, 렌더링 실패, 이전 프로젝트).",
+  ["Whether the canonical differs between the HTML the server sent and the rendered page: 1 differs, 0 equal, empty when not compared."]:
+    "서버가 보낸 HTML과 렌더링된 페이지 사이에 canonical이 다른지 여부: 1 다름, 0 같음, 비교하지 않았으면 비어 있음.",
+  ["Whether rendering added or removed internal links compared with the HTML the server sent: 1 differs, 0 equal, empty when not compared."]:
+    "서버가 보낸 HTML과 비교해 렌더링이 내부 링크를 추가하거나 제거했는지 여부: 1 다름, 0 같음, 비교하지 않았으면 비어 있음.",
+  ["Whether the visible word count changed by more than 20 % and at least 30 words between the served HTML and the rendered page: 1 differs, 0 equal, empty when not compared."]:
+    "서버가 제공한 HTML과 렌더링된 페이지 사이에 보이는 단어 수가 20 % 넘게, 그리고 30단어 이상 달라졌는지 여부: 1 다름, 0 같음, 비교하지 않았으면 비어 있음.",
+  ["Console errors plus uncaught page errors logged while the page rendered: 0 none, empty when not recorded (text mode, option off, failed render, older project). Needs Settings → Rendering → Console errors and failed resources."]:
+    "페이지를 렌더링하는 동안 기록된 콘솔 오류와 처리되지 않은 페이지 오류의 합: 0 없음, 기록하지 않았으면 비어 있음(텍스트 모드, 옵션 꺼짐, 렌더링 실패, 이전 프로젝트). 설정 → 렌더링 → 콘솔 오류 및 불러오지 못한 리소스가 필요합니다.",
+  ["Resources the browser could not load while the page rendered: failed requests plus subresource answers of 400 and above. Requests the crawl blocks on purpose are not counted. Empty when not recorded."]:
+    "페이지를 렌더링하는 동안 브라우저가 불러오지 못한 리소스: 실패한 요청과 400 이상의 하위 리소스 응답. 크롤이 의도적으로 차단한 요청은 세지 않습니다. 기록하지 않았으면 비어 있음.",
+  ["The entries behind Console Errors and Failed Resources (at most 50 per page), as JSON. Empty when both are 0 or not recorded."]:
+    "콘솔 오류와 로드 실패 리소스의 근거가 되는 항목(페이지당 최대 50개), JSON 형식. 둘 다 0이거나 기록하지 않았으면 비어 있음.",
+  ["What rendering changed against the HTML the server sent (H1, canonical, links, word counts), as JSON. Empty when nothing differs or the page was not compared."]:
+    "서버가 보낸 HTML과 비교해 렌더링이 바꾼 것(H1, canonical, 링크, 단어 수), JSON 형식. 차이가 없거나 페이지를 비교하지 않았으면 비어 있음.",
+  ["JavaScript that runs ONCE on every rendered page that answered 2xx, after the load and the extra wait and before the DOM is read: click 'Load more', scroll, open tabs. What it returns (JSON, up to 16 KB) is stored in Extracted Data under $script. Runs in the page context, no Node access. While it runs the page is not cut off by the request timeout: the render has its own limit (page load + wait + the script timeout below + 5 s); a script that hangs the page makes that page a failed render and the served HTML is used. Storage the script writes (localStorage, sessionStorage) is not cleared: it persists for the site inside the crawl and other pages of the same site may see it; cookies are cleared after each page. Each second of script is paid for on every rendered page, so keep it short. Up to 20 000 characters. Pages with a script compare the DOM from before the script for the raw-vs-rendered checks."]:
+    "응답이 2xx인 렌더링된 모든 페이지에서 로드와 추가 대기 후, DOM을 읽기 전에 한 번 실행되는 JavaScript입니다. '더 보기' 클릭, 스크롤, 탭 열기 등에 쓸 수 있습니다. 반환값(JSON, 최대 16 KB)은 추출된 데이터에 $script 아래로 저장됩니다. 페이지 컨텍스트에서 실행되며 Node에는 접근할 수 없습니다. 실행 중에는 요청 제한 시간으로 페이지가 끊기지 않습니다. 렌더링에는 자체 한도가 있습니다(페이지 로드 + 대기 + 아래 스크립트 제한 시간 + 5초). 페이지를 멈추게 하는 스크립트는 그 페이지를 렌더링 실패로 만들고 서버가 보낸 HTML을 사용합니다. 스크립트가 쓴 스토리지(localStorage, sessionStorage)는 지워지지 않아 크롤 동안 사이트에 남고 같은 사이트의 다른 페이지가 볼 수 있습니다. 쿠키는 페이지마다 지워집니다. 스크립트 1초마다 렌더링된 모든 페이지에서 비용이 들므로 짧게 유지하세요. 최대 20 000자. 스크립트가 있는 페이지는 원본 HTML과 렌더링 비교 검사에 스크립트 실행 전의 DOM을 사용합니다.",
+  ["How long the page script may run on one page, 500 to 30 000 ms. When it runs out the page continues with the DOM it has and the result is {error: timeout}. The render limit grows with this value."]:
+    "페이지 스크립트가 한 페이지에서 실행될 수 있는 시간, 500~30 000 ms. 시간이 다 되면 페이지는 현재 가진 DOM으로 계속하고 결과는 {error: timeout}이 됩니다. 렌더링 한도는 이 값에 따라 늘어납니다.",
+  ["5000 for a click and a short wait, 15000 for scrolling a long list."]:
+    "클릭 한 번과 짧은 대기에는 5000, 긴 목록을 스크롤하려면 15000.",
 };

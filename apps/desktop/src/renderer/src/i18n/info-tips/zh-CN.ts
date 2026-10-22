@@ -672,4 +672,26 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
   ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
     "在每个页面渲染期间记录浏览器的控制台错误、未捕获的页面错误和加载失败的资源（网络失败及 4xx/5xx 响应）。为“控制台错误”和“加载失败的资源”问题筛选器提供数据。抓取有意拦截的请求不计入。每个页面最多保留 50 条记录。",
   ["On to find broken scripts, images and API calls the HTML check does not see."]: "开启后可发现 HTML 检查看不到的损坏脚本、图片和 API 调用。",
+  ["Whether the H1 differs between the HTML the server sent and the rendered page: 1 differs, 0 equal, empty when the page was not compared (text mode, failed render, older project)."]:
+    "服务器发送的 HTML 与渲染后的页面之间 H1 是否不同：1 不同，0 相同，页面未比较时为空（文本模式、渲染失败、旧项目）。",
+  ["Whether the canonical differs between the HTML the server sent and the rendered page: 1 differs, 0 equal, empty when not compared."]:
+    "服务器发送的 HTML 与渲染后的页面之间 canonical 是否不同：1 不同，0 相同，未比较时为空。",
+  ["Whether rendering added or removed internal links compared with the HTML the server sent: 1 differs, 0 equal, empty when not compared."]:
+    "与服务器发送的 HTML 相比，渲染是否增加或移除了内部链接：1 不同，0 相同，未比较时为空。",
+  ["Whether the visible word count changed by more than 20 % and at least 30 words between the served HTML and the rendered page: 1 differs, 0 equal, empty when not compared."]:
+    "服务器提供的 HTML 与渲染后的页面之间，可见字数是否变化超过 20 % 且至少 30 个字：1 不同，0 相同，未比较时为空。",
+  ["Console errors plus uncaught page errors logged while the page rendered: 0 none, empty when not recorded (text mode, option off, failed render, older project). Needs Settings → Rendering → Console errors and failed resources."]:
+    "页面渲染期间记录的控制台错误加未捕获的页面错误：0 表示没有，未记录时为空（文本模式、选项关闭、渲染失败、旧项目）。需要在“设置 → 渲染”中开启“控制台错误与加载失败的资源”。",
+  ["Resources the browser could not load while the page rendered: failed requests plus subresource answers of 400 and above. Requests the crawl blocks on purpose are not counted. Empty when not recorded."]:
+    "页面渲染期间浏览器无法加载的资源：失败的请求加状态码 400 及以上的子资源响应。抓取有意拦截的请求不计入。未记录时为空。",
+  ["The entries behind Console Errors and Failed Resources (at most 50 per page), as JSON. Empty when both are 0 or not recorded."]:
+    "“控制台错误”和“加载失败的资源”背后的条目（每页最多 50 条），JSON 格式。两者均为 0 或未记录时为空。",
+  ["What rendering changed against the HTML the server sent (H1, canonical, links, word counts), as JSON. Empty when nothing differs or the page was not compared."]:
+    "与服务器发送的 HTML 相比，渲染改变了什么（H1、canonical、链接、字数），JSON 格式。没有差异或页面未比较时为空。",
+  ["JavaScript that runs ONCE on every rendered page that answered 2xx, after the load and the extra wait and before the DOM is read: click 'Load more', scroll, open tabs. What it returns (JSON, up to 16 KB) is stored in Extracted Data under $script. Runs in the page context, no Node access. While it runs the page is not cut off by the request timeout: the render has its own limit (page load + wait + the script timeout below + 5 s); a script that hangs the page makes that page a failed render and the served HTML is used. Storage the script writes (localStorage, sessionStorage) is not cleared: it persists for the site inside the crawl and other pages of the same site may see it; cookies are cleared after each page. Each second of script is paid for on every rendered page, so keep it short. Up to 20 000 characters. Pages with a script compare the DOM from before the script for the raw-vs-rendered checks."]:
+    "在每个返回 2xx 的已渲染页面上，于加载和额外等待之后、读取 DOM 之前只运行一次的 JavaScript：点击“加载更多”、滚动、打开标签页。它的返回值（JSON，最多 16 KB）存放在“提取的数据”的 $script 下。在页面上下文中运行，无法访问 Node。运行期间页面不会被请求超时中断：渲染有自己的限制（页面加载 + 等待 + 下方的脚本超时 + 5 秒）；让页面卡死的脚本会使该页面渲染失败，并改用服务器发送的 HTML。脚本写入的存储（localStorage、sessionStorage）不会被清除：在抓取期间对该站点保留，同一站点的其他页面可能读到；Cookie 在每个页面之后清除。脚本的每一秒都要在每个已渲染页面上付出，所以请保持简短。最多 20 000 个字符。带脚本的页面在原始 HTML 与渲染结果的对比检查中使用脚本运行之前的 DOM。",
+  ["How long the page script may run on one page, 500 to 30 000 ms. When it runs out the page continues with the DOM it has and the result is {error: timeout}. The render limit grows with this value."]:
+    "页面脚本在单个页面上最多可运行多久，500 到 30 000 毫秒。时间用完后，页面按现有的 DOM 继续，结果为 {error: timeout}。渲染限制会随该值增大。",
+  ["5000 for a click and a short wait, 15000 for scrolling a long list."]:
+    "一次点击加短暂等待用 5000，滚动长列表用 15000。",
 };
