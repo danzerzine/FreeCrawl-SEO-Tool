@@ -734,6 +734,223 @@ export function readServedHeadSignals(html: string, robotsBot = 'googlebot'): Se
   return { title, noindex };
 }
 
+/** At most this many followed link targets are kept per side of the raw-vs-rendered compare (B33). */
+export const SERVED_LINKS_CAP = 5000;
+
+/**
+ * What the raw-vs-rendered compare reads of one document: first H1, resolved
+ * canonical, followed link targets and the visible word count.
+ */
+export interface ServedPageSignals {
+  h1: string | null;
+  /** Canonical `href` resolved like `ParsedPage.canonicalResolved`. */
+  canonical: string | null;
+  /** `[target, isInternal]` of followed links, first occurrence order, at most SERVED_LINKS_CAP. */
+  links: [string, boolean][];
+  /** More followed link targets existed than the cap kept. */
+  linksCapped: boolean;
+  /** Visible words, counted like `ParsedPage.wordCount`. */
+  words: number;
+}
+
+/**
+ * The four things B33 compares, read out of an HTML document with one
+ * cheerio load. Follows `parseHtml` rule for rule (base href, head-only
+ * canonical, URL rewrites, nofollow, Cloudflare mail links, visible text),
+ * so the served and the rendered side never disagree on what an H1, a
+ * canonical or a link is; a test holds the two against each other.
+ */
+export function readServedPageSignals(
+  html: string,
+  pageUrl: string,
+  opts: {
+    includeSubdomains?: boolean;
+    cdnHosts?: readonly string[];
+    urlRewrites?: UrlRewriteOptions;
+  } = {},
+): ServedPageSignals {
+  const $ = cheerio.load(html, {
+    xml: false,
+    xmlMode: false,
+    // @ts-expect-error — see parseHtml.
+    _useHtmlParser2: true,
+    decodeEntities: false,
+  });
+  const baseHref = ($('base[href]').first().attr('href') ?? '').trim();
+  let baseUrl = pageUrl;
+  if (baseHref) {
+    try {
+      baseUrl = new URL(baseHref, pageUrl).toString();
+    } catch {
+      baseUrl = pageUrl;
+    }
+  }
+  const h1 = decodeEntities($('h1').first().text().replace(/\s+/g, ' ').trim()) || null;
+  const canonicalHref = (
+    $('link[rel="canonical"]')
+      .filter((_, el) => $(el).closest('body').length === 0)
+      .first()
+      .attr('href') ?? ''
+  ).trim();
+  const canonical = canonicalHref ? normalizeUrl(canonicalHref, baseUrl, opts.urlRewrites) : null;
+
+  // target -> [internal, followed by any occurrence]; Map keeps first-occurrence order.
+  const seen = new Map<string, { internal: boolean; followed: boolean }>();
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (!href) return;
+    const normalized = normalizeUrl(href, baseUrl, opts.urlRewrites);
+    if (!normalized || !/^https?:/.test(normalized)) return;
+    if (CF_EMAIL_PROTECTION_RE.test(normalized)) return;
+    const rel = ($(el).attr('rel') ?? '').trim().toLowerCase();
+    const followed = !rel.includes('nofollow');
+    const existing = seen.get(normalized);
+    if (existing) {
+      if (followed) existing.followed = true;
+      return;
+    }
+    seen.set(normalized, { internal: isSameHost(pageUrl, normalized, opts), followed });
+  });
+  const links: [string, boolean][] = [];
+  let linksCapped = false;
+  for (const [target, v] of seen) {
+    if (!v.followed) continue;
+    if (links.length >= SERVED_LINKS_CAP) {
+      linksCapped = true;
+      break;
+    }
+    links.push([target, v.internal]);
+  }
+
+  const $visibleBody = $('body').clone();
+  $visibleBody.find('script, style, noscript').remove();
+  const text = $visibleBody.text().replace(/\s+/g, ' ').trim();
+  const words = text.length > 0 ? text.split(' ').filter(Boolean).length : 0;
+  return { h1, canonical, links, linksCapped, words };
+}
+
+/** The rendered page's side of the compare, from a full parse. */
+export function pageSignalsFromParsed(
+  p: Pick<ParsedPage, 'h1' | 'canonicalResolved' | 'links' | 'wordCount'>,
+): ServedPageSignals {
+  const links: [string, boolean][] = [];
+  let linksCapped = false;
+  for (const l of p.links) {
+    if (l.rel?.includes('nofollow')) continue;
+    if (links.length >= SERVED_LINKS_CAP) {
+      linksCapped = true;
+      break;
+    }
+    links.push([l.toUrl, l.isInternal]);
+  }
+  return { h1: p.h1, canonical: p.canonicalResolved, links, linksCapped, words: p.wordCount };
+}
+
+/** Text counts as changed above this share of the served words AND by at least TEXT_CHANGE_MIN_WORDS. */
+export const TEXT_CHANGE_RATIO = 0.2;
+export const TEXT_CHANGE_MIN_WORDS = 30;
+/** Added / removed internal link targets listed in `render_diff`, and the clip of any text in it. */
+export const RENDER_DIFF_MAX_TARGETS = 20;
+export const RENDER_DIFF_CLIP = 300;
+
+export interface ServedRenderedCompare {
+  h1: boolean;
+  canonical: boolean;
+  links: boolean;
+  text: boolean;
+  servedH1: string | null;
+  renderedH1: string | null;
+  servedCanonical: string | null;
+  renderedCanonical: string | null;
+  /** Internal link targets the rendering added / removed. */
+  linksAdded: number;
+  linksRemoved: number;
+  externalAdded: number;
+  externalRemoved: number;
+  addedTargets: string[];
+  removedTargets: string[];
+  /** Either side hit SERVED_LINKS_CAP: the links verdict is decided on the first-5000 prefix of each. */
+  linksCapped: boolean;
+  words: { served: number; rendered: number };
+}
+
+const stripFragment = (u: string | null): string | null => (u === null ? null : (u.split('#')[0] ?? u));
+const clip = (s: string | null): string | null => (s === null ? null : s.slice(0, RENDER_DIFF_CLIP));
+
+/**
+ * Raw against rendered: the four verdicts of B33 and the detail behind them.
+ * `rendered` is a full parse of the rendered DOM, or the signals of another
+ * document (the DOM before a page script ran).
+ */
+export function compareServedRendered(
+  served: ServedPageSignals,
+  rendered: ServedPageSignals | ParsedPage,
+): ServedRenderedCompare {
+  const r = 'wordCount' in rendered ? pageSignalsFromParsed(rendered) : rendered;
+  const servedSet = new Map(served.links);
+  const renderedSet = new Map(r.links);
+  const addedTargets: string[] = [];
+  const removedTargets: string[] = [];
+  let linksAdded = 0;
+  let linksRemoved = 0;
+  let externalAdded = 0;
+  let externalRemoved = 0;
+  for (const [target, internal] of renderedSet) {
+    if (servedSet.has(target)) continue;
+    if (internal) {
+      linksAdded++;
+      if (addedTargets.length < RENDER_DIFF_MAX_TARGETS) addedTargets.push(clip(target) as string);
+    } else externalAdded++;
+  }
+  for (const [target, internal] of servedSet) {
+    if (renderedSet.has(target)) continue;
+    if (internal) {
+      linksRemoved++;
+      if (removedTargets.length < RENDER_DIFF_MAX_TARGETS) removedTargets.push(clip(target) as string);
+    } else externalRemoved++;
+  }
+  const diff = Math.abs(r.words - served.words);
+  return {
+    h1: (served.h1 ?? '') !== (r.h1 ?? ''),
+    canonical: stripFragment(served.canonical) !== stripFragment(r.canonical),
+    links: linksAdded > 0 || linksRemoved > 0,
+    text: diff >= TEXT_CHANGE_MIN_WORDS && diff > TEXT_CHANGE_RATIO * served.words,
+    servedH1: clip(served.h1),
+    renderedH1: clip(r.h1),
+    servedCanonical: clip(served.canonical),
+    renderedCanonical: clip(r.canonical),
+    linksAdded,
+    linksRemoved,
+    externalAdded,
+    externalRemoved,
+    addedTargets,
+    removedTargets,
+    linksCapped: served.linksCapped || r.linksCapped,
+    words: { served: served.words, rendered: r.words },
+  };
+}
+
+/** The `render_diff` column: JSON detail of a compare, null when the pages agree. */
+export function renderDiffJson(c: ServedRenderedCompare): string | null {
+  if (!c.h1 && !c.canonical && !c.links && !c.text && c.externalAdded === 0 && c.externalRemoved === 0) {
+    return null;
+  }
+  return JSON.stringify({
+    h1: { served: c.servedH1, rendered: c.renderedH1 },
+    canonical: { served: c.servedCanonical, rendered: c.renderedCanonical },
+    links: {
+      added: c.linksAdded,
+      removed: c.linksRemoved,
+      externalAdded: c.externalAdded,
+      externalRemoved: c.externalRemoved,
+      addedTargets: c.addedTargets,
+      removedTargets: c.removedTargets,
+      ...(c.linksCapped ? { linksCapped: true } : {}),
+    },
+    words: c.words,
+  });
+}
+
 function findJsRedirect(
   $: cheerio.CheerioAPI,
   baseUrl: string,
