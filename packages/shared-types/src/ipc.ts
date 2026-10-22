@@ -476,6 +476,7 @@ export const IPC = {
    *  stores the index/coverage verdict per URL. */
   gscInspectRun: 'gsc:inspect-run',
   gscInspectCancel: 'gsc:inspect-cancel',
+  gscInspectPlan: 'gsc:inspect-plan',
   gscInspectProgress: 'gsc:inspect-progress',
   /** Faz 7 — Google Sheets export. Writes a category's rows to a new
    *  spreadsheet on the connected account's Drive and returns the URL. */
@@ -2041,12 +2042,31 @@ export interface GscInspectRunInput {
   /** Which connected Google account owns that property. Omitted / empty
    *  falls back to the project's configured account. */
   accountId?: string;
+  /** Inspect pages even when they were inspected in the last 24 hours. */
+  force?: boolean;
+}
+
+/** The split the confirm dialog shows before a run (same rule the runner applies). */
+export interface GscInspectPlan {
+  toInspect: number;
+  /** Inspected in the last 24 hours; skipped unless `force`. */
+  skipped: number;
 }
 
 export interface GscInspectRunResult {
   completed: number;
   failed: number;
   cancelled: boolean;
+  /** Pages asked of Google in this run (completed + failed). */
+  inspected: number;
+  /** Pages left alone because they were inspected in the last 24 hours. */
+  skipped: number;
+  /** Pages not reached because the run stopped. */
+  remaining: number;
+  /** Google's per-property quota ran out; the run stopped. */
+  quotaExhausted: boolean;
+  /** Set when sign-in or access to the property failed and the run stopped. */
+  stopMessage: string | null;
 }
 
 export interface GscInspectProgress {
@@ -2458,6 +2478,7 @@ export interface FreeCrawlApi {
   onSeoProgress(cb: (p: SeoProgress) => void): () => void;
   /** Run GSC URL Inspection on the given URLs (rate-limited 2K/day). */
   gscInspectRun(input: GscInspectRunInput): Promise<GscInspectRunResult>;
+  gscInspectPlan(input: GscInspectRunInput): Promise<GscInspectPlan>;
   gscInspectCancel(): Promise<void>;
   onGscInspectProgress(cb: (p: GscInspectProgress) => void): () => void;
   /** Export a category's rows to a new Google Sheet. Requires the

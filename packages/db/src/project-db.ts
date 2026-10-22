@@ -6789,6 +6789,43 @@ export class ProjectDb {
     };
   }
 
+  /**
+   * What the runner needs to decide whether a URL is fresh: status, fetch time and whether the
+   * B38 data (sitemaps) was stored. Exact URL strings, one account.
+   */
+  gscInspectionStates(
+    urls: string[],
+    accountId = '',
+  ): Map<string, { status: 'ok' | 'error'; fetchedAt: string; sitemapsStored: boolean }> {
+    const out = new Map<
+      string,
+      { status: 'ok' | 'error'; fetchedAt: string; sitemapsStored: boolean }
+    >();
+    for (let i = 0; i < urls.length; i += 400) {
+      const chunk = urls.slice(i, i + 400);
+      const rows = this.db
+        .prepare(
+          `SELECT url, status, fetched_at, sitemaps_json IS NOT NULL AS stored
+           FROM gsc_inspection_results
+           WHERE account_id = ? AND url IN (${chunk.map(() => '?').join(',')})`,
+        )
+        .all(accountId, ...chunk) as {
+        url: string;
+        status: string;
+        fetched_at: string;
+        stored: number;
+      }[];
+      for (const r of rows) {
+        out.set(r.url, {
+          status: r.status === 'error' ? 'error' : 'ok',
+          fetchedAt: r.fetched_at,
+          sitemapsStored: r.stored === 1,
+        });
+      }
+    }
+    return out;
+  }
+
   /** Faz 7 — store one Search Console URL Inspection result. */
   upsertGscInspection(
     url: string,

@@ -174,6 +174,7 @@ import {
   type SeoQueryInput,
   type SeoQueryResult,
   type SeoProgress,
+  type GscInspectPlan,
   type GscInspectRunInput,
   type GscInspectRunResult,
   type GscInspectProgress,
@@ -567,6 +568,8 @@ const api: FreeCrawlApi = {
   onSeoProgress: (cb) => subscribe<SeoProgress>(IPC.seoProgress, cb),
   gscInspectRun: (input: GscInspectRunInput): Promise<GscInspectRunResult> =>
     ipcRenderer.invoke(IPC.gscInspectRun, input),
+  gscInspectPlan: (input: GscInspectRunInput): Promise<GscInspectPlan> =>
+    ipcRenderer.invoke(IPC.gscInspectPlan, input),
   gscInspectCancel: (): Promise<void> => ipcRenderer.invoke(IPC.gscInspectCancel),
   onGscInspectProgress: (cb) =>
     subscribe<GscInspectProgress>(IPC.gscInspectProgress, cb),

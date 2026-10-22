@@ -208,6 +208,7 @@ import {
   type SeoRunResult,
   type SeoQueryInput,
   type SeoQueryResult,
+  type GscInspectPlan,
   type GscInspectRunInput,
   type GscInspectRunResult,
   type ExportSheetsInput,
@@ -384,6 +385,7 @@ import {
   resolveGscDateRange,
   buildGscQueryOptions,
 } from './gsc.js';
+import { planInspection, runGscInspection, uniqueInspectUrls } from './gsc-inspect-run.js';
 import { exportCategoryToSheets } from './sheets-export.js';
 import { exportCategoryToBigQuery } from './bigquery-export.js';
 import { listProperties as ga4ListProperties, runReport as ga4RunReport } from './ga4.js';
@@ -7311,93 +7313,64 @@ function registerIpc(): void {
     async (_e, input: GscInspectRunInput): Promise<GscInspectRunResult> => {
       const runSession = currentSession();
       const run = runSession.fetchRuns.gscInspect;
-      if (run.active) {
-        return { completed: 0, failed: 0, cancelled: true };
-      }
-      const urls = Array.from(
-        new Set(
-          (input.urls ?? []).filter(
-            (u): u is string => typeof u === 'string' && u.length > 0,
-          ),
-        ),
-      );
-      if (!input.property || urls.length === 0) {
-        return { completed: 0, failed: 0, cancelled: false };
-      }
+      const idle: GscInspectRunResult = {
+        completed: 0,
+        failed: 0,
+        cancelled: false,
+        inspected: 0,
+        skipped: 0,
+        remaining: 0,
+        quotaExhausted: false,
+        stopMessage: null,
+      };
+      if (run.active) return { ...idle, cancelled: true };
+      const urls = uniqueInspectUrls(input.urls);
+      if (!input.property || urls.length === 0) return idle;
       const runDb = runSession.getDb();
       const inspectAccountId = resolveGoogleAccount('gsc', input.accountId);
       run.active = true;
       run.cancelRequested = false;
-      let completed = 0;
-      let failed = 0;
-      let done = 0;
       logger.log(
         'info',
         'gsc',
         `URL Inspection run started — ${urls.length} URL(s) for ${input.property}`,
       );
-      runSession.send(IPC.gscInspectProgress, {
-        done: 0,
-        total: urls.length,
-        currentUrl: null,
-        running: true,
-      });
       try {
-        for (const url of urls) {
-          if (run.cancelRequested) break;
-          runSession.send(IPC.gscInspectProgress, {
-            done,
-            total: urls.length,
-            currentUrl: url,
-            running: true,
-          });
-          const fetchedAt = new Date().toISOString();
-          try {
-            const raw = await inspectUrl(input.property, url, inspectAccountId);
-            const result: GscInspectionResult = {
-              ...raw,
-              status: 'ok',
-              error: null,
-              fetchedAt,
-            };
-            runDb.upsertGscInspection(url, result, inspectAccountId);
-            completed++;
-          } catch (err) {
-            runDb.upsertGscInspection(url, {
-              verdict: null,
-              coverageState: null,
-              robotsTxtState: null,
-              indexingState: null,
-              lastCrawlTime: null,
-              googleCanonical: null,
-              userCanonical: null,
-              mobileVerdict: null,
-              ampVerdict: null,
-              richResultsVerdict: null,
-              status: 'error',
-              error: err instanceof Error ? err.message : String(err),
-              fetchedAt,
-            }, inspectAccountId);
-            failed++;
-          }
-          done++;
-        }
-        runSession.send(IPC.gscInspectProgress, {
-          done,
-          total: urls.length,
-          currentUrl: null,
-          running: false,
-        });
+        const result = await runGscInspection(
+          {
+            property: input.property,
+            urls,
+            accountId: inspectAccountId,
+            force: input.force === true,
+          },
+          {
+            inspect: (property, url, accountId) => inspectUrl(property, url, accountId),
+            db: runDb,
+            now: () => Date.now(),
+            isCancelled: () => run.cancelRequested,
+            onProgress: (p) => runSession.send(IPC.gscInspectProgress, p),
+          },
+        );
         fireDataChanged(runSession);
-        return {
-          completed,
-          failed,
-          cancelled: run.cancelRequested && done < urls.length,
-        };
+        return result;
       } finally {
         run.active = false;
         run.cancelRequested = false;
       }
+    },
+  );
+  // The confirm dialog's count: the runner's own skip rule, asked of main.
+  registerHandle(
+    IPC.gscInspectPlan,
+    (_e, input: GscInspectRunInput): GscInspectPlan => {
+      const plan = planInspection(
+        currentSession().getDb(),
+        uniqueInspectUrls(input.urls),
+        resolveGoogleAccount('gsc', input.accountId),
+        input.force === true,
+        Date.now(),
+      );
+      return { toInspect: plan.toInspect.length, skipped: plan.skipped.length };
     },
   );
   registerHandle(IPC.gscInspectCancel, () => {
