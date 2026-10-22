@@ -12,12 +12,11 @@ import type { ProjectDb } from '@freecrawl/db';
 import {
   findExportSet,
   parseExportWhat,
-  runExportItems,
-  runExportSet,
   type ExportOutcome,
   type HtmlReportOptions,
 } from '@freecrawl/core';
 import type { ScheduleAfterCrawl } from '@freecrawl/shared-types';
+import { runDesktopExportItems } from './export-sets.js';
 
 export interface ScheduledExportContext {
   /** Existing folder the files go into. */
@@ -60,9 +59,12 @@ export async function runScheduledExport(
     } catch (err) {
       return { files: [], errors: [`export set: ${(err as Error).message}`] };
     }
-    r = await runExportSet(db, exportDir, set, options);
+    r = await runDesktopExportItems(db, exportDir, parseExportWhat(set.what.join(',')), {
+      ...options,
+      rawHeaders: set.rawHeaders,
+    });
   } else {
-    r = await runExportItems(db, exportDir, parseExportWhat(after.export), options);
+    r = await runDesktopExportItems(db, exportDir, parseExportWhat(after.export), options);
   }
   return {
     files: r.files.map((f) => ({ path: f.path, rows: f.rows })),

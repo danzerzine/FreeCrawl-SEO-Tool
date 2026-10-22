@@ -315,7 +315,6 @@ import {
   previewExtractionRules,
   runBulkExport,
   listExportSets,
-  saveExportSet,
   deleteExportSet,
   type ExportOutcome,
   writeExportFile,
@@ -439,7 +438,12 @@ import { runScheduledExport } from './scheduled-export.js';
 import { keepPreviousCrawl, previousCrawlPath, runChangeReport } from './change-report.js';
 import { cancelledCompareResult, compareWithOpenProject } from './compare-load.js';
 import { monitorHistory, monitorMetricNames } from './monitor-history.js';
-import { exportSelectedLinks, exportSetChoices, runSavedExportSet } from './export-sets.js';
+import {
+  exportSelectedLinks,
+  exportSetChoices,
+  runSavedExportSet,
+  saveDesktopExportSet,
+} from './export-sets.js';
 import { alertAfterCrawl, alertsState, crawlRunSaved, saveAlertsConfig, sendTestAlert, type AlertDeps } from './monitor-alerts.js';
 import type { ProjectDb as ProjectDbType } from '@freecrawl/db';
 
@@ -5611,7 +5615,7 @@ function registerIpc(): void {
   // B14 — saved export sets live in the project, so a schedule can run one.
   registerHandle(IPC.exportSetsList, () => listExportSets(currentSession().getDb()));
   registerHandle(IPC.exportSetsChoices, () => exportSetChoices());
-  registerHandle(IPC.exportSetSave, (_e, set: ExportSet) => saveExportSet(currentSession().getDb(), set));
+  registerHandle(IPC.exportSetSave, (_e, set: ExportSet) => saveDesktopExportSet(currentSession().getDb(), set));
   registerHandle(IPC.exportSetDelete, (_e, name: string) => deleteExportSet(currentSession().getDb(), name));
   // Same folder picker and result box as Bulk Export; the files come from
   // the core runner the CLI's `--set` and the scheduler use.

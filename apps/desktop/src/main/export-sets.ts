@@ -13,12 +13,14 @@ import {
   CLI_EXPORT_DATASETS,
   LINK_TARGET_EXPORTS,
   findExportSet,
+  parseExportWhat,
   runExportItems,
-  runExportSet,
+  saveExportSet,
+  type ExportItem,
   type ExportOutcome,
   type RunExportItemsOptions,
 } from '@freecrawl/core';
-import { ISSUE_CATEGORIES, type ExportSetChoiceGroup } from '@freecrawl/shared-types';
+import { ISSUE_CATEGORIES, type ExportSet, type ExportSetChoiceGroup } from '@freecrawl/shared-types';
 
 /**
  * Every `--what` token a set can hold, grouped for the picker. Tab and
@@ -49,6 +51,56 @@ export function exportSetChoices(): ExportSetChoiceGroup[] {
   ];
 }
 
+/**
+ * Exports that only the command line offers: the PDF and screenshot files
+ * need a request config (user agent, headers, auth, byte cap) and a sidecar
+ * folder the desktop dialogs do not give them yet, so an unattended desktop
+ * run would differ from the same set run by `freecrawl export --set`.
+ */
+export const CLI_ONLY_EXPORTS = ['pdfs', 'screenshots'] as const;
+
+const cliOnlyMessage = (name: string): string =>
+  `"${name}" is only available in the command line for now (freecrawl export --what ${name}); the desktop app skipped it.`;
+
+/** Save an export set from the desktop; one holding a CLI-only export is refused, nothing saved. */
+export function saveDesktopExportSet(db: ProjectDb, set: ExportSet): ExportSet {
+  const bad = set.what.map((w) => w.trim()).filter((w) => (CLI_ONLY_EXPORTS as readonly string[]).includes(w));
+  if (bad.length > 0) {
+    throw new Error(
+      `${bad.map((b) => `"${b}"`).join(', ')} cannot be part of an export set made in the desktop app yet: ` +
+        'they run from the command line only (freecrawl export --what ' +
+        `${bad[0]}). Remove ${bad.length > 1 ? 'them' : 'it'} from the set.`,
+    );
+  }
+  return saveExportSet(db, set);
+}
+
+/**
+ * Run export items the way the desktop does: everything the CLI runs except
+ * {@link CLI_ONLY_EXPORTS}, which are left out with one error entry each
+ * (so a set saved by the CLI, or a schedule typed by hand, says why a file
+ * is missing instead of running with a default user agent and no auth).
+ */
+export async function runDesktopExportItems(
+  db: ProjectDb,
+  outDir: string,
+  items: readonly ExportItem[],
+  options: RunExportItemsOptions = {},
+): Promise<ExportOutcome> {
+  const outcome: ExportOutcome = options.outcome ?? { files: [], errors: [], skipped: [] };
+  const kept: ExportItem[] = [];
+  for (const item of items) {
+    if ((CLI_ONLY_EXPORTS as readonly string[]).includes(item.name)) {
+      outcome.errors.push({ label: item.name, error: cliOnlyMessage(item.name) });
+    } else {
+      kept.push(item);
+    }
+  }
+  // Nothing left to run: no folder, no manifest, only the errors above.
+  if (kept.length === 0) return outcome;
+  return runExportItems(db, outDir, kept, { ...options, outcome });
+}
+
 /** Run the saved set called `name` into `outDir`; throws before writing when there is none. */
 export async function runSavedExportSet(
   db: ProjectDb,
@@ -56,7 +108,11 @@ export async function runSavedExportSet(
   name: string,
   options: RunExportItemsOptions,
 ): Promise<ExportOutcome> {
-  return runExportSet(db, outDir, findExportSet(db, name), options);
+  const set = findExportSet(db, name);
+  return runDesktopExportItems(db, outDir, parseExportWhat(set.what.join(',')), {
+    ...options,
+    rawHeaders: options.rawHeaders || set.rawHeaders,
+  });
 }
 
 /** `selected-inlinks.csv` and `selected-outlinks.csv` for the chosen pages (CLI `--urls`). */
