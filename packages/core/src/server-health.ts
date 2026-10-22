@@ -28,6 +28,8 @@ export class ServerHealth {
   private base: number | null = null;
   private samples: number[] = [];
   private lastSlowCut = Number.NEGATIVE_INFINITY;
+  /** Set by a cut until 20 fresh answers show whether slowing down helped. */
+  private afterCut = false;
 
   /**
    * One finished internal URL, counted once after its retries; `trouble`
@@ -52,25 +54,37 @@ export class ServerHealth {
    * sample: over 100 ms the number measures this process, not the server,
    * and is dropped. True when a cut is due: the median of the last 20 is
    * over 1.8 × the base and over base + 300 ms, at most once per 30 s.
+   *
+   * The 20 answers after a cut are a fresh window. Still slower than
+   * 1.3 × the base, the slowness is not this crawl's load (a site whose
+   * first pages are cached sections and later ones articles looks like
+   * this): their median becomes the base, so the rate may rise again and
+   * only a further slowdown cuts again.
    */
   noteLatency(ms: number, busyMs: number, now: number): boolean {
     if (busyMs > BUSY_LOOP_MS) return false;
     this.samples.push(ms);
     if (this.samples.length > LATENCY_WINDOW) this.samples.shift();
-    if (this.base === null) {
-      if (this.samples.length === LATENCY_WINDOW) this.base = median(this.samples);
+    if (this.base === null || this.afterCut) {
+      if (this.samples.length < LATENCY_WINDOW) return false;
+      const fresh = median(this.samples);
+      if (this.base === null || fresh > RECOVER_FACTOR * this.base) this.base = fresh;
+      this.afterCut = false;
       return false;
     }
     const m = median(this.samples);
     if (m <= SLOW_FACTOR * this.base || m <= this.base + SLOW_MARGIN_MS) return false;
     if (now - this.lastSlowCut < SLOW_CUT_EVERY_MS) return false;
     this.lastSlowCut = now;
+    this.samples = [];
+    this.afterCut = true;
     return true;
   }
 
-  /** Answers are still slower than 1.3 × the base: hold the rate. */
+  /** Right after a cut, or answers still slower than 1.3 × the base: hold the rate. */
   isSlow(): boolean {
-    return this.base !== null && median(this.samples) > RECOVER_FACTOR * this.base;
+    if (this.base === null) return false;
+    return this.afterCut || median(this.samples) > RECOVER_FACTOR * this.base;
   }
 }
 

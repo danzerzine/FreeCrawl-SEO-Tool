@@ -730,7 +730,11 @@ async function main(): Promise<void> {
     }
     report('warn', { message });
   });
-  if (values.verbose) crawler.on('info', (msg) => report('info', { message: String(msg) }));
+  // Adaptive speed changing the rate is shown always: it explains a slow crawl.
+  crawler.on('info', (msg) => {
+    const message = String(msg);
+    if (values.verbose || message.startsWith('Adaptive speed:')) report('info', { message });
+  });
   let refreshing = false;
   crawler.on('start-decision', (d: StartDecision) => {
     refreshing = d.kind === 'refresh';
