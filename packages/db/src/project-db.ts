@@ -52,6 +52,7 @@ import type {
   SpellingEngine,
   GscRow,
   GscPreset,
+  Ga4CustomValue,
   Ga4Row,
   MetricaRow,
   MetricaNotice,
@@ -1889,6 +1890,7 @@ export class ProjectDb {
          DELETE FROM spelling_results;
          DELETE FROM gsc_results;
          DELETE FROM ga4_results;
+         DELETE FROM ga4_custom_values;
          DELETE FROM metrica_results;
          DELETE FROM ai_results;
          DELETE FROM seo_results;
@@ -2699,6 +2701,7 @@ export class ProjectDb {
     'spelling_results',
     'gsc_results',
     'ga4_results',
+    'ga4_custom_values',
     'metrica_results',
     'ai_results',
     'seo_results',
@@ -6661,6 +6664,7 @@ export class ProjectDb {
     gscAccountId = '',
     ga4AccountId = '',
     metricaCounterId = '',
+    ga4Custom?: { property: string; fields: string[] },
   ): UrlAnalyticsDetail | null {
     const g = this.db
       .prepare(
@@ -6737,8 +6741,12 @@ export class ProjectDb {
           fetched_at: string;
         }
       | undefined;
-    if (!g && !a && !m && !i) return null;
+    const custom = ga4Custom
+      ? this.ga4CustomValuesFor([url], ga4AccountId, ga4Custom.property, ga4Custom.fields).get(url)
+      : undefined;
+    if (!g && !a && !m && !i && !custom) return null;
     return {
+      ...(custom ? { ga4Custom: custom } : {}),
       url,
       gsc: g
         ? {
@@ -7261,6 +7269,126 @@ export class ProjectDb {
   }
 
   /**
+   * B37 — store the rows of one custom-field request. Replacing a field wipes that field's rows
+   * for the account first, in the same transaction as the insert; `wipeAll` (the first answer of
+   * a fresh pull) wipes every custom row of the account instead, so values of an older property
+   * or date range cannot survive next to the new ones.
+   */
+  storeGa4CustomValues(p: {
+    accountId: string;
+    property: string;
+    fetchedAt: string;
+    fields: string[];
+    rows: { url: string; field: string; value: string; sessions: number | null }[];
+    wipeAll: boolean;
+  }): void {
+    this.runInTransaction(() => {
+      if (p.wipeAll) {
+        this.db.prepare('DELETE FROM ga4_custom_values WHERE account_id = ?').run(p.accountId);
+      } else {
+        for (const f of p.fields) {
+          this.db
+            .prepare('DELETE FROM ga4_custom_values WHERE account_id = ? AND field = ?')
+            .run(p.accountId, f);
+        }
+      }
+      const CHUNK = 300;
+      for (let i = 0; i < p.rows.length; i += CHUNK) {
+        const slice = p.rows.slice(i, i + CHUNK);
+        const args: (string | number | null)[] = [];
+        for (const r of slice) {
+          args.push(r.url, p.accountId, r.field, r.value, r.sessions, p.property, p.fetchedAt);
+        }
+        this.db
+          .prepare(
+            `INSERT OR REPLACE INTO ga4_custom_values
+               (url, account_id, field, value, sessions, property, fetched_at)
+             VALUES ${slice.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(',')}`,
+          )
+          .run(...args);
+      }
+    });
+  }
+
+  /** B37 — drop every custom value of one account. */
+  wipeGa4CustomValues(accountId = ''): void {
+    this.db.prepare('DELETE FROM ga4_custom_values WHERE account_id = ?').run(accountId);
+  }
+
+  /** B37 — drop the account's values of every field not in `keep` (a field the user unchose). */
+  deleteGa4CustomFieldsExcept(accountId: string, keep: string[]): void {
+    const rows = this.db
+      .prepare('SELECT DISTINCT field FROM ga4_custom_values WHERE account_id = ?')
+      .all(accountId) as { field: string }[];
+    for (const { field } of rows) {
+      if (!keep.includes(field)) {
+        this.db
+          .prepare('DELETE FROM ga4_custom_values WHERE account_id = ? AND field = ?')
+          .run(accountId, field);
+      }
+    }
+  }
+
+  /** B37 — stored row count per custom field of one account. */
+  ga4CustomFieldRowCounts(accountId = ''): Record<string, number> {
+    const rows = this.db
+      .prepare(
+        'SELECT field, COUNT(*) AS c FROM ga4_custom_values WHERE account_id = ? GROUP BY field',
+      )
+      .all(accountId) as { field: string; c: number }[];
+    return Object.fromEntries(rows.map((r) => [r.field, r.c]));
+  }
+
+  /** B37 — distinct stored GA4 page URLs (fixed or custom) with no crawled `urls` row. */
+  ga4UnmatchedUrlCount(accountId = ''): number {
+    return (
+      this.db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM (
+             SELECT url FROM ga4_results WHERE account_id = ?
+             UNION
+             SELECT url FROM ga4_custom_values WHERE account_id = ?
+           ) g WHERE NOT EXISTS (SELECT 1 FROM urls u WHERE u.url = g.url)`,
+        )
+        .get(accountId, accountId) as { c: number }
+    ).c;
+  }
+
+  /** B37 — custom values of the given pages by URL then field; dimension values by sessions. */
+  private ga4CustomValuesFor(
+    urls: string[],
+    accountId: string,
+    property: string,
+    fields: string[],
+  ): Map<string, Record<string, Ga4CustomValue[]>> {
+    const out = new Map<string, Record<string, Ga4CustomValue[]>>();
+    if (urls.length === 0 || fields.length === 0) return out;
+    const fieldMarks = fields.map(() => '?').join(',');
+    for (let i = 0; i < urls.length; i += 400) {
+      const chunk = urls.slice(i, i + 400);
+      const rows = this.db
+        .prepare(
+          `SELECT url, field, value, sessions FROM ga4_custom_values
+           WHERE account_id = ? AND property = ? AND field IN (${fieldMarks})
+             AND url IN (${chunk.map(() => '?').join(',')})
+           ORDER BY sessions DESC, value ASC`,
+        )
+        .all(accountId, property, ...fields, ...chunk) as {
+        url: string;
+        field: string;
+        value: string;
+        sessions: number | null;
+      }[];
+      for (const r of rows) {
+        const perUrl = out.get(r.url) ?? {};
+        (perUrl[r.field] ??= []).push({ value: r.value, sessions: r.sessions });
+        out.set(r.url, perUrl);
+      }
+    }
+    return out;
+  }
+
+  /**
    * Faz 7 — candidate query for the GA4 tab. Crawled internal HTML 2xx
    * pages left-joined with their stored GA4 metrics, ordered by
    * pageviews desc so the highest-traffic pages surface first.
@@ -7271,6 +7399,9 @@ export class ProjectDb {
     search?: string;
     filter?: 'all' | 'with-data' | 'without-data';
     accountId?: string;
+    /** B37: custom fields to attach to each row, pulled from `customProperty` only. */
+    customFields?: string[];
+    customProperty?: string;
   }): { rows: Ga4Row[]; total: number } {
     const where: string[] = [
       "u.is_external = 0 AND u.content_kind = 'html'",
@@ -7311,11 +7442,21 @@ export class ProjectDb {
       unknown
     >[];
 
+    // One extra query for the page's URLs (B37), never a join per field.
+    const custom = this.ga4CustomValuesFor(
+      rowsDb.map((r) => r['url'] as string),
+      params.accountId ?? '',
+      params.customProperty ?? '',
+      params.customFields ?? [],
+    );
+
     return {
       total: totalRow.c,
       rows: rowsDb.map((r) => {
         const fetchedAt = r['fetched_at'];
+        const c = custom.get(r['url'] as string);
         return {
+          ...(c ? { custom: c } : {}),
           id: r['id'] as number,
           url: r['url'] as string,
           statusCode: (r['status_code'] as number | null) ?? null,

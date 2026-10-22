@@ -301,6 +301,8 @@ export interface UrlAnalyticsDetail {
    *  session-level by landing page (see `MetricaMetrics`). */
   metrica: MetricaMetrics | null;
   inspection: GscInspectionResult | null;
+  /** B37: every stored value of each chosen GA4 custom field for this page, by field. */
+  ga4Custom?: Record<string, Ga4CustomValue[]>;
 }
 
 /**

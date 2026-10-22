@@ -2819,6 +2819,30 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    // B37: the user's own GA4 metrics and dimensions, long form. A metric keeps its number
+    // as text in `value` (sessions NULL); a dimension keeps its value and the sessions it had.
+    // `property` is the property the rows were pulled from, so another property's values are
+    // never shown. Only creates the table; no other table changes.
+    version: 124,
+    name: 'add_ga4_custom_values',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS ga4_custom_values (
+          url TEXT NOT NULL,
+          account_id TEXT NOT NULL DEFAULT '',
+          field TEXT NOT NULL,
+          value TEXT NOT NULL,
+          sessions INTEGER,
+          property TEXT NOT NULL DEFAULT '',
+          fetched_at TEXT NOT NULL,
+          PRIMARY KEY (url, account_id, field, value)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ga4_custom_account_field
+          ON ga4_custom_values(account_id, field);
+      `);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */
