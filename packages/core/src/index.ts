@@ -20,6 +20,7 @@ export {
   type LcpCandidate,
   type MobileUsabilityResult,
 } from './render-fetcher.js';
+export { runMobilePass, type MobilePassResult } from './render-mobile-pass.js';
 export {
   browserPoolOptionsFromConfig,
   createRenderHook,

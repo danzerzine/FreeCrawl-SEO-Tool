@@ -290,7 +290,8 @@ import {
   type RenderHook,
   Crawler,
   renderUrl,
-  auditMobileUsability,
+  runMobilePass,
+  type MobilePassResult,
   exportUrlsToCsv,
   exportBrokenLinksToCsv,
   exportImagesToCsv,
@@ -8078,52 +8079,23 @@ function registerIpc(): void {
         // Reuses the same pool but flips viewport temporarily; the
         // function restores the previous size before releasing the page.
         let mobileScreenshotPath: string | undefined;
-        let mobileUsability:
-          | { ok: boolean; overflowPx: number; hasViewportMeta: boolean }
-          | null = null;
+        let mobileUsability: MobilePassResult['usability'] = null;
         if (wantsMobile && pool && !pool.isClosed() && res.ok) {
           try {
-            if (config.jsRender.mobileScreenshot && screenshotDir) {
-              const stem = hashUrlStem(url);
-              const path = join(screenshotDir, `${stem}-mobile.png`);
-              const mobileRes = await renderUrl(
-                url,
-                pool,
-                {
-                  timeoutMs: Math.max(5000, config.requestTimeoutMs),
-                  ajaxTimeoutMs: Math.min(config.jsRender.ajaxTimeoutMs, 1000),
-                  waitUntil: config.jsRender.waitUntil,
-                  screenshotMode: 'fold',
-                  screenshotPaths: { fold: path },
-                  // Bug #1 — actually use a mobile viewport so the PNG
-                  // matches the column name. Without this, the file
-                  // was a duplicate of the desktop above-the-fold.
-                  viewport: { width: 375, height: 667 },
-                },
-                signal,
-              );
-              if (mobileRes.ok && mobileRes.screenshots?.fold) {
-                mobileScreenshotPath = mobileRes.screenshots.fold;
-              }
-            }
-            if (config.jsRender.mobileUsability) {
-              const audit = await auditMobileUsability(
-                url,
-                pool,
-                {
-                  timeoutMs: Math.max(5000, config.requestTimeoutMs),
-                  waitUntil: config.jsRender.waitUntil,
-                },
-                signal,
-              );
-              if (audit) {
-                mobileUsability = {
-                  ok: audit.ok,
-                  overflowPx: audit.overflowPx,
-                  hasViewportMeta: audit.hasViewportMeta,
-                };
-              }
-            }
+            const pass = await runMobilePass(
+              url,
+              pool,
+              config,
+              {
+                screenshotPath:
+                  config.jsRender.mobileScreenshot && screenshotDir
+                    ? join(screenshotDir, `${hashUrlStem(url)}-mobile.png`)
+                    : undefined,
+              },
+              signal,
+            );
+            mobileScreenshotPath = pass.screenshotPath;
+            mobileUsability = pass.usability;
           } catch (err) {
             logger.log(
               'debug',

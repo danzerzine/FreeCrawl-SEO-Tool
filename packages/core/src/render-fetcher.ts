@@ -56,6 +56,11 @@ export interface RenderOptions {
   pageScriptTimeoutMs?: number;
   /** Test knob: how long a page may take to answer after the script timed out. Default 2 000. */
   pageScriptProbeMs?: number;
+  /**
+   * An explicit time limit for this call, with or without a page script: the
+   * mobile pass has no script but runs where the crawler's timers are cleared.
+   */
+  limitMs?: number;
   /** Test knob: margin of the render time limit. Default 5 000. */
   renderMarginMs?: number;
 }
@@ -478,12 +483,12 @@ export async function renderUrl(
   let limitHit = false;
   // A page whose script blocked it, or that hit the limit, is closed and replaced.
   let discard = false;
-  const limitTimer = hasScript
+  const limitTimer = hasScript || opts.limitMs !== undefined
     ? setTimeout(() => {
         limitHit = true;
         discard = true;
         page.close({ runBeforeUnload: false }).catch(() => {});
-      }, renderLimitMs(opts))
+      }, opts.limitMs ?? renderLimitMs(opts))
     : null;
 
   // Save the viewport so we can restore it on a per-render override.
@@ -805,11 +810,20 @@ const MOBILE_AUDIT_FN = `(() => {
 export async function auditMobileUsability(
   url: string,
   pool: BrowserPool,
-  opts: { timeoutMs: number; waitUntil: RenderOptions['waitUntil'] },
+  opts: { timeoutMs: number; waitUntil: RenderOptions['waitUntil']; limitMs?: number },
   signal?: AbortSignal,
 ): Promise<MobileUsabilityResult | null> {
   const { page, release } = await pool.acquire();
   let aborted = false;
+  let limitHit = false;
+  // Cut off after the slot is held; the page is closed and replaced.
+  const limitTimer =
+    opts.limitMs !== undefined
+      ? setTimeout(() => {
+          limitHit = true;
+          page.close({ runBeforeUnload: false }).catch(() => {});
+        }, opts.limitMs)
+      : null;
   const abortHandler = (): void => {
     aborted = true;
     page.close({ runBeforeUnload: false }).catch(() => {});
@@ -849,14 +863,15 @@ export async function auditMobileUsability(
   } catch {
     return null;
   } finally {
+    if (limitTimer) clearTimeout(limitTimer);
     signal?.removeEventListener('abort', abortHandler);
-    if (!aborted) {
+    if (!aborted && !limitHit) {
       try {
         await page.context().clearCookies();
       } catch {
         /* ignore */
       }
     }
-    release(aborted);
+    release(aborted || limitHit);
   }
 }
