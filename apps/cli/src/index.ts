@@ -19,6 +19,7 @@ import {
   COMPARE_CATEGORIES,
   DEFAULT_CRAWL_CONFIG,
   type CrawlConfig,
+  type CrawlProgress,
   type CrawlSnapshot,
   type ExportSet,
   type LogIngestInput,
@@ -154,7 +155,9 @@ Options:
   --raw-headers       With --out CSV and export (bulk files): write the internal keys (statusCode, …) as
                         the header row and skip the CSV formula guard (raw data for scripts).
   --json              Print a machine-readable JSON summary to stdout (instead of human progress).
-                        Useful for CI/CD pipelines.
+                        Useful for CI/CD pipelines. While the crawl runs, stderr gets one JSON line per
+                        event: {"type":"progress",…} every 10 s, and warn / error (info with --verbose).
+  --verbose           Also print the crawler's info messages on stderr ([info] …)
   --export-dir <dir>  After the crawl, write the exports named by --export into <dir> (see export)
   --export <list>     What --export-dir writes; same list as export --what (default: bulk)
   --compare-with <project>  After the crawl, compare with that saved project (before) the way
@@ -162,6 +165,10 @@ Options:
                         compare-*.csv files go there too. Changes do not change the exit code.
                         A crawl into an existing --db continues its queue; crawl into a new
                         file to compare a fresh crawl.
+  Crawl exit codes: 0 finished, no URL answered 4xx/5xx; 1 finished with such URLs, or --out /
+                        --export-dir / --compare-with failed; 2 bad arguments; 4 the crawl did not
+                        finish (start URL unreachable, nothing fetched, a fatal error), --json
+                        "complete": false.
 
 analyze-logs options:
   --project <file>    Project to merge log aggregates into (default: ./crawl.seoproject)
@@ -291,6 +298,7 @@ function parseCliArgs() {
       'compare-with': { type: 'string' },
       export: { type: 'string' },
       'pid-file': { type: 'string' },
+      verbose: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -549,7 +557,31 @@ async function main(): Promise<void> {
   const crawler = new Crawler(config, db, { toolVersion: cliVersion() });
   const jsonMode = Boolean(values.json);
 
-  if (!jsonMode) {
+  // Events while the crawl runs go to stderr, so stdout keeps only the
+  // progress line or, with --json, the one summary document.
+  const report = (
+    type: 'progress' | 'error' | 'warn' | 'info',
+    fields: Record<string, unknown>,
+  ) => {
+    if (jsonMode) {
+      process.stderr.write(
+        JSON.stringify({ type, time: new Date().toISOString(), ...fields }) + '\n',
+      );
+    } else {
+      // Own line: the \r progress line on stdout would overwrite it.
+      process.stderr.write(`\n[${type}] ${String(fields.message)}\n`);
+    }
+  };
+  let lastProgress: CrawlProgress | null = null;
+  let progressTimer: ReturnType<typeof setInterval> | null = null;
+  if (jsonMode) {
+    crawler.on('progress', (p) => (lastProgress = p));
+    progressTimer = setInterval(() => {
+      if (!lastProgress) return;
+      const { crawled, discovered, pending, failed, urlsPerSecond, elapsedMs } = lastProgress;
+      report('progress', { crawled, discovered, pending, failed, urlsPerSecond, elapsedMs });
+    }, 10_000);
+  } else {
     crawler.on('progress', (p) => {
       process.stdout.write(
         `\r[${p.crawled}/${p.discovered}] pending=${p.pending} failed=${p.failed} @ ${p.urlsPerSecond.toFixed(1)} URL/s  avg=${p.avgResponseTimeMs}ms  t=${Math.round(p.elapsedMs / 1000)}s   `,
@@ -563,10 +595,13 @@ async function main(): Promise<void> {
     // otherwise an unreachable seed produces an empty DB with no 4xx/5xx
     // rows and the CLI misreports success to a CI pipeline.
     if (crawlError === null) crawlError = String(msg);
-    process.stderr.write(`\n[error] ${msg}\n`);
+    report('error', { message: String(msg) });
   });
+  crawler.on('warn', (msg) => report('warn', { message: String(msg) }));
+  if (values.verbose) crawler.on('info', (msg) => report('info', { message: String(msg) }));
 
   await crawler.start();
+  if (progressTimer) clearInterval(progressTimer);
   if (!jsonMode) process.stdout.write('\n');
 
   const summary = db.getSummary();
@@ -628,9 +663,9 @@ async function main(): Promise<void> {
   const crawlStoppedAtLimit = overview.site?.crawlStoppedAtLimit ?? null;
   // A crawl that fetched nothing (unreachable seed, everything filtered) is a
   // failure for CI purposes — a successful spider always fetches ≥1 page.
+  const complete = crawlError === null && summary.total > 0;
   const hasErrors =
-    crawlError !== null ||
-    summary.total === 0 ||
+    !complete ||
     Object.keys(summary.byStatus).some((k) => {
       const n = Number.parseInt(k, 10);
       return Number.isFinite(n) && n >= 400;
@@ -641,6 +676,8 @@ async function main(): Promise<void> {
       JSON.stringify(
         {
           ok: !hasErrors,
+          complete,
+          interrupted: false,
           error: crawlError,
           startUrl,
           dbPath,
@@ -721,8 +758,14 @@ async function main(): Promise<void> {
   }
 
   db.close();
+  // 4: the crawl itself did not finish, so its numbers are not a verdict;
+  // 1: it finished and found broken URLs, or a step after it failed.
   process.exit(
-    hasErrors || (exported !== null && exported.errors.length > 0) || compareError !== null ? 1 : 0,
+    !complete
+      ? 4
+      : hasErrors || (exported !== null && exported.errors.length > 0) || compareError !== null
+        ? 1
+        : 0,
   );
 }
 

@@ -3204,7 +3204,7 @@ export class Crawler extends EventEmitter {
     } catch (err) {
       // Aborts during stop() are expected and not user-visible noise.
       if (this.stopped) return;
-      this.emit('error', `Sitemap discovery skipped: ${formatFetchError(err)}`);
+      this.emit('warn', `Sitemap discovery skipped: ${formatFetchError(err)}`);
     }
   }
 
@@ -3381,7 +3381,7 @@ export class Crawler extends EventEmitter {
       .add(() => this.probeExternal(url))
       .catch((err: unknown) => {
         this.emit(
-          'error',
+          'warn',
           `External probe error: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
@@ -3613,7 +3613,7 @@ export class Crawler extends EventEmitter {
     this.externalQueue
       .add(() => this.probeAmpTarget(url))
       .catch((err: unknown) => {
-        this.emit('error', `AMP probe error: ${err instanceof Error ? err.message : String(err)}`);
+        this.emit('warn', `AMP probe error: ${err instanceof Error ? err.message : String(err)}`);
       });
   }
 
