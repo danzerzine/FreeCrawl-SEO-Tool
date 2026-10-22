@@ -79,13 +79,13 @@ describe('openProject (B3)', () => {
       encoding: 'utf8',
     }).stdout;
     const owner = (pid: number) => JSON.stringify({ pid, startedAt: new Date().toISOString(), id: String(pid) });
-    mkdirSync(join(tmp, 'freecrawl-cli-dead'));
-    writeFileSync(join(tmp, 'freecrawl-cli-dead', 'owner.lock'), owner(Number(dead)));
-    mkdirSync(join(tmp, 'freecrawl-cli-live'));
-    writeFileSync(join(tmp, 'freecrawl-cli-live', 'owner.lock'), owner(process.pid));
+    mkdirSync(join(tmp, 'freecrawl-cli-dead00'));
+    writeFileSync(join(tmp, 'freecrawl-cli-dead00', 'owner.lock'), owner(Number(dead)));
+    mkdirSync(join(tmp, 'freecrawl-cli-live00'));
+    writeFileSync(join(tmp, 'freecrawl-cli-live00', 'owner.lock'), owner(process.pid));
     const p = await openProject(archive, { readOnly: true });
-    expect(existsSync(join(tmp, 'freecrawl-cli-dead'))).toBe(false);
-    expect(existsSync(join(tmp, 'freecrawl-cli-live'))).toBe(true);
+    expect(existsSync(join(tmp, 'freecrawl-cli-dead00'))).toBe(false);
+    expect(existsSync(join(tmp, 'freecrawl-cli-live00'))).toBe(true);
     p.dispose();
   });
 
