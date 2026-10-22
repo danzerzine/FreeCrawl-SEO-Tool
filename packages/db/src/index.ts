@@ -15,6 +15,13 @@ export {
 export type { UpsertUrlInput, ProbeWrite } from './project-db.js';
 export { runMigrations } from './migrations.js';
 export { unsafePatternReason, type UnsafePatternReason } from './safe-pattern.js';
+export {
+  lockProject,
+  openProject,
+  readIfExists,
+  type OpenedProject,
+  type OpenProjectOptions,
+} from './open-project.js';
 export { buildCrawlSnapshot } from './crawl-snapshot.js';
 export {
   detectProjectFormat,

@@ -14,13 +14,14 @@
  *   - `list_projects`          → enumerate `.seoproject` files
  *   - `set_project`            → switch sessions to a different file
  *
- * The DB connection is read-only (`new ProjectDb(path, { readOnly: true })`)
- * so the desktop app's writer thread can keep operating concurrently —
- * SQLite WAL allows arbitrary concurrent readers.
+ * The DB connection is read-only so the desktop app's writer thread can
+ * keep operating concurrently — SQLite WAL allows arbitrary concurrent
+ * readers. A project the desktop app saved (a packed container) is read
+ * from a temporary working copy, removed on `set_project` and at exit.
  */
 
 import fs from 'node:fs';
-import { ProjectDb } from '@freecrawl/db';
+import { openProject as openProjectFile, type OpenedProject, type ProjectDb } from '@freecrawl/db';
 import { SESSIONS_MIN_APP_VERSION } from '@freecrawl/shared-types';
 import type {
   BridgeSessionCreateResult,
@@ -45,11 +46,20 @@ const PROTOCOL_VERSION = '2024-11-05';
 interface Session {
   projectPath: string;
   db: ProjectDb;
+  project: OpenedProject;
 }
 
 let session: Session | null = null;
+/** The lazy default open in flight, so two first calls share one copy. */
+let opening: Promise<Session> | null = null;
 
-function openProject(projectPath: string): Session {
+/** Working copies still to remove; the exit hook runs them. */
+const cleanups = new Set<() => void>();
+process.on('exit', () => {
+  for (const cleanup of cleanups) cleanup();
+});
+
+async function openProject(projectPath: string): Promise<Session> {
   if (!fs.existsSync(projectPath)) {
     throw new Error(
       `Project file does not exist: ${projectPath}\n` +
@@ -60,44 +70,41 @@ function openProject(projectPath: string): Session {
         'session with session_create.',
     );
   }
-  const db = new ProjectDb(projectPath, { readOnly: true });
-  return { projectPath, db };
+  const project = await openProjectFile(projectPath, { readOnly: true, cleanups });
+  return { projectPath, db: project.db, project };
 }
 
-function getSession(): Session {
-  if (session) return session;
-  const initialPath = defaultProjectPath();
-  session = openProject(initialPath);
+function getSession(): Promise<Session> {
+  if (session) return Promise.resolve(session);
+  opening ??= openProject(defaultProjectPath()).then(
+    (s) => {
+      session = s;
+      opening = null;
+      return s;
+    },
+    (err: unknown) => {
+      opening = null;
+      throw err;
+    },
+  );
+  return opening;
+}
+
+async function setProject(projectPath: string): Promise<Session> {
+  // Closed first so that if the open throws (missing / corrupt file) the
+  // session doesn't point at a closed DB handle, which would make every
+  // later DB tool fail with "database is not open".
+  closeReadSession();
+  session = await openProject(projectPath);
   return session;
 }
 
-function setProject(projectPath: string): Session {
-  if (session) {
-    try {
-      session.db.close();
-    } catch {
-      // best-effort close
-    }
-    // Null it first so that if openProject throws (missing / corrupt file)
-    // we don't leave the session pointing at a now-closed DB handle, which
-    // would make every later DB tool fail with "database is not open".
-    session = null;
-  }
-  session = openProject(projectPath);
-  return session;
-}
-
-/** Drop the read-only DB handle (e.g. after a headless session's working DB
- *  is torn down). The next DB tool reopens the default project lazily. */
+/** Drop the read-only DB handle and its working copy (e.g. after a headless
+ *  session's working DB is torn down). The next DB tool reopens the default
+ *  project lazily. */
 function closeReadSession(): void {
-  if (session) {
-    try {
-      session.db.close();
-    } catch {
-      // best-effort
-    }
-    session = null;
-  }
+  session?.project.dispose();
+  session = null;
 }
 
 /**
@@ -134,7 +141,7 @@ const tools: Tool[] = [
   {
     name: 'set_project',
     description:
-      'Switch the active project for this MCP session. Subsequent tool calls hit the new file. Closes the previous DB handle.',
+      'Switch the active project for this MCP session. Subsequent tool calls hit the new file. Closes the previous DB handle. Opens projects saved by the desktop app too (read from a temporary copy). A file saved again later is not picked up by itself: call set_project on the same path to read the new save.',
     inputSchema: {
       type: 'object',
       required: ['path'],
@@ -147,12 +154,12 @@ const tools: Tool[] = [
     },
     // Opens the *target* file itself; must not first open the default.
     requiresDb: false,
-    handler: (args) => {
+    handler: async (args) => {
       const target = args.path;
       if (typeof target !== 'string' || target.trim() === '') {
         throw new Error('set_project requires `path` to be a non-empty string.');
       }
-      const next = setProject(target);
+      const next = await setProject(target);
       return { ok: true, projectPath: next.projectPath };
     },
   },
@@ -216,7 +223,7 @@ const tools: Tool[] = [
       // Repoint the read-only view at this session's live working DB so the
       // query/report tools read what this session crawls.
       try {
-        setProject(res.dbPath);
+        await setProject(res.dbPath);
       } catch {
         // The DB may not be flushed yet on a brand-new scratch session; the
         // first read tool will retry openProject.
@@ -384,7 +391,7 @@ server.on('tools/call', async (raw) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let db: any = null;
     if (needsDb) {
-      db = getSession().db;
+      db = (await getSession()).db;
     } else if (session) {
       // Re-use an already-open session if there is one (saves opening
       // the DB just to satisfy the param), but don't force-open.
@@ -411,16 +418,10 @@ server.on('tools/call', async (raw) => {
 
 // ── Bootstrap ────────────────────────────────────────────────────────
 
-process.on('SIGINT', () => {
-  if (session) {
-    try {
-      session.db.close();
-    } catch {
-      // best-effort close
-    }
-  }
-  process.exit(0);
-});
+// `process.exit` runs the exit hook, which closes the project and removes
+// its working copy.
+process.on('SIGINT', () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
 
 server.log(`starting ${SERVER_NAME} v${SERVER_VERSION}`);
 server.log(`default project: ${defaultProjectPath()}`);
