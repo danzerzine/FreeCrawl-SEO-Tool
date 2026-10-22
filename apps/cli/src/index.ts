@@ -807,7 +807,6 @@ async function main(): Promise<void> {
       message: `${perUrlWarnings} per-URL warnings in all, ${PER_URL_WARNINGS_SHOWN} of them shown`,
     });
   }
-  if (interrupted) db.walCheckpoint();
   if (interrupted && (values.out || postCrawlExport || compareWith !== null)) {
     report('warn', { message: 'export and compare skipped: the crawl was stopped' });
   }
