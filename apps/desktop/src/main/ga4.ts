@@ -15,6 +15,7 @@
 import type { Ga4Property } from '@freecrawl/shared-types';
 import { getAccessToken } from './google-oauth.js';
 import { apiFetch } from './api-fetch.js';
+import { googleRequest, type GoogleDeps } from './google-retry.js';
 import * as logger from './logger.js';
 
 const ADMIN_BASE = 'https://analyticsadmin.googleapis.com/v1beta';
@@ -45,22 +46,35 @@ function apiError(json: unknown, status: number): string {
   return `Google Analytics API error (HTTP ${status})`;
 }
 
+function defaultGa4Deps(accountId?: string): GoogleDeps {
+  return {
+    fetch: apiFetch as unknown as typeof fetch,
+    getToken: (refresh) => getAccessToken('ga4', accountId, refresh),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now: () => Date.now(),
+    random: Math.random,
+    log: (level, message) => logger.log(level, 'ga4', message),
+  };
+}
+
 /** Flatten the GA4 Admin `accountSummaries` tree into a flat property list. */
 export async function listProperties(
   accountId?: string,
+  deps: GoogleDeps = defaultGa4Deps(accountId),
 ): Promise<Ga4Property[]> {
-  const token = await getAccessToken('ga4', accountId);
   const out: Ga4Property[] = [];
   let pageToken: string | undefined;
   for (;;) {
     const url = `${ADMIN_BASE}/accountSummaries?pageSize=200${
       pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''
     }`;
-    const res = await apiFetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(30_000),
+    const res = await googleRequest(deps, {
+      op: 'GA4 properties',
+      method: 'GET',
+      url,
+      timeoutMs: 30_000,
     });
-    const json = (await res.json().catch(() => null)) as {
+    const json = res.json as {
       accountSummaries?: {
         displayName?: unknown;
         propertySummaries?: {
@@ -116,29 +130,27 @@ export async function runReport(
   startDate: string,
   endDate: string,
   accountId?: string,
+  deps: GoogleDeps = defaultGa4Deps(accountId),
 ): Promise<Ga4PageRow[]> {
-  const token = await getAccessToken('ga4', accountId);
   const endpoint = `${DATA_BASE}/${property}:runReport`;
   const out: Ga4PageRow[] = [];
   let offset = 0;
 
   for (;;) {
-    const res = await apiFetch(endpoint, {
+    const res = await googleRequest(deps, {
+      op: 'GA4 report',
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      url: endpoint,
+      body: {
         dateRanges: [{ startDate, endDate }],
         dimensions: [{ name: 'pageLocation' }],
         metrics: METRICS.map((name) => ({ name })),
         limit: PAGE_LIMIT,
         offset,
-      }),
-      signal: AbortSignal.timeout(60_000),
+      },
+      timeoutMs: 60_000,
     });
-    const json = (await res.json().catch(() => null)) as {
+    const json = res.json as {
       rows?: {
         dimensionValues?: { value?: unknown }[];
         metricValues?: { value?: unknown }[];

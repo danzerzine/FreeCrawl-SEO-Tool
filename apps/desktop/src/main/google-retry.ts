@@ -58,6 +58,47 @@ export class GoogleAuthError extends Error {
   }
 }
 
+/** Google's per-minute or daily quota is used up; the caller should stop, not go on to the next item. */
+export class GoogleQuotaError extends Error {
+  constructor(op: string, detail: string) {
+    super(`${op} failed: ${detail}`);
+    this.name = 'GoogleQuotaError';
+  }
+}
+
+/** The account may not read this resource (HTTP 403 PERMISSION_DENIED): every further call would fail the same way. */
+export class GooglePermissionError extends Error {
+  constructor(op: string, message: string) {
+    super(`${op} failed: ${message}`);
+    this.name = 'GooglePermissionError';
+  }
+}
+
+/**
+ * Reads a non-retried Google answer: a typed quota error for HTTP 429, a 403 with reason
+ * `rateLimitExceeded` / `quotaExceeded`, or status `RESOURCE_EXHAUSTED`; a typed permission error
+ * for 403 `PERMISSION_DENIED`. Returns normally for anything else.
+ */
+export function throwIfQuotaOrPermission(op: string, status: number, json: unknown): void {
+  const err = ((json as { error?: unknown } | null)?.error ?? {}) as {
+    status?: unknown;
+    message?: unknown;
+    errors?: { reason?: unknown }[];
+  };
+  const reasons = Array.isArray(err.errors) ? err.errors.map((e) => e?.reason) : [];
+  const message = typeof err.message === 'string' && err.message ? err.message : `HTTP ${status}`;
+  if (
+    status === 429 ||
+    err.status === 'RESOURCE_EXHAUSTED' ||
+    (status === 403 && reasons.some((r) => r === 'rateLimitExceeded' || r === 'quotaExceeded'))
+  ) {
+    throw new GoogleQuotaError(op, message);
+  }
+  if (status === 403 && err.status === 'PERMISSION_DENIED') {
+    throw new GooglePermissionError(op, message);
+  }
+}
+
 /** A refresh that failed before any answer (timeout, DNS, reset), as opposed to Google saying no. */
 function isNetworkFailure(err: unknown): boolean {
   if (err instanceof TypeError) return true; // undici: "fetch failed"
@@ -137,6 +178,9 @@ export async function googleRequest(deps: GoogleDeps, req: GoogleRequest): Promi
     const backoff = Math.min(2 ** attempt * 1000, MAX_BACKOFF_MS) + deps.random() * 1000;
     const delay = Math.max(backoff, retryAfter);
     if (waited + delay > MAX_TOTAL_WAIT_MS) {
+      if (status === 429) {
+        throw new GoogleQuotaError(req.op, `HTTP 429 after waiting ${Math.round(waited / 1000)} s`);
+      }
       throw new Error(
         `${req.op} failed: ${status === null ? 'network error' : `HTTP ${status}`} after waiting ${Math.round(waited / 1000)} s`,
       );

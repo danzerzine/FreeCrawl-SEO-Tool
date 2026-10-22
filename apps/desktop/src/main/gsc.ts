@@ -15,9 +15,11 @@ import type {
   GscSite,
   GscIntegrationSettings,
   GscSearchType,
+  GscRichResultType,
 } from '@freecrawl/shared-types';
 import { getAccessToken } from './google-oauth.js';
 import { apiFetch } from './api-fetch.js';
+import { googleRequest, throwIfQuotaOrPermission, type GoogleDeps } from './google-retry.js';
 import * as logger from './logger.js';
 
 const API_BASE = 'https://www.googleapis.com/webmasters/v3';
@@ -228,6 +230,14 @@ export async function querySearchAnalytics(
   return out;
 }
 
+/** Caps from the B38 spec: what one inspection stores. */
+const MAX_REFERRING = 20;
+const MAX_SITEMAPS = 20;
+const MAX_RICH_TYPES = 20;
+const MAX_RICH_ITEMS = 20;
+const MAX_RICH_MESSAGES = 5;
+const MAX_MESSAGE_CHARS = 300;
+
 /** Result of one URL Inspection call — flat shape matching the DB row. */
 export interface GscInspectionRaw {
   verdict: string | null;
@@ -240,31 +250,89 @@ export interface GscInspectionRaw {
   mobileVerdict: string | null;
   ampVerdict: string | null;
   richResultsVerdict: string | null;
+  pageFetchState: string | null;
+  crawledAs: string | null;
+  /** Sitemaps Google lists for the page (not a complete list). */
+  sitemaps: string[];
+  /** First 20 referring pages; `referringCount` is the true length. */
+  referringUrls: string[];
+  referringCount: number;
+  /** Null when the response has no rich-results facet. */
+  richResults: GscRichResultType[] | null;
+}
+
+function strings(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+function parseRichResults(facet: Record<string, unknown> | undefined): GscRichResultType[] | null {
+  if (!facet) return null;
+  const detected = Array.isArray(facet['detectedItems'])
+    ? (facet['detectedItems'] as Record<string, unknown>[])
+    : [];
+  return detected.slice(0, MAX_RICH_TYPES).map((d) => {
+    const items = Array.isArray(d['items']) ? (d['items'] as Record<string, unknown>[]) : [];
+    return {
+      type: typeof d['richResultType'] === 'string' ? d['richResultType'] : '',
+      items: items.slice(0, MAX_RICH_ITEMS).map((it) => {
+        const issues = Array.isArray(it['issues'])
+          ? (it['issues'] as Record<string, unknown>[])
+          : [];
+        const messages: string[] = [];
+        let errors = 0;
+        let warnings = 0;
+        for (const issue of issues) {
+          if (issue['severity'] === 'ERROR') errors++;
+          else if (issue['severity'] === 'WARNING') warnings++;
+          const m = issue['issueMessage'];
+          if (typeof m === 'string' && m && messages.length < MAX_RICH_MESSAGES) {
+            const cut = m.slice(0, MAX_MESSAGE_CHARS);
+            if (!messages.includes(cut)) messages.push(cut);
+          }
+        }
+        return {
+          name: typeof it['name'] === 'string' ? it['name'] : '',
+          errors,
+          warnings,
+          messages,
+        };
+      }),
+    };
+  });
+}
+
+function defaultInspectDeps(accountId?: string): GoogleDeps {
+  return {
+    fetch: apiFetch as unknown as typeof fetch,
+    getToken: (refresh) => getAccessToken('gsc', accountId, refresh),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now: () => Date.now(),
+    random: Math.random,
+    log: (level, message) => logger.log(level, 'gsc', message),
+  };
 }
 
 /**
  * Inspect one URL via the GSC URL Inspection API. Quota is 2 000
- * calls / day per property — callers must throttle their batch.
+ * calls / day (600 / minute) per property — callers must throttle their batch.
+ * Throws {@link GoogleQuotaError} when the quota is used up and
+ * {@link GooglePermissionError} when the account lost access to the property.
  */
 export async function inspectUrl(
   property: string,
   url: string,
   accountId?: string,
+  deps: GoogleDeps = defaultInspectDeps(accountId),
 ): Promise<GscInspectionRaw> {
-  const token = await getAccessToken('gsc', accountId);
-  const res = await apiFetch(
-    'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inspectionUrl: url, siteUrl: property }),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
-  const json = (await res.json().catch(() => null)) as {
+  const op = 'URL Inspection';
+  const res = await googleRequest(deps, {
+    op,
+    method: 'POST',
+    url: 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect',
+    body: { inspectionUrl: url, siteUrl: property },
+    timeoutMs: 30_000,
+  });
+  const json = res.json as {
     inspectionResult?: {
       indexStatusResult?: Record<string, unknown>;
       mobileUsabilityResult?: Record<string, unknown>;
@@ -272,7 +340,10 @@ export async function inspectUrl(
       richResultsResult?: Record<string, unknown>;
     };
   } | null;
-  if (!res.ok || !json) throw new Error(apiError(json, res.status));
+  if (!res.ok || !json) {
+    throwIfQuotaOrPermission(op, res.status, json);
+    throw new Error(apiError(json, res.status));
+  }
   const idx = json.inspectionResult?.indexStatusResult ?? {};
   const s = (k: string): string | null =>
     typeof idx[k] === 'string' ? (idx[k] as string) : null;
@@ -284,6 +355,8 @@ export async function inspectUrl(
     facet && typeof facet['verdict'] === 'string'
       ? (facet['verdict'] as string)
       : null;
+  const referring = strings(idx['referringUrls']);
+  const richFacet = json.inspectionResult?.richResultsResult;
   return {
     verdict: s('verdict'),
     coverageState: s('coverageState'),
@@ -294,6 +367,12 @@ export async function inspectUrl(
     userCanonical: s('userCanonical'),
     mobileVerdict: facetVerdict(json.inspectionResult?.mobileUsabilityResult),
     ampVerdict: facetVerdict(json.inspectionResult?.ampResult),
-    richResultsVerdict: facetVerdict(json.inspectionResult?.richResultsResult),
+    richResultsVerdict: facetVerdict(richFacet),
+    pageFetchState: s('pageFetchState'),
+    crawledAs: s('crawledAs'),
+    sitemaps: strings(idx['sitemap']).slice(0, MAX_SITEMAPS),
+    referringUrls: referring.slice(0, MAX_REFERRING),
+    referringCount: referring.length,
+    richResults: parseRichResults(richFacet),
   };
 }

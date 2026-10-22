@@ -82,6 +82,21 @@ export interface GscRow {
   inspection: GscInspectionResult | null;
 }
 
+/** One rich-result item found on a page, with its counted issues (B38). */
+export interface GscRichResultItem {
+  name: string;
+  errors: number;
+  warnings: number;
+  /** Up to 5 distinct issue messages, each cut to 300 characters. */
+  messages: string[];
+}
+
+/** One rich-result type Google detected on a page, e.g. `Product snippets`. */
+export interface GscRichResultType {
+  type: string;
+  items: GscRichResultItem[];
+}
+
 /** Result of a GSC URL Inspection API call for one URL. */
 export interface GscInspectionResult {
   /** Overall verdict — `PASS` / `NEUTRAL` / `PARTIAL` / `FAIL` /
@@ -104,6 +119,17 @@ export interface GscInspectionResult {
   ampVerdict: string | null;
   /** Rich-results verdict across all detected structured-data items. */
   richResultsVerdict: string | null;
+  /** B38 fields. Null / absent means the page was inspected before this
+   *  version (or the facet does not exist), never «none». */
+  pageFetchState?: string | null;
+  crawledAs?: string | null;
+  /** Sitemaps Google lists for the page; not a complete list. */
+  sitemaps?: string[] | null;
+  /** Up to 20 pages Google found linking here. */
+  referringUrls?: string[] | null;
+  /** True number of referring pages Google reported. */
+  referringCount?: number | null;
+  richResults?: GscRichResultType[] | null;
   status: 'ok' | 'error';
   error: string | null;
   fetchedAt: string;
