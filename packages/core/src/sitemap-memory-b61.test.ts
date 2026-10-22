@@ -12,10 +12,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // `maxRSS` is that run's own high-water mark. Needs `npx tsc -b` first.
 const CHILD = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'sitemap-memory-child-b61.mjs');
 const N = 50_000;
-/** MB. The old array-based generator grew 149-197 MB between N and 4N; the bar is 25% of the smallest. */
-const BAR_MB = 37;
+/**
+ * MB. The old array-based generator grew 140-240 MB between N and 4N with default V8 settings and about
+ * 1100 MB with the semi-space cap below; the streaming one grows 0-35 MB. The bar sits between, under 25%
+ * of the smallest old growth.
+ */
+const BAR_MB = 50;
 /** Peak memory moves by tens of MB with garbage-collection timing: each size runs this often, the median counts. */
 const RUNS = 3;
+/** A small young generation keeps short-lived garbage from piling up and moving the peak with GC timing (also under load). */
+const NODE_FLAGS = ['--max-semi-space-size=2'];
 
 let dir: string;
 
@@ -48,7 +54,7 @@ function peakMb(count: number): number {
   buildProject(file, count);
   const peaks: number[] = [];
   for (let i = 0; i < RUNS; i++) {
-    const r = spawnSync(process.execPath, [CHILD, file, path.join(dir, `out${count}.xml`)], {
+    const r = spawnSync(process.execPath, [...NODE_FLAGS, CHILD, file, path.join(dir, `out${count}.xml`)], {
       encoding: 'utf8',
       timeout: 300_000,
     });
