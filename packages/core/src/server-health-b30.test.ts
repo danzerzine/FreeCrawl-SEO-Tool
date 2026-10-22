@@ -83,6 +83,39 @@ describe('ServerHealth slow answers (B30)', () => {
     expect(cuts).toBeGreaterThanOrEqual(1);
   });
 
+  it('without a second cut the rate is held for 20 answers after the fresh window, then the slow level is the base', () => {
+    const h = new ServerHealth();
+    let t = 0;
+    const feed = (ms: number, n: number) => {
+      let cuts = 0;
+      for (let i = 0; i < n; i++) if (h.noteLatency(ms, 0, (t += 100))) cuts++;
+      return cuts;
+    };
+    feed(50, 20);
+    expect(feed(600, 10)).toBe(1);
+    // 100 ms apart: no second cut inside the 30 s gap.
+    expect(feed(600, 39)).toBe(0);
+    expect(h.isSlow()).toBe(true);
+    feed(600, 1);
+    expect(h.isSlow()).toBe(false);
+  });
+
+  it('the base comes down only when answers are 1.8 times faster than it', () => {
+    const h = new ServerHealth();
+    let t = 0;
+    const feed = (ms: number, n: number) => {
+      let cuts = 0;
+      for (let i = 0; i < n; i++) if (h.noteLatency(ms, 0, (t += 1000))) cuts++;
+      return cuts;
+    };
+    feed(50, 20);
+    feed(600, 200);
+    expect(h.isSlow()).toBe(false);
+    // 400 ms is faster, not 1.8 times faster: the base stays 600, so 800 is no slowdown.
+    feed(400, 40);
+    expect(feed(800, 40)).toBe(0);
+  });
+
   it('a site whose sections answer fast and articles slow is cut once, not to the floor', () => {
     // Times to headers seen on a live news site: cached section pages first, articles after.
     const first = [729, 204, 262, 761, 1276, 245, 160, 241, 132, 159, 181, 163, 129, 201, 311, 131, 122, 130, 229, 139];
