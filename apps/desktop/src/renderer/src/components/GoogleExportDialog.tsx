@@ -71,9 +71,7 @@ export function GoogleExportDialog({
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div
-        className="w-[420px] rounded-md border border-surface-700 bg-surface-900 p-5 text-surface-100 shadow-xl"
-      >
+      <div className="w-[420px] rounded-md border border-surface-700 bg-surface-900 p-5 text-surface-100 shadow-xl">
         <h2 className="mb-3 text-[15px] font-semibold">{title}</h2>
         <label className="mb-1 block text-[11px] font-medium text-surface-300">
           {t('googleExport.tableLabel', { defaultValue: 'Table to export' })}

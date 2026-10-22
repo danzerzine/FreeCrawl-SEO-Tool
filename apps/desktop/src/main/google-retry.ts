@@ -49,7 +49,10 @@ export interface GoogleResponse {
 
 /** The Google sign-in no longer works: reconnecting the account is the only fix. */
 export class GoogleAuthError extends Error {
-  constructor(op: string, fix = 'Reconnect the Google account in Settings → Integrations and try again.') {
+  constructor(
+    op: string,
+    fix = 'Reconnect the Google account in Settings → Integrations and try again.',
+  ) {
     super(`${op} failed: Google rejected the sign-in (HTTP 401). ${fix}`);
     this.name = 'GoogleAuthError';
   }

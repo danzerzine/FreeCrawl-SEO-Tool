@@ -28,7 +28,9 @@ export function datasetTable(
   dataset: ExportDatasetKey,
 ): { headers: string[]; rows: Iterable<RawCell[]> } {
   // The key comes over IPC: an unknown one is a clear error, not a TypeError.
-  const columns = Object.hasOwn(EXPORT_DATASET_COLUMNS, dataset) ? EXPORT_DATASET_COLUMNS[dataset] : undefined;
+  const columns = Object.hasOwn(EXPORT_DATASET_COLUMNS, dataset)
+    ? EXPORT_DATASET_COLUMNS[dataset]
+    : undefined;
   if (!columns) throw new Error(`Unknown table to export: ${String(dataset)}`);
   const source = datasetRows(db, dataset);
   return {

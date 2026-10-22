@@ -378,7 +378,8 @@ export async function exportPdfs(
               accept(all, cb);
             },
             flush(cb) {
-              if (bytes === 0 && (head === null || head.length === 0)) return cb(new Error('empty body'));
+              if (bytes === 0 && (head === null || head.length === 0))
+                return cb(new Error('empty body'));
               if (head === null) return cb();
               cb(notPdf()); // the whole body is under 5 bytes and no PDF content type
             },
