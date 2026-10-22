@@ -22,6 +22,9 @@ let gets: string[] = [];
 let pages = 120;
 let delayMs = 50;
 let rootRedirects = false;
+/** Per test: `/` answers this late, and every page links back to /p/1. */
+let rootDelayMs = 0;
+let backLinks = false;
 /** Requests to the other server (the external link checks). */
 let externalHits = 0;
 
@@ -33,6 +36,8 @@ beforeEach(async () => {
   pages = 120;
   delayMs = 50;
   rootRedirects = false;
+  rootDelayMs = 0;
+  backLinks = false;
   externalHits = 0;
   other = http.createServer((_req, res) => (externalHits++, res).writeHead(200, { 'content-type': 'text/html' }).end('<html></html>'));
   // Another host name: the crawl tells sites apart by host, not port.
@@ -47,10 +52,11 @@ beforeEach(async () => {
     const i = m ? Number(m[1]) : 0;
     const links = [1, 2, 3].map((k) => i * 3 + k).filter((n) => n < pages).map((n) => `<a href="/p/${n}">x</a>`);
     links.push(`<a href="${otherBase}x${i}">ext</a>`);
+    if (backLinks) links.push('<a href="/p/1">back</a>');
     setTimeout(() => {
       res.writeHead(200, { 'content-type': 'text/html' });
       res.end(`<html><head><title>p${i}</title></head><body>${links.join('')}</body></html>`);
-    }, delayMs);
+    }, url === '/' ? delayMs + rootDelayMs : delayMs);
   });
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${(site.address() as AddressInfo).port}/`;
@@ -128,6 +134,20 @@ describe('--resume (B29)', () => {
     expect(fetched(db).sort()).toEqual(all.sort());
     // A complete crawl leaves nothing to resume.
     expect(read(db, (p) => p.loadQueueCheckpoint())).toEqual([]);
+  }, 60000);
+
+  it('the saved queue waits for the known pages: a slow start URL check fetches nothing twice', async () => {
+    backLinks = true;
+    const db = path.join(dir, 'slow.seoproject');
+    const before = await stopAfter(db, 15, [base]);
+    expect(read(db, (p) => p.loadUnfetchedQueueCheckpoint().length)).toBeGreaterThan(0);
+    // The resume checks the start URL first; the saved pages must not be
+    // fetched (and their links followed) before the project is read back.
+    rootDelayMs = 1500;
+    gets = [];
+    const r = await run([base, '--resume', '--db', db]);
+    expect(r.code).toBe(0);
+    expect(refetched(before).filter((u) => u !== base)).toEqual([]);
   }, 60000);
 
   it('after kill -9 past a checkpoint write, the saved queue holds fetched pages and none is fetched again', async () => {
