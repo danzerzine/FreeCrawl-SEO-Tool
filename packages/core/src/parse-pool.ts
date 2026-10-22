@@ -1,7 +1,13 @@
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { parseHtml } from './html-parser.js';
+import {
+  parseHtml,
+  readServedSignalsInline,
+  type ReadServedSignalsFn,
+  type ServedSignalsRequest,
+  type ServedSignalsResult,
+} from './html-parser.js';
 
 /**
  * Round-robin pool of parser worker threads, shared by the desktop app and
@@ -155,6 +161,24 @@ export class ParserPool {
   }
 
   /**
+   * The raw-vs-rendered signals of the served HTML (and the DOM before a
+   * page script) as one request of its own kind (B33).
+   */
+  readSignals(
+    req: ServedSignalsRequest,
+    pageUrl: string,
+    opts: ParseOpts = {},
+  ): Promise<ServedSignalsResult> {
+    return this.dispatch(
+      req.servedHtml,
+      pageUrl,
+      opts,
+      'signals',
+      req.preScriptHtml,
+    ) as Promise<unknown> as Promise<ServedSignalsResult>;
+  }
+
+  /**
    * Dispatch a parse request to the least-busy started worker. Rejects on
    * timeout or worker crash; the caller falls back to inline `parseHtml`
    * when the pool isn't ready (see {@link poolParseHtml}).
@@ -167,7 +191,8 @@ export class ParserPool {
     html: string,
     pageUrl: string,
     opts: ParseOpts,
-    mode: 'parse' | 'prose',
+    mode: 'parse' | 'prose' | 'signals',
+    preScriptHtml?: string,
   ): Promise<ParseResult> {
     if (!this.isReady()) {
       return Promise.reject(new Error('parser-pool: not ready'));
@@ -186,7 +211,7 @@ export class ParserPool {
         this.recycleWedged(worker);
       }, REQUEST_TIMEOUT_MS);
       this.pending.set(requestId, { worker, resolve, reject, timer });
-      worker.postMessage({ requestId, html, pageUrl, opts, mode });
+      worker.postMessage({ requestId, html, pageUrl, opts, mode, preScriptHtml });
     });
   }
 
@@ -378,6 +403,35 @@ export function poolParseHtml(pool: ParserPool, log: ParsePoolLog = () => undefi
         }) — using inline parseHtml as fallback.`,
       );
       return parseHtml(html, pageUrl, opts);
+    }
+  };
+}
+
+export type { ReadServedSignalsFn };
+
+/**
+ * A `readServedSignals` for the Crawler's options: a worker request when the
+ * pool is ready, the same read inline otherwise. A timeout is rethrown (the
+ * caller leaves the verdicts empty; no inline retry of a document that
+ * pinned a worker); a crashed worker falls back to inline.
+ */
+export function poolReadServedSignals(
+  pool: ParserPool,
+  log: ParsePoolLog = () => undefined,
+): ReadServedSignalsFn {
+  return async (req, pageUrl, opts) => {
+    if (!pool.isReady()) return readServedSignalsInline(req, pageUrl, opts);
+    try {
+      return await pool.readSignals(req, pageUrl, opts);
+    } catch (err) {
+      if (err instanceof ParserTimeoutError) throw err;
+      log(
+        'warn',
+        `parser-pool signals request failed (${
+          err instanceof Error ? err.message : String(err)
+        }) — reading inline.`,
+      );
+      return readServedSignalsInline(req, pageUrl, opts);
     }
   };
 }

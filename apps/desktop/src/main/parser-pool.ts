@@ -1,6 +1,13 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ParserPool, poolParseHtml, type ParseHtmlFn, type ParsePoolLog } from '@freecrawl/core';
+import {
+  ParserPool,
+  poolParseHtml,
+  poolReadServedSignals,
+  type ParseHtmlFn,
+  type ReadServedSignalsFn,
+  type ParsePoolLog,
+} from '@freecrawl/core';
 import * as logger from './logger.js';
 
 // The worker is an electron-vite entry built next to this bundle.
@@ -15,3 +22,6 @@ export const parserPool = new ParserPool(path.join(__dirname, 'parser-worker.js'
  * `new Crawler(...)` call.
  */
 export const parseHtmlViaPool: ParseHtmlFn = poolParseHtml(parserPool, log);
+
+/** The raw-vs-rendered signals read (B33) as a worker request, inline when the pool is not ready. */
+export const readServedSignalsViaPool: ReadServedSignalsFn = poolReadServedSignals(parserPool, log);

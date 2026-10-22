@@ -47,6 +47,13 @@ export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
   };
 }
 
+/**
+ * The extra HTML copies a rendered page carries into the compare (`servedHtml`,
+ * `renderedHtmlPreScript`) are capped at this many characters (UTF-16 `.length`)
+ * each; `maxFileSizeBytes` defaults to 0, so nothing else bounds them.
+ */
+export const RENDER_COMPARE_MAX_CHARS = 5 * 1024 * 1024;
+
 /** What one render hook call returns. The one place the shape is written; the crawler and both products use it. */
 export interface RenderHookResult {
   ok: boolean;

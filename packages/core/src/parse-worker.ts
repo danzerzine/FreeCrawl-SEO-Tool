@@ -1,5 +1,5 @@
 import { parentPort } from 'node:worker_threads';
-import { extractProseText, parseHtml } from './html-parser.js';
+import { extractProseText, parseHtml, readServedSignalsInline } from './html-parser.js';
 
 /**
  * HTML-parser worker thread, run by {@link ParserPool}.
@@ -12,7 +12,7 @@ import { extractProseText, parseHtml } from './html-parser.js';
  *
  * Protocol:
  *   worker → main on start: `{ ready: true }`
- *   main → worker:  `{ requestId, html, pageUrl, opts, mode }`
+ *   main → worker:  `{ requestId, html, pageUrl, opts, mode, preScriptHtml? }`
  *   worker → main:  `{ requestId, ok: true, result }`
  *                or `{ requestId, ok: false, error }`
  */
@@ -27,7 +27,9 @@ interface ParseRequest {
   pageUrl: string;
   opts: Parameters<typeof parseHtml>[2];
   /** `prose` — return the main-content text instead of the full parse. */
-  mode?: 'parse' | 'prose';
+  mode?: 'parse' | 'prose' | 'signals';
+  /** `signals` — `html` is the served HTML; this is the DOM before a page script (B33). */
+  preScriptHtml?: string;
 }
 
 parentPort.on('message', (msg: ParseRequest) => {
@@ -36,7 +38,13 @@ parentPort.on('message', (msg: ParseRequest) => {
     const result =
       msg.mode === 'prose'
         ? extractProseText(msg.html, msg.opts?.contentAreaSelector)
-        : parseHtml(msg.html, msg.pageUrl, msg.opts);
+        : msg.mode === 'signals'
+          ? readServedSignalsInline(
+              { servedHtml: msg.html, preScriptHtml: msg.preScriptHtml },
+              msg.pageUrl,
+              msg.opts,
+            )
+          : parseHtml(msg.html, msg.pageUrl, msg.opts);
     parentPort!.postMessage({ requestId: msg.requestId, ok: true, result });
   } catch (err) {
     parentPort!.postMessage({

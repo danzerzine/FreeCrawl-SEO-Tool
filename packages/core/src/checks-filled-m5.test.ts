@@ -3,9 +3,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { CHECKS_FILLED_META_KEY, LATER_CHECKS, ProjectDb } from '@freecrawl/db';
+import { CHECKS_FILLED_META_KEY, LATER_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG } from '@freecrawl/shared-types';
 import { Crawler } from './crawler.js';
+
+// A text-mode crawl compares nothing raw against rendered (B33).
+const FILLED_IN_TEXT_MODE = LATER_CHECKS.filter((k) => !RENDER_CHECKS.includes(k));
 
 let server: Server;
 let dir: string;
@@ -46,7 +49,7 @@ async function crawl(db: ProjectDb, opts: { resumeOnly?: boolean } = {}): Promis
 it('a crawl records the later checks it fills; continuing an older crawl keeps only those the older part filled (M5)', async () => {
   const db = new ProjectDb(join(dir, 'p.seoproject'));
   await crawl(db);
-  expect([...db.checksFilled()]).toEqual([...LATER_CHECKS]);
+  expect([...db.checksFilled()]).toEqual(FILLED_IN_TEXT_MODE);
 
   // An older build made the crawl: no list. Continuing it fills nothing new.
   db.setMeta(CHECKS_FILLED_META_KEY, '[]');
@@ -55,6 +58,6 @@ it('a crawl records the later checks it fills; continuing an older crawl keeps o
 
   // A refresh re-crawls from the start: every later check is filled again.
   await crawl(db);
-  expect([...db.checksFilled()]).toEqual([...LATER_CHECKS]);
+  expect([...db.checksFilled()]).toEqual(FILLED_IN_TEXT_MODE);
   db.close();
 }, 30_000);

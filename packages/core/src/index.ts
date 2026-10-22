@@ -153,7 +153,9 @@ export {
   ParserTimeoutError,
   PARSE_WORKER_PATH,
   poolParseHtml,
+  poolReadServedSignals,
   type ParseHtmlFn,
+  type ReadServedSignalsFn,
   type ParsePoolLog,
 } from './parse-pool.js';
 export { writeExportFile, removePartialExportFiles } from './export-file.js';

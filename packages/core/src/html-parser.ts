@@ -829,6 +829,36 @@ export function readServedPageSignals(
   return { h1, canonical, links, linksCapped, words };
 }
 
+/** What the crawler hands the signals reader: the served HTML and, when a page script ran, the DOM before it. */
+export interface ServedSignalsRequest {
+  servedHtml: string;
+  preScriptHtml?: string;
+}
+export interface ServedSignalsResult {
+  served: ServedPageSignals;
+  /** Present when the request carried `preScriptHtml`. */
+  preScript?: ServedPageSignals;
+}
+type ServedSignalsOpts = Parameters<typeof readServedPageSignals>[2];
+/** The Crawler's `readServedSignals` option: one request, possibly off the main thread. */
+export type ReadServedSignalsFn = (
+  req: ServedSignalsRequest,
+  pageUrl: string,
+  opts: ServedSignalsOpts,
+) => Promise<ServedSignalsResult>;
+
+/** Both reads of one request on the calling thread: what the Crawler does when no pool is wired. */
+export function readServedSignalsInline(
+  req: ServedSignalsRequest,
+  pageUrl: string,
+  opts: ServedSignalsOpts,
+): ServedSignalsResult {
+  const served = readServedPageSignals(req.servedHtml, pageUrl, opts);
+  return req.preScriptHtml === undefined
+    ? { served }
+    : { served, preScript: readServedPageSignals(req.preScriptHtml, pageUrl, opts) };
+}
+
 /** The rendered page's side of the compare, from a full parse. */
 export function pageSignalsFromParsed(
   p: Pick<ParsedPage, 'h1' | 'canonicalResolved' | 'links' | 'wordCount'>,

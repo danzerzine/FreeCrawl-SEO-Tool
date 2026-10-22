@@ -417,7 +417,7 @@ import {
   WriterUnavailableError,
 } from './db-writer-pool.js';
 import { freezeWatchdog } from './freeze-watchdog.js';
-import { parserPool, parseHtmlViaPool } from './parser-pool.js';
+import { parserPool, parseHtmlViaPool, readServedSignalsViaPool } from './parser-pool.js';
 import {
   startMcpBridge,
   stopMcpBridge,
@@ -8153,6 +8153,7 @@ function registerIpc(): void {
     const crawler = new Crawler(config, database, {
       setOp: (op: string) => freezeWatchdog.setMainOp(op),
       parseHtml: parseHtmlViaPool,
+      readServedSignals: readServedSignalsViaPool,
       writeFetchedUrl: (payload) => writeFetchedUrlViaPool(sess, payload),
       recomputeIssues: (defs) => recomputeIssuesViaPool(sess, defs),
       runDbPass: (method) => runDbPassViaPool(sess, method),

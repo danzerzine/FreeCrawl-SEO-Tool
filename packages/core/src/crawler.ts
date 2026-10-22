@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import { fetch as undiciFetch, type Dispatcher } from 'undici';
 import { load as cheerioLoad } from 'cheerio';
 import PQueue from 'p-queue';
-import type { RenderHook } from './render-config.js';
+import { RENDER_COMPARE_MAX_CHARS, type RenderHook } from './render-config.js';
 import type {
   ContentKind,
   CrawlConfig,
@@ -30,6 +30,7 @@ import {
   CHECK_EXTERNAL_META_KEY,
   CHECKS_FILLED_META_KEY,
   LATER_CHECKS,
+  RENDER_CHECKS,
   TEMPLATE_LEARN_META_KEY,
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
@@ -57,8 +58,12 @@ import {
   estimatePixelWidth,
   canonicalCharset,
   readServedHeadSignals,
+  readServedSignalsInline,
+  compareServedRendered,
+  renderDiffJson,
   META_DESCRIPTION_FONT_PX,
   type ParsedPage,
+  type ReadServedSignalsFn,
 } from './html-parser.js';
 import { analyseCookies, extractSetCookies } from './cookies.js';
 import {
@@ -828,6 +833,12 @@ export class Crawler extends EventEmitter {
    */
   private readonly renderUrlHook?: RenderHook;
 
+  /**
+   * The raw-vs-rendered signals reader (B33): a worker request when the host
+   * has a parse pool, the inline read otherwise.
+   */
+  private readonly readServedSignals: ReadServedSignalsFn;
+
   constructor(
     config: CrawlConfig,
     db: ProjectDb,
@@ -860,6 +871,8 @@ export class Crawler extends EventEmitter {
        * which extras to compute via its own config.
        */
       renderUrl?: RenderHook;
+      /** Reads the signals of the served HTML (B33); a worker request on hosts with a parse pool, inline when absent. */
+      readServedSignals?: ReadServedSignalsFn;
       /**
        * Re-fetch exactly these URLs instead of walking the site from the
        * seed — the "Re-Spider" affordance when no crawl is running.
@@ -922,6 +935,9 @@ export class Crawler extends EventEmitter {
         return Promise.resolve((fn as (...a: unknown[]) => T).apply(this.db, args));
       });
     this.renderUrlHook = opts.renderUrl;
+    this.readServedSignals =
+      opts.readServedSignals ??
+      ((req, pageUrl, readOpts) => Promise.resolve(readServedSignalsInline(req, pageUrl, readOpts)));
     // Wave 9 — Resolve the active proxy. If a named profile is selected
     // and present in `proxyProfiles`, its URL wins over the legacy
     // `proxyUrl` field; if the named profile doesn't resolve we fall
@@ -1193,6 +1209,65 @@ export class Crawler extends EventEmitter {
     return !list.some((e) => e.trim().replace(/^\./, '').toLowerCase() === ext);
   }
 
+  /**
+   * Raw page against rendered page (B33) for one rendered 2xx page. The
+   * served side is the browser's own response (`servedHtml`), else the
+   * crawler's `body`. With a page script the rendered side is the DOM before
+   * the script (the script's clicks are not the site's JavaScript). The read
+   * is one request of its own, so a failure leaves every verdict null and
+   * never fails the page.
+   */
+  private async compareRenderedWithServed(
+    pageUrl: string,
+    body: string,
+    parsed: ParsedPage,
+    render: { servedHtml?: string; scriptRan: boolean; preScriptHtml?: string },
+  ): Promise<{
+    h1: number | null;
+    canonical: number | null;
+    links: number | null;
+    text: number | null;
+    renderDiff: string | null;
+  }> {
+    const none = { h1: null, canonical: null, links: null, text: null };
+    const skipped = (why: string) => ({ ...none, renderDiff: JSON.stringify({ skipped: why }) });
+    const servedHtml =
+      render.servedHtml !== undefined && render.servedHtml.length <= RENDER_COMPARE_MAX_CHARS
+        ? render.servedHtml
+        : body;
+    if (render.scriptRan) {
+      if (render.preScriptHtml === undefined) return skipped('page script');
+      if (render.preScriptHtml.length > RENDER_COMPARE_MAX_CHARS) return skipped('too large');
+    }
+    try {
+      const signals = await this.readServedSignals(
+        { servedHtml, preScriptHtml: render.scriptRan ? render.preScriptHtml : undefined },
+        pageUrl,
+        {
+          includeSubdomains: this.config.scope === 'all-subdomains',
+          cdnHosts: this.config.cdnHosts,
+          urlRewrites: this.urlRewrites,
+        },
+      );
+      const rendered = render.scriptRan ? signals.preScript : parsed;
+      if (!rendered) return { ...none, renderDiff: null };
+      const c = compareServedRendered(signals.served, rendered);
+      return {
+        h1: c.h1 ? 1 : 0,
+        canonical: c.canonical ? 1 : 0,
+        links: c.links ? 1 : 0,
+        text: c.text ? 1 : 0,
+        renderDiff: renderDiffJson(c),
+      };
+    } catch (err) {
+      this.emit(
+        'debug',
+        `raw-vs-rendered read failed for ${pageUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return { ...none, renderDiff: null };
+    }
+  }
+
   async start(): Promise<void> {
     this.startedAt = Date.now();
     this.incompleteReason = null;
@@ -1382,7 +1457,11 @@ export class Crawler extends EventEmitter {
     // keeps only those the earlier part filled too.
     const before = this.db.checksFilled();
     const continued = isRespider || (isSameSite && !isRefresh);
-    const filled = continued ? LATER_CHECKS.filter((k) => before.has(k)) : LATER_CHECKS;
+    // The raw-vs-rendered checks have a verdict only on pages rendered with a
+    // hook; a text-mode crawl, or js without Chromium, never compared anything.
+    const rendering = this.config.renderingMode === 'js' && !!this.renderUrlHook;
+    const fillable = LATER_CHECKS.filter((k) => rendering || !RENDER_CHECKS.includes(k));
+    const filled = continued ? fillable.filter((k) => before.has(k)) : fillable;
     this.db.setMeta(CHECKS_FILLED_META_KEY, JSON.stringify(filled));
     // A continued crawl keeps the AMP answers its earlier part got and
     // does not ask again; any other crawl probes afresh (B24).
@@ -5333,6 +5412,10 @@ export class Crawler extends EventEmitter {
       // back to the static HTML so the crawl never stalls on a single page.
       let parseBody = body;
       let renderedHtml: string | null = null;
+      // Extra copies of this page's HTML from the render (B33); dropped after the compare.
+      let renderServedHtml: string | undefined;
+      let renderScriptRan = false;
+      let renderPreScriptHtml: string | undefined;
       let renderMs = 0;
       let renderScreenshots:
         | { fullpage?: string; fold?: string; mobile?: string }
@@ -5396,6 +5479,9 @@ export class Crawler extends EventEmitter {
           } else if (renderRes.ok && renderRes.html) {
             parseBody = renderRes.html;
             renderedHtml = renderRes.html;
+            renderServedHtml = renderRes.servedHtml;
+            renderScriptRan = renderRes.scriptRan === true;
+            renderPreScriptHtml = renderRes.renderedHtmlPreScript;
           } else if (renderRes.error) {
             this.emit(
               'warn',
@@ -5468,6 +5554,12 @@ export class Crawler extends EventEmitter {
       let jsNoindex = 0;
       let jsTitleChanged = 0;
       let jsTitle: string | null = null;
+      // Raw against rendered (B33): null = not compared, 0 equal, 1 differs.
+      let jsH1Changed: number | null = null;
+      let jsCanonicalChanged: number | null = null;
+      let jsLinksChanged: number | null = null;
+      let jsTextChanged: number | null = null;
+      let renderDiff: string | null = null;
       if (renderedHtml) {
         const served = readServedHeadSignals(
           body,
@@ -5477,6 +5569,18 @@ export class Crawler extends EventEmitter {
         if (parsed.title && !sameTitle(parsed.title, served.title)) {
           jsTitleChanged = 2;
           jsTitle = parsed.title;
+        }
+        if (statusCode >= 200 && statusCode < 300) {
+          const diff = await this.compareRenderedWithServed(item.url, body, parsed, {
+            servedHtml: renderServedHtml,
+            scriptRan: renderScriptRan,
+            preScriptHtml: renderPreScriptHtml,
+          });
+          jsH1Changed = diff.h1;
+          jsCanonicalChanged = diff.canonical;
+          jsLinksChanged = diff.links;
+          jsTextChanged = diff.text;
+          renderDiff = diff.renderDiff;
         }
       } else {
         if (parsed.jsNoindexWrite && !parsed.hasNoindex) jsNoindex = 1;
@@ -5718,6 +5822,11 @@ export class Crawler extends EventEmitter {
           jsNoindex,
           jsTitleChanged,
           jsTitle,
+          jsH1Changed,
+          jsCanonicalChanged,
+          jsLinksChanged,
+          jsTextChanged,
+          renderDiff,
           // A page the configured content area missed is fingerprinted on
           // its template, so it stays out of near-duplicate clustering. The
           // exact-content hash stays: an exact copy is still one.

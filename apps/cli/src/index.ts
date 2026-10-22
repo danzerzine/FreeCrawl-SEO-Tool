@@ -25,6 +25,7 @@ import {
   PARSE_WORKER_PATH,
   peakRssMb,
   poolParseHtml,
+  poolReadServedSignals,
   compareChangesText,
   compareCrawls,
   compareToFiles,
@@ -808,7 +809,12 @@ async function main(): Promise<void> {
   const crawler = new Crawler(config, db, {
     toolVersion: cliVersion(),
     resumeOnly: resume !== null,
-    ...(parserPool ? { parseHtml: poolParseHtml(parserPool, poolLog) } : {}),
+    ...(parserPool
+      ? {
+          parseHtml: poolParseHtml(parserPool, poolLog),
+          readServedSignals: poolReadServedSignals(parserPool, poolLog),
+        }
+      : {}),
     ...(browserPool ? { renderUrl: createRenderHook(browserPool, config) } : {}),
   });
   // URLs that were queued or in flight when the crawl stopped; the ones
