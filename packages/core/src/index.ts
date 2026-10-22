@@ -135,9 +135,18 @@ export {
 export {
   runBulkExport,
   exportIssueInlinks,
+  peakRssMb,
   BULK_EXPORT_TASKS,
   type BulkExportTask,
 } from './bulk-export.js';
+export {
+  ParserPool,
+  ParserTimeoutError,
+  PARSE_WORKER_PATH,
+  poolParseHtml,
+  type ParseHtmlFn,
+  type ParsePoolLog,
+} from './parse-pool.js';
 export { writeExportFile, removePartialExportFiles } from './export-file.js';
 export {
   parseExportWhat,

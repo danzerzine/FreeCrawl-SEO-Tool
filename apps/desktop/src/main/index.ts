@@ -405,8 +405,7 @@ import {
   WriterUnavailableError,
 } from './db-writer-pool.js';
 import { freezeWatchdog } from './freeze-watchdog.js';
-import { parserPool, ParserTimeoutError } from './parser-pool.js';
-import { parseHtml as inlineParseHtml } from '@freecrawl/core';
+import { parserPool, parseHtmlViaPool } from './parser-pool.js';
 import {
   startMcpBridge,
   stopMcpBridge,
@@ -1804,51 +1803,6 @@ function maybeShowDiagnosticDialog(msg: string, ownerWcId?: number): void {
   if (isDontShowAgain(diag.key)) return;
   shownDiagnosticDialogs.add(diag.key);
   showDiagnosticDialog(diag, ownerWcId);
-}
-
-/**
- * Dispatch HTML parsing to the worker pool when ready, otherwise
- * fall back to the inline parser on the main thread. This wrapper is
- * passed into every `new Crawler(...)` call so the same code path
- * gets pool acceleration in the desktop app and stays simple in
- * tests / headless contexts.
- */
-async function parseHtmlViaPool(
-  html: string,
-  pageUrl: string,
-  opts: Parameters<typeof inlineParseHtml>[2],
-): Promise<ReturnType<typeof inlineParseHtml>> {
-  if (!parserPool.isReady()) {
-    return inlineParseHtml(html, pageUrl, opts);
-  }
-  try {
-    return await parserPool.parse(html, pageUrl, opts);
-  } catch (err) {
-    if (err instanceof ParserTimeoutError) {
-      // Do NOT re-parse inline. This document already pinned a worker
-      // thread for a full minute; running the same synchronous cheerio
-      // pass on the main thread would freeze the entire app — UI, IPC,
-      // crawler scheduling — for at least as long. Reject instead: the
-      // crawler records the URL as failed with this reason, the rest of
-      // the crawl proceeds, and the pool has already recycled the worker.
-      logger.log(
-        'warn',
-        'main',
-        `parser-pool timed out on ${pageUrl} — recording it as failed rather than blocking the main thread.`,
-      );
-      throw err;
-    }
-    // Pool not ready or the worker crashed — the document itself is not
-    // implicated, so parsing it inline is safe and keeps the crawl whole.
-    logger.log(
-      'warn',
-      'main',
-      `parser-pool dispatch failed (${
-        err instanceof Error ? err.message : String(err)
-      }) — using inline parseHtml as fallback.`,
-    );
-    return inlineParseHtml(html, pageUrl, opts);
-  }
 }
 
 /**

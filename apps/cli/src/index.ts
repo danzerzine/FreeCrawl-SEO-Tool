@@ -16,6 +16,10 @@ import {
 } from '@freecrawl/shared-types';
 import {
   Crawler,
+  ParserPool,
+  PARSE_WORKER_PATH,
+  peakRssMb,
+  poolParseHtml,
   compareChangesText,
   compareCrawls,
   compareToFiles,
@@ -117,6 +121,10 @@ Options:
   --max <n>           Max URLs (default: ${DEFAULT_CRAWL_CONFIG.maxUrls})
   --max-per-host <n>  Max pages per host name, each subdomain its own count; images and
                         external pages do not count (default: no limit)
+  --parse-workers <n> Parse HTML on <n> worker threads; 0 parses on the main thread
+                        (default: ${DEFAULT_PARSE_WORKERS})
+  --memory-limit <mb> Pause the crawl when its memory reaches <mb> MB, resume below 80 % of it;
+                        if it stays high, finish with what was crawled (exit 4) (default: off)
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
@@ -297,6 +305,8 @@ function parseCliArgs() {
       depth: { type: 'string' },
       max: { type: 'string' },
       'max-per-host': { type: 'string' },
+      'parse-workers': { type: 'string' },
+      'memory-limit': { type: 'string' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'night-rps': { type: 'string' },
@@ -527,6 +537,9 @@ async function main(): Promise<void> {
     ...(values['max-per-host'] !== undefined
       ? { maxUrlsPerHost: parsePositiveInt('max-per-host', values['max-per-host']) }
       : {}),
+    ...(values['memory-limit'] !== undefined
+      ? { memoryLimitMb: parsePositiveInt('memory-limit', values['memory-limit']) }
+      : {}),
     ...(values.concurrency !== undefined
       ? { maxConcurrency: parseNumeric('concurrency', values.concurrency, DEFAULT_CRAWL_CONFIG.maxConcurrency) }
       : {}),
@@ -574,6 +587,11 @@ async function main(): Promise<void> {
       process.exit(2);
     }
   }
+  const parseWorkers = parseNumeric(
+    'parse-workers',
+    values['parse-workers'],
+    DEFAULT_PARSE_WORKERS,
+  );
   const merged = mergeCrawlConfig(
     fileConfig,
     flagConfig,
@@ -678,14 +696,6 @@ async function main(): Promise<void> {
 
   // Opened only after every flag validated, so a bad argument leaves no
   // empty project file behind.
-  const db = new ProjectDb(dbPath);
-  const crawler = new Crawler(config, db, {
-    toolVersion: cliVersion(),
-    resumeOnly: resume !== null,
-  });
-  // URLs that were queued or in flight when the crawl stopped; the ones
-  // fetched after the last checkpoint write are left out.
-  if (resume !== null) crawler.enqueueCheckpointed(db.loadUnfetchedQueueCheckpoint());
   const jsonMode = Boolean(values.json);
 
   // Events while the crawl runs go to stderr, so stdout keeps only the
@@ -703,6 +713,26 @@ async function main(): Promise<void> {
       process.stderr.write(`\n[${type}] ${String(fields.message)}\n`);
     }
   };
+  // HTML parsing on worker threads; without a started worker it stays inline.
+  const poolLog = (level: 'info' | 'warn' | 'error', message: string) => {
+    if (level !== 'info' || values.verbose) report(level, { message });
+  };
+  const parserPool = parseWorkers > 0 ? new ParserPool(PARSE_WORKER_PATH, poolLog) : null;
+  if (parserPool) {
+    parserPool.init(parseWorkers);
+    if (!(await parserPool.whenReady())) {
+      report('warn', { message: 'Parse workers did not start; parsing on the main thread.' });
+    }
+  }
+  const db = new ProjectDb(dbPath);
+  const crawler = new Crawler(config, db, {
+    toolVersion: cliVersion(),
+    resumeOnly: resume !== null,
+    ...(parserPool ? { parseHtml: poolParseHtml(parserPool, poolLog) } : {}),
+  });
+  // URLs that were queued or in flight when the crawl stopped; the ones
+  // fetched after the last checkpoint write are left out.
+  if (resume !== null) crawler.enqueueCheckpointed(db.loadUnfetchedQueueCheckpoint());
   let lastProgress: CrawlProgress | null = null;
   let progressTimer: ReturnType<typeof setInterval> | null = null;
   if (jsonMode) {
@@ -810,6 +840,10 @@ async function main(): Promise<void> {
   crawler.on('done', () => (finished = true));
   await crawler.start();
   if (finished) interrupted = false;
+  if (parserPool) {
+    poolLog('info', `parser-pool: ${parserPool.parsed} page(s) parsed on worker threads`);
+    await parserPool.terminate();
+  }
   if (progressTimer) clearInterval(progressTimer);
   if (stopFileTimer) clearInterval(stopFileTimer);
   dropSignalHandlers();
@@ -904,7 +938,7 @@ async function main(): Promise<void> {
           error: crawlError,
           startUrl,
           dbPath,
-          summary,
+          summary: { ...summary, peakRssMb: peakRssMb() },
           issues,
           site: {
             soft404Probe,
@@ -939,7 +973,7 @@ async function main(): Promise<void> {
     );
   } else {
     console.log(
-      `Done. Total=${summary.total}  Bytes=${summary.totalBytes}  AvgResp=${summary.avgResponseTimeMs}ms`,
+      `Done. Total=${summary.total}  Bytes=${summary.totalBytes}  AvgResp=${summary.avgResponseTimeMs}ms  PeakMem=${peakRssMb()}MB`,
     );
     if (exportedTo) {
       console.log(`Wrote ${rowsWritten} rows -> ${exportedTo}`);
@@ -1036,6 +1070,12 @@ function parseNumeric(
   }
   return n;
 }
+
+/**
+ * Worker threads for HTML parsing when `--parse-workers` is absent. 0 until
+ * the pool beats inline parsing in the PC measurement (B49).
+ */
+const DEFAULT_PARSE_WORKERS = 0;
 
 function parsePositiveInt(flag: string, value: string): number {
   const n = Number(value.trim());
