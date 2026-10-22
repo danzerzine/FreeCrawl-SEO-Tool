@@ -403,3 +403,48 @@ export interface Ga4FetchMeta {
   /** B37: distinct stored GA4 page URLs with no crawled row (tracking-parameter or slash variants). */
   unmatchedUrls?: number;
 }
+
+/**
+ * B37 — the field picker's list: custom fields first, then the standard ones; inside a block
+ * dimensions before metrics, then by label. `query` matches the API name or the label.
+ */
+export function ga4PickerFields(fields: Ga4Field[], query: string): Ga4Field[] {
+  const q = query.trim().toLowerCase();
+  const kindRank = (f: Ga4Field): number => (f.kind === 'dimension' ? 0 : 1);
+  return fields
+    .filter((f) => !q || f.apiName.toLowerCase().includes(q) || f.uiName.toLowerCase().includes(q))
+    .sort(
+      (a, b) =>
+        Number(b.customDefinition) - Number(a.customDefinition) ||
+        kindRank(a) - kindRank(b) ||
+        a.uiName.localeCompare(b.uiName),
+    );
+}
+
+/**
+ * B37 — tick or untick one field. Adding past the limit (ten metrics, five dimensions) is
+ * refused and says which list is full; unticking always works.
+ */
+export function ga4ToggleCustom(
+  metrics: string[],
+  dimensions: string[],
+  field: Ga4Field,
+): { metrics: string[]; dimensions: string[]; blocked?: 'metrics' | 'dimensions' } {
+  const isMetric = field.kind === 'metric';
+  const list = isMetric ? metrics : dimensions;
+  if (list.includes(field.apiName)) {
+    const next = list.filter((n) => n !== field.apiName);
+    return isMetric ? { metrics: next, dimensions } : { metrics, dimensions: next };
+  }
+  const cap = isMetric ? GA4_MAX_CUSTOM_METRICS : GA4_MAX_CUSTOM_DIMENSIONS;
+  if (list.length >= cap) return { metrics, dimensions, blocked: isMetric ? 'metrics' : 'dimensions' };
+  const next = [...list, field.apiName];
+  return isMetric ? { metrics: next, dimensions } : { metrics, dimensions: next };
+}
+
+/** B37 — what a table cell shows: a metric's number, or a dimension's top value by sessions plus «+N». */
+export function ga4CellText(values: Ga4CustomValue[] | undefined): string {
+  if (!values || values.length === 0) return '';
+  const top = [...values].sort((a, b) => (b.sessions ?? 0) - (a.sessions ?? 0))[0]!;
+  return values.length > 1 ? `${top.value} +${values.length - 1}` : top.value;
+}

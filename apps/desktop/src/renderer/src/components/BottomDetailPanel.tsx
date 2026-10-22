@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { translateLabel } from '../i18n/labels.js';
 import { DEFAULT_SEO_THRESHOLDS } from '@freecrawl/shared-types';
 import type {
+  Ga4CustomValue,
   CrawlConfig,
   CrawlUrlRow,
   LinkOrigin,
@@ -934,7 +935,7 @@ function AnalyticsView({
     );
   }
 
-  if (!data || (!data.gsc && !data.ga4 && !data.metrica && !data.inspection)) {
+  if (!data || (!data.gsc && !data.ga4 && !data.metrica && !data.inspection && !data.ga4Custom)) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-surface-500">
         {t('analyticsView.empty', {
@@ -946,6 +947,10 @@ function AnalyticsView({
   }
 
   const { gsc, ga4, metrica, inspection } = data;
+  const ga4Custom = data.ga4Custom ?? null;
+  /** Every stored value of one custom field: a metric is one number, a dimension lists values with their sessions. */
+  const customValueText = (values: Ga4CustomValue[]): string =>
+    values.map((v) => (v.sessions === null ? v.value : `${v.value} (${v.sessions.toLocaleString()})`)).join(', ');
   // The cards are unrelated metric sets; exporting them as one
   // metric/value sheet keeps a single file per URL rather than one each.
   const exportRows = (): (string | number | boolean | null)[][] => {
@@ -976,6 +981,11 @@ function AnalyticsView({
       out.push(['Yandex Metrica', 'Visits (landing)', metrica.visits]);
       out.push(['Yandex Metrica', 'Users (landing)', metrica.users]);
       out.push(['Yandex Metrica', 'Search visits (landing)', metrica.searchVisits]);
+    }
+    if (ga4Custom) {
+      for (const [field, values] of Object.entries(ga4Custom)) {
+        out.push(['Analytics 4', field, customValueText(values)]);
+      }
     }
     if (inspection) {
       out.push(['URL Inspection', 'Verdict', inspection.verdict ?? '']);
@@ -1034,7 +1044,7 @@ function AnalyticsView({
       <AnalyticsCard
         title={t('analyticsView.ga4Title', { defaultValue: 'Analytics 4' })}
         empty={t('analyticsView.ga4Empty', { defaultValue: 'No GA4 traffic data yet.' })}
-        present={!!ga4}
+        present={!!ga4 || !!ga4Custom}
       >
         {ga4 && (
           <>
@@ -1051,6 +1061,10 @@ function AnalyticsView({
             />
           </>
         )}
+        {ga4Custom &&
+          Object.entries(ga4Custom).map(([field, values]) => (
+            <AnalyticsRow key={field} label={field} value={customValueText(values)} />
+          ))}
       </AnalyticsCard>
       <AnalyticsCard
         title={t('analyticsView.metricaTitle', { defaultValue: 'Yandex Metrica' })}

@@ -1946,7 +1946,17 @@
     "range7": "Last 7 days",
     "range28": "Last 28 days",
     "range90": "Last 90 days",
-    "hint": "The property is picked in the GA4 tab toolbar. Analytics data is near-realtime, so the range ends today."
+    "hint": "The property is picked in the GA4 tab toolbar. Analytics data is near-realtime, so the range ends today.",
+    "customTitle": "Custom metrics and dimensions",
+    "customCount": "{{m}}/{{mMax}} metrics · {{d}}/{{dMax}} dimensions",
+    "customRefresh": "Refresh list",
+    "customNoProperty": "Pick a property in the GA4 tab first; its fields are listed here.",
+    "customSearch": "Search fields…",
+    "customFullMetrics": "At most {{n}} metrics; untick one to add another.",
+    "customFullDimensions": "At most {{n}} dimensions (each one is a separate report); untick one to add another.",
+    "customLoading": "Loading fields…",
+    "kindMetric": "metric",
+    "kindDimension": "dimension"
   },
   "gscSettings": {
     "title": "Search Console Settings",
@@ -2024,7 +2034,9 @@
     "firstN": "(first {{n}})",
     "emptyNoData": "No internal HTML pages crawled yet — run a crawl, then fetch GA4 data.",
     "emptyNoMatch": "No pages match the current filter.",
-    "accountTitle": "Which linked Google account this project reports on. Each account keeps its own stored data."
+    "accountTitle": "Which linked Google account this project reports on. Each account keeps its own stored data.",
+    "customLegend": "Blank = no data from GA4 for this range. A dimension shows its top value by sessions, «+N» = N more values (all of them in the Detail panel).",
+    "unmatched": "{{n}} GA4 page URLs match no crawled page (tracking parameters or slash variants)."
   },
   "metricaTab": {
     "agoNow": "just now",

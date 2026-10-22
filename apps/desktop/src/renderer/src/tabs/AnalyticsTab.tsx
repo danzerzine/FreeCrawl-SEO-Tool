@@ -5,6 +5,7 @@ import { TabExportButton } from '../components/TabExportButton.js';
 import { Loader2, Search, RefreshCw } from 'lucide-react';
 import {
   defaultGa4Settings,
+  ga4CellText,
   type Ga4FetchMeta,
   type Ga4Property,
   type Ga4Row,
@@ -19,6 +20,7 @@ const STATUS_BAR_HEIGHT = 22;
 const ROW_HEIGHT = 30;
 const PAGE_SIZE = 2000;
 const POLL_MS_RUNNING = 5000;
+const CUSTOM_COL_WIDTH = 120;
 
 type FilterMode = 'all' | 'with-data' | 'without-data';
 type RangeDays = 7 | 28 | 90;
@@ -84,6 +86,8 @@ export function AnalyticsTab() {
   /** Bumped by the error screen's Retry — re-runs the bootstrap effect. */
   const [retryNonce, setRetryNonce] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** B37: the custom fields of the last pull that came back, in the order chosen. */
+  const customCols = (meta?.customFields ?? []).filter((f) => f.ok).map((f) => f.field);
 
   const loadProperties = useCallback(async (account?: string) => {
     const res = await window.freecrawl.ga4ListProperties(account);
@@ -470,6 +474,35 @@ export function AnalyticsTab() {
         )}
       </div>
 
+      {meta?.customMessage && (
+        <div className="border-b border-amber-700/40 bg-amber-900/20 px-3 py-1 text-[10px] text-amber-200">
+          {meta.customMessage}
+        </div>
+      )}
+      {(meta?.customFields ?? []).some((f) => !f.ok && !meta?.customMessage) && (
+        <div className="border-b border-amber-700/40 bg-amber-900/20 px-3 py-1 text-[10px] text-amber-200">
+          {(meta?.customFields ?? [])
+            .filter((f) => !f.ok)
+            .map((f) => `${f.field}: ${f.error ?? ''}`)
+            .join(' · ')}
+        </div>
+      )}
+      {customCols.length > 0 && (
+        <div className="border-b border-surface-800 bg-surface-900/20 px-3 py-0.5 text-[10px] text-surface-500">
+          {t('ga4Tab.customLegend', {
+            defaultValue:
+              'Blank = no data from GA4 for this range. A dimension shows its top value by sessions, «+N» = N more values (all of them in the Detail panel).',
+          })}
+          {(meta?.unmatchedUrls ?? 0) > 0 &&
+            ' ' +
+              t('ga4Tab.unmatched', {
+                defaultValue:
+                  '{{n}} GA4 page URLs match no crawled page (tracking parameters or slash variants).',
+                n: meta?.unmatchedUrls,
+              })}
+        </div>
+      )}
+
       {error && (
         <div className="border-b border-red-700/40 bg-red-900/20 px-3 py-1 text-[10px] text-red-300">
           {error}
@@ -489,6 +522,11 @@ export function AnalyticsTab() {
         <div className="w-[80px] shrink-0 text-right">{t('ga4Tab.colEng', { defaultValue: 'Engagement' })}</div>
         <div className="w-[80px] shrink-0 text-right">{t('ga4Tab.colDuration', { defaultValue: 'Avg duration' })}</div>
         <div className="w-[88px] shrink-0 px-2 text-right">{t('ga4Tab.colFetched', { defaultValue: 'Fetched' })}</div>
+        {customCols.map((c) => (
+          <div key={c} className="shrink-0 truncate px-2 text-left" style={{ width: CUSTOM_COL_WIDTH }} title={c}>
+            {c.replace(/^custom(Event|User):/, '')}
+          </div>
+        ))}
       </div>
 
       {/* Body */}
@@ -529,6 +567,7 @@ export function AnalyticsTab() {
                 >
                   <Ga4DataRow
                     row={row}
+                    customCols={customCols}
                     active={selectedUrlId === row.id}
                     onSelect={() => {
                       setSelectedUrlId(row.id);
@@ -572,10 +611,12 @@ export function AnalyticsTab() {
 
 function Ga4DataRow({
   row,
+  customCols,
   active,
   onSelect,
 }: {
   row: Ga4Row;
+  customCols: string[];
   /** The page the Detail panel is showing. */
   active: boolean;
   onSelect: () => void;
@@ -626,6 +667,19 @@ function Ga4DataRow({
       <div className="w-[88px] shrink-0 truncate px-2 text-right text-surface-500">
         {a ? relativeTime(a.fetchedAt) : '—'}
       </div>
+      {customCols.map((c) => {
+        const text = ga4CellText(row.custom?.[c]);
+        return (
+          <div
+            key={c}
+            className="shrink-0 truncate px-2 tabular-nums text-surface-300"
+            style={{ width: CUSTOM_COL_WIDTH }}
+            title={text}
+          >
+            {text}
+          </div>
+        );
+      })}
     </div>
   );
 }
