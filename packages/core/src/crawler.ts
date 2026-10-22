@@ -822,8 +822,8 @@ export class Crawler extends EventEmitter {
 
   /**
    * V2 — Optional Playwright renderer. Returns the post-JS DOM dump for
-   * a URL when `renderingMode === 'js'`. Defaults to undefined so the
-   * crawler silently skips the render pass when no pool is wired.
+   * a URL when `renderingMode === 'js'`. Without one the crawl reads the
+   * served HTML and warns once at start.
    */
   private readonly renderUrlHook?: (
     url: string,
@@ -886,8 +886,7 @@ export class Crawler extends EventEmitter {
        * Optional Playwright-based renderer. When `config.renderingMode ===
        * 'js'`, the crawler invokes this hook after the HTTP fetch and
        * uses the post-JS DOM for link extraction. The desktop host wires
-       * a managed BrowserPool here; CLI runs render-less unless the
-       * caller injects one explicitly.
+       * a managed BrowserPool here, the CLI one from `createRenderHook`.
        *
        * The result may include screenshot paths (written by Playwright
        * to disk before this promise resolves) and an LCP candidate —
@@ -1275,6 +1274,12 @@ export class Crawler extends EventEmitter {
     }
     this.stopped = false;
     this.running = true;
+    if (this.config.renderingMode === 'js' && !this.renderUrlHook) {
+      this.emit(
+        'warn',
+        'JavaScript rendering is on but this run has no browser: pages are read as plain HTML',
+      );
+    }
 
     // Mobile device mode: swap the base User-Agent to a smartphone UA before
     // ANY request goes out. Every request path (page fetch, robots.txt,
@@ -5417,6 +5422,9 @@ export class Crawler extends EventEmitter {
             null,
             controller.signal,
           );
+          // Stop or Pause aborted the render: the page is left (or re-queued)
+          // as any fetch in flight is, not saved without its rendered DOM.
+          if (controller.signal.aborted) throw new Error('aborted');
           renderMs = renderRes.timingMs;
           if (renderRes.navigatedTo) {
             // The page replaced itself while rendering (meta refresh, JS
@@ -5446,6 +5454,7 @@ export class Crawler extends EventEmitter {
             if (renderRes.a11y) renderA11y = renderRes.a11y;
           }
         } catch (err) {
+          if (controller.signal.aborted) throw err;
           this.emit(
             'warn',
             `JS render threw for ${item.url}: ${err instanceof Error ? err.message : String(err)} (falling back to static HTML)`,

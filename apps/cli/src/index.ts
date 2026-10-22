@@ -15,8 +15,12 @@ import {
   type MetricaFetchMeta,
 } from '@freecrawl/shared-types';
 import {
+  BrowserPool,
   Crawler,
   ParserPool,
+  PlaywrightBrowserMissingError,
+  browserPoolOptionsFromConfig,
+  createRenderHook,
   PARSE_WORKER_PATH,
   peakRssMb,
   poolParseHtml,
@@ -125,6 +129,9 @@ Options:
                         (default: ${DEFAULT_PARSE_WORKERS})
   --memory-limit <mb> Pause the crawl when its memory reaches <mb> MB, resume below 80 % of it;
                         if it stays high, finish with what was crawled (exit 4) (default: off)
+  --render            Render each page in Chromium and read links and content after its scripts ran
+                        (renderingMode "js" in --config does the same, but without Chromium it
+                        crawls plain HTML instead of stopping)
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
@@ -307,6 +314,7 @@ function parseCliArgs() {
       'max-per-host': { type: 'string' },
       'parse-workers': { type: 'string' },
       'memory-limit': { type: 'string' },
+      render: { type: 'boolean' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'night-rps': { type: 'string' },
@@ -540,6 +548,7 @@ async function main(): Promise<void> {
     ...(values['memory-limit'] !== undefined
       ? { memoryLimitMb: parsePositiveInt('memory-limit', values['memory-limit']) }
       : {}),
+    ...(values.render ? { renderingMode: 'js' as const } : {}),
     ...(values.concurrency !== undefined
       ? { maxConcurrency: parseNumeric('concurrency', values.concurrency, DEFAULT_CRAWL_CONFIG.maxConcurrency) }
       : {}),
@@ -713,6 +722,29 @@ async function main(): Promise<void> {
       process.stderr.write(`\n[${type}] ${String(fields.message)}\n`);
     }
   };
+  // Chromium starts before the project file opens: a missing browser under
+  // --render stops with nothing written. Asked only by --config, the crawl
+  // reads plain HTML, as the desktop app does.
+  let browserPool: BrowserPool | null = null;
+  if (config.renderingMode === 'js') {
+    const pool = new BrowserPool(browserPoolOptionsFromConfig(config));
+    try {
+      await pool.start();
+      browserPool = pool;
+    } catch (err) {
+      await pool.close();
+      const reason =
+        err instanceof PlaywrightBrowserMissingError
+          ? 'JavaScript rendering needs Chromium: run `npx playwright install chromium`'
+          : `JavaScript rendering could not start Chromium: ${(err as Error).message}`;
+      if (values.render) {
+        console.error(reason);
+        process.exit(2);
+      }
+      report('warn', { message: `${reason}; pages are read as plain HTML.` });
+      config.renderingMode = 'text';
+    }
+  }
   // HTML parsing on worker threads; without a started worker it stays inline.
   const poolLog = (level: 'info' | 'warn' | 'error', message: string) => {
     if (level !== 'info' || values.verbose) report(level, { message });
@@ -729,6 +761,7 @@ async function main(): Promise<void> {
     toolVersion: cliVersion(),
     resumeOnly: resume !== null,
     ...(parserPool ? { parseHtml: poolParseHtml(parserPool, poolLog) } : {}),
+    ...(browserPool ? { renderUrl: createRenderHook(browserPool, config) } : {}),
   });
   // URLs that were queued or in flight when the crawl stopped; the ones
   // fetched after the last checkpoint write are left out.
@@ -844,6 +877,7 @@ async function main(): Promise<void> {
     poolLog('info', `parser-pool: ${parserPool.parsed} page(s) parsed on worker threads`);
     await parserPool.terminate();
   }
+  await browserPool?.close();
   if (progressTimer) clearInterval(progressTimer);
   if (stopFileTimer) clearInterval(stopFileTimer);
   dropSignalHandlers();

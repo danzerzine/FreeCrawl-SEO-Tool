@@ -274,9 +274,8 @@ import {
 import {
   BrowserPool,
   PlaywrightBrowserMissingError,
-  MOBILE_USER_AGENT,
-  MOBILE_VIEWPORT,
-  MOBILE_DEVICE_SCALE_FACTOR,
+  browserPoolOptionsFromConfig,
+  renderOptionsFromConfig,
   Crawler,
   renderUrl,
   auditMobileUsability,
@@ -7926,39 +7925,7 @@ function registerIpc(): void {
         }>)
       | undefined;
     if (config.renderingMode === 'js') {
-      const blocked = new Set<string>();
-      if (config.jsRender.blockResources.image) blocked.add('image');
-      if (config.jsRender.blockResources.font) blocked.add('font');
-      if (config.jsRender.blockResources.media) blocked.add('media');
-      if (config.jsRender.blockResources.stylesheet) blocked.add('stylesheet');
-      if (config.jsRender.blockResources.script) blocked.add('script');
-      // Mobile device mode overrides the JS-render context so responsive
-      // layouts render as the real mobile view (UA + mobile viewport + touch
-      // + DPR), matching the mobile User-Agent the HTTP paths already use.
-      const mobile = config.deviceMode === 'mobile';
-      const pool = new BrowserPool({
-        maxPages:
-          config.jsRender.maxPages > 0
-            ? config.jsRender.maxPages
-            : Math.max(1, Math.min(8, config.maxConcurrency)),
-        headless: config.jsRender.headless,
-        viewport: mobile
-          ? { width: MOBILE_VIEWPORT.width, height: MOBILE_VIEWPORT.height }
-          : {
-              width: config.jsRender.viewportWidth,
-              height: config.jsRender.viewportHeight,
-            },
-        isMobile: mobile || undefined,
-        deviceScaleFactor: mobile ? MOBILE_DEVICE_SCALE_FACTOR : undefined,
-        userAgent: (mobile ? MOBILE_USER_AGENT : config.userAgent) || undefined,
-        acceptLanguage: config.acceptLanguage || undefined,
-        channel: config.jsRender.browserChannel || undefined,
-        blockResourceTypes: blocked.size > 0 ? blocked : undefined,
-        // Bug #2 — register once at context level. Setting it on
-        // each page accumulated across reused slots; a long crawl
-        // ran the snippet N times per navigation.
-        prerenderJs: config.jsRender.prerenderJs || undefined,
-      });
+      const pool = new BrowserPool(browserPoolOptionsFromConfig(config));
       sess.activeBrowserPool = pool;
 
       // V2 Faz 1 — Eagerly start the pool so we can detect a missing
@@ -8042,14 +8009,10 @@ function registerIpc(): void {
           url,
           pool,
           {
-            timeoutMs: Math.max(5000, config.requestTimeoutMs),
-            ajaxTimeoutMs: config.jsRender.ajaxTimeoutMs,
-            waitSelector: config.jsRender.waitSelector || undefined,
-            waitUntil: config.jsRender.waitUntil,
+            ...renderOptionsFromConfig(config),
             screenshotMode: config.jsRender.screenshotMode,
             detectLcp: config.jsRender.lcpCandidate,
             detectA11y: config.jsRender.a11yAudit,
-            discoverSpaRoutes: config.jsRender.spaRouting,
             screenshotPaths,
           },
           signal,

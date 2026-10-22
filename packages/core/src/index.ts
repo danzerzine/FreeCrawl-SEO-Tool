@@ -21,6 +21,12 @@ export {
   type MobileUsabilityResult,
 } from './render-fetcher.js';
 export {
+  browserPoolOptionsFromConfig,
+  createRenderHook,
+  renderOptionsFromConfig,
+  type RenderHook,
+} from './render-config.js';
+export {
   runBrowserLogin,
   type BrowserLoginInput,
   type BrowserLoginOptions,
