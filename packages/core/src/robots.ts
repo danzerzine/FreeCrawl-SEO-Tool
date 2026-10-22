@@ -188,7 +188,7 @@ export async function loadRobots(
   }
   if (failure && onNotice) {
     onNotice(
-      `robots.txt for ${origin} ${failure} on ${tried === attempts ? "all " : ""}${tried} attempts. FreeCrawl crawls this origin as if robots.txt allowed everything (RFC 9309 says a 5xx means "disallow all", but a transient server error should not block the whole run) — verify the site is reachable if results look off.`,
+      `robots.txt for ${origin} ${failure} on ${tried === attempts ? 'all ' : ''}${tried} attempts. FreeCrawl crawls this origin as if robots.txt allowed everything (RFC 9309 says a 5xx means "disallow all", but a transient server error should not block the whole run) — verify the site is reachable if results look off.`,
     );
   }
   return NOOP;
