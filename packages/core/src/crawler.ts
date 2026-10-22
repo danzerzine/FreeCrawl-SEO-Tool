@@ -3936,7 +3936,7 @@ export class Crawler extends EventEmitter {
           this.dnsAnnouncedTier2 = true;
           this.emit(
             'warn',
-            `DNS bypass active: system resolver unavailable, falling back to public DNS (${event.via}) for ${event.hostname}. Crawl continues automatically — no user action required.`,
+            `DNS bypass active: system resolver unavailable, falling back to public DNS (${event.via}) for ${event.hostname}. Crawl continues automatically, no user action required.`,
           );
         } else {
           this.emit(
@@ -3949,7 +3949,7 @@ export class Crawler extends EventEmitter {
           this.dnsAnnouncedTier3 = true;
           this.emit(
             'warn',
-            `DNS bypass active (DoH): port-53 unreachable on this network, resolving via DNS-over-HTTPS to ${event.via} for ${event.hostname}. Crawl continues automatically — no user action required.`,
+            `DNS bypass active (DoH): port-53 unreachable on this network, resolving via DNS-over-HTTPS to ${event.via} for ${event.hostname}. Crawl continues automatically, no user action required.`,
           );
         } else {
           this.emit(
