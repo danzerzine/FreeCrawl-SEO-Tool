@@ -107,6 +107,8 @@ import {
   type MonitorHistoryRow,
   type ScheduleSpec,
   type IntegrationsState,
+  type WorkDirProblem,
+  type WorkDirState,
   type OverviewCounts,
   type SitemapGenerateInput,
   type SitemapGenerateResult,
@@ -475,6 +477,9 @@ const api: FreeCrawlApi = {
   pickDirectory: (input?: { title?: string; defaultPath?: string }): Promise<string | null> =>
     ipcRenderer.invoke(IPC.pickDirectory, input),
   defaultProjectDir: (): Promise<string> => ipcRenderer.invoke(IPC.defaultProjectDir),
+  workDirGet: (): Promise<WorkDirState> => ipcRenderer.invoke(IPC.workDirGet),
+  workDirSet: (dir: string | null): Promise<{ ok: boolean; problem?: WorkDirProblem }> =>
+    ipcRenderer.invoke(IPC.workDirSet, dir),
   storageModeActive: (): Promise<'disk' | 'ram'> =>
     ipcRenderer.invoke(IPC.storageModeActive),
   integrationsGetAll: (): Promise<IntegrationsState> =>

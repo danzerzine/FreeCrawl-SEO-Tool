@@ -347,6 +347,11 @@ export interface MenuLabels {
   // ── Google OAuth refresh failure ──
   /** `{reason}` = Google's error code / description (e.g. `invalid_grant`). */
   oauthRefreshExpired: string;
+
+  // ── Working folder unavailable at startup (B31) ──
+  dlgWorkDirUnavailableTitle: string;
+  /** `{path}` = the chosen working folder. */
+  dlgWorkDirUnavailableMsg: string;
 }
 
 const MENU_LABELS: Record<UiLanguage, MenuLabels> = {

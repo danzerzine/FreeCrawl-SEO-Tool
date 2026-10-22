@@ -316,4 +316,7 @@ export const MENU_FR: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google a rejeté la connexion enregistrée ({reason}). Cela signifie généralement que votre application OAuth Google Cloud est en statut "Testing", où Google fait expirer la connexion tous les 7 jours. Corrigez-le une fois : Google Cloud Console → OAuth consent screen → "Publish app" (aucune vérification requise), puis Déconnectez et Connectez à nouveau cette intégration.',
+  dlgWorkDirUnavailableTitle: 'Dossier de travail indisponible',
+  dlgWorkDirUnavailableMsg:
+    "Le dossier de travail {path} est inutilisable : les projets s'ouvrent dans le dossier de FreeCrawl. Choisissez-en un autre dans Paramètres → Stockage.",
 };

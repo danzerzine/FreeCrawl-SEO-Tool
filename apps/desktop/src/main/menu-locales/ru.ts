@@ -316,4 +316,7 @@ export const MENU_RU: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google отклонил сохранённый вход ({reason}). Обычно это означает, что ваше OAuth-приложение в Google Cloud находится в статусе "Testing", при котором Google сбрасывает подключение каждые 7 дней. Исправьте один раз: Google Cloud Console → OAuth consent screen → "Publish app" (проверка не требуется), затем отключите и снова подключите эту интеграцию.',
+  dlgWorkDirUnavailableTitle: 'Рабочая папка недоступна',
+  dlgWorkDirUnavailableMsg:
+    'Рабочую папку {path} использовать нельзя, поэтому проекты открываются в собственной папке FreeCrawl. Другую можно выбрать в Настройки → Хранение.',
 };

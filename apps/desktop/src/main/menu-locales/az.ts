@@ -321,4 +321,7 @@ export const MENU_AZ: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google yadda saxlanılan girişi rədd etdi ({reason}). Bu adətən Google Cloud OAuth tətbiqinizin "Testing" statusunda olduğunu bildirir; bu halda Google bağlantını hər 7 gündə bir bitirir. Bir dəfə düzəldin: Google Cloud Console → OAuth consent screen → "Publish app" (təsdiq yoxlaması tələb olunmur), sonra bu inteqrasiyanı ayırıb yenidən qoşun.',
+  dlgWorkDirUnavailableTitle: 'İş qovluğu əlçatan deyil',
+  dlgWorkDirUnavailableMsg:
+    '{path} iş qovluğundan istifadə etmək olmur, ona görə layihələr FreeCrawl-ın öz qovluğunda açılır. Parametrlər → Yaddaş bölməsində başqasını seçin.',
 };

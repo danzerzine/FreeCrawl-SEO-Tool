@@ -313,4 +313,7 @@ export const MENU_KO: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google이 저장된 로그인을 거부했습니다({reason}). 보통 Google Cloud OAuth 앱이 "Testing" 상태라는 뜻이며, 이 상태에서는 Google이 7일마다 연결을 만료시킵니다. 한 번만 고치세요: Google Cloud Console → OAuth consent screen → "Publish app"(검증 심사 불필요), 그다음 이 통합을 연결 해제 후 다시 연결하세요.',
+  dlgWorkDirUnavailableTitle: '작업 폴더를 사용할 수 없음',
+  dlgWorkDirUnavailableMsg:
+    '작업 폴더 {path}을(를) 사용할 수 없어 프로젝트가 FreeCrawl 자체 폴더에서 열립니다. 설정 → 저장소에서 다른 폴더를 선택하세요.',
 };

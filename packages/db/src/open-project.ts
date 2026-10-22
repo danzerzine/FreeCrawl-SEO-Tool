@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readdirSync,
@@ -11,9 +12,17 @@ import {
   writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { detectProjectFormat, packProject, unpackProject } from './project-archive.js';
 import { ProjectDb } from './project-db.js';
+import {
+  asNoSpaceError,
+  checkFreeSpace,
+  isCliWorkingCopy,
+  PACKED_PER_UNPACKED,
+  UNPACKED_PER_PACKED,
+  workFolder,
+} from './work-dir.js';
 
 /*
  * Opening a project file the desktop app may have saved, shared by the CLI
@@ -170,16 +179,16 @@ const WORKING_COPY_OWNER = 'owner.lock';
  * when the process in its owner file is gone, or, with no owner file, when
  * it is over an hour old. Best effort: anything still in use stays.
  */
-function removeOrphanedWorkingCopies(): void {
+function removeOrphanedWorkingCopies(base: string): void {
   let entries;
   try {
-    entries = readdirSync(tmpdir(), { withFileTypes: true });
+    entries = readdirSync(base, { withFileTypes: true });
   } catch {
     return;
   }
   for (const entry of entries) {
-    if (!entry.isDirectory() || !entry.name.startsWith(WORKING_COPY_PREFIX)) continue;
-    const dir = join(tmpdir(), entry.name);
+    if (!entry.isDirectory() || !isCliWorkingCopy(entry.name)) continue;
+    const dir = join(base, entry.name);
     try {
       const ownerPath = join(dir, WORKING_COPY_OWNER);
       const owner = readIfExists(ownerPath);
@@ -201,6 +210,9 @@ export interface OpenProjectOptions {
   forWrite?: boolean;
   /** Open the database read-only; `save()` never packs back. */
   readOnly?: boolean;
+  /** A folder for the working copy of a desktop-saved project, which goes
+   *  into its `FreeCrawl-work` subfolder; default the OS temp folder. */
+  workDir?: string;
   /** Cleanups the caller runs on exit: `dispose` is in it from before the
    *  first await until it has run, so an exit at any point removes the
    *  working copy and the lock. */
@@ -239,12 +251,14 @@ export async function openProject(
       );
     }
     if (format === 'archive') {
-      removeOrphanedWorkingCopies();
+      const base = opts.workDir ? workFolder(opts.workDir) : tmpdir();
+      if (opts.workDir) mkdirSync(base, { recursive: true });
+      removeOrphanedWorkingCopies(base);
       if (opts.forWrite) unlock = lockProject(path);
       // Created synchronously and registered below before anything awaits,
       // so an exit at any later point still removes it (and the lock).
       try {
-        dir = mkdtempSync(join(tmpdir(), WORKING_COPY_PREFIX));
+        dir = mkdtempSync(join(base, WORKING_COPY_PREFIX));
         try {
           if (createExclusive(join(dir, WORKING_COPY_OWNER)) === null) {
             throw new Error(`Could not create the working copy in ${dir}`);
@@ -305,7 +319,15 @@ export async function openProject(
   opts.cleanups?.add(dispose);
 
   try {
-    if (workingPath) await unpackProject(path, workingPath);
+    if (dir && workingPath) {
+      const needed = statSync(path).size * UNPACKED_PER_PACKED;
+      checkFreeSpace(dir, needed);
+      try {
+        await unpackProject(path, workingPath);
+      } catch (err) {
+        throw asNoSpaceError(err, dir, needed);
+      }
+    }
     db = new ProjectDb(workingPath ?? path, { readOnly: opts.readOnly });
   } catch (err) {
     dispose();
@@ -316,8 +338,16 @@ export async function openProject(
     async save() {
       close();
       if (!workingPath || opts.readOnly) return;
+      // The archive is written beside the project, then renamed over it.
+      const target = dirname(path);
+      const needed = statSync(workingPath).size * PACKED_PER_UNPACKED;
+      checkFreeSpace(target, needed);
       packing = true;
-      await packProject(workingPath, path);
+      try {
+        await packProject(workingPath, path);
+      } catch (err) {
+        throw asNoSpaceError(err, target, needed);
+      }
       packing = false;
     },
     dispose,

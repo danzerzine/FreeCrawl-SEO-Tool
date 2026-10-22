@@ -73,6 +73,8 @@ import type {
   IntegrationDef,
   IntegrationsState,
   SpellingLanguageOption,
+  WorkDirProblem,
+  WorkDirState,
 } from '@freecrawl/shared-types';
 import {
   DEFAULT_CRAWL_CONFIG,
@@ -5552,6 +5554,105 @@ function SpellingPanel() {
  * auto-closed (saved first if it has a document). Persisted as prefs the main
  * process reads directly (`maxAgentSessions`, `agentSessionIdleMinutes`).
  */
+/**
+ * Settings → Storage → Working folder (B31): where opened projects are
+ * unpacked and crawled into. A folder the main process refuses keeps the
+ * old setting and says why.
+ */
+function WorkDirSettings() {
+  const { t } = useTranslation();
+  const [state, setState] = useState<WorkDirState | null>(null);
+  const [refused, setRefused] = useState<{ dir: string; problem: WorkDirProblem } | null>(null);
+
+  const load = () => void window.freecrawl.workDirGet().then(setState);
+  useEffect(load, []);
+
+  const problemText = (p: WorkDirProblem) =>
+    ({
+      network: t('settings.storage.workDirNetwork', {
+        defaultValue: 'a network folder, where the project database is not safe',
+      }),
+      missing: t('settings.storage.workDirMissing', { defaultValue: 'the folder does not exist' }),
+      'not-a-folder': t('settings.storage.workDirNotFolder', { defaultValue: 'not a folder' }),
+      'not-writable': t('settings.storage.workDirNotWritable', { defaultValue: 'the folder is not writable' }),
+    })[p];
+
+  async function browse() {
+    const chosen = await window.freecrawl.pickDirectory({
+      title: t('settings.storage.workDirPick', { defaultValue: 'Choose Working Folder' }),
+      defaultPath: state?.chosen || undefined,
+    });
+    if (!chosen) return;
+    const res = await window.freecrawl.workDirSet(chosen);
+    setRefused(res.ok || !res.problem ? null : { dir: chosen, problem: res.problem });
+    load();
+  }
+
+  async function reset() {
+    await window.freecrawl.workDirSet(null);
+    setRefused(null);
+    load();
+  }
+
+  return (
+    <div className="mb-4 rounded border border-surface-800 bg-surface-950/40 p-3">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400">
+        {t('settings.storage.workDir', { defaultValue: 'Working Folder' })}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          className="flex-1 rounded border border-surface-700 bg-surface-950 px-2 py-1 text-[12px] text-surface-100 focus:border-blue-500 focus:outline-none"
+          placeholder={t('settings.storage.workDirPlaceholder', { defaultValue: "(FreeCrawl's own folder)" })}
+          value={state?.chosen ?? ''}
+          readOnly
+          spellCheck={false}
+        />
+        <button
+          className="rounded border border-surface-700 px-3 py-1 text-[11px] text-surface-200 hover:bg-surface-800 hover:text-surface-100"
+          onClick={browse}
+        >
+          {t('common.browse')}
+        </button>
+        {state?.chosen && (
+          <button
+            className="rounded border border-surface-700 px-3 py-1 text-[11px] text-surface-400 hover:bg-surface-800 hover:text-surface-100"
+            onClick={reset}
+          >
+            {t('common.reset')}
+          </button>
+        )}
+      </div>
+      {refused && (
+        <p className="mt-2 text-[10px] text-amber-500/80">
+          {t('settings.storage.workDirRefused', {
+            defaultValue: '{{path}} cannot be used: {{reason}}. The working folder is unchanged.',
+            path: refused.dir,
+            reason: problemText(refused.problem),
+          })}
+        </p>
+      )}
+      {!refused && state?.problem && (
+        <p className="mt-2 text-[10px] text-amber-500/80">
+          {t('settings.storage.workDirUnavailable', {
+            defaultValue: 'This folder cannot be used now: {{reason}}. Projects open in FreeCrawl\'s own folder until it is back.',
+            reason: problemText(state.problem),
+          })}
+        </p>
+      )}
+      <p className="mt-2 text-[10px] text-surface-500">
+        {t('settings.storage.workDirHint', {
+          defaultValue:
+            'Opened projects are unpacked and crawled here, in a FreeCrawl-work subfolder. A big crawl takes up to 14 times its .seoproject size, so pick a large local disk. Applies to the next project you open.',
+        })}
+      </p>
+      <p className="mt-1 text-[10px] text-surface-500">
+        {t('settings.storage.workDirActive', { defaultValue: 'In use now' })}:{' '}
+        <span className="text-surface-300">{state?.active || '…'}</span>
+      </p>
+    </div>
+  );
+}
+
 function AgentSessionsSettings() {
   const { t } = useTranslation();
   const [maxSessions, setMaxSessions] = useState<number>(() => {
@@ -5890,6 +5991,8 @@ function StoragePanel() {
         </p>
       </div>
 
+      <WorkDirSettings />
+
       <div className="mb-4 rounded border border-surface-800 bg-surface-950/40 p-3">
         <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400">
           {t('settings.storage.autoSaveTitle', { defaultValue: 'Batch Save' })}
@@ -5909,7 +6012,7 @@ function StoragePanel() {
       </div>
 
       <div className="rounded border border-surface-800 bg-surface-950/40 p-3 text-[11px] text-surface-400">
-        {t('settings.storage.note', { defaultValue: "Active crawl data lives in the app's user-data directory until you Save As — the path above only controls where Save As starts. Changing this won't move any existing project files." })}
+        {t('settings.storage.note', { defaultValue: "Active crawl data lives in the working folder until you Save As — the Default Save Folder only controls where Save As starts. Changing either won't move any existing project files." })}
       </div>
     </>
   );

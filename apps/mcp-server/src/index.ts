@@ -21,7 +21,13 @@
  */
 
 import fs from 'node:fs';
-import { openProject as openProjectFile, type OpenedProject, type ProjectDb } from '@freecrawl/db';
+import {
+  openProject as openProjectFile,
+  workDirProblem,
+  workDirProblemText,
+  type OpenedProject,
+  type ProjectDb,
+} from '@freecrawl/db';
 import { SESSIONS_MIN_APP_VERSION } from '@freecrawl/shared-types';
 import type {
   BridgeSessionCreateResult,
@@ -70,7 +76,12 @@ async function openProject(projectPath: string): Promise<Session> {
         'session with session_create.',
     );
   }
-  const project = await openProjectFile(projectPath, { readOnly: true, cleanups });
+  // A server the desktop app starts does not see its working-folder setting.
+  const workDir = process.env.FREECRAWL_WORK_DIR || undefined;
+  const problem = workDir === undefined ? null : workDirProblem(workDir);
+  if (problem !== null)
+    throw new Error(`FREECRAWL_WORK_DIR ${workDir}: ${workDirProblemText(problem)}`);
+  const project = await openProjectFile(projectPath, { readOnly: true, cleanups, workDir });
   return { projectPath, db: project.db, project };
 }
 

@@ -314,4 +314,7 @@ export const MENU_EN: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google rejected the saved sign-in ({reason}). This usually means your Google Cloud OAuth app is in "Testing" status, where Google expires the connection every 7 days. Fix it once: Google Cloud Console → OAuth consent screen → "Publish app" (no verification review needed), then Disconnect and Connect this integration again.',
+  dlgWorkDirUnavailableTitle: 'Working folder unavailable',
+  dlgWorkDirUnavailableMsg:
+    "The working folder {path} cannot be used, so projects open in FreeCrawl's own folder. Choose another one in Settings → Storage.",
 };

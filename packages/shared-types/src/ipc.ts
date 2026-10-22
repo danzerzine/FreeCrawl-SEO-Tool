@@ -353,6 +353,12 @@ export const IPC = {
    *  `projectSaveDir` pref when set, otherwise the OS Documents folder.
    *  Used by Settings → Storage to display the active path. */
   defaultProjectDir: 'app:default-project-dir',
+  /** The working folder (Settings → Storage): chosen, in use, and why a
+   *  chosen one cannot be used. */
+  workDirGet: 'app:work-dir-get',
+  /** Choose the working folder (null = the app's own); refused with the
+   *  reason when it cannot hold working copies. */
+  workDirSet: 'app:work-dir-set',
   /** Storage mode the active DB connection is actually running in
    *  (`disk` | `ram`). Reflects what was resolved at launch, which may
    *  differ from the `storageMode` pref until the next restart. */
@@ -2319,6 +2325,10 @@ export interface FreeCrawlApi {
   pickDirectory(input?: { title?: string; defaultPath?: string }): Promise<string | null>;
   /** Resolved default save directory for new projects (Documents fallback when unset). */
   defaultProjectDir(): Promise<string>;
+  /** The working folder for opened projects: `chosen` ('' = none), `active` (in use now), `problem`. */
+  workDirGet(): Promise<WorkDirState>;
+  /** Choose the working folder; null goes back to the app's own. */
+  workDirSet(dir: string | null): Promise<{ ok: boolean; problem?: WorkDirProblem }>;
   /** Storage mode the active DB connection is running in (`disk` | `ram`).
    *  May lag the `storageMode` pref until the next launch. */
   storageModeActive(): Promise<'disk' | 'ram'>;
@@ -2506,3 +2516,16 @@ export interface FreeCrawlApi {
   editCopyNative(): Promise<void>;
   onDataChanged(cb: () => void): () => void;
 }
+
+/** Settings → Storage → Working folder (B31). */
+export interface WorkDirState {
+  /** The folder the user chose; '' when none. */
+  chosen: string;
+  /** Where working copies go now. */
+  active: string;
+  /** Why the chosen folder cannot be used; null when it can or none is chosen. */
+  problem: WorkDirProblem | null;
+}
+
+/** Why a chosen working folder cannot hold working copies. */
+export type WorkDirProblem = 'network' | 'missing' | 'not-a-folder' | 'not-writable';

@@ -32,10 +32,10 @@ import {
   cpSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   writeFileSync,
   existsSync,
   rmSync,
+  statSync,
 } from 'node:fs';
 import { copyFile, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { createHash, randomBytes } from 'node:crypto';
@@ -258,6 +258,8 @@ import {
   type UiTheme,
   normalizeAutoSaveEveryUrls,
   type SystemInfo,
+  type WorkDirProblem,
+  type WorkDirState,
 } from '@freecrawl/shared-types';
 import {
   setupPlaywrightBrowsersPath,
@@ -267,9 +269,18 @@ import {
   abortChromiumInstall,
 } from './playwright-setup.js';
 import {
+  asNoSpaceError,
+  checkFreeSpace,
   detectProjectFormat,
   packProject,
+  PACKED_PER_UNPACKED,
+  saveTempPid,
+  sweepWorkingFolder,
+  UNPACKED_PER_PACKED,
   unpackProject,
+  workDirProblem,
+  workDirProblemText,
+  workFolder,
 } from '@freecrawl/db';
 import {
   BrowserPool,
@@ -647,8 +658,7 @@ class ProjectSession {
     const ramMode = this.kind !== 'headless' && prefsCache['storageMode'] === 'ram';
     this.storageModeActive = ramMode ? 'ram' : 'disk';
     const path =
-      this.scratchPath ??
-      join(app.getPath('userData'), 'projects', 'default.seoproject');
+      this.scratchPath ?? join(projectsDir(), 'default.seoproject');
     this.scratchPath = path;
     mkdirSync(dirname(path), { recursive: true });
     const database = new ProjectDb(ramMode ? ':memory:' : path);
@@ -2295,6 +2305,36 @@ function getDb(): ProjectDb {
 /** Monotonic suffix so each open gets its own working file. */
 let workingDbCounter = 0;
 
+/** The app's own folder for working copies and scratch projects. */
+function defaultProjectsDir(): string {
+  return join(app.getPath('userData'), 'projects');
+}
+
+/** The working folder chosen in Settings → Storage, and why it cannot be used (null when it can). */
+function chosenWorkDir(): { dir: string; problem: WorkDirProblem | null } | null {
+  loadPrefs();
+  const raw = prefsCache['workDir'];
+  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  return { dir: raw, problem: workDirProblem(raw) };
+}
+
+/**
+ * Where working copies, scratch projects, agent sessions and the save
+ * snapshot go: `<working folder>/FreeCrawl-work` when one is chosen and
+ * usable, else userData/projects. Read at each open, save and new window,
+ * so a change applies to the next one.
+ */
+function projectsDir(): string {
+  const dir = usableWorkDir();
+  return dir ? workFolder(dir) : defaultProjectsDir();
+}
+
+/** The chosen working folder when it can be used now, else undefined. */
+function usableWorkDir(): string | undefined {
+  const chosen = chosenWorkDir();
+  return chosen && chosen.problem === null ? chosen.dir : undefined;
+}
+
 /**
  * Allocate a fresh working-copy path under userData.
  *
@@ -2306,7 +2346,7 @@ let workingDbCounter = 0;
  * survive a crash are swept at startup.
  */
 function newWorkingDbPath(): string {
-  const dir = join(app.getPath('userData'), 'projects');
+  const dir = projectsDir();
   mkdirSync(dir, { recursive: true });
   workingDbCounter += 1;
   return join(dir, `work-${process.pid}-${workingDbCounter}.seoproject`);
@@ -2337,44 +2377,33 @@ function liveWorkingPaths(extra?: string): ReadonlySet<string> {
   return live;
 }
 
-/** Delete working copies orphaned by a crash (never a live one). */
+/**
+ * Delete working copies, agent scratch files and save snapshots orphaned by
+ * a crash (never a live one), each by its exact name: in the app's own
+ * folder and in the chosen working folder, where the user's files are too.
+ */
 function sweepStaleWorkingCopies(keep: ReadonlySet<string>): void {
-  try {
-    const dir = join(app.getPath('userData'), 'projects');
-    if (!existsSync(dir)) return;
-    for (const name of readdirSync(dir)) {
-      // Working copies (`work-*`) plus crashed headless-agent scratch files
-      // (`agent-*`) are the two throwaway families under projects/.
-      const isWork = name.startsWith('work-');
-      const isAgent = name.startsWith('agent-');
-      if (!isWork && !isAgent) continue;
-      const full = join(dir, name);
-      // Includes the `-wal` / `-shm` sidecars of dead working copies.
-      if (keep.has(full)) continue;
-      const bare = full.replace(/-(wal|shm)$/, '');
-      if (keep.has(bare)) continue;
-      // Never delete the scratch file of a headless session that is live in
-      // THIS process — the boot sweep runs before any exist, so this only
-      // matters for the mid-session sweep on Open Project.
-      if (isAgent) {
-        let live = false;
-        for (const s of headlessSessions.values()) {
-          const own = s.ownedScratchPath;
-          if (own && projectPathKey(own) === projectPathKey(bare)) {
-            live = true;
-            break;
-          }
-        }
-        if (live) continue;
-      }
-      try {
-        rmSync(full, { force: true });
-      } catch {
-        /* still locked by a second instance — leave it */
-      }
+  const isLive = (full: string): boolean => {
+    // Includes the `-wal` / `-shm` sidecars of live working copies.
+    const bare = full.replace(/-(wal|shm)$/, '');
+    if (keep.has(full) || keep.has(bare)) return true;
+    const savePid = saveTempPid(basename(full));
+    if (savePid !== null) return savePid === process.pid;
+    // Never delete the scratch file of a headless session that is live in
+    // THIS process — the boot sweep runs before any exist, so this only
+    // matters for the mid-session sweep on Open Project.
+    for (const s of headlessSessions.values()) {
+      const own = s.ownedScratchPath;
+      if (own && projectPathKey(own) === projectPathKey(bare)) return true;
     }
-  } catch (err) {
-    logger.log('warn', 'main', `working-copy sweep failed: ${(err as Error).message}`);
+    return false;
+  };
+  for (const dir of new Set([defaultProjectsDir(), projectsDir()])) {
+    try {
+      sweepWorkingFolder(dir, isLive);
+    } catch (err) {
+      logger.log('warn', 'main', `working-copy sweep failed: ${(err as Error).message}`);
+    }
   }
 }
 
@@ -2436,12 +2465,20 @@ async function openProjectAtPath(documentPath: string): Promise<void> {
     'main',
     `Opening project ${documentPath} (${format}) → working copy ${workingPath}`,
   );
-  if (format === 'archive') {
-    await unpackProject(documentPath, workingPath);
-  } else {
-    // Legacy project: a bare database. Copy rather than open in place so
-    // the user's file stops accumulating SQLite sidecars.
-    await copyFile(documentPath, workingPath);
+  const size = statSync(documentPath).size;
+  const needed = format === 'archive' ? size * UNPACKED_PER_PACKED : size;
+  checkFreeSpace(dirname(workingPath), needed);
+  try {
+    if (format === 'archive') {
+      await unpackProject(documentPath, workingPath);
+    } else {
+      // Legacy project: a bare database. Copy rather than open in place so
+      // the user's file stops accumulating SQLite sidecars.
+      await copyFile(documentPath, workingPath);
+    }
+  } catch (err) {
+    rmSync(workingPath, { force: true });
+    throw asNoSpaceError(err, dirname(workingPath), needed);
   }
 
   const running = s.activeCrawler;
@@ -2634,17 +2671,41 @@ async function saveProjectDocument(
       );
     }
   }
+  const workDir = projectsDir();
+  mkdirSync(workDir, { recursive: true });
   const tmpPath = join(
-    app.getPath('temp'),
+    workDir,
     `freecrawl-save-${process.pid}-${workingDbCounter}-${Math.round(performance.now())}.seoproject`,
   );
+  // The snapshot is about the size of the live database; the archive
+  // beside the target a fraction of it. A RAM-only project has no file to
+  // measure and goes unchecked.
+  const liveBytes =
+    s.storageModeActive === 'disk' && s.scratchPath
+      ? [s.scratchPath, `${s.scratchPath}-wal`].reduce(
+          (n, f) => n + (existsSync(f) ? statSync(f).size : 0),
+          0,
+        )
+      : 0;
+  const targetDir = dirname(documentPath);
+  checkFreeSpace(workDir, liveBytes);
+  checkFreeSpace(targetDir, liveBytes * PACKED_PER_UNPACKED);
   try {
     // `VACUUM INTO` rewrites the whole database in one synchronous call.
     // It runs on the maintenance worker's connection (a reader of the same
     // file) so the window stays live; RAM-only mode has no worker and
     // takes it on the main thread, labelled for the freeze watchdog.
-    await snapshotDatabaseWithTitle(s, tmpPath);
-    const result = await packProject(tmpPath, documentPath);
+    try {
+      await snapshotDatabaseWithTitle(s, tmpPath);
+    } catch (err) {
+      throw asNoSpaceError(err, workDir, liveBytes);
+    }
+    let result: Awaited<ReturnType<typeof packProject>>;
+    try {
+      result = await packProject(tmpPath, documentPath);
+    } catch (err) {
+      throw asNoSpaceError(err, targetDir, liveBytes * PACKED_PER_UNPACKED);
+    }
     s.currentProjectPath = documentPath;
     s.dirty = false;
     updateWindowTitle(s);
@@ -3793,11 +3854,7 @@ let projectWindowSeq = 0;
  * session is resolved per-window via `sessionFor(webContents)`.
  */
 function createProjectWindow(): void {
-  const scratchPath = join(
-    app.getPath('userData'),
-    'projects',
-    `window-${++projectWindowSeq}.seoproject`,
-  );
+  const scratchPath = join(projectsDir(), `window-${++projectWindowSeq}.seoproject`);
   const sess = new ProjectSession({
     readerPool: new DbReaderPool(),
     writerPool: new DbWriterPool(),
@@ -3876,11 +3933,7 @@ function createHeadlessSession(opts: {
 }): ProjectSession {
   const seq = ++headlessSeq;
   const sessionId = `sess_${randomBytes(6).toString('hex')}`;
-  const scratchPath = join(
-    app.getPath('userData'),
-    'projects',
-    `agent-${seq}-${process.pid}.seoproject`,
-  );
+  const scratchPath = join(projectsDir(), `agent-${seq}-${process.pid}.seoproject`);
   const sess = new ProjectSession({
     readerPool: new DbReaderPool(),
     writerPool: new DbWriterPool(),
@@ -5639,6 +5692,29 @@ function registerIpc(): void {
     if (typeof raw === 'string' && raw.trim().length > 0) return raw;
     return app.getPath('documents');
   });
+
+  registerHandle(IPC.workDirGet, (): WorkDirState => {
+    const chosen = chosenWorkDir();
+    return { chosen: chosen?.dir ?? '', active: projectsDir(), problem: chosen?.problem ?? null };
+  });
+
+  // Checked here, not in the renderer: a folder the working copies cannot
+  // use is refused and the setting stays as it was.
+  registerHandle(
+    IPC.workDirSet,
+    (_e, dir: string | null): { ok: boolean; problem?: WorkDirProblem } => {
+      loadPrefs();
+      if (!dir) {
+        delete prefsCache['workDir'];
+      } else {
+        const problem = workDirProblem(dir);
+        if (problem !== null) return { ok: false, problem };
+        prefsCache['workDir'] = dir;
+      }
+      schedulePrefsWrite();
+      return { ok: true };
+    },
+  );
 
   registerHandle(IPC.storageModeActive, (): 'disk' | 'ram' => {
     // Ensure the DB has been resolved at least once so the mode is set.
@@ -7700,7 +7776,7 @@ function registerIpc(): void {
     let changes: CompareSummary | null = null;
     if (after.compare) {
       try {
-        changes = await runChangeReport(previousCrawlPath(sess.currentProjectPath), db, exportDir);
+        changes = await runChangeReport(previousCrawlPath(sess.currentProjectPath), db, exportDir, usableWorkDir());
         if (!changes) {
           logger.log('info', 'main', 'Change report skipped: no copy of the previous crawl (the copy at the crawl start failed)', undefined, sess.logTag);
         } else {
@@ -8543,7 +8619,7 @@ function registerIpc(): void {
     'compare-load': async (input) => {
       const i = input as CompareLoadInput;
       if (!i.filePath) throw new Error('filePath is required (MCP cannot open dialogs).');
-      return compareWithOpenProject(getDb(), i.filePath);
+      return compareWithOpenProject(getDb(), i.filePath, usableWorkDir());
     },
 
     'schedule-get': async () => {
@@ -10749,7 +10825,7 @@ function registerIpc(): void {
       }
       // The picked file is "before", the open project "after". It is read
       // in place, but stale checks are rebuilt into it once (see openCompareProject).
-      return compareWithOpenProject(getDb(), filePath);
+      return compareWithOpenProject(getDb(), filePath, usableWorkDir());
     },
   );
 
@@ -11211,6 +11287,22 @@ void app.whenReady().then(async () => {
     sweepStaleWorkingCopies(liveWorkingPaths());
   } catch (err) {
     logger.log('warn', 'main', `startup working-copy sweep failed: ${(err as Error).message}`);
+  }
+
+  // A chosen working folder that went missing (an unplugged disk) falls
+  // back to the app's own one; said once, so nobody wonders where C: went.
+  const chosenAtStart = chosenWorkDir();
+  if (chosenAtStart?.problem) {
+    logger.log(
+      'warn',
+      'main',
+      `Working folder ${chosenAtStart.dir} cannot be used (${workDirProblemText(chosenAtStart.problem)}); using ${defaultProjectsDir()}`,
+    );
+    void dialog.showMessageBox({
+      type: 'warning',
+      title: L().dlgWorkDirUnavailableTitle,
+      message: L().dlgWorkDirUnavailableMsg.replace('{path}', chosenAtStart.dir),
+    });
   }
 
   // V1 Faz 6 — start the in-app crawl scheduler. The tick is a no-op

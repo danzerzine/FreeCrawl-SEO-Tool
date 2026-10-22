@@ -22,6 +22,21 @@ export {
   type OpenedProject,
   type OpenProjectOptions,
 } from './open-project.js';
+export {
+  asNoSpaceError,
+  checkFreeSpace,
+  freeBytes,
+  isDiskFull,
+  noSpaceMessage,
+  PACKED_PER_UNPACKED,
+  saveTempPid,
+  sweepWorkingFolder,
+  UNPACKED_PER_PACKED,
+  workDirProblem,
+  workDirProblemText,
+  workFolder,
+  WORK_SUBDIR,
+} from './work-dir.js';
 export { buildCrawlSnapshot } from './crawl-snapshot.js';
 export {
   detectProjectFormat,

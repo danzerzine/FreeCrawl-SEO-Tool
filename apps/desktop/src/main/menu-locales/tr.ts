@@ -314,4 +314,7 @@ export const MENU_TR: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google kayıtlı oturumu reddetti ({reason}). Bu genellikle Google Cloud OAuth uygulamanızın "Testing" durumunda olduğunu gösterir; Google bu durumda bağlantıyı her 7 günde bir düşürür. Bir kez düzeltin: Google Cloud Console → OAuth consent screen → "Publish app" (verification incelemesi gerekmez), sonra bu entegrasyonu Bağlantıyı Kes ve tekrar Bağla.',
+  dlgWorkDirUnavailableTitle: 'Çalışma klasörü kullanılamıyor',
+  dlgWorkDirUnavailableMsg:
+    "{path} çalışma klasörü kullanılamıyor; projeler FreeCrawl'ın kendi klasöründe açılıyor. Ayarlar → Depolama'dan başka bir klasör seçin.",
 };

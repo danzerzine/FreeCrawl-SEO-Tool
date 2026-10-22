@@ -311,4 +311,7 @@ export const MENU_ZH_CN: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google 拒绝了已保存的登录（{reason}）。这通常表示你的 Google Cloud OAuth 应用处于 "Testing" 状态，Google 会每 7 天使连接失效。一次性修复：Google Cloud Console → OAuth consent screen → "Publish app"（无需验证审核），然后断开并重新连接此集成。',
+  dlgWorkDirUnavailableTitle: '工作文件夹不可用',
+  dlgWorkDirUnavailableMsg:
+    '无法使用工作文件夹 {path}，项目将在 FreeCrawl 自己的文件夹中打开。请在 设置 → 存储 中选择其他文件夹。',
 };

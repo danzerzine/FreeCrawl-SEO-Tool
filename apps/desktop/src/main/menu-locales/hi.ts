@@ -316,4 +316,7 @@ export const MENU_HI: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google ने सहेजा हुआ साइन-इन अस्वीकार कर दिया ({reason})। इसका आमतौर पर मतलब है कि आपका Google Cloud OAuth ऐप "Testing" स्थिति में है, जहाँ Google हर 7 दिन में कनेक्शन समाप्त कर देता है। एक बार ठीक करें: Google Cloud Console → OAuth consent screen → "Publish app" (सत्यापन समीक्षा की ज़रूरत नहीं), फिर इस इंटीग्रेशन को डिस्कनेक्ट करके दोबारा कनेक्ट करें।',
+  dlgWorkDirUnavailableTitle: 'कार्य फ़ोल्डर उपलब्ध नहीं',
+  dlgWorkDirUnavailableMsg:
+    'कार्य फ़ोल्डर {path} का उपयोग नहीं हो सकता, इसलिए प्रोजेक्ट FreeCrawl के अपने फ़ोल्डर में खुलते हैं। सेटिंग्स → स्टोरेज में दूसरा चुनें।',
 };

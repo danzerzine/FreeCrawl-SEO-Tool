@@ -74,8 +74,11 @@ import {
   ProjectDb,
   detectProjectFormat,
   lockProject,
-  openProject,
+  openProject as openProjectFile,
   readIfExists,
+  workDirProblem,
+  workDirProblemText,
+  type OpenProjectOptions,
   type OpenedProject,
 } from '@freecrawl/db';
 
@@ -180,6 +183,9 @@ Options:
   --stop-file <file>  Stop the crawl softly when <file> appears (checked every second), as Ctrl-C
                         does; the file is deleted then. For Windows, where a wrapper cannot send
                         Ctrl-C. Must not exist at start.
+  --work-dir <dir>    Unpack projects the desktop app saved into <dir>/FreeCrawl-work instead of the
+                        system temp folder (a big disk, not C:); FREECRAWL_WORK_DIR does the same,
+                        the flag wins
   --pid-file <file>   Write the crawler's process id to <file> while it runs (removed at exit). On
                         Windows with Volta the process you see is a launcher; this is the real one.
   --out <file>        Export results after crawl. Format auto-detected by extension:
@@ -314,6 +320,7 @@ function parseCliArgs() {
       'max-per-host': { type: 'string' },
       'parse-workers': { type: 'string' },
       'memory-limit': { type: 'string' },
+      'work-dir': { type: 'string' },
       render: { type: 'boolean' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
@@ -394,6 +401,19 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const { values, positionals } = parsed;
+
+  // Checked before any command, so a bad folder fails before a long export.
+  const workDir = values['work-dir'] ?? (process.env.FREECRAWL_WORK_DIR || undefined);
+  if (workDir !== undefined) {
+    // Checked as given: resolve() would turn //nas/share into /nas/share.
+    const problem = workDirProblem(workDir);
+    if (problem !== null) {
+      const source = values['work-dir'] !== undefined ? '--work-dir' : 'FREECRAWL_WORK_DIR';
+      console.error(`Cannot use ${source} ${workDir}: ${workDirProblemText(problem)}.`);
+      process.exit(2);
+    }
+    cliWorkDir = resolve(workDir);
+  }
 
   // Subcommands: `validate-sitemap <url>` and `audit-robots <url>` short-
   // circuit the crawl path — they're standalone diagnostics that don't
@@ -927,7 +947,7 @@ async function main(): Promise<void> {
   let compareError: string | null = null;
   if (compareWith !== null && !interrupted) {
     try {
-      const previous = await openCompareProject(compareWith);
+      const previous = await openCompareProject(compareWith, cliWorkDir);
       try {
         compared = await compareWithoutMmap(previous.db, db, () =>
           postCrawlExport
@@ -1235,6 +1255,14 @@ async function runAuditRobots(rawUrl: string, userAgent: string): Promise<number
 /** Cleanups still due; the exit hook runs them after Ctrl-C or a crash, so
  *  no working copy is left in the temp directory. */
 const pendingCleanups = new Set<() => void>();
+
+/** `--work-dir` or FREECRAWL_WORK_DIR, checked in main(). */
+let cliWorkDir: string | undefined;
+
+/** Every command opens projects here, so all of them use the working folder. */
+function openProject(path: string, opts: OpenProjectOptions): Promise<OpenedProject> {
+  return openProjectFile(path, { ...opts, workDir: cliWorkDir });
+}
 process.on('exit', () => {
   for (const cleanup of pendingCleanups) cleanup();
 });
@@ -1290,7 +1318,7 @@ async function runCompare(
   try {
     for (const [label, path] of [['before', beforePath], ['after', afterPath]] as const) {
       try {
-        const project = await openCompareProject(path);
+        const project = await openCompareProject(path, cliWorkDir);
         opened.push(project);
         if (project.rebuiltSaved) {
           process.stderr.write(`Checks of the ${label} project were brought up to date and saved in ${path}.\n`);

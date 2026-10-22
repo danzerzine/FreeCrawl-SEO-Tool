@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   openSync,
   rmSync,
+  statSync,
   writeFileSync,
   writeSync,
 } from 'node:fs';
@@ -12,13 +13,17 @@ import { open, stat } from 'node:fs/promises';
 import { freemem, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import {
+  asNoSpaceError,
   categoryWhereClause,
+  checkFreeSpace,
   detectProjectFormat,
   EXPENSIVE_ISSUE_DEFINITIONS,
   LATER_CHECKS,
   packProject,
   ProjectDb,
+  UNPACKED_PER_PACKED,
   unpackProject,
+  workFolder,
 } from '@freecrawl/db';
 import {
   checksWithDifferentThresholds,
@@ -239,9 +244,11 @@ export interface CompareProject {
  * next comparison with it rebuilds nothing (B109): an archive is rebuilt in
  * its copy and repacked, a bare project in place through SQLite. A file that
  * cannot be written is left as it was and compared from a rebuilt copy.
- * Throws a user-facing message on a missing or unrecognised file.
+ * Throws a user-facing message on a missing or unrecognised file. A copy
+ * goes into `<workDir>/FreeCrawl-work` when a working folder is given (B31),
+ * else the OS temp folder.
  */
-export async function openCompareProject(path: string): Promise<CompareProject> {
+export async function openCompareProject(path: string, workDir?: string): Promise<CompareProject> {
   if (!existsSync(path)) throw new Error(`Project not found: ${path}`);
   const format = detectProjectFormat(path);
   if (format === 'unknown') {
@@ -261,11 +268,22 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
     }
     if (dir) rmSync(dir, { recursive: true, force: true });
   };
+  const copyBase = (): string => {
+    if (!workDir) return tmpdir();
+    mkdirSync(workFolder(workDir), { recursive: true });
+    return workFolder(workDir);
+  };
   try {
     if (format === 'archive') {
-      dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
+      dir = mkdtempSync(join(copyBase(), COMPARE_COPY_PREFIX));
       copy = join(dir, basename(path));
-      await unpackProject(path, copy);
+      const needed = statSync(path).size * UNPACKED_PER_PACKED;
+      checkFreeSpace(dir, needed);
+      try {
+        await unpackProject(path, copy);
+      } catch (err) {
+        throw asNoSpaceError(err, dir, needed);
+      }
       db = new ProjectDb(copy);
     } else {
       db = new ProjectDb(path, { readOnly: true });
@@ -276,8 +294,9 @@ export async function openCompareProject(path: string): Promise<CompareProject> 
         if (rebuiltSaved) {
           db = new ProjectDb(path, { readOnly: true });
         } else {
-          dir = mkdtempSync(join(tmpdir(), COMPARE_COPY_PREFIX));
+          dir = mkdtempSync(join(copyBase(), COMPARE_COPY_PREFIX));
           copy = join(dir, basename(path));
+          checkFreeSpace(dir, statSync(path).size);
           const source = new ProjectDb(path, { readOnly: true });
           try {
             // Through SQLite, not a file copy: rows still in the project's log are in the copy too.

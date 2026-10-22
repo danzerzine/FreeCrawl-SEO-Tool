@@ -316,4 +316,7 @@ export const MENU_IT: MenuLabels = {
   // ── Google OAuth refresh failure ──
   oauthRefreshExpired:
     'Google ha rifiutato l\'accesso salvato ({reason}). Di solito significa che la tua app OAuth di Google Cloud è nello stato "Testing", in cui Google fa scadere la connessione ogni 7 giorni. Risolvi una volta per tutte: Google Cloud Console → OAuth consent screen → "Publish app" (nessuna revisione di verifica), poi Disconnetti e Connetti di nuovo questa integrazione.',
+  dlgWorkDirUnavailableTitle: 'Cartella di lavoro non disponibile',
+  dlgWorkDirUnavailableMsg:
+    "La cartella di lavoro {path} non è utilizzabile: i progetti si aprono nella cartella di FreeCrawl. Scegline un'altra in Impostazioni → Archiviazione.",
 };

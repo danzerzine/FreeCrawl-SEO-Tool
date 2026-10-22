@@ -28,13 +28,15 @@ export function cancelledCompareResult(): CompareLoadResult {
  * Compare the open project (the newer crawl, "after") with a picked file
  * ("before"). The picked project is opened by `openCompareProject`: an
  * archive through a temp copy that is deleted after; written only to save
- * stored checks it had to rebuild (B109).
+ * stored checks it had to rebuild (B109). `workDir`: the chosen working
+ * folder for that copy (B31).
  */
 export async function compareWithOpenProject(
   open: ProjectDb,
   filePath: string,
+  workDir?: string,
 ): Promise<CompareLoadResult> {
-  const picked = await openCompareProject(filePath);
+  const picked = await openCompareProject(filePath, workDir);
   try {
     const s = await compareWithoutMmap(picked.db, open, () => compareCrawls(picked.db, open));
     return {

@@ -40,15 +40,17 @@ export async function keepPreviousCrawl(projectPath: string): Promise<void> {
  * Compares the previous copy ("before") with the project just crawled
  * ("after"), the same comparison as the Compare dialog. With `dir`, the
  * `compare-*.csv` files and `compare-summary.json` go there. Null when there
- * is no previous copy (the copy at the crawl's start failed).
+ * is no previous copy (the copy at the crawl's start failed). `workDir`: the
+ * chosen working folder for the unpacked copy (B31).
  */
 export async function runChangeReport(
   previousPath: string,
   db: ProjectDb,
   dir: string | null,
+  workDir?: string,
 ): Promise<CompareSummary | null> {
   if (!existsSync(previousPath)) return null;
-  const previous = await openCompareProject(previousPath);
+  const previous = await openCompareProject(previousPath, workDir);
   try {
     return await compareWithoutMmap(previous.db, db, () =>
       dir ? compareToFiles(previous.db, db, dir) : compareCrawls(previous.db, db),
