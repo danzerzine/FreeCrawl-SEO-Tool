@@ -164,6 +164,17 @@ describe('failed render with a page script', () => {
     },
   );
 
+  it('limit and watchdog failures are warned once per crawl, not once per page', async () => {
+    const { c, warns } = makeCrawler(async () => ({
+      ok: false,
+      html: '',
+      timingMs: 5,
+      error: 'render time limit exceeded',
+    }));
+    await c.start();
+    expect(warns.filter((m) => m.includes('render time limit exceeded'))).toHaveLength(1);
+  });
+
   it('Stop aborts a slow render at once', async () => {
     let started!: () => void;
     const hookStarted = new Promise<void>((r) => (started = r));

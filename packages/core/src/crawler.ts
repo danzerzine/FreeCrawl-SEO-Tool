@@ -835,6 +835,8 @@ export class Crawler extends EventEmitter {
    */
   private readonly renderUrlHook?: RenderHook;
   private pageScriptWarned = false;
+  /** A render cut off by its limit or the watchdog was reported (once per crawl). */
+  private renderLimitWarned = false;
 
   /**
    * The raw-vs-rendered signals reader (B33): a worker request when the host
@@ -1212,14 +1214,6 @@ export class Crawler extends EventEmitter {
     return !list.some((e) => e.trim().replace(/^\./, '').toLowerCase() === ext);
   }
 
-  /**
-   * Raw page against rendered page (B33) for one rendered 2xx page. The
-   * served side is the browser's own response (`servedHtml`), else the
-   * crawler's `body`. With a page script the rendered side is the DOM before
-   * the script (the script's clicks are not the site's JavaScript). The read
-   * is one request of its own, so a failure leaves every verdict null and
-   * never fails the page.
-   */
   /** The page script's result (B34) joins the custom-extraction JSON under "$script". */
   private withScriptResult(
     extraction: Record<string, unknown> | null,
@@ -1251,6 +1245,14 @@ export class Crawler extends EventEmitter {
     );
   }
 
+  /**
+   * Raw page against rendered page (B33) for one rendered 2xx page. The
+   * served side is the browser's own response (`servedHtml`), else the
+   * crawler's `body`. With a page script the rendered side is the DOM before
+   * the script (the script's clicks are not the site's JavaScript). The read
+   * is one request of its own, so a failure leaves every verdict null and
+   * never fails the page.
+   */
   private async compareRenderedWithServed(
     pageUrl: string,
     body: string,
@@ -5544,9 +5546,15 @@ export class Crawler extends EventEmitter {
             }
             renderPreScriptHtml = renderRes.renderedHtmlPreScript;
           } else if (renderRes.error) {
+            // A page script that hangs pages would otherwise warn on every page.
+            const cutOff =
+              renderRes.error === 'render time limit exceeded' ||
+              renderRes.error === 'script blocked the page';
+            const repeat = cutOff && this.renderLimitWarned;
+            if (cutOff) this.renderLimitWarned = true;
             this.emit(
-              'warn',
-              `JS render failed for ${item.url}: ${renderRes.error} (falling back to static HTML)`,
+              repeat ? 'debug' : 'warn',
+              `JS render failed for ${item.url}: ${renderRes.error} (falling back to static HTML)${cutOff && !repeat ? '; further pages are not reported' : ''}`,
             );
           }
           if (!renderRes.navigatedTo) {
