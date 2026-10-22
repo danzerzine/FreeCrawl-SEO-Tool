@@ -63,6 +63,7 @@ import type {
   SeoResult,
   SeoRow,
   GscInspectionResult,
+  GscRichResultType,
   UrlAnalyticsDetail,
   UncrawlableLink,
   UrlCategory,
@@ -364,6 +365,38 @@ function parseSpellingEngine(value: unknown): SpellingEngine | null {
  * separate correctly. Returns null when the type is absent/unrecognised so
  * callers can keep the prior value rather than clobbering it with 'other'.
  */
+/** Parses a JSON column; NULL or unreadable text is «not inspected with this version». */
+function parseJson<T>(text: string | null | undefined): T | null {
+  if (text == null) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** The B38 inspection columns as the fields of `GscInspectionResult`; shared by both readers. */
+function inspectionDetails(r: {
+  page_fetch_state: string | null;
+  crawled_as: string | null;
+  sitemaps_json: string | null;
+  referring_urls_json: string | null;
+  rich_results_json: string | null;
+}): Pick<
+  GscInspectionResult,
+  'pageFetchState' | 'crawledAs' | 'sitemaps' | 'referringUrls' | 'referringCount' | 'richResults'
+> {
+  const referring = parseJson<{ count?: number; urls?: string[] }>(r.referring_urls_json);
+  return {
+    pageFetchState: r.page_fetch_state ?? null,
+    crawledAs: r.crawled_as ?? null,
+    sitemaps: parseJson<string[]>(r.sitemaps_json),
+    referringUrls: referring?.urls ?? null,
+    referringCount: referring ? (referring.count ?? referring.urls?.length ?? 0) : null,
+    richResults: parseJson<GscRichResultType[]>(r.rich_results_json),
+  };
+}
+
 function contentKindFromType(ct: string | null | undefined): ContentKind | null {
   if (!ct) return null;
   const t = ct.toLowerCase();
@@ -6437,6 +6470,11 @@ export class ProjectDb {
                 i.mobile_verdict AS i_mobile_verdict,
                 i.amp_verdict AS i_amp_verdict,
                 i.rich_results_verdict AS i_rich_results_verdict,
+                i.page_fetch_state AS i_page_fetch_state,
+                i.crawled_as AS i_crawled_as,
+                i.sitemaps_json AS i_sitemaps_json,
+                i.referring_urls_json AS i_referring_urls_json,
+                i.rich_results_json AS i_rich_results_json,
                 i.status AS i_status,
                 i.error AS i_error,
                 i.fetched_at AS i_fetched`;
@@ -6472,6 +6510,13 @@ export class ProjectDb {
                 ampVerdict: (r['i_amp_verdict'] as string | null) ?? null,
                 richResultsVerdict:
                   (r['i_rich_results_verdict'] as string | null) ?? null,
+                ...inspectionDetails({
+                  page_fetch_state: r['i_page_fetch_state'] as string | null,
+                  crawled_as: r['i_crawled_as'] as string | null,
+                  sitemaps_json: r['i_sitemaps_json'] as string | null,
+                  referring_urls_json: r['i_referring_urls_json'] as string | null,
+                  rich_results_json: r['i_rich_results_json'] as string | null,
+                }),
                 status: iStatus === 'error' ? 'error' : 'ok',
                 error: (r['i_error'] as string | null) ?? null,
                 fetchedAt: iFetched,
@@ -6566,6 +6611,17 @@ export class ProjectDb {
       case 'rich-result-invalid':
         where.push("i.status = 'ok' AND i.rich_results_verdict = 'FAIL'");
         break;
+      case 'rich-result-warnings':
+        // Any item with warnings and none with errors; rows inspected before
+        // this version (NULL json) are ignored.
+        where.push(
+          `i.status = 'ok' AND i.rich_results_json IS NOT NULL
+           AND EXISTS (SELECT 1 FROM json_each(i.rich_results_json) t, json_each(t.value, '$.items') it
+                       WHERE json_extract(it.value, '$.warnings') > 0)
+           AND NOT EXISTS (SELECT 1 FROM json_each(i.rich_results_json) t, json_each(t.value, '$.items') it
+                           WHERE json_extract(it.value, '$.errors') > 0)`,
+        );
+        break;
       case 'all':
       default:
         break;
@@ -6655,6 +6711,7 @@ export class ProjectDb {
         `SELECT verdict, coverage_state, robots_txt_state, indexing_state,
                 last_crawl_time, google_canonical, user_canonical,
                 mobile_verdict, amp_verdict, rich_results_verdict,
+                page_fetch_state, crawled_as, sitemaps_json, referring_urls_json, rich_results_json,
                 status, error, fetched_at
          FROM gsc_inspection_results WHERE url = ? AND account_id = ?`,
       )
@@ -6670,6 +6727,11 @@ export class ProjectDb {
           mobile_verdict: string | null;
           amp_verdict: string | null;
           rich_results_verdict: string | null;
+          page_fetch_state: string | null;
+          crawled_as: string | null;
+          sitemaps_json: string | null;
+          referring_urls_json: string | null;
+          rich_results_json: string | null;
           status: string;
           error: string | null;
           fetched_at: string;
@@ -6718,6 +6780,7 @@ export class ProjectDb {
             mobileVerdict: i.mobile_verdict,
             ampVerdict: i.amp_verdict,
             richResultsVerdict: i.rich_results_verdict,
+            ...inspectionDetails(i),
             status: i.status === 'error' ? 'error' : 'ok',
             error: i.error,
             fetchedAt: i.fetched_at,
@@ -6738,8 +6801,9 @@ export class ProjectDb {
            (url, account_id, verdict, coverage_state, robots_txt_state, indexing_state,
             last_crawl_time, google_canonical, user_canonical,
             mobile_verdict, amp_verdict, rich_results_verdict,
+            page_fetch_state, crawled_as, sitemaps_json, referring_urls_json, rich_results_json,
             status, error, fetched_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(url, account_id) DO UPDATE SET
            verdict = excluded.verdict,
            coverage_state = excluded.coverage_state,
@@ -6751,6 +6815,11 @@ export class ProjectDb {
            mobile_verdict = excluded.mobile_verdict,
            amp_verdict = excluded.amp_verdict,
            rich_results_verdict = excluded.rich_results_verdict,
+           page_fetch_state = excluded.page_fetch_state,
+           crawled_as = excluded.crawled_as,
+           sitemaps_json = excluded.sitemaps_json,
+           referring_urls_json = excluded.referring_urls_json,
+           rich_results_json = excluded.rich_results_json,
            status = excluded.status,
            error = excluded.error,
            fetched_at = excluded.fetched_at`,
@@ -6768,6 +6837,16 @@ export class ProjectDb {
         result.mobileVerdict,
         result.ampVerdict,
         result.richResultsVerdict,
+        result.pageFetchState ?? null,
+        result.crawledAs ?? null,
+        result.sitemaps ? JSON.stringify(result.sitemaps) : null,
+        result.referringUrls
+          ? JSON.stringify({
+              count: result.referringCount ?? result.referringUrls.length,
+              urls: result.referringUrls,
+            })
+          : null,
+        result.richResults ? JSON.stringify(result.richResults) : null,
         result.status,
         result.error,
         result.fetchedAt,

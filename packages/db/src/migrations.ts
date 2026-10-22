@@ -2798,6 +2798,27 @@ const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    // B38: URL Inspection keeps the sitemaps and referring pages Google lists, the page
+    // fetch state and the rich-result details. NULL means «inspected before this version».
+    version: 123,
+    name: 'add_gsc_inspection_details',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(gsc_inspection_results)').all() as {
+        name: string;
+      }[];
+      for (const col of [
+        'page_fetch_state',
+        'crawled_as',
+        'sitemaps_json',
+        'referring_urls_json',
+        'rich_results_json',
+      ]) {
+        if (!cols.some((c) => c.name === col))
+          db.exec(`ALTER TABLE gsc_inspection_results ADD COLUMN ${col} TEXT`);
+      }
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

@@ -156,7 +156,8 @@ export type GscPreset =
   | 'canonical-mismatch'
   | 'not-mobile-friendly'
   | 'amp-invalid'
-  | 'rich-result-invalid';
+  | 'rich-result-invalid'
+  | 'rich-result-warnings';
 
 /** Date-range presets for a GSC pull. `16m` is the API's 16-month max;
  *  `custom` uses the explicit `startDate` / `endDate`. */
