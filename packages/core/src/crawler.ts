@@ -2493,11 +2493,14 @@ export class Crawler extends EventEmitter {
     if (this.config.respectRobotsTxt && !this.robotsAllows(probeUrl)) return;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
+    // Through the rate gate like every other request; the wait there does
+    // not count against the timeout.
+    const deadline = this.gatedDeadline(controller, this.config.requestTimeoutMs);
     let verdict: { status: number; finalUrl: string | null } | null = null;
     try {
       let url = probeUrl;
       for (let hop = 0; hop <= 5; hop++) {
+        await deadline.beforeRequest();
         const res = await this.fetchWithRetry(url, controller.signal);
         const status = res.status;
         if (status >= 300 && status < 400) {
@@ -2538,7 +2541,7 @@ export class Crawler extends EventEmitter {
     } catch {
       /* inconclusive — timeouts and network errors say nothing about 404 handling */
     } finally {
-      clearTimeout(timer);
+      deadline.clear();
     }
     if (!verdict) return;
     this.emit(
