@@ -4552,6 +4552,9 @@ export class Crawler extends EventEmitter {
   private static readonly ADAPTIVE_MAX_COOLDOWN_MS = 120_000;
   /** A single answer this slow counts as server trouble. */
   private static readonly ADAPTIVE_SLOW_ANSWER_MS = 5_000;
+  /** Pauses after server errors on many URLs, and after answers slowing. */
+  private static readonly ADAPTIVE_TROUBLE_PAUSE_MS = 30_000;
+  private static readonly ADAPTIVE_SLOW_PAUSE_MS = 20_000;
 
   /** Base rate the scale is applied to, for user-facing rate messages. */
   private adaptiveBaseRps(): number {
@@ -4611,7 +4614,7 @@ export class Crawler extends EventEmitter {
     if (trouble) this.adaptiveCleanStreak = 0;
     if (!this.serverHealth.noteOutcome(trouble, Date.now())) return;
     this.slowDown(
-      30_000,
+      Crawler.ADAPTIVE_TROUBLE_PAUSE_MS,
       (rps) =>
         `Adaptive speed: server errors on many recent URLs — pausing 30s, slowing to ~${rps} URL/s`,
     );
@@ -4627,7 +4630,7 @@ export class Crawler extends EventEmitter {
     const busyMs = this.loopProbe.maxSinceLastMs();
     if (!this.serverHealth.noteLatency(ttfbMs, busyMs, Date.now())) return;
     this.slowDown(
-      20_000,
+      Crawler.ADAPTIVE_SLOW_PAUSE_MS,
       (rps) => `Adaptive speed: answers slowing — pausing 20s, slowing to ~${rps} URL/s`,
     );
   }

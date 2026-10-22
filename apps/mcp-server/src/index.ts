@@ -75,28 +75,40 @@ async function openProject(projectPath: string): Promise<Session> {
 }
 
 function getSession(): Promise<Session> {
-  if (session) return Promise.resolve(session);
-  opening ??= openProject(defaultProjectPath()).then(
-    (s) => {
-      session = s;
-      opening = null;
-      return s;
-    },
-    (err: unknown) => {
-      opening = null;
-      throw err;
-    },
-  );
-  return opening;
+  if (session && !opening) return Promise.resolve(session);
+  return (opening ??= track(openProject(defaultProjectPath())));
 }
 
 async function setProject(projectPath: string): Promise<Session> {
-  // Closed first so that if the open throws (missing / corrupt file) the
-  // session doesn't point at a closed DB handle, which would make every
-  // later DB tool fail with "database is not open".
-  closeReadSession();
-  session = await openProject(projectPath);
-  return session;
+  // Waits for an open still unpacking (the lazy default or an earlier
+  // set_project), so the last call is the project that stays open.
+  const previous = opening?.catch(() => undefined);
+  return (opening = track(
+    (async () => {
+      await previous;
+      // Closed first so that if the open throws (missing / corrupt file) the
+      // session doesn't point at a closed DB handle, which would make every
+      // later DB tool fail with "database is not open".
+      closeReadSession();
+      return openProject(projectPath);
+    })(),
+  ));
+}
+
+/** Makes `open` the session once it resolves, and clears `opening` if it is still the latest. */
+function track(open: Promise<Session>): Promise<Session> {
+  const tracked: Promise<Session> = open.then(
+    (s) => {
+      session = s;
+      if (opening === tracked) opening = null;
+      return s;
+    },
+    (err: unknown) => {
+      if (opening === tracked) opening = null;
+      throw err;
+    },
+  );
+  return tracked;
 }
 
 /** Drop the read-only DB handle and its working copy (e.g. after a headless
