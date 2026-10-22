@@ -1003,6 +1003,8 @@
       "lcpCandidate": "LCP aday tespiti",
       "a11yAudit": "Erişilebilirlik denetimi (kontrast + odak)",
       "consoleErrors": "Konsol hataları ve yüklenemeyen kaynaklar",
+      "pageScript": "Sayfa betiği (isteğe bağlı)",
+      "pageScriptTimeoutMs": "Sayfa betiği zaman aşımı (ms)",
       "screenshotNone": "Yok (varsayılan)",
       "screenshotFold": "Katlama üstü",
       "screenshotFull": "Tam sayfa",

@@ -980,6 +980,8 @@
       "lcpCandidate": "LCP 候选元素检测",
       "a11yAudit": "无障碍审计（对比度 + 焦点）",
       "consoleErrors": "控制台错误与加载失败的资源",
+      "pageScript": "页面脚本（可选）",
+      "pageScriptTimeoutMs": "页面脚本超时（毫秒）",
       "screenshotNone": "无（默认）",
       "screenshotFold": "首屏可见区域",
       "screenshotFull": "整页",

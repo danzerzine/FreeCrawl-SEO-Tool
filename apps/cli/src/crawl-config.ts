@@ -1,4 +1,8 @@
-import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
+import {
+  DEFAULT_CRAWL_CONFIG,
+  PAGE_SCRIPT_MAX_CHARS,
+  type CrawlConfig,
+} from '@freecrawl/shared-types';
 
 /** Where the crawl starts, from the command line: a positional URL or a `--list` file. */
 export interface CommandLineStart {
@@ -35,6 +39,21 @@ export function mergeCrawlConfig(
     mergeLayer(DEFAULT_CRAWL_CONFIG as unknown as Record<string, unknown>, fileConfig),
     flags as Record<string, unknown>,
   ) as unknown as CrawlConfig;
+
+  // The page script (B34): bounded, and only meaningful when pages are rendered.
+  const script = config.jsRender.pageScript;
+  if (script.length > PAGE_SCRIPT_MAX_CHARS) {
+    return {
+      kind: 'error',
+      message: `The page script is ${script.length} characters; the limit is 20 000.`,
+    };
+  }
+  if (script.trim() !== '' && config.renderingMode !== 'js') {
+    return {
+      kind: 'error',
+      message: 'A page script needs JavaScript rendering: add --render or set renderingMode "js".',
+    };
+  }
 
   // An active profile wins over `proxyUrl` in the crawler, so `--proxy`
   // would do nothing against a settings file that selected one.

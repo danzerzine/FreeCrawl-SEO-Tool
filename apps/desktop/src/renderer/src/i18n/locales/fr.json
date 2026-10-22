@@ -1026,6 +1026,8 @@
       "lcpCandidate": "Détection du candidat LCP",
       "a11yAudit": "Audit d'accessibilité (contraste + focus)",
       "consoleErrors": "Erreurs de console et ressources non chargées",
+      "pageScript": "Script de page (facultatif)",
+      "pageScriptTimeoutMs": "Délai du script de page (ms)",
       "screenshotNone": "Aucune (par défaut)",
       "screenshotFold": "Partie visible sans défilement",
       "screenshotFull": "Page entière",

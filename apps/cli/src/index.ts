@@ -140,7 +140,9 @@ Options:
   --render            Render each page in Chromium and read links and content after its scripts ran
                         (renderingMode "js" in --config does the same, but without Chromium it
                         crawls plain HTML instead of stopping)
-  --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
+  --page-script <file>  With --render: run the JavaScript in <file> once on every rendered page after it
+                        loaded (click "Load more", scroll); what it returns is stored in Extracted Data
+                        under $script. Also set as jsRender.pageScript in --config (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
   --no-robots         Ignore robots.txt (it is still read once for its Sitemap: lines while sitemap
@@ -348,6 +350,7 @@ function parseCliArgs() {
       'work-dir': { type: 'string' },
       render: { type: 'boolean' },
       'max-bytes': { type: 'string' },
+      'page-script': { type: 'string' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'night-rps': { type: 'string' },
@@ -583,6 +586,20 @@ async function main(): Promise<void> {
   // `?? DEFAULT` fallback silently overwrite a value the user set in the
   // --config file (the help text promises "the command line still win[s]",
   // not "defaults clobber the file").
+  // --page-script: the file is read once here; the project stores the exact text that ran.
+  let pageScriptText: string | undefined;
+  if (values['page-script'] !== undefined) {
+    try {
+      pageScriptText = readFileSync(resolve(values['page-script']), 'utf8');
+    } catch (err) {
+      console.error(`Cannot read --page-script file ${values['page-script']}: ${(err as Error).message}`);
+      process.exit(2);
+    }
+    if (pageScriptText.trim() === '') {
+      console.error(`--page-script file ${values['page-script']} is empty.`);
+      process.exit(2);
+    }
+  }
   const flagConfig: Partial<CrawlConfig> = {
     ...(values.depth !== undefined
       ? { maxDepth: parseNumeric('depth', values.depth, DEFAULT_CRAWL_CONFIG.maxDepth) }
@@ -597,6 +614,9 @@ async function main(): Promise<void> {
       ? { memoryLimitMb: parsePositiveInt('memory-limit', values['memory-limit']) }
       : {}),
     ...(values.render ? { renderingMode: 'js' as const } : {}),
+    ...(pageScriptText !== undefined
+      ? { jsRender: { pageScript: pageScriptText } as CrawlConfig['jsRender'] }
+      : {}),
     ...(values.concurrency !== undefined
       ? { maxConcurrency: parseNumeric('concurrency', values.concurrency, DEFAULT_CRAWL_CONFIG.maxConcurrency) }
       : {}),
@@ -788,6 +808,11 @@ async function main(): Promise<void> {
           : `JavaScript rendering could not start Chromium: ${(err as Error).message}`;
       if (values.render) {
         console.error(reason);
+        process.exit(2);
+      }
+      if (config.jsRender.pageScript.trim() !== '') {
+        // Plain HTML would silently skip the script.
+        console.error(`${reason}; the page script would not run.`);
         process.exit(2);
       }
       report('warn', { message: `${reason}; pages are read as plain HTML.` });

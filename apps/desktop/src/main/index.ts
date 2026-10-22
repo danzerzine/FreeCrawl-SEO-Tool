@@ -2297,6 +2297,9 @@ function mergeCrawlConfig(parsed: Partial<CrawlConfig>): CrawlConfig {
         parsed.jsRender?.a11yAudit ?? DEFAULT_CRAWL_CONFIG.jsRender.a11yAudit,
       consoleErrors:
         parsed.jsRender?.consoleErrors ?? DEFAULT_CRAWL_CONFIG.jsRender.consoleErrors,
+      pageScript: parsed.jsRender?.pageScript ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScript,
+      pageScriptTimeoutMs:
+        parsed.jsRender?.pageScriptTimeoutMs ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs,
     },
     performanceBudget: {
       ...DEFAULT_CRAWL_CONFIG.performanceBudget,
@@ -8149,6 +8152,9 @@ function registerIpc(): void {
           navigatedTo: res.navigatedTo ?? null,
           servedHtml: res.servedHtml,
           consoleLog: res.consoleLog,
+          scriptRan: res.scriptRan,
+          scriptResult: res.scriptResult,
+          renderedHtmlPreScript: res.renderedHtmlPreScript,
         };
       };
     }

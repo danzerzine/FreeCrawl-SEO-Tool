@@ -980,6 +980,8 @@
       "lcpCandidate": "LCP 후보 요소 탐지",
       "a11yAudit": "접근성 감사(대비 + 포커스)",
       "consoleErrors": "콘솔 오류 및 불러오지 못한 리소스",
+      "pageScript": "페이지 스크립트(선택)",
+      "pageScriptTimeoutMs": "페이지 스크립트 제한 시간(ms)",
       "screenshotNone": "없음(기본값)",
       "screenshotFold": "첫 화면 영역",
       "screenshotFull": "전체 페이지",

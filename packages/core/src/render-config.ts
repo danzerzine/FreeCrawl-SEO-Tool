@@ -54,6 +54,8 @@ export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
     discoverSpaRoutes: config.jsRender.spaRouting,
     collectConsole: config.jsRender.consoleErrors || undefined,
     blockedTypes: blockedResourceTypes(config),
+    pageScript: config.jsRender.pageScript || undefined,
+    pageScriptTimeoutMs: config.jsRender.pageScriptTimeoutMs,
   };
 }
 
@@ -100,6 +102,8 @@ export interface RenderHookResult {
   servedHtml?: string;
   /** A page script ran for this page (B34). */
   scriptRan?: boolean;
+  /** JSON the page script produced (its value, or `{"error": ...}`); unset when it returned nothing (B34). */
+  scriptResult?: string;
   /** `page.content()` taken before the page script ran (B34, read by B33's compare). */
   renderedHtmlPreScript?: string;
   /** Console errors and failed resources of the render (B35); set only with `jsRender.consoleErrors`. */
@@ -131,6 +135,9 @@ export function createRenderHook(pool: BrowserPool, config: CrawlConfig): Render
       navigatedTo: res.navigatedTo ?? null,
       servedHtml: res.servedHtml,
       consoleLog: res.consoleLog,
+      scriptRan: res.scriptRan,
+      scriptResult: res.scriptResult,
+      renderedHtmlPreScript: res.renderedHtmlPreScript,
     };
   };
 }

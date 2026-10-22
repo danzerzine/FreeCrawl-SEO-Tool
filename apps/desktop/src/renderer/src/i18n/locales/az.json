@@ -1003,6 +1003,8 @@
       "lcpCandidate": "LCP namizədinin aşkarlanması",
       "a11yAudit": "Əlçatanlıq auditi (kontrast + fokus)",
       "consoleErrors": "Konsol xətaları və yüklənməyən resurslar",
+      "pageScript": "Səhifə skripti (könüllü)",
+      "pageScriptTimeoutMs": "Səhifə skriptinin vaxt həddi (ms)",
       "screenshotNone": "Yoxdur (susmaya görə)",
       "screenshotFold": "Sürüşdürmədən görünən hissə",
       "screenshotFull": "Bütün səhifə",

@@ -1635,6 +1635,12 @@ export interface PerformanceBudgetConfig {
   maxCls: number;
 }
 
+/** Longest `jsRender.pageScript` a config accepts (B34). */
+export const PAGE_SCRIPT_MAX_CHARS = 20_000;
+/** Bounds of `jsRender.pageScriptTimeoutMs` (B34). */
+export const PAGE_SCRIPT_TIMEOUT_MIN_MS = 500;
+export const PAGE_SCRIPT_TIMEOUT_MAX_MS = 30_000;
+
 /** Per-crawl Playwright settings — surfaces in Settings → Rendering. */
 export interface JsRenderConfig {
   /** Show the browser window for debugging. Default false. */
@@ -1704,6 +1710,21 @@ export interface JsRenderConfig {
    * every existing JavaScript-rendering workflow's report.
    */
   consoleErrors: boolean;
+  /**
+   * A script that runs once on every rendered page that answered 2xx, after
+   * the wait and before the DOM is read (B34): click "Load more", scroll,
+   * open tabs. What it returns (JSON, up to 16 KB) is stored under `$script`
+   * in Extracted Data. Empty: nothing runs. JS mode only. Longer than 20 000
+   * characters is refused. While it runs the page is not cut off by the
+   * request timeout: the render gets its own limit (page load + wait + this
+   * script's timeout + 5 s), and a script that hangs the page makes the page
+   * count as a failed render (the served HTML is used). Storage the script
+   * writes may persist for the origin and be visible to other pages of the
+   * same crawl; keep it short, each second of script is paid for every page.
+   */
+  pageScript: string;
+  /** How long the page script may run, in ms (500..30 000). */
+  pageScriptTimeoutMs: number;
   /**
    * Discover client-side routes an SPA reaches without a document
    * request: the History API (`pushState` / `replaceState` / `popstate`)
@@ -3103,6 +3124,8 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
     lcpCandidate: false,
     a11yAudit: false,
     consoleErrors: false,
+    pageScript: '',
+    pageScriptTimeoutMs: 5000,
     spaRouting: false,
   },
   performanceBudget: {

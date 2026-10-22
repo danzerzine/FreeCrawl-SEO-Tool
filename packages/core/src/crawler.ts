@@ -833,6 +833,7 @@ export class Crawler extends EventEmitter {
    * served HTML and warns once at start.
    */
   private readonly renderUrlHook?: RenderHook;
+  private pageScriptWarned = false;
 
   /**
    * The raw-vs-rendered signals reader (B33): a worker request when the host
@@ -1218,6 +1219,37 @@ export class Crawler extends EventEmitter {
    * is one request of its own, so a failure leaves every verdict null and
    * never fails the page.
    */
+  /** The page script's result (B34) joins the custom-extraction JSON under "$script". */
+  private withScriptResult(
+    extraction: Record<string, unknown> | null,
+    scriptResult: string | undefined,
+  ): string | null {
+    if (scriptResult === undefined) return extraction ? JSON.stringify(extraction) : null;
+    let value: unknown;
+    try {
+      value = JSON.parse(scriptResult);
+    } catch {
+      value = { error: 'unreadable result' };
+    }
+    return JSON.stringify({ ...(extraction ?? {}), $script: value });
+  }
+
+  /** One warning per crawl for a page script that failed; carries the error, never the script text. */
+  private warnPageScriptOnce(url: string, scriptResult: string): void {
+    if (this.pageScriptWarned) return;
+    this.pageScriptWarned = true;
+    let msg = 'error';
+    try {
+      msg = String((JSON.parse(scriptResult) as { error?: unknown }).error ?? 'error');
+    } catch {
+      /* keep the generic text */
+    }
+    this.emit(
+      'warn',
+      `The page script failed on ${url}: ${msg} (${this.config.jsRender.pageScript.length} characters of script; further pages are not reported)`,
+    );
+  }
+
   private async compareRenderedWithServed(
     pageUrl: string,
     body: string,
@@ -5425,6 +5457,7 @@ export class Crawler extends EventEmitter {
       let failedResources: number | null = null;
       let consoleLog: string | null = null;
       let renderScriptRan = false;
+      let renderScriptResult: string | undefined;
       let renderPreScriptHtml: string | undefined;
       let renderMs = 0;
       let renderScreenshots:
@@ -5460,6 +5493,13 @@ export class Crawler extends EventEmitter {
         statusCode < 400
       ) {
         this.setOp(`crawl:render:${item.url}`);
+        if (this.config.jsRender.pageScript) {
+          // The body is read and a render with a page script will run: the fetch
+          // and response-time timers must not cut it off. The render has its own
+          // limit inside renderUrl; Stop still aborts through the controller.
+          clearTimeout(timeout);
+          if (respTimeTimer) clearTimeout(respTimeTimer);
+        }
         try {
           // We pass `null` for urlId here — the writeFetchedUrl call
           // hasn't happened yet so we don't have one. The host can
@@ -5497,6 +5537,10 @@ export class Crawler extends EventEmitter {
                 consoleErrors + failedResources > 0 ? JSON.stringify(renderRes.consoleLog.entries) : null;
             }
             renderScriptRan = renderRes.scriptRan === true;
+            renderScriptResult = renderRes.scriptResult;
+            if (renderScriptResult !== undefined && /^\{"error":/.test(renderScriptResult)) {
+              this.warnPageScriptOnce(item.url, renderScriptResult);
+            }
             renderPreScriptHtml = renderRes.renderedHtmlPreScript;
           } else if (renderRes.error) {
             this.emit(
@@ -5853,9 +5897,7 @@ export class Crawler extends EventEmitter {
           simhash: parsed.contentSource === 'selector-missed' ? null : parsed.simhash,
           templateSetId: parsed.templateSetId,
           contentSource: parsed.contentSource,
-          extractionResults: parsed.extractionResults
-            ? JSON.stringify(parsed.extractionResults)
-            : null,
+          extractionResults: this.withScriptResult(parsed.extractionResults, renderScriptResult),
           contentHash: parsed.contentHash,
           titleCount: parsed.titleCount,
           imagesEmptyAlt: parsed.imagesEmptyAlt,

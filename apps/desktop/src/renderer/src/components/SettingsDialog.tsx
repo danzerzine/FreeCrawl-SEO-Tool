@@ -81,6 +81,9 @@ import {
   INTEGRATIONS,
   AUTO_SAVE_MIN_URLS,
   normalizeAutoSaveEveryUrls,
+  PAGE_SCRIPT_MAX_CHARS,
+  PAGE_SCRIPT_TIMEOUT_MAX_MS,
+  PAGE_SCRIPT_TIMEOUT_MIN_MS,
 } from '@freecrawl/shared-types';
 import { useAppStore } from '../store.js';
 import { InfoTip, type FieldInfo } from './InfoTip.js';
@@ -258,6 +261,8 @@ interface FormState {
   jsLcpCandidate: boolean;
   jsA11yAudit: boolean;
   jsConsoleErrors: boolean;
+  jsPageScript: string;
+  jsPageScriptTimeoutMs: string;
   jsSpaRouting: boolean;
   // V2 Faz 15 — performance budget
   budgetEnabled: boolean;
@@ -723,6 +728,8 @@ function configToForm(c: CrawlConfig): FormState {
     jsLcpCandidate: c.jsRender?.lcpCandidate ?? false,
     jsA11yAudit: c.jsRender?.a11yAudit ?? false,
     jsConsoleErrors: c.jsRender?.consoleErrors ?? false,
+    jsPageScript: c.jsRender?.pageScript ?? '',
+    jsPageScriptTimeoutMs: String(c.jsRender?.pageScriptTimeoutMs ?? 5000),
     jsSpaRouting: c.jsRender?.spaRouting ?? false,
     budgetEnabled: c.performanceBudget?.enabled ?? false,
     budgetMaxResponseMs: String(c.performanceBudget?.maxResponseMs ?? 800),
@@ -1117,6 +1124,11 @@ export function SettingsDialog({ open, onClose }: Props) {
         lcpCandidate: form.jsLcpCandidate,
         a11yAudit: form.jsA11yAudit,
         consoleErrors: form.jsConsoleErrors,
+        pageScript: form.jsPageScript.slice(0, PAGE_SCRIPT_MAX_CHARS),
+        pageScriptTimeoutMs: Math.min(
+          PAGE_SCRIPT_TIMEOUT_MAX_MS,
+          Math.max(PAGE_SCRIPT_TIMEOUT_MIN_MS, num(form.jsPageScriptTimeoutMs, 5000)),
+        ),
         spaRouting: form.jsSpaRouting,
       },
       performanceBudget: {
@@ -4926,6 +4938,45 @@ function RenderingPanel({ form, update }: PanelProps) {
             disabled={!enabled}
             value={form.jsPrerenderJs}
             onChange={(e) => update('jsPrerenderJs', e.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="mb-4 rounded border border-surface-800 bg-surface-950/40 p-3">
+        <label className="mb-3 flex flex-col gap-1">
+          <FieldLabel
+            label={t('settingsPanels.rendering.pageScript', { defaultValue: 'Page script (optional)' })}
+            info="JavaScript that runs ONCE on every rendered page that answered 2xx, after the load and the extra wait and before the DOM is read: click 'Load more', scroll, open tabs. What it returns (JSON, up to 16 KB) is stored in Extracted Data under $script. Runs in the page context, no Node access. While it runs the page is not cut off by the request timeout: the render has its own limit (page load + wait + the script timeout below + 5 s); a script that hangs the page makes that page a failed render and the served HTML is used. Storage the script writes (localStorage, sessionStorage) is not cleared: it persists for the site inside the crawl and other pages of the same site may see it; cookies are cleared after each page. Each second of script is paid for on every rendered page, so keep it short. Up to 20 000 characters. Pages with a script compare the DOM from before the script for the raw-vs-rendered checks."
+            example={"document.querySelector('button.load-more')?.click(); await new Promise(r => setTimeout(r, 800)); return document.title;"}
+          />
+          <textarea
+            rows={5}
+            maxLength={PAGE_SCRIPT_MAX_CHARS}
+            placeholder="document.querySelector('button.load-more')?.click();"
+            className="rounded border border-surface-700 bg-surface-950 px-2 py-1 font-mono text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            disabled={!enabled}
+            value={form.jsPageScript}
+            onChange={(e) => update('jsPageScript', e.target.value)}
+          />
+          <span className="text-[10px] text-surface-500">
+            {form.jsPageScript.length} / {PAGE_SCRIPT_MAX_CHARS}
+          </span>
+        </label>
+        <label className="flex flex-col gap-1">
+          <FieldLabel
+            label={t('settingsPanels.rendering.pageScriptTimeoutMs', { defaultValue: 'Page script timeout (ms)' })}
+            info="How long the page script may run on one page, 500 to 30 000 ms. When it runs out the page continues with the DOM it has and the result is {error: timeout}. The render limit grows with this value."
+            example="5000 for a click and a short wait, 15000 for scrolling a long list."
+          />
+          <input
+            type="number"
+            min={PAGE_SCRIPT_TIMEOUT_MIN_MS}
+            max={PAGE_SCRIPT_TIMEOUT_MAX_MS}
+            step={500}
+            className="rounded border border-surface-700 bg-surface-950 px-2 py-1 text-[12px] text-surface-100 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            disabled={!enabled || form.jsPageScript.trim() === ''}
+            value={form.jsPageScriptTimeoutMs}
+            onChange={(e) => update('jsPageScriptTimeoutMs', e.target.value)}
           />
         </label>
       </div>
