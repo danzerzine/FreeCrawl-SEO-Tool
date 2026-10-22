@@ -13,6 +13,7 @@ import {
   CLI_EXPORT_DATASETS,
   LINK_TARGET_EXPORTS,
   findExportSet,
+  listExportSets,
   parseExportWhat,
   runExportItems,
   saveExportSet,
@@ -62,9 +63,17 @@ export const CLI_ONLY_EXPORTS = ['pdfs', 'screenshots'] as const;
 const cliOnlyMessage = (name: string): string =>
   `"${name}" is only available in the command line for now (freecrawl export --what ${name}); the desktop app skipped it.`;
 
-/** Save an export set from the desktop; one holding a CLI-only export is refused, nothing saved. */
+/**
+ * Save an export set from the desktop. A CLI-only export that is new to the
+ * set is refused, nothing saved; one the stored set of that name already
+ * holds (saved by the CLI) stays, since the editor cannot show or remove it
+ * and a desktop run skips it anyway.
+ */
 export function saveDesktopExportSet(db: ProjectDb, set: ExportSet): ExportSet {
-  const bad = set.what.map((w) => w.trim()).filter((w) => (CLI_ONLY_EXPORTS as readonly string[]).includes(w));
+  const stored = new Set((listExportSets(db).find((s) => s.name === set.name.trim())?.what ?? []).map((w) => w.trim()));
+  const bad = set.what
+    .map((w) => w.trim())
+    .filter((w) => (CLI_ONLY_EXPORTS as readonly string[]).includes(w) && !stored.has(w));
   if (bad.length > 0) {
     throw new Error(
       `${bad.map((b) => `"${b}"`).join(', ')} cannot be part of an export set made in the desktop app yet: ` +

@@ -31,6 +31,16 @@ describe('desktop export sets and schedules leave out the CLI-only exports', () 
     expect(saveDesktopExportSet(db, { name: 'ok', what: ['issues'] }).what).toEqual(['issues']);
   });
 
+  it('a CLI-saved set with pdfs can be saved again from the editor; its CLI-only tokens stay, new ones are refused', () => {
+    db.setMeta('exportSets', JSON.stringify([{ name: 'cli2', what: ['issues', 'pdfs'] }]));
+    const saved = saveDesktopExportSet(db, { name: 'cli2', what: ['issues', 'tab:redirects', 'pdfs'] });
+    expect(saved.what).toEqual(['issues', 'tab:redirects', 'pdfs']);
+    expect(() => saveDesktopExportSet(db, { name: 'cli2', what: ['issues', 'pdfs', 'screenshots'] })).toThrow(
+      /"screenshots"/,
+    );
+    db.setMeta('exportSets', JSON.stringify([]));
+  });
+
   it('a set saved by the CLI with pdfs runs without them and reports why', async () => {
     // As `freecrawl export --save-set` stores it.
     db.setMeta('exportSets', JSON.stringify([{ name: 'cli', what: ['issues', 'pdfs', 'screenshots'] }]));
