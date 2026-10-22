@@ -60,11 +60,12 @@ function crawledAtMs(crawledAt: string): number {
 
 /**
  * The page's own `Last-Modified` as a date, or null when it cannot be trusted.
- * Rejected: missing or unparsable; later than `now`; within 60 s of the
- * response's `date` header (of `crawledAt` when that is missing or unparsable),
- * because such a server stamps "now" on dynamic pages and the value is the
- * crawl date again. A cache hit (an `Age` header) is rejected too when the
- * value falls within 60 s of `date - age` on the response's own UTC day.
+ * Rejected: missing or unparsable; later than `now`; at or after 60 s before
+ * the response's `date` header (of `crawledAt` when that is missing or
+ * unparsable): later than Date is not valid (RFC 9110 8.8.2), and within 60 s
+ * before it is a server stamping "now" on dynamic pages, the crawl date again.
+ * A cache hit (an `Age` header) is rejected too when the value is at or after
+ * `date - age - 60 s` on the response's own UTC day.
  * Known limit: a cache that sends no `Age` can still yield a near-crawl date.
  * `headers` keys are lowercase, as stored.
  */
@@ -79,14 +80,14 @@ export function acceptedLastModified(
   const dateMs = headers.date ? Date.parse(headers.date) : NaN;
   const responseMs = Number.isFinite(dateMs) ? dateMs : crawledAtMs(crawledAt);
   if (!Number.isFinite(responseMs)) return lm;
-  if (Math.abs(responseMs - lm.ms) <= GUARD_MS) return null;
+  if (lm.ms >= responseMs - GUARD_MS) return null;
   const age =
     headers.age?.trim() && /^\d+$/.test(headers.age.trim()) ? Number(headers.age.trim()) : NaN;
   if (
     Number.isFinite(age) &&
     Number.isFinite(dateMs) &&
     new Date(dateMs).toISOString().slice(0, 10) === lm.day &&
-    Math.abs(dateMs - age * 1000 - lm.ms) <= GUARD_MS
+    lm.ms >= dateMs - age * 1000 - GUARD_MS
   ) {
     return null;
   }

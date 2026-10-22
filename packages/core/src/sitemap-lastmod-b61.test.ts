@@ -65,6 +65,17 @@ describe('B61 acceptedLastModified', () => {
     expect(acceptedLastModified({ 'last-modified': http(at - 61_000), date }, crawledAt, NOW)).not.toBeNull();
   });
 
+  it('rejects a value later than the response Date (RFC 9110 8.8.2), accepts one days older', () => {
+    const at = Date.UTC(2026, 9, 22, 11, 0, 0);
+    // bis.org: Last-Modified 25 min after its own Date, still before the export time.
+    const later = acceptedLastModified({ 'last-modified': http(at + 25 * 60_000), date }, crawledAt, at + 3600_000);
+    expect(later).toBeNull();
+    expect(acceptedLastModified({ 'last-modified': http(at - 30_000), date }, crawledAt, NOW)).toBeNull();
+    expect(acceptedLastModified({ 'last-modified': http(at - 2 * 86400_000), date }, crawledAt, NOW)).not.toBeNull();
+    // No Date header: the same rule against crawled_at.
+    expect(acceptedLastModified({ 'last-modified': http(at + 25 * 60_000) }, crawledAt, at + 3600_000)).toBeNull();
+  });
+
   it('falls back to crawled_at when there is no Date header or it does not parse', () => {
     const at = Date.UTC(2026, 9, 22, 11, 0, 0);
     expect(acceptedLastModified({ 'last-modified': http(at - 5_000) }, crawledAt, NOW)).toBeNull();
