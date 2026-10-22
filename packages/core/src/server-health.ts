@@ -94,10 +94,10 @@ export class ServerHealth {
     return true;
   }
 
-  /** After a cut until answers are back under 1.3 × the base, or that base is accepted: hold the rate. */
+  /** From a cut until answers are back under 1.3 × the base, or a slow level is accepted: hold the rate. */
   isSlow(): boolean {
     if (this.base === null) return false;
-    if (this.afterCut || this.unhelped !== null) return true;
+    if (this.afterCut) return true;
     return median(this.samples) > RECOVER_FACTOR * this.base;
   }
 
