@@ -823,7 +823,11 @@ export function readServedPageSignals(
     links.push([target, v.internal]);
   }
 
-  const $visibleBody = $('body').clone();
+  // A fragment without <body> (gnu.org pages): the browser wraps it in html/body, so the whole
+  // document minus head / title is the body here too. Otherwise 0 words against the rendered 5729.
+  const $body = $('body');
+  const $visibleBody = $body.length > 0 ? $body.clone() : $('<div></div>').append($.root().contents().clone());
+  if ($body.length === 0) $visibleBody.find('head, title').remove();
   $visibleBody.find('script, style, noscript').remove();
   const text = $visibleBody.text().replace(/\s+/g, ' ').trim();
   const words = countWords(text);
