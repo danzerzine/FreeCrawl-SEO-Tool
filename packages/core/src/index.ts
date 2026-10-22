@@ -235,6 +235,18 @@ export {
   type MetricaPageMetrics,
 } from './metrica.js';
 export {
+  WebmasterError,
+  webmasterDate,
+  getUserId as getWebmasterUserId,
+  listHosts as listWebmasterHosts,
+  fetchSearchEvents as fetchWebmasterEvents,
+  fetchBrokenLinks as fetchWebmasterBrokenLinks,
+  WEBMASTER_ROW_CAP,
+  type WebmasterDeps,
+  type WebmasterPageOptions,
+  type WebmasterPageResult,
+} from './webmaster.js';
+export {
   buildCrawlSnapshot,
   listMetrics,
   assertMetric,

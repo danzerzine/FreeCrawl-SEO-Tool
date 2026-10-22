@@ -14,6 +14,7 @@ export * from './crux.js';
 export * from './spelling.js';
 export * from './google.js';
 export * from './metrica.js';
+export * from './webmaster.js';
 export * from './ai.js';
 export * from './mcp.js';
 export * from './seo.js';
