@@ -152,8 +152,8 @@ describe('adaptive speed on server trouble (B30)', () => {
             c.on('info', (m) => {
               if (cutAt || !String(m).startsWith('Adaptive speed: answers slowing')) return;
               cutAt = pageHits.length;
-              // 40 more slow answers, then fast ones.
-              fastFrom = cutAt + 40;
+              // Fast again within the 20 answers after the cut: the slowdown was load.
+              fastFrom = cutAt + 15;
             });
             c.on('debug', (m) => {
               if (!String(m).startsWith('Adaptive speed: recovering')) return;

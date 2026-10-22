@@ -13,6 +13,7 @@ let dir: string;
 let site: Server;
 let base: string;
 let pageHits: number[] = [];
+let failEveryThird = false;
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'b30-cli-'));
@@ -21,6 +22,7 @@ beforeAll(async () => {
     if (!m && req.url !== '/') return void res.writeHead(404).end();
     pageHits.push(Date.now());
     const k = m ? Number(m[1]) : 0;
+    if (failEveryThird && k > 0 && k % 3 === 0) return void res.writeHead(500).end();
     res
       .writeHead(200, { 'content-type': 'text/html' })
       .end(`<html><body><a href="/p/${k * 2 + 1}">a</a><a href="/p/${k * 2 + 2}">b</a></body></html>`);
@@ -34,6 +36,7 @@ afterAll(() => {
 });
 beforeEach(() => {
   pageHits = [];
+  failEveryThird = false;
 });
 
 let n = 0;
@@ -118,4 +121,36 @@ describe('--night-rps / --night (B30)', () => {
     expect(code).toBe(2);
     expect(pageHits).toEqual([]);
   });
+});
+
+describe('adaptive speed messages (B30)', () => {
+  it('a slow-down is printed without --verbose', async () => {
+    failEveryThird = true;
+    const p = spawn(process.execPath, [
+      CLI,
+      `${base}/`,
+      '--db',
+      join(dir, 'adaptive.seoproject'),
+      '--max',
+      '200',
+      '--rps',
+      '20',
+      '--no-robots',
+      '--no-sitemap-discovery',
+      '--adaptive-speed',
+    ]);
+    let err = '';
+    p.stdout.resume();
+    const seen = new Promise<void>((resolve) =>
+      p.stderr.on('data', (d) => {
+        err += d;
+        if (err.includes('Adaptive speed: server errors')) resolve();
+      }),
+    );
+    const exited = new Promise((r) => p.on('exit', r));
+    await Promise.race([seen, exited]);
+    p.kill('SIGINT');
+    await exited;
+    expect(err).toContain('Adaptive speed: server errors');
+  }, 30_000);
 });

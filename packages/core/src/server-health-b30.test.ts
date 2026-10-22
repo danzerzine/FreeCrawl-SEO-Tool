@@ -39,11 +39,44 @@ describe('ServerHealth slow answers (B30)', () => {
     for (let i = 0; i < 20; i++) expect(h.noteLatency(50, 0, (t += 100))).toBe(false);
     expect(h.isSlow()).toBe(false);
     const cuts: number[] = [];
-    for (let i = 0; i < 40; i++) if (h.noteLatency(600, 0, (t += 100))) cuts.push(i);
+    for (let i = 0; i < 10; i++) if (h.noteLatency(600, 0, (t += 100))) cuts.push(i);
     // The (upper) median of the last 20 is slow once 10 of them are.
     expect(cuts).toEqual([9]);
     expect(h.isSlow()).toBe(true);
+    // Fast again in the 20 answers after the cut: the base stays.
     for (let i = 0; i < 20; i++) h.noteLatency(50, 0, (t += 100));
+    expect(h.isSlow()).toBe(false);
+    for (let i = 0; i < 10; i++) h.noteLatency(150, 0, (t += 100));
+    expect(h.isSlow()).toBe(true);
+  });
+
+  it('answers that stay slow after a cut become the base: the rate may rise, only a worse slowdown cuts again', () => {
+    const h = new ServerHealth();
+    let t = 0;
+    for (let i = 0; i < 20; i++) h.noteLatency(50, 0, (t += 1000));
+    const cuts: number[] = [];
+    for (let i = 0; i < 100; i++) {
+      if (h.noteLatency(600, 0, (t += 1000))) cuts.push(i);
+      // Held during the 20 answers after the cut, then accepted.
+      if (i === 9 + 19) expect(h.isSlow()).toBe(true);
+    }
+    expect(cuts).toEqual([9]);
+    expect(h.isSlow()).toBe(false);
+    for (let i = 0; i < 40; i++) if (h.noteLatency(1500, 0, (t += 1000))) cuts.push(100 + i);
+    expect(cuts).toEqual([9, 109]);
+  });
+
+  it('a site whose sections answer fast and articles slow is cut once, not to the floor', () => {
+    // Times to headers seen on a live news site: cached section pages first, articles after.
+    const first = [729, 204, 262, 761, 1276, 245, 160, 241, 132, 159, 181, 163, 129, 201, 311, 131, 122, 130, 229, 139];
+    const next = [135, 451, 120, 252, 308, 497, 997, 312, 449, 301, 186, 250, 507, 396, 359, 396, 735, 697, 748, 667, 717, 1758, 654, 951, 882, 1604, 793, 928, 1612, 874, 468, 448, 480, 379, 456, 479, 488, 404, 397, 379];
+    const h = new ServerHealth();
+    let t = 0;
+    let cuts = 0;
+    for (const ms of first) h.noteLatency(ms, 0, (t += 1000));
+    for (const ms of next) if (h.noteLatency(ms, 0, (t += 1000))) cuts++;
+    for (let i = 0; i < 600; i++) if (h.noteLatency([310, 450, 380, 900, 340][i % 5]!, 0, (t += 1000))) cuts++;
+    expect(cuts).toBe(1);
     expect(h.isSlow()).toBe(false);
   });
 
