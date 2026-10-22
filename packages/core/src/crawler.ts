@@ -3210,6 +3210,12 @@ export class Crawler extends EventEmitter {
    */
   private async discoverAndIngestSitemaps(origin: string): Promise<void> {
     try {
+      // A robots.txt the crawl reads anyway is not fetched a second time
+      // for its Sitemap: lines. Awaited before the budget starts: its
+      // retries and the rate gate are not sitemap time.
+      if (this.config.discoverSitemaps && this.config.respectRobotsTxt) {
+        await this.loadOriginRobots(origin);
+      }
       const controller = new AbortController();
       this.sitemapAbort = controller;
       // Sitemap discovery is preliminary work — keep its budget bounded
@@ -3233,9 +3239,6 @@ export class Crawler extends EventEmitter {
         let autoEntries: SitemapEntry[] = [];
         let autoFiles: SitemapFileRow[] = [];
         if (this.config.discoverSitemaps) {
-          // A robots.txt the crawl reads anyway is not fetched a second
-          // time for its Sitemap: lines.
-          if (this.config.respectRobotsTxt) await this.loadOriginRobots(origin);
           const robots = this.config.respectRobotsTxt ? this.robotsByOrigin.get(origin) : undefined;
           const roots = await discoverSitemapUrls(
             origin,
@@ -3362,10 +3365,9 @@ export class Crawler extends EventEmitter {
     opts: { refresh: boolean } = { refresh: false },
   ): Promise<void> {
     // Mark every already-known page as "seen" so enqueue can skip them.
-    // Known external URLs go to the external set further down, as in a
-    // fresh crawl: in `seen` they would count against `maxUrls` and a
-    // resumed crawl would stop short of its page limit.
-    const knownExternal = this.config.crawlExternal ? [] : this.db.getUrlsByScope(true);
+    // Known external URLs stay out, as in a fresh crawl: in `seen` they
+    // would count against `maxUrls` and a resumed crawl would stop short
+    // of its page limit. They are checked again when a page links them.
     for (const url of this.config.crawlExternal
       ? this.db.getAllUrls()
       : this.db.getUrlsByScope(false)) {
@@ -3465,8 +3467,6 @@ export class Crawler extends EventEmitter {
     for (const extUrl of this.db.getUnprobedExternalUrls()) {
       this.enqueueExternal(extUrl);
     }
-    // The probed ones are done: seen, so links to them are not re-probed.
-    for (const url of knownExternal) this.externalSeen.add(url);
   }
 
   private enqueueExternal(url: string): void {

@@ -172,8 +172,8 @@ Options:
   --compare-with <project>  After the crawl, compare with that saved project (before) the way
                         compare does: counts printed (--json: "compare"); with --export-dir the
                         compare-*.csv files go there too. Changes do not change the exit code.
-                        A crawl into an existing --db continues its queue; crawl into a new
-                        file to compare a fresh crawl.
+                        A crawl into an existing --db refreshes or replaces it (see --resume);
+                        crawl into a new file to compare a fresh crawl.
   Crawl exit codes: 0 finished, no URL answered 4xx/5xx; 1 finished with such URLs or an
                         [error] line, or --out / --export-dir / --compare-with failed; 2 bad
                         arguments or a crash; 4 the crawl did not finish (start URL unreachable or
@@ -581,7 +581,9 @@ async function main(): Promise<void> {
     console.error((err as Error).message);
     process.exit(2);
   }
-  const resume = values.resume ? resumeTarget(dbPath, listFile !== undefined, startUrl) : null;
+  const resume = values.resume
+    ? resumeTarget(dbPath, listFile !== undefined, startUrl, Boolean(values.json))
+    : null;
   if (resume !== null) config.startUrl = resume;
 
   // Opened only after every flag validated, so a bad argument leaves no
@@ -708,7 +710,12 @@ async function main(): Promise<void> {
           softStop();
         }, 1000);
 
+  // A crawl that finished on its own while a stop was on its way is
+  // complete: 'done' fires only for a crawl that was not stopped first.
+  let finished = false;
+  crawler.on('done', () => (finished = true));
   await crawler.start();
+  if (finished) interrupted = false;
   if (progressTimer) clearInterval(progressTimer);
   if (stopFileTimer) clearInterval(stopFileTimer);
   dropSignalHandlers();
@@ -2125,14 +2132,18 @@ function cliVersion(): string {
   }
 }
 
-/** Export progress: one line on stderr, so `--json` stdout stays clean. */
 /**
  * `--resume`: the start URL to continue from (the list's first line in list
  * mode), or null for a new crawl when the project is missing or empty.
  * Exits 2 when the project holds another site or another kind of crawl.
  * Read-only, so a refused resume leaves the file as it was.
  */
-function resumeTarget(dbPath: string, listMode: boolean, startUrl: string): string | null {
+function resumeTarget(
+  dbPath: string,
+  listMode: boolean,
+  startUrl: string,
+  json: boolean,
+): string | null {
   let stored: string | null = null;
   let rows = 0;
   if (existsSync(dbPath)) {
@@ -2145,7 +2156,12 @@ function resumeTarget(dbPath: string, listMode: boolean, startUrl: string): stri
     }
   }
   if (stored === null || rows === 0) {
-    console.error(`Nothing to resume in ${dbPath}; starting a new crawl.`);
+    const message = `Nothing to resume in ${dbPath}; starting a new crawl.`;
+    process.stderr.write(
+      json
+        ? JSON.stringify({ type: 'warn', time: new Date().toISOString(), message }) + '\n'
+        : `[warn] ${message}\n`,
+    );
     return null;
   }
   const storedIsList = !/^https?:\/\//.test(stored);
@@ -2174,6 +2190,7 @@ function resumeTarget(dbPath: string, listMode: boolean, startUrl: string): stri
 /** Per-URL crawl warnings printed before the rest are held back. */
 const PER_URL_WARNINGS_SHOWN = 20;
 
+/** Export progress: one line on stderr, so `--json` stdout stays clean. */
 function progressLine(line: string): void {
   process.stderr.write(`${line}\n`);
 }
