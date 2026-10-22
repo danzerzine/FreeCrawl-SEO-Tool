@@ -126,7 +126,8 @@ Options:
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
-  --no-robots         Ignore robots.txt
+  --no-robots         Ignore robots.txt (it is still read once for its Sitemap: lines while sitemap
+                        discovery is on)
   --respect-crawl-delay
                       Honour a robots.txt Crawl-delay directive as a global rate limit
                         (one request every N seconds). Off by default — the directive is

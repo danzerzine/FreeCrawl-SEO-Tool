@@ -1270,7 +1270,11 @@ export class Crawler extends EventEmitter {
           }`,
         );
       },
-      { proxyOverride: this.resolvedProxy, rewrites: this.urlRewrites },
+      {
+        proxyOverride: this.resolvedProxy,
+        rewrites: this.urlRewrites,
+        beforeRequest: () => this.acquireRateSlot(),
+      },
     );
     if (!start) {
       this.emit(
@@ -2902,8 +2906,8 @@ export class Crawler extends EventEmitter {
     // Sitemap fetch gets a longer budget than passive discovery — it is
     // the crawl's only URL source here, so a slow server shouldn't abort
     // the whole run prematurely.
-    const t = setTimeout(
-      () => controller.abort(),
+    const deadline = this.gatedDeadline(
+      controller,
       Math.max(30_000, this.config.requestTimeoutMs * 2),
     );
     let entries: SitemapEntry[] = [];
@@ -2917,6 +2921,7 @@ export class Crawler extends EventEmitter {
         maxUrls: sitemapMaxUrls,
         maxDepth: 3,
         rewrites: this.urlRewrites,
+        beforeRequest: deadline.beforeRequest,
       });
       entries = result.entries;
       files = result.files;
@@ -2934,7 +2939,7 @@ export class Crawler extends EventEmitter {
       this.finishEmptyFixedCrawl();
       return;
     } finally {
-      clearTimeout(t);
+      deadline.clear();
       this.sitemapAbort = null;
     }
 
@@ -3115,10 +3120,7 @@ export class Crawler extends EventEmitter {
       this.sitemapAbort = controller;
       // Sitemap discovery is preliminary work — keep its budget bounded
       // so a slow sitemap server can't stall post-crawl recompute.
-      const t = setTimeout(
-        () => controller.abort(),
-        Math.max(5000, this.config.requestTimeoutMs),
-      );
+      const deadline = this.gatedDeadline(controller, Math.max(5000, this.config.requestTimeoutMs));
       try {
         // Sitemap entry cap follows the crawl-level cap so 1M-URL crawls
         // can ingest the full sitemap, with a sensible floor for tiny caps.
@@ -3130,16 +3132,25 @@ export class Crawler extends EventEmitter {
           maxUrls: sitemapMaxUrls,
           maxDepth: 3,
           rewrites: this.urlRewrites,
+          beforeRequest: deadline.beforeRequest,
         };
 
         // (1) Auto-discovered sitemaps — recorded only.
         let autoEntries: SitemapEntry[] = [];
         let autoFiles: SitemapFileRow[] = [];
         if (this.config.discoverSitemaps) {
+          // A robots.txt the crawl reads anyway is not fetched a second
+          // time for its Sitemap: lines.
+          if (this.config.respectRobotsTxt) await this.loadOriginRobots(origin);
+          const robots = this.config.respectRobotsTxt ? this.robotsByOrigin.get(origin) : undefined;
           const roots = await discoverSitemapUrls(
             origin,
             this.config.userAgent,
             controller.signal,
+            {
+              robotsSitemaps: robots?.sitemaps,
+              beforeRequest: deadline.beforeRequest,
+            },
           );
           // If stop() ran while we were discovering, bail without ingesting
           // — otherwise a zombie 'info' / 'sitemap_urls' write leaks into
@@ -3198,7 +3209,7 @@ export class Crawler extends EventEmitter {
         const files = [...seedFiles, ...autoFiles];
         if (files.length > 0) await this.dbCall<void>('setSitemapFiles', [files]);
       } finally {
-        clearTimeout(t);
+        deadline.clear();
         this.sitemapAbort = null;
       }
     } catch (err) {
@@ -4061,6 +4072,7 @@ export class Crawler extends EventEmitter {
           if (!this.stopped) this.emit('warn', msg);
         },
         this.robotsRetryDelaysMs,
+        () => this.acquireRateSlot(),
       )
         .then((r) => {
           if (!this.stopped) this.robotsByOrigin.set(origin, r);
@@ -4314,6 +4326,27 @@ export class Crawler extends EventEmitter {
       count++;
       consider(m[1]);
     }
+  }
+
+  /**
+   * An abort deadline for a batch of preliminary requests (sitemaps) that
+   * does not count the time spent waiting at the rate gate: at a low
+   * `maxRps` the wait alone would otherwise use up the budget.
+   */
+  private gatedDeadline(controller: AbortController, budgetMs: number) {
+    let left = budgetMs;
+    let since = Date.now();
+    let timer = setTimeout(() => controller.abort(), left);
+    return {
+      beforeRequest: async (): Promise<void> => {
+        clearTimeout(timer);
+        left -= Date.now() - since;
+        await this.acquireRateSlot();
+        since = Date.now();
+        timer = setTimeout(() => controller.abort(), Math.max(0, left));
+      },
+      clear: (): void => clearTimeout(timer),
+    };
   }
 
   /**

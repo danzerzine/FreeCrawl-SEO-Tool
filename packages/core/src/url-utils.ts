@@ -645,7 +645,12 @@ export async function resolveStartUrl(
   userAgent = 'FreeCrawlSEO/0.1',
   probeTimeoutMs = 3000,
   onAttempt?: (a: ResolveStartUrlAttempt) => void,
-  opts: { proxyOverride?: string; rewrites?: UrlRewriteOptions } = {},
+  opts: {
+    proxyOverride?: string;
+    rewrites?: UrlRewriteOptions;
+    /** Awaited before each request; the crawler passes its rate gate. */
+    beforeRequest?: () => Promise<void>;
+  } = {},
 ): Promise<string | null> {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -674,8 +679,11 @@ export async function resolveStartUrl(
     // silently rebuilds the global dispatcher as direct and drops a
     // Settings/profile proxy for the rest of the crawl.
     initHttpClient({ proxyOverride: opts.proxyOverride });
+    // The gate waits before the probe's clock starts, so a slow rate
+    // limit is not mistaken for a slow server.
+    await opts.beforeRequest?.();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), probeTimeoutMs);
+    let timeout = setTimeout(() => controller.abort(), probeTimeoutMs);
     try {
       // HEAD first — cheap and avoids body transfer.
       const tHead = Date.now();
@@ -704,6 +712,11 @@ export async function resolveStartUrl(
         });
         // HEAD may be blocked / WAF'd — retry with GET. Body is cancelled
         // immediately so we don't actually transfer the page.
+        if (opts.beforeRequest && !controller.signal.aborted) {
+          clearTimeout(timeout);
+          await opts.beforeRequest();
+          timeout = setTimeout(() => controller.abort(), probeTimeoutMs);
+        }
         const tGet = Date.now();
         try {
           const res = await undiciFetch(url, {

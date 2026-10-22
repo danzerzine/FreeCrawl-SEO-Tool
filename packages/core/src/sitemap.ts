@@ -92,7 +92,7 @@ export interface SitemapDiscoveryResult {
  * two conventional locations when robots.txt is silent — these cover the
  * vast majority of real-world sites.
  */
-function parseSitemapsFromRobots(robotsText: string): string[] {
+export function parseSitemapsFromRobots(robotsText: string): string[] {
   const out: string[] = [];
   for (const rawLine of robotsText.split(/\r?\n/)) {
     const m = /^\s*sitemap\s*:\s*(\S+)/i.exec(rawLine);
@@ -113,9 +113,20 @@ export async function discoverSitemapUrls(
   origin: string,
   userAgent: string,
   signal: AbortSignal,
+  opts: {
+    /** `Sitemap:` lines of a robots.txt the caller already read; skips the request. */
+    robotsSitemaps?: readonly string[];
+    beforeRequest?: () => Promise<void>;
+  } = {},
 ): Promise<string[]> {
-  const candidates = new Set<string>();
+  const candidates = new Set<string>(opts.robotsSitemaps);
+  if (opts.robotsSitemaps) {
+    candidates.add(`${origin}/sitemap.xml`);
+    candidates.add(`${origin}/sitemap_index.xml`);
+    return [...candidates];
+  }
   try {
+    await opts.beforeRequest?.();
     const res = await undiciFetch(`${origin}/robots.txt`, {
       method: 'GET',
       headers: defaultRequestHeaders(userAgent, 'en'),
@@ -196,6 +207,8 @@ interface FetchOpts {
    * every page and "sitemap orphan" for every sitemap entry.
    */
   rewrites?: UrlRewriteOptions;
+  /** Awaited before each request; the crawler passes its rate gate. */
+  beforeRequest?: () => Promise<void>;
 }
 
 /**
@@ -228,6 +241,7 @@ export async function fetchSitemaps(
     const item = queue.shift();
     if (!item) break;
     if (visited.has(item.url)) continue;
+    await opts.beforeRequest?.();
     visited.add(item.url);
     const file: SitemapFileRow = {
       url: item.url,

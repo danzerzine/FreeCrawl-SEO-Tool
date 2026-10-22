@@ -1,15 +1,19 @@
 import { fetch as undiciFetch } from 'undici';
 import robotsParser from 'robots-parser';
 import { formatFetchError } from './http-client.js';
+import { parseSitemapsFromRobots } from './sitemap.js';
 
 export interface RobotsChecker {
   isAllowed(url: string): boolean;
   getCrawlDelay(): number | undefined;
+  /** The file's `Sitemap:` lines, so sitemap discovery need not fetch it again. */
+  sitemaps: readonly string[];
 }
 
 const NOOP: RobotsChecker = {
   isAllowed: () => true,
   getCrawlDelay: () => undefined,
+  sitemaps: [],
 };
 
 /**
@@ -135,6 +139,8 @@ export async function loadRobots(
    *  rather than hidden. */
   onNotice?: (message: string) => void,
   retryDelaysMs: readonly number[] = ROBOTS_RETRY_DELAYS_MS,
+  /** Awaited before each attempt; the crawler passes its rate gate. */
+  beforeRequest?: () => Promise<void>,
 ): Promise<RobotsChecker> {
   // The header goes on the wire; only the token goes to the matcher.
   const uaToken = robotsUserAgentToken(userAgent);
@@ -148,6 +154,7 @@ export async function loadRobots(
     if (attempt > 1) await new Promise((r) => setTimeout(r, retryDelaysMs[attempt - 2]));
     const earlier = failure;
     failure = null;
+    await beforeRequest?.();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
@@ -167,6 +174,7 @@ export async function loadRobots(
         return {
           isAllowed: (url: string) => parser.isAllowed(url, uaToken) ?? true,
           getCrawlDelay: () => parser.getCrawlDelay(uaToken),
+          sitemaps: parseSitemapsFromRobots(body),
         };
       }
       if (res.status >= 500) failure = `returned HTTP ${res.status}`;
