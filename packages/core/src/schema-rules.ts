@@ -43,8 +43,20 @@ export interface SchemaRule {
    */
   appliesWhen?: (node: Record<string, unknown>, pageUrl: string) => boolean;
   /** A node this rule matched carries the label, so `CONTEXT_RULES` can look for children by it. */
-  label?: string;
+  label?: SchemaLabel;
 }
+
+/** Where a node sits, as far as context rules care. */
+export type SchemaLabel =
+  | 'qa-page'
+  | 'qa'
+  | 'forum'
+  | 'recipe'
+  | 'steps'
+  | 'quiz'
+  | 'carousel'
+  | 'carousel-item'
+  | 'video';
 
 export interface SchemaCount {
   /** Dotted paths ending at the property that holds the entries, e.g. `positiveNotes.itemListElement`. */
@@ -68,6 +80,15 @@ export const SCHEMA_RULES_CHECKED = '2026-10-22';
 const GOOGLE = 'https://developers.google.com/search/docs/appearance/structured-data/';
 
 const REVIEW_EXCLUDE = ['ClaimReview', 'Recommendation', 'ReviewNewsArticle'];
+
+/** Google's discussion-forum rows, shared by the two posting types they cover. */
+const FORUM_POST = {
+  source: `${GOOGLE}discussion-forum`,
+  label: 'forum',
+  required: ['author', 'author.name', 'datePublished', 'text | image | video | url'],
+  // A post that stands for a thread on another page needs no content of its own.
+  only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
+} satisfies Omit<SchemaRule, 'types'>;
 
 export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
@@ -213,24 +234,9 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
       'mainEntity.acceptedAnswer | mainEntity.suggestedAnswer',
     ],
   },
-  {
-    source: `${GOOGLE}discussion-forum`,
-    types: ['DiscussionForumPosting'],
-    label: 'forum',
-    required: ['author', 'author.name', 'datePublished', 'text | image | video | url'],
-    // A post that stands for a thread on another page needs no content of its own.
-    only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
-  },
-  {
-    source: `${GOOGLE}discussion-forum`,
-    types: ['SocialMediaPosting'],
-    // BlogPosting (and LiveBlogPosting) are articles: they keep the Article rule.
-    exclude: ['BlogPosting'],
-    label: 'forum',
-    required: ['author', 'author.name', 'datePublished', 'text | image | video | url'],
-    // A post that stands for a thread on another page needs no content of its own.
-    only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
-  },
+  { ...FORUM_POST, types: ['DiscussionForumPosting'] },
+  // BlogPosting (and LiveBlogPosting) are articles: they keep the Article rule.
+  { ...FORUM_POST, types: ['SocialMediaPosting'], exclude: ['BlogPosting'] },
   {
     source: `${GOOGLE}dataset`,
     types: ['Dataset'],
@@ -353,7 +359,8 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
     source: `${GOOGLE}product-snippet`,
     types: ['Review'],
     exclude: REVIEW_EXCLUDE,
-    appliesWhen: (node) => isPresent(node['positiveNotes']) || isPresent(node['negativeNotes']),
+    appliesWhen: (node) =>
+      isTruthyProp(node['positiveNotes']) || isTruthyProp(node['negativeNotes']),
     counts: [
       {
         lists: ['positiveNotes.itemListElement', 'negativeNotes.itemListElement'],
@@ -387,12 +394,18 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
  */
 export interface ContextRule {
   rule?: SchemaRule;
-  from: string;
+  from: SchemaLabel;
   via: readonly string[];
   types: readonly string[];
   implied?: string;
-  label?: string;
+  label?: SchemaLabel;
 }
+
+const HOW_TO_STEP_RULE: SchemaRule = {
+  source: `${GOOGLE}recipe`,
+  types: ['HowToStep'],
+  required: ['text | itemListElement'],
+};
 
 export const CONTEXT_RULES: readonly ContextRule[] = [
   {
@@ -502,14 +515,14 @@ export const CONTEXT_RULES: readonly ContextRule[] = [
     label: 'steps',
   },
   {
-    rule: { source: `${GOOGLE}recipe`, types: ['HowToStep'], required: ['text | itemListElement'] },
+    rule: HOW_TO_STEP_RULE,
     from: 'recipe',
     via: ['recipeInstructions'],
     types: ['HowToStep'],
     label: 'steps',
   },
   {
-    rule: { source: `${GOOGLE}recipe`, types: ['HowToStep'], required: ['text | itemListElement'] },
+    rule: HOW_TO_STEP_RULE,
     from: 'steps',
     via: ['itemListElement'],
     types: ['HowToStep'],
@@ -603,11 +616,22 @@ export function rulesForType(type: string): SchemaRule[] {
     .map((h) => h.rule);
 }
 
-function isPresent(v: unknown): boolean {
+export function isSchemaObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+/** Present as Google reads it: not empty text, not an empty list or object. `false` and `0` count. */
+export function isTruthyProp(v: unknown): boolean {
+  if (v === undefined || v === null) return false;
   if (typeof v === 'string') return v.trim().length > 0;
   if (Array.isArray(v)) return v.length > 0;
-  if (v && typeof v === 'object') return Object.keys(v).length > 0;
-  return v !== undefined && v !== null;
+  if (typeof v === 'object') return Object.keys(v as object).length > 0;
+  return true;
+}
+
+/** The paths of an entry: `a | b` is met by any one of them. */
+export function entryPaths(entry: string): string[] {
+  return entry.split(' | ');
 }
 
 const CAROUSEL_ITEMS = ['Course', 'Movie', 'Recipe', 'Restaurant'];
@@ -618,19 +642,17 @@ const CAROUSEL_ITEMS = ['Course', 'Movie', 'Recipe', 'Restaurant'];
  * untyped object does not.
  */
 function isCarousel(node: Record<string, unknown>): boolean {
-  return [node['itemListElement']].flat().some((entry) => {
-    if (!entry || typeof entry !== 'object') return false;
-    return [(entry as Record<string, unknown>)['item']].flat().some((item) => {
-      if (!item || typeof item !== 'object') return false;
-      return [(item as Record<string, unknown>)['@type']]
-        .flat()
-        .some(
-          (t) =>
-            typeof t === 'string' &&
-            CAROUSEL_ITEMS.some((root) => isSchemaTypeOf(normalizeSchemaType(t), root)),
-        );
-    });
-  });
+  const itemOf = (entry: unknown) => (isSchemaObject(entry) ? [entry['item']].flat() : []);
+  const typesOf = (item: unknown) => (isSchemaObject(item) ? [item['@type']].flat() : []);
+  return [node['itemListElement']]
+    .flat()
+    .flatMap(itemOf)
+    .flatMap(typesOf)
+    .some(
+      (t) =>
+        typeof t === 'string' &&
+        CAROUSEL_ITEMS.some((root) => isSchemaTypeOf(normalizeSchemaType(t), root)),
+    );
 }
 
 function pointsElsewhere(url: unknown, pageUrl: string): boolean {

@@ -30,7 +30,10 @@ import {
   BREADCRUMB_ITEM_RULE,
   CONTEXT_RULES,
   OFFER_RULE,
+  entryPaths,
+  isSchemaObject,
   isSchemaTypeOf,
+  isTruthyProp,
   normalizeSchemaType,
   rulesForType,
   type SchemaCondition,
@@ -2659,9 +2662,7 @@ function walkSchemaForValidation(
     if (rule.retired) return;
     const missing = (entries: readonly string[] = []): string[] =>
       entries.filter((e) => !skip.includes(e)).flatMap((entry) => {
-        const paths = entry
-          .split(' | ')
-          .filter((path) => rule.only?.[path]?.(obj, pageUrl) ?? true);
+        const paths = entryPaths(entry).filter((path) => rule.only?.[path]?.(obj, pageUrl) ?? true);
         return paths.some((path) => hasSchemaPath(obj, path)) ? [] : [paths.join(' | ')];
       });
     const conditional = (level: 'required' | 'recommended'): string[] =>
@@ -2669,9 +2670,9 @@ function walkSchemaForValidation(
         .filter((c) => c.level === level && !skip.includes(c.then))
         .flatMap((c) => {
           if (!conditionFires(obj, c)) return [];
-          const paths = c.then
-            .split(' | ')
-            .filter((path) => rule.only?.[path]?.(obj, pageUrl) ?? true);
+          const paths = entryPaths(c.then).filter(
+            (path) => rule.only?.[path]?.(obj, pageUrl) ?? true,
+          );
           const found = paths.filter((path) => hasSchemaPath(obj, path));
           if (found.length === 0) return [paths.join(' | ')];
           const thenIs = c.thenIs;
@@ -2812,7 +2813,7 @@ function skipFor(rule: SchemaRule, via: string): string[] {
   if (via === 'review' || via === 'aggregateRating') return ['itemReviewed', 'itemReviewed.name'];
   if (via !== 'itemReviewed') return [];
   return [...(rule.required ?? []), ...(rule.recommended ?? [])].filter((entry) =>
-    entry.split(' | ').some((path) => path === 'review' || path === 'aggregateRating'),
+    entryPaths(entry).some((path) => path === 'review' || path === 'aggregateRating'),
   );
 }
 
@@ -2869,13 +2870,9 @@ function countGap(obj: Record<string, unknown>, count: SchemaCount): string | un
   return total < count.min ? count.label : undefined;
 }
 
-function isSchemaObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
-
 /** The condition's `if` is present on the node, holding one of `ifIs` when that is given. */
 function conditionFires(obj: Record<string, unknown>, c: SchemaCondition): boolean {
-  const present = c.if.split(' | ').filter((path) => hasSchemaPath(obj, path));
+  const present = entryPaths(c.if).filter((path) => hasSchemaPath(obj, path));
   if (present.length === 0) return false;
   const ifIs = c.ifIs;
   return !ifIs || present.some((p) => schemaValues(obj, p).some((v) => ifIs.includes(v)));
@@ -2900,14 +2897,6 @@ function schemaValues(obj: Record<string, unknown>, path: string): string[] {
     const id = v && typeof v === 'object' ? (v as Record<string, unknown>)['@id'] : undefined;
     return typeof id === 'string' ? [normalizeSchemaType(id)] : [];
   });
-}
-
-function isTruthyProp(v: unknown): boolean {
-  if (v === undefined || v === null) return false;
-  if (typeof v === 'string') return v.trim().length > 0;
-  if (Array.isArray(v)) return v.length > 0;
-  if (typeof v === 'object') return Object.keys(v as object).length > 0;
-  return true;
 }
 
 function detectPathType(rawHref: string): LinkPathType {
