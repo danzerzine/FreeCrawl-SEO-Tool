@@ -1591,6 +1591,14 @@
     "links": "Link interni: +{{added}} / −{{removed}}",
     "words": "Parole: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Errori della console e risorse non caricate",
+    "console": "Errore della console",
+    "pageerror": "Errore non gestito",
+    "failed": "Richiesta non riuscita",
+    "http": "HTTP {{status}}",
+    "capped": "Mostrate {{shown}} di {{total}}"
+  },
   "screenshot": {
     "loading": "Caricamento della schermata…",
     "empty": "Nessuna schermata archiviata per questo URL.",

@@ -227,6 +227,8 @@ export const TR_LABELS: Record<string, string> = {
   'Canonical Changed by JavaScript': 'JavaScript ile Değişen Canonical',
   'Links Changed by JavaScript': 'JavaScript ile Değişen Bağlantılar',
   'Text Changed by JavaScript': 'JavaScript ile Değişen Metin',
+  'Console Errors': "Konsol hataları",
+  'Failed Resources': "Yüklenemeyen kaynaklar",
   'AMP Validation Errors': 'AMP Doğrulama Hataları',
   'AMP Version Broken': 'AMP sürümü bozuk',
   'AMP Version Redirects': 'AMP sürümü yönlendiriyor',
@@ -619,6 +621,7 @@ export const TR_LABELS: Record<string, string> = {
   "JS Links Changed": "JS Bağlantılar Değişti",
   "JS Text Changed": "JS Metin Değişti",
   "Render Diff": "Render Farkı",
+  "Console Log": "Konsol günlüğü",
   Words: 'Kelime',
 
   // URL Details (NameValueView) field labels

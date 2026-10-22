@@ -87,6 +87,9 @@ export const URL_COLUMN_HEADERS = {
   jsLinksChanged: 'JS Links Changed',
   jsTextChanged: 'JS Text Changed',
   renderDiff: 'Render Diff',
+  consoleErrors: 'Console Errors',
+  failedResources: 'Failed Resources',
+  consoleLog: 'Console Log',
 } as const;
 
 /** Header for a `CrawlUrlRow` key: the grid label, else the key split into Title Case words. */

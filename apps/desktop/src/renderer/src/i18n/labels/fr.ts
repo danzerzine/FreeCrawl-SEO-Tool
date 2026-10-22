@@ -229,6 +229,8 @@ export const FR_LABELS: Record<string, string> = {
   'Canonical Changed by JavaScript': 'Canonical modifiée par JavaScript',
   'Links Changed by JavaScript': 'Liens modifiés par JavaScript',
   'Text Changed by JavaScript': 'Texte modifié par JavaScript',
+  'Console Errors': "Erreurs de console",
+  'Failed Resources': "Ressources en échec",
   'AMP Validation Errors': 'Erreurs de validation AMP',
   'AMP Version Broken': 'Version AMP cassée',
   'AMP Version Redirects': 'La version AMP redirige',
@@ -635,6 +637,7 @@ export const FR_LABELS: Record<string, string> = {
   "JS Links Changed": "Liens modifiés (JS)",
   "JS Text Changed": "Texte modifié (JS)",
   "Render Diff": "Écart de rendu",
+  "Console Log": "Journal de la console",
   Words: 'Mots',
 
   // URL Details (NameValueView) field labels

@@ -228,6 +228,8 @@ export const RU_LABELS: Record<string, string> = {
   'Canonical Changed by JavaScript': 'canonical, изменённый JavaScript',
   'Links Changed by JavaScript': 'Ссылки, изменённые JavaScript',
   'Text Changed by JavaScript': 'Текст, изменённый JavaScript',
+  'Console Errors': "Ошибки консоли",
+  'Failed Resources': "Ресурсы не загрузились",
   'AMP Validation Errors': 'Ошибки проверки AMP',
   'AMP Version Broken': 'Битая AMP-версия',
   'AMP Version Redirects': 'AMP-версия перенаправляет',
@@ -631,6 +633,7 @@ export const RU_LABELS: Record<string, string> = {
   "JS Links Changed": "Ссылки изменены JS",
   "JS Text Changed": "Текст изменён JS",
   "Render Diff": "Разница рендера",
+  "Console Log": "Журнал консоли",
   Words: 'Слова',
 
   // URL Details (NameValueView) field labels

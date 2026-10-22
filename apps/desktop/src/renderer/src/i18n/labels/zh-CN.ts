@@ -227,6 +227,8 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Canonical Changed by JavaScript': 'JavaScript 修改的 canonical',
   'Links Changed by JavaScript': 'JavaScript 修改的链接',
   'Text Changed by JavaScript': 'JavaScript 修改的文本',
+  'Console Errors': "控制台错误",
+  'Failed Resources': "加载失败的资源",
   'AMP Validation Errors': 'AMP 校验错误',
   'AMP Version Broken': 'AMP 版本失效',
   'AMP Version Redirects': 'AMP 版本重定向',
@@ -622,6 +624,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   "JS Links Changed": "JS 修改的链接",
   "JS Text Changed": "JS 修改的文本",
   "Render Diff": "渲染差异",
+  "Console Log": "控制台日志",
   Words: '词数',
 
   // URL Details (NameValueView) field labels

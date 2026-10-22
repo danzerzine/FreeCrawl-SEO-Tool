@@ -1537,6 +1537,14 @@
     "links": "内部链接：+{{added}} / −{{removed}}",
     "words": "字数：{{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "控制台错误与加载失败的资源",
+    "console": "控制台错误",
+    "pageerror": "未捕获的错误",
+    "failed": "请求失败",
+    "http": "HTTP {{status}}",
+    "capped": "显示 {{shown}} / {{total}} 条"
+  },
   "screenshot": {
     "loading": "正在加载截图…",
     "empty": "未为此 URL 保存截图。",

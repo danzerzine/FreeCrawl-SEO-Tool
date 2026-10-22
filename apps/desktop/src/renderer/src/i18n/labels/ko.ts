@@ -228,6 +228,8 @@ export const KO_LABELS: Record<string, string> = {
   'Canonical Changed by JavaScript': 'JavaScript가 변경한 canonical',
   'Links Changed by JavaScript': 'JavaScript가 변경한 링크',
   'Text Changed by JavaScript': 'JavaScript가 변경한 텍스트',
+  'Console Errors': "콘솔 오류",
+  'Failed Resources': "로드 실패 리소스",
   'AMP Validation Errors': 'AMP 검증 오류',
   'AMP Version Broken': 'AMP 버전 오류',
   'AMP Version Redirects': 'AMP 버전 리디렉션',
@@ -624,6 +626,7 @@ export const KO_LABELS: Record<string, string> = {
   "JS Links Changed": "JS 링크 변경",
   "JS Text Changed": "JS 텍스트 변경",
   "Render Diff": "렌더링 차이",
+  "Console Log": "콘솔 로그",
   Words: '단어',
 
   // URL Details (NameValueView) field labels

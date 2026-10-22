@@ -669,4 +669,7 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     "90 = 推荐值（Screaming Frog 默认）；80 可发现改写幅度更大的副本；0 关闭此步骤。",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "重复检查所用正文的来源：selector（您的内容区域选择器）、selector-missed（选择器未匹配到内容，该页不参与近似重复）、main、article、body-without-chrome 或 body。",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "在每个页面渲染期间记录浏览器的控制台错误、未捕获的页面错误和加载失败的资源（网络失败及 4xx/5xx 响应）。为“控制台错误”和“加载失败的资源”问题筛选器提供数据。抓取有意拦截的请求不计入。每个页面最多保留 50 条记录。",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "开启后可发现 HTML 检查看不到的损坏脚本、图片和 API 调用。",
 };

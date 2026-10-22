@@ -1564,6 +1564,14 @@
     "links": "Internal links: +{{added}} / −{{removed}}",
     "words": "Words: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Console errors and failed resources",
+    "console": "Console error",
+    "pageerror": "Uncaught error",
+    "failed": "Request failed",
+    "http": "HTTP {{status}}",
+    "capped": "Showing {{shown}} of {{total}}"
+  },
   "screenshot": {
     "loading": "Loading screenshot…",
     "empty": "No screenshots stored for this URL.",

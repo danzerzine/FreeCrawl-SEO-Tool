@@ -687,4 +687,7 @@ export const FR_INFO_TIPS: Record<string, string> = {
     "90 = recommandé (valeur par défaut de Screaming Frog) ; 80 détecte des réécritures plus libres ; 0 désactive cette étape.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "Origine du texte principal utilisé pour les doublons : selector (votre sélecteur de zone de contenu), selector-missed (le sélecteur n'a rien trouvé, la page est exclue des quasi-doublons), main, article, body-without-chrome ou body.",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "Enregistre les erreurs de console du navigateur, les erreurs de page non interceptées et les ressources non chargées (échecs réseau et réponses 4xx/5xx) pendant le rendu de chaque page. Alimente les filtres de problèmes Erreurs de console et Ressources en échec. Les requêtes que l'exploration bloque volontairement ne sont pas comptées. 50 entrées au maximum sont conservées par page.",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "À activer pour trouver les scripts, images et appels d'API cassés que la vérification du HTML ne voit pas.",
 };

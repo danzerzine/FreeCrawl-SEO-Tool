@@ -236,6 +236,8 @@ export const AZ_LABELS: Record<string, string> = {
   'Canonical Changed by JavaScript': 'JavaScript ilə dəyişdirilən canonical',
   'Links Changed by JavaScript': 'JavaScript ilə dəyişdirilən keçidlər',
   'Text Changed by JavaScript': 'JavaScript ilə dəyişdirilən mətn',
+  'Console Errors': "Konsol xətaları",
+  'Failed Resources': "Yüklənməyən resurslar",
   'AMP Validation Errors': 'AMP yoxlama xətaları',
   'AMP Version Broken': 'AMP versiyası xarabdır',
   'AMP Version Redirects': 'AMP versiyası yönləndirir',
@@ -636,6 +638,7 @@ export const AZ_LABELS: Record<string, string> = {
   "JS Links Changed": "JS keçidlər dəyişib",
   "JS Text Changed": "JS mətn dəyişib",
   "Render Diff": "Render fərqi",
+  "Console Log": "Konsol jurnalı",
   Words: 'Söz',
 
   // URL Details (NameValueView) field labels

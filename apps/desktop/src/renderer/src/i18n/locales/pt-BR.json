@@ -1591,6 +1591,14 @@
     "links": "Links internos: +{{added}} / −{{removed}}",
     "words": "Palavras: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Erros do console e recursos com falha",
+    "console": "Erro do console",
+    "pageerror": "Erro não tratado",
+    "failed": "Requisição com falha",
+    "http": "HTTP {{status}}",
+    "capped": "Mostrando {{shown}} de {{total}}"
+  },
   "screenshot": {
     "loading": "Carregando a captura…",
     "empty": "Nenhuma captura armazenada para esta URL.",

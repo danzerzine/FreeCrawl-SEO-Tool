@@ -1591,6 +1591,14 @@
     "links": "Enlaces internos: +{{added}} / −{{removed}}",
     "words": "Palabras: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Errores de consola y recursos fallidos",
+    "console": "Error de consola",
+    "pageerror": "Error no capturado",
+    "failed": "Solicitud fallida",
+    "http": "HTTP {{status}}",
+    "capped": "Mostrando {{shown}} de {{total}}"
+  },
   "screenshot": {
     "loading": "Cargando la captura…",
     "empty": "No hay capturas almacenadas para esta URL.",

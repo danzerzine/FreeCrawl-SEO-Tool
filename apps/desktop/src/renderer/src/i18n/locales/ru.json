@@ -1618,6 +1618,14 @@
     "links": "Внутренние ссылки: +{{added}} / −{{removed}}",
     "words": "Слов: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Ошибки консоли и незагруженные ресурсы",
+    "console": "Ошибка консоли",
+    "pageerror": "Необработанная ошибка",
+    "failed": "Запрос не удался",
+    "http": "HTTP {{status}}",
+    "capped": "Показано {{shown}} из {{total}}"
+  },
   "screenshot": {
     "loading": "Загрузка снимка экрана…",
     "empty": "Для этого URL не сохранено снимков экрана.",

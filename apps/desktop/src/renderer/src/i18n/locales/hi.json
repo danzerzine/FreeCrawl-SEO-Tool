@@ -1564,6 +1564,14 @@
     "links": "आंतरिक लिंक: +{{added}} / −{{removed}}",
     "words": "शब्द: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "कंसोल त्रुटियाँ और विफल संसाधन",
+    "console": "कंसोल त्रुटि",
+    "pageerror": "अनकैच्ड त्रुटि",
+    "failed": "अनुरोध विफल",
+    "http": "HTTP {{status}}",
+    "capped": "{{total}} में से {{shown}} दिखाए जा रहे हैं"
+  },
   "screenshot": {
     "loading": "स्क्रीनशॉट लोड हो रहा है…",
     "empty": "इस URL के लिए कोई स्क्रीनशॉट सहेजा नहीं गया।",

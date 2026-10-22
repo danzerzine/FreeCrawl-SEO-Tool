@@ -682,4 +682,7 @@ export const HI_INFO_TIPS: Record<string, string> = {
     "90 = अनुशंसित (Screaming Frog डिफ़ॉल्ट); 80 अधिक ढीले पुनर्लेखन पकड़ता है; 0 इस चरण को बंद करता है।",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "प्रतिलिपि जाँच के लिए मुख्य पाठ कहाँ से लिया गया: selector (आपका सामग्री-क्षेत्र सेलेक्टर), selector-missed (सेलेक्टर को कुछ नहीं मिला, पृष्ठ निकट-प्रतिलिपि से बाहर रहता है), main, article, body-without-chrome या body.",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "हर पेज के रेंडर होने के दौरान ब्राउज़र की कंसोल त्रुटियाँ, अनकैच्ड पेज त्रुटियाँ और लोड न हुए संसाधन (नेटवर्क विफलताएँ और 4xx/5xx उत्तर) दर्ज करता है। कंसोल त्रुटियाँ और विफल संसाधन समस्या फ़िल्टर भरता है। क्रॉल जिन अनुरोधों को जानबूझकर ब्लॉक करता है, वे नहीं गिने जाते। प्रति पेज अधिकतम 50 प्रविष्टियाँ रखी जाती हैं।",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "टूटी स्क्रिप्ट, इमेज और API कॉल खोजने के लिए चालू करें, जिन्हें HTML जाँच नहीं देखती।",
 };

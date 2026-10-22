@@ -1564,6 +1564,14 @@
     "links": "Daxili keçidlər: +{{added}} / −{{removed}}",
     "words": "Söz: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Konsol xətaları və yüklənməyən resurslar",
+    "console": "Konsol xətası",
+    "pageerror": "Tutulmamış xəta",
+    "failed": "Sorğu uğursuz oldu",
+    "http": "HTTP {{status}}",
+    "capped": "{{total}} içindən {{shown}} göstərilir"
+  },
   "screenshot": {
     "loading": "Ekran görüntüsü yüklənir…",
     "empty": "Bu URL üçün saxlanılmış ekran görüntüsü yoxdur.",

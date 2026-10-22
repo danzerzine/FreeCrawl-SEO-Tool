@@ -1,7 +1,12 @@
 import { createServer, type Server } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ProjectDb } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
+import { Crawler } from './crawler.js';
 import { BrowserPool, PlaywrightBrowserMissingError } from './browser-pool.js';
 import { browserPoolOptionsFromConfig, createRenderHook } from './render-config.js';
 
@@ -95,4 +100,32 @@ it('real Chromium: with images blocked the refused image is not a failed resourc
     expect(r1.consoleLog?.errors).toBe(2);
     expect(r1.consoleLog?.failed).toBe(1);
   });
+}, 60_000);
+
+it('real Chromium: a crawl stores console_errors = 2, failed_resources = 2 and the entries', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'fc-m11-b35-ch-'));
+  const config: CrawlConfig = {
+    ...cfg(false),
+    startUrl: `${base}/p1`,
+    discoverSitemaps: false,
+    checkExternalLinks: false,
+    probeTlsCerts: false,
+    probeManifestJson: false,
+    probeSocialImages: false,
+    probeImageSizes: false,
+  };
+  const db = new ProjectDb(join(dir, 'p.seoproject'));
+  try {
+    await withPool(config, async (pool) => {
+      const c = new Crawler(config, db, { renderUrl: createRenderHook(pool, config) });
+      c.on('error', () => {});
+      await c.start();
+      const row = db.getUrlById(db.getUrlIdByUrl(`${base}/p1`)!)!;
+      expect([row.consoleErrors, row.failedResources]).toEqual([2, 2]);
+      expect(JSON.parse(row.consoleLog!)).toHaveLength(4);
+    });
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 }, 60_000);

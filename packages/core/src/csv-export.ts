@@ -37,6 +37,9 @@ const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'jsLinksChanged',
   'jsTextChanged',
   'renderDiff',
+  'consoleErrors',
+  'failedResources',
+  'consoleLog',
   'crawledAt',
 ];
 

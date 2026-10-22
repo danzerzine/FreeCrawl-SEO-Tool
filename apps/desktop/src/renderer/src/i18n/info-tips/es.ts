@@ -687,4 +687,7 @@ export const ES_INFO_TIPS: Record<string, string> = {
     "90 = recomendado (valor predeterminado de Screaming Frog); 80 detecta reescrituras más libres; 0 desactiva este paso.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "De dónde salió el texto principal usado para los duplicados: selector (tu selector de área de contenido), selector-missed (el selector no encontró nada y la página queda fuera de los casi duplicados), main, article, body-without-chrome o body.",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "Registra los errores de consola del navegador, los errores de página no capturados y los recursos que no se cargaron (fallos de red y respuestas 4xx/5xx) mientras se renderiza cada página. Alimenta los filtros de problemas Errores de consola y Recursos fallidos. Las solicitudes que el rastreo bloquea a propósito no cuentan. Se guardan como máximo 50 entradas por página.",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "Actívalo para encontrar scripts, imágenes y llamadas a API rotos que la revisión del HTML no ve.",
 };

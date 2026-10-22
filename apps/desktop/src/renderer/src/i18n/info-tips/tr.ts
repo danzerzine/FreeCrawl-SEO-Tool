@@ -686,4 +686,7 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "90 = önerilen (Screaming Frog varsayılanı); 80 daha gevşek yeniden yazımları yakalar; 0 bu adımı kapatır.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "Yinelenen denetimi için ana metnin alındığı yer: selector (içerik alanı seçiciniz), selector-missed (seçici hiçbir şey bulamadı, sayfa yakın yinelenenlerin dışında kalır), main, article, body-without-chrome veya body.",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "Her sayfa işlenirken tarayıcının konsol hatalarını, yakalanmamış sayfa hatalarını ve yüklenemeyen kaynakları (ağ hataları ve 4xx/5xx yanıtları) kaydeder. Konsol hataları ve Yüklenemeyen kaynaklar sorun filtrelerini besler. Taramanın kasıtlı olarak engellediği istekler sayılmaz. Sayfa başına en fazla 50 kayıt tutulur.",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "HTML denetiminin görmediği bozuk betikleri, görselleri ve API çağrılarını bulmak için açın.",
 };

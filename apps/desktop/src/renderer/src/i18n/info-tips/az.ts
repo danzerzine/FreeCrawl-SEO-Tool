@@ -684,4 +684,7 @@ export const AZ_INFO_TIPS: Record<string, string> = {
     "90 = tövsiyə olunan (Screaming Frog standartı); 80 daha sərbəst yenidən yazılmaları tutur; 0 bu mərhələni söndürür.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "Dublikat yoxlaması üçün əsas mətnin götürüldüyü yer: selector (kontent sahəsi seçiciniz), selector-missed (seçici heç nə tapmadı, səhifə yaxın dublikatlardan kənarda qalır), main, article, body-without-chrome və ya body.",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "Hər səhifə render olunarkən brauzerin konsol xətalarını, tutulmamış səhifə xətalarını və yüklənməyən resursları (şəbəkə uğursuzluqları və 4xx/5xx cavabları) qeyd edir. Konsol xətaları və Yüklənməyən resurslar problem filtrlərini doldurur. Crawl-ın qəsdən blok etdiyi sorğular sayılmır. Hər səhifə üçün ən çox 50 qeyd saxlanılır.",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "Sayt HTML yoxlamasının görmədiyi sınıq skriptləri, şəkilləri və API çağırışlarını tapmaq üçün aktiv edin.",
 };

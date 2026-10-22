@@ -149,6 +149,8 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'TTFB Very Slow (>1.8s)', category: 'issues:ttfb-very-slow' },
     { label: 'Soft 404', category: 'issues:soft-404' },
     { label: 'Linked URL Blocked by robots.txt', category: 'issues:blocked-by-robots' },
+    { label: 'Console Errors', category: 'issues:console-errors' },
+    { label: 'Failed Resources', category: 'issues:failed-resources' },
   ],
   security: [
     { label: 'HTTPS URLs', category: 'security:https' },
@@ -992,7 +994,9 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
     cat === 'issues:ttfb-slow' ||
     cat === 'issues:ttfb-very-slow' ||
     cat === 'issues:soft-404' ||
-    cat === 'issues:blocked-by-robots'
+    cat === 'issues:blocked-by-robots' ||
+    cat === 'issues:console-errors' ||
+    cat === 'issues:failed-resources'
   ) {
     return 'response-codes';
   }

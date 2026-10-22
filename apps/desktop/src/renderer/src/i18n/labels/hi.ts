@@ -228,6 +228,8 @@ export const HI_LABELS: Record<string, string> = {
   'Canonical Changed by JavaScript': 'JavaScript द्वारा बदला गया canonical',
   'Links Changed by JavaScript': 'JavaScript द्वारा बदले गए लिंक',
   'Text Changed by JavaScript': 'JavaScript द्वारा बदला गया टेक्स्ट',
+  'Console Errors': "कंसोल त्रुटियाँ",
+  'Failed Resources': "विफल संसाधन",
   'AMP Validation Errors': 'AMP सत्यापन त्रुटियाँ',
   'AMP Version Broken': 'AMP संस्करण टूटा है',
   'AMP Version Redirects': 'AMP संस्करण रीडायरेक्ट करता है',
@@ -629,6 +631,7 @@ export const HI_LABELS: Record<string, string> = {
   "JS Links Changed": "JS से लिंक बदले",
   "JS Text Changed": "JS से टेक्स्ट बदला",
   "Render Diff": "रेंडर अंतर",
+  "Console Log": "कंसोल लॉग",
   Words: 'शब्द',
 
   // URL Details (NameValueView) field labels

@@ -598,6 +598,7 @@ export function BottomDetailPanel() {
         {detail && subTab === 'view-rendered' && (
           <div className="flex h-full flex-col">
             <RenderDiffList row={detail.row} />
+            <ConsoleLogList row={detail.row} />
             <div className="min-h-0 flex-1">
               <ViewSourceView urlId={detail.row.id} pageUrl={detail.row.url} kind="rendered" />
             </div>
@@ -1407,6 +1408,53 @@ function RenderDiffList({ row }: { row: CrawlUrlRow }) {
       {lines.map((l, i) => (
         <div key={i} className="whitespace-pre-wrap break-all font-mono">
           {l}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Console errors and failed resources of the render (B35), from the row's `consoleLog`; nothing when it is empty. */
+function ConsoleLogList({ row }: { row: CrawlUrlRow }) {
+  const { t } = useTranslation();
+  if (!row.consoleLog) return null;
+  let entries: Array<{ kind: string; text?: string; url?: string; type?: string; status?: number }>;
+  try {
+    const parsed: unknown = JSON.parse(row.consoleLog);
+    if (!Array.isArray(parsed)) return null;
+    entries = parsed;
+  } catch {
+    return null;
+  }
+  if (entries.length === 0) return null;
+  const line = (e: (typeof entries)[number]): string => {
+    switch (e.kind) {
+      case 'console':
+        return `${t('consoleLog.console', { defaultValue: 'Console error' })}: ${e.text ?? ''}`;
+      case 'pageerror':
+        return `${t('consoleLog.pageerror', { defaultValue: 'Uncaught error' })}: ${e.text ?? ''}`;
+      case 'failed':
+        return `${t('consoleLog.failed', { defaultValue: 'Request failed' })}: ${e.url ?? ''} (${e.type ?? ''}) ${e.text ?? ''}`;
+      default:
+        return `${t('consoleLog.http', { defaultValue: 'HTTP {{status}}', status: e.status ?? '' })}: ${e.url ?? ''} (${e.type ?? ''})`;
+    }
+  };
+  const total = (row.consoleErrors ?? 0) + (row.failedResources ?? 0);
+  return (
+    <div className="max-h-40 overflow-auto border-b border-surface-800 bg-surface-900 px-3 py-1.5 text-[11px] text-surface-300">
+      <div className="mb-1 text-surface-500">
+        {t('consoleLog.title', { defaultValue: 'Console errors and failed resources' })}
+        {total > entries.length
+          ? ` — ${t('consoleLog.capped', {
+              defaultValue: 'Showing {{shown}} of {{total}}',
+              shown: entries.length,
+              total,
+            })}`
+          : ''}
+      </div>
+      {entries.map((e, i) => (
+        <div key={i} className="whitespace-pre-wrap break-all font-mono">
+          {line(e)}
         </div>
       ))}
     </div>
@@ -2425,6 +2473,8 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
         ? row.a11yLowContrast
         : null,
     ],
+    ['Console Errors', row.consoleErrors ?? null],
+    ['Failed Resources', row.failedResources ?? null],
     [
       'Focus Outline Suppressed',
       row.a11yFocusSuppressed === 1

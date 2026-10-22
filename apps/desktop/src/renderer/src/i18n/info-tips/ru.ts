@@ -686,4 +686,7 @@ export const RU_INFO_TIPS: Record<string, string> = {
     "90 = рекомендуется (по умолчанию в Screaming Frog); 80 находит более свободные переписывания; 0 отключает этот шаг.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "Откуда взят основной текст для проверки дубликатов: selector (ваш селектор области контента), selector-missed (селектор ничего не нашёл, страница не участвует в почти дубликатах), main, article, body-without-chrome или body.",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "Записывает ошибки консоли браузера, необработанные ошибки страницы и ресурсы, которые не загрузились (сбои сети и ответы 4xx/5xx), пока страница рендерится. Питает фильтры проблем «Ошибки консоли» и «Ресурсы не загрузились». Запросы, которые обход блокирует намеренно, не считаются. На страницу сохраняется не больше 50 записей.",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "Включите, чтобы найти сломанные скрипты, картинки и вызовы API, которых не видно по HTML.",
 };

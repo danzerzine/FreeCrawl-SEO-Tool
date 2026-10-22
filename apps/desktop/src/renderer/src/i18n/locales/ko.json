@@ -1537,6 +1537,14 @@
     "links": "내부 링크: +{{added}} / −{{removed}}",
     "words": "단어: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "콘솔 오류 및 로드 실패 리소스",
+    "console": "콘솔 오류",
+    "pageerror": "처리되지 않은 오류",
+    "failed": "요청 실패",
+    "http": "HTTP {{status}}",
+    "capped": "{{total}}개 중 {{shown}}개 표시"
+  },
   "screenshot": {
     "loading": "스크린샷을 불러오는 중…",
     "empty": "이 URL에 저장된 스크린샷이 없습니다.",

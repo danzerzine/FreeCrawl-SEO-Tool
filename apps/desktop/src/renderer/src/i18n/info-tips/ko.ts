@@ -675,4 +675,7 @@ export const KO_INFO_TIPS: Record<string, string> = {
     "90 = 권장(Screaming Frog 기본값), 80은 더 느슨한 재작성까지 잡음, 0은 이 단계를 끔.",
   ["Where the main text used for duplicate checks came from: selector (your content-area selector), selector-missed (the selector matched nothing, so the page is left out of near-duplicates), main, article, body-without-chrome or body."]:
     "중복 검사에 쓰인 본문의 출처: selector(콘텐츠 영역 선택자), selector-missed(선택자가 아무것도 찾지 못해 유사 중복에서 제외), main, article, body-without-chrome 또는 body.",
+  ["Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."]:
+    "각 페이지를 렌더링하는 동안 브라우저의 콘솔 오류, 처리되지 않은 페이지 오류, 불러오지 못한 리소스(네트워크 실패 및 4xx/5xx 응답)를 기록합니다. 콘솔 오류와 로드 실패 리소스 문제 필터를 채웁니다. 크롤이 의도적으로 차단한 요청은 세지 않습니다. 페이지당 최대 50개 항목만 보관합니다.",
+  ["On to find broken scripts, images and API calls the HTML check does not see."]: "HTML 검사로는 보이지 않는 깨진 스크립트, 이미지, API 호출을 찾으려면 켜세요.",
 };

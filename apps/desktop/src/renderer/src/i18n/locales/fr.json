@@ -1591,6 +1591,14 @@
     "links": "Liens internes : +{{added}} / −{{removed}}",
     "words": "Mots : {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Erreurs de console et ressources en échec",
+    "console": "Erreur de console",
+    "pageerror": "Erreur non interceptée",
+    "failed": "Requête en échec",
+    "http": "HTTP {{status}}",
+    "capped": "{{shown}} affichées sur {{total}}"
+  },
   "screenshot": {
     "loading": "Chargement de la capture…",
     "empty": "Aucune capture stockée pour cette URL.",

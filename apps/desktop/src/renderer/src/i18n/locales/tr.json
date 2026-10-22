@@ -1564,6 +1564,14 @@
     "links": "İç bağlantılar: +{{added}} / −{{removed}}",
     "words": "Sözcük: {{served}} → {{rendered}}"
   },
+  "consoleLog": {
+    "title": "Konsol hataları ve yüklenemeyen kaynaklar",
+    "console": "Konsol hatası",
+    "pageerror": "Yakalanmamış hata",
+    "failed": "İstek başarısız",
+    "http": "HTTP {{status}}",
+    "capped": "{{total}} içinden {{shown}} gösteriliyor"
+  },
   "screenshot": {
     "loading": "Ekran görüntüsü yükleniyor…",
     "empty": "Bu URL için ekran görüntüsü kaydedilmemiş.",
