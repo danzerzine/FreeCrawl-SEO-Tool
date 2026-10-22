@@ -1046,5 +1046,146 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(findings({ '@type': 'ProductGroup', name: 'G' })).toEqual([]);
     });
   });
+
+  describe('type rules of the smaller features (15, 17, 20, 22, 24, 25, 26)', () => {
+    it('Dataset: name and description, and a contentUrl when there is a distribution', () => {
+      expect(required({ '@type': 'Dataset', name: 'D' })).toEqual([req('Dataset', 'description')]);
+      const d = { '@type': 'Dataset', name: 'D', description: 'x' };
+      expect(required(d)).toEqual([]);
+      expect(required({ ...d, distribution: { '@type': 'DataDownload' } })).toEqual([
+        req('Dataset', 'distribution.contentUrl'),
+      ]);
+      expect(
+        required({ ...d, distribution: [{ '@type': 'DataDownload', contentUrl: 'https://example.com/d.csv' }] }),
+      ).toEqual([]);
+      expect(required({ '@type': 'DataFeed' })).toEqual([]);
+    });
+
+    it('MathSolver: the action, its input and target, url and usageInfo', () => {
+      const solver = {
+        '@type': 'MathSolver',
+        url: 'https://example.com/solve',
+        usageInfo: 'https://example.com/terms',
+        potentialAction: {
+          '@type': 'SolveMathAction',
+          target: 'https://example.com/solve?q={q}',
+          'mathExpression-input': 'required name=q',
+        },
+        inLanguage: 'en',
+      };
+      expect(findings(solver)).toEqual([]);
+      expect(required({ ...solver, usageInfo: undefined })).toEqual([req('MathSolver', 'usageInfo')]);
+      expect(recommended({ ...solver, inLanguage: undefined })).toEqual([rec('MathSolver', 'inLanguage')]);
+    });
+
+    it('ImageObject: asks nothing of a plain image', () => {
+      expect(findings({ '@type': 'ImageObject' })).toEqual([]);
+      expect(findings({ '@type': 'ImageObject', url: 'https://example.com/a.jpg' })).toEqual([]);
+    });
+
+    it('ImageObject: a license or credit needs contentUrl or url', () => {
+      const url = 'https://example.com/a.jpg';
+      expect(required({ '@type': 'ImageObject', license: 'https://example.com/l' })).toEqual([
+        req('ImageObject', 'contentUrl | url'),
+      ]);
+      expect(required({ '@type': 'ImageObject', creditText: 'Ann' })).toEqual([
+        req('ImageObject', 'contentUrl | url'),
+      ]);
+      expect(required({ '@type': 'ImageObject', url, license: 'https://example.com/l' })).toEqual([]);
+      expect(required({ '@type': 'ImageObject', contentUrl: url, copyrightNotice: 'c' })).toEqual([]);
+      expect(findings({ '@type': 'ImageObject', contentUrl: url, creator: { name: 'A' } })).toEqual([]);
+    });
+
+    it('ImageObject: a license recommends acquireLicensePage', () => {
+      const image = { '@type': 'ImageObject', contentUrl: 'https://example.com/a.jpg', license: 'https://example.com/l' };
+      expect(recommended(image)).toEqual([rec('ImageObject', 'acquireLicensePage')]);
+      expect(findings({ ...image, acquireLicensePage: 'https://example.com/buy' })).toEqual([]);
+    });
+
+    it('SpeakableSpecification: a cssSelector or an xPath', () => {
+      expect(required({ '@type': 'SpeakableSpecification' })).toEqual([
+        req('SpeakableSpecification', 'cssSelector | xPath'),
+      ]);
+      expect(required({ '@type': 'SpeakableSpecification', xPath: ['/html/head/title'] })).toEqual([]);
+    });
+
+    it('MemberProgram and tiers', () => {
+      const program = {
+        '@type': 'MemberProgram',
+        name: 'Club',
+        description: 'x',
+        hasTiers: [{ '@type': 'MemberProgramTier', name: 'Gold',
+            hasTierRequirement: 'x', hasTierBenefit: 'TierBenefitLoyaltyPrice' }],
+        url: 'https://example.com/club',
+      };
+      expect(findings(program)).toEqual([]);
+      expect(required({ ...program, hasTiers: undefined })).toEqual([req('MemberProgram', 'hasTiers')]);
+      expect(recommended({ ...program, url: undefined })).toEqual([rec('MemberProgram', 'url')]);
+      expect(required({ '@type': 'MemberProgramTier', name: 'Gold' })).toEqual([
+        req('MemberProgramTier', 'hasTierBenefit'),
+      ]);
+    });
+
+    it('a tier with loyalty points recommends membershipPointsEarned, other benefits do not', () => {
+      const tier = {
+        '@type': 'MemberProgramTier',
+        name: 'Gold',
+        hasTierRequirement: 'x',
+        hasTierBenefit: 'TierBenefitLoyaltyPoints',
+      };
+      expect(recommended(tier)).toEqual([rec('MemberProgramTier', 'membershipPointsEarned')]);
+      expect(
+        recommended({ ...tier, hasTierBenefit: 'https://schema.org/TierBenefitLoyaltyPoints' }),
+      ).toEqual([rec('MemberProgramTier', 'membershipPointsEarned')]);
+      expect(findings({ ...tier, hasTierBenefit: 'TierBenefitLoyaltyPrice' })).toEqual([]);
+      expect(findings({ ...tier, membershipPointsEarned: 5 })).toEqual([]);
+    });
+
+    it('a tier without a type is not found', () => {
+      expect(findings({ '@type': 'MemberProgram', name: 'C', description: 'x', hasTiers: [{ name: 'Gold' }], url: 'u' })).toEqual([]);
+    });
+
+    it('Quiz needs hasPart, and its typed Questions need answer, eduQuestionType and text', () => {
+      expect(required({ '@type': 'Quiz' })).toEqual([req('Quiz', 'hasPart')]);
+      const question = {
+        '@type': 'Question',
+        text: 'Q',
+        eduQuestionType: 'Flashcard',
+        acceptedAnswer: { '@type': 'Answer', text: 'A' },
+      };
+      expect(required({ '@type': 'Quiz', hasPart: question })).toEqual([]);
+      expect(
+        required({ '@type': 'Quiz', hasPart: [question, { ...question, eduQuestionType: undefined }] }),
+      ).toEqual([req('Question', 'eduQuestionType')]);
+      expect(required({ '@type': 'Quiz', hasPart: { text: 'untyped' } })).toEqual([]);
+      expect(recommended({ '@type': 'Quiz', hasPart: question })).toEqual([
+        rec('Quiz', 'about', 'about.name', 'educationalAlignment'),
+      ]);
+    });
+
+    it('a Question outside a Quiz gets no education rule', () => {
+      expect(required({ '@type': 'Question' })).toEqual([]);
+      expect(required({ '@type': 'WebPage', hasPart: { '@type': 'Question' } })).toEqual([]);
+    });
+
+    it('EmployerAggregateRating: its own rule without the itemReviewed.name demand', () => {
+      const rating = {
+        '@type': 'EmployerAggregateRating',
+        itemReviewed: { '@type': 'Organization', name: 'Acme', url: 'https://acme.example', logo: 'l' },
+        ratingValue: 4,
+        ratingCount: 10,
+        bestRating: 5,
+        worstRating: 1,
+      };
+      expect(findings(rating)).toEqual([]);
+      expect(required({ ...rating, ratingValue: undefined })).toEqual([
+        req('EmployerAggregateRating', 'ratingValue'),
+      ]);
+      const bare = { ...rating, itemReviewed: { '@type': 'Organization' } };
+      expect(required(bare)).toEqual([]);
+      const plain = { ...bare, '@type': 'AggregateRating' };
+      expect(required(plain)).toEqual([req('AggregateRating', 'itemReviewed.name')]);
+    });
+  });
   // PART2-END
 });

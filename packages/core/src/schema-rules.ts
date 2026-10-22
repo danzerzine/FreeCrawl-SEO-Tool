@@ -230,6 +230,78 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
     only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
   },
   {
+    source: `${GOOGLE}dataset`,
+    types: ['Dataset'],
+    exclude: ['DataFeed'],
+    required: ['name', 'description'],
+    conditions: [{ if: 'distribution', then: 'distribution.contentUrl', level: 'required' }],
+  },
+  {
+    source: `${GOOGLE}math-solvers`,
+    types: ['MathSolver'],
+    required: [
+      'potentialAction',
+      'potentialAction.mathExpression-input',
+      'potentialAction.target',
+      'url',
+      'usageInfo',
+    ],
+    recommended: ['inLanguage'],
+  },
+  {
+    // Opt-in: every image on a page is an ImageObject, so only a credit or a
+    // license sets the rows for it.
+    source: `${GOOGLE}image-license-metadata`,
+    types: ['ImageObject'],
+    conditions: [
+      {
+        if: 'creator | creditText | copyrightNotice | license',
+        then: 'contentUrl | url',
+        level: 'required',
+      },
+      { if: 'license', then: 'acquireLicensePage', level: 'recommended' },
+    ],
+  },
+  {
+    source: `${GOOGLE}speakable`,
+    types: ['SpeakableSpecification'],
+    required: ['cssSelector | xPath'],
+  },
+  {
+    source: `${GOOGLE}loyalty-program`,
+    types: ['MemberProgram'],
+    required: ['name', 'description', 'hasTiers'],
+    recommended: ['url'],
+  },
+  {
+    source: `${GOOGLE}loyalty-program`,
+    types: ['MemberProgramTier'],
+    required: ['name', 'hasTierBenefit'],
+    recommended: ['hasTierRequirement'],
+    // Google asks for the points only when the benefit is loyalty points.
+    conditions: [
+      {
+        if: 'hasTierBenefit',
+        ifIs: ['TierBenefitLoyaltyPoints'],
+        then: 'membershipPointsEarned',
+        level: 'recommended',
+      },
+    ],
+  },
+  {
+    source: `${GOOGLE}education-qa`,
+    types: ['Quiz'],
+    label: 'quiz',
+    required: ['hasPart'],
+    recommended: ['about', 'about.name', 'educationalAlignment'],
+  },
+  {
+    source: `${GOOGLE}employer-rating`,
+    types: ['EmployerAggregateRating'],
+    required: ['itemReviewed', 'ratingValue', 'ratingCount | reviewCount'],
+    recommended: ['bestRating', 'worstRating'],
+  },
+  {
     source: `${GOOGLE}product-snippet`,
     types: ['UnitPriceSpecification'],
     required: ['price'],
@@ -372,6 +444,16 @@ export const CONTEXT_RULES: readonly ContextRule[] = [
     from: 'carousel-item',
     via: ['item'],
     types: ['Restaurant'],
+  },
+  {
+    rule: {
+      source: `${GOOGLE}education-qa`,
+      types: ['Question'],
+      required: ['acceptedAnswer', 'eduQuestionType', 'text'],
+    },
+    from: 'quiz',
+    via: ['hasPart'],
+    types: ['Question'],
   },
   // The question itself is checked by the QAPage paths; this only passes the label on.
   { from: 'qa-page', via: ['mainEntity'], types: ['Question'], label: 'qa' },

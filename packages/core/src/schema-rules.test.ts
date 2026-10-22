@@ -86,4 +86,13 @@ describe('structured-data rules', () => {
     expect(rootOf('LiveBlogPosting')).toEqual(['Article']);
     expect(rootOf('DiscussionForumPosting')).toEqual(['DiscussionForumPosting']);
   });
+
+  it('resolves the smaller features to their own rules', () => {
+    expect(rootOf('DataFeed')).toEqual([]);
+    expect(rootOf('Dataset')).toEqual(['Dataset']);
+    expect(rootOf('EmployerAggregateRating')).toEqual(['EmployerAggregateRating']);
+    expect(rootOf('BreadcrumbList')).toEqual(['BreadcrumbList']);
+    expect(rootOf('VacationRental')).toEqual(['LocalBusiness']);
+    expect(rootOf('Restaurant')).toEqual(['LocalBusiness']);
+  });
 });
