@@ -1,4 +1,4 @@
-export { Crawler, invalidUrlPatterns } from './crawler.js';
+export { Crawler, invalidUrlPatterns, type IncompleteReason } from './crawler.js';
 export type { CrawlerEvents } from './crawler.js';
 export {
   BrowserPool,

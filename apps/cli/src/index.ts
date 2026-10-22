@@ -148,6 +148,9 @@ Options:
                         Per-flag overrides on the command line still win — useful for CI
                         ("scheduled config + per-run --max").
   --db <file>         SQLite project file (default: ./crawl.seoproject)
+  --stop-file <file>  Stop the crawl softly when <file> appears (checked every second), as Ctrl-C
+                        does; the file is deleted then. For Windows, where a wrapper cannot send
+                        Ctrl-C. Must not exist at start.
   --pid-file <file>   Write the crawler's process id to <file> while it runs (removed at exit). On
                         Windows with Volta the process you see is a launcher; this is the real one.
   --out <file>        Export results after crawl. Format auto-detected by extension:
@@ -166,10 +169,17 @@ Options:
                         compare-*.csv files go there too. Changes do not change the exit code.
                         A crawl into an existing --db continues its queue; crawl into a new
                         file to compare a fresh crawl.
-  Crawl exit codes: 0 finished, no URL answered 4xx/5xx; 1 finished with such URLs, or --out /
-                        --export-dir / --compare-with failed; 2 bad arguments; 4 the crawl did not
-                        finish (start URL unreachable, nothing fetched, a fatal error), --json
-                        "complete": false.
+  Crawl exit codes: 0 finished, no URL answered 4xx/5xx; 1 finished with such URLs or an
+                        [error] line, or --out / --export-dir / --compare-with failed; 2 bad
+                        arguments or a crash; 4 the crawl did not finish (start URL unreachable or
+                        4xx/5xx, memory limit, no URLs, bad pattern, nothing fetched), --json
+                        "complete": false and "incomplete" says why; 130 stopped by Ctrl-C,
+                        SIGTERM or --stop-file. stderr: [warn] lines always (per-URL ones after
+                        the first 20 only with --verbose), [info] with --verbose; --json: one
+                        JSON line each, and a progress line every 10 s.
+  Ctrl-C during a crawl stops it softly: what is still queued is saved for --resume, issues are
+                        recounted, the summary prints ("interrupted": true; --out, --export-dir
+                        and --compare-with are skipped). A second Ctrl-C quits at once.
 
 analyze-logs options:
   --project <file>    Project to merge log aggregates into (default: ./crawl.seoproject)
@@ -299,6 +309,7 @@ function parseCliArgs() {
       'compare-with': { type: 'string' },
       export: { type: 'string' },
       'pid-file': { type: 'string' },
+      'stop-file': { type: 'string' },
       verbose: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -550,6 +561,11 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  const stopFile = values['stop-file'] === undefined ? null : resolve(values['stop-file']);
+  if (stopFile !== null && existsSync(stopFile)) {
+    console.error(`Stop file ${stopFile} already exists; remove it first.`);
+    process.exit(2);
+  }
   if (values['pid-file'] !== undefined) writePidFile(resolve(values['pid-file']));
 
   // Opened only after every flag validated, so a bad argument leaves no
@@ -561,7 +577,7 @@ async function main(): Promise<void> {
   // Events while the crawl runs go to stderr, so stdout keeps only the
   // progress line or, with --json, the one summary document.
   const report = (
-    type: 'progress' | 'error' | 'warn' | 'info',
+    type: 'progress' | 'error' | 'warn' | 'info' | 'export',
     fields: Record<string, unknown>,
   ) => {
     if (jsonMode) {
@@ -591,24 +607,86 @@ async function main(): Promise<void> {
   }
   let crawlError: string | null = null;
   crawler.on('error', (msg) => {
-    // Record the first fatal error (invalid/unreachable start URL, seed
-    // failure, bad pattern) so the exit code and --json `ok` reflect it —
-    // otherwise an unreachable seed produces an empty DB with no 4xx/5xx
-    // rows and the CLI misreports success to a CI pipeline.
+    // The first error goes into --json `error` and makes the exit code 1;
+    // whether the crawl finished at all is `crawler.incomplete`.
     if (crawlError === null) crawlError = String(msg);
     report('error', { message: String(msg) });
   });
-  crawler.on('warn', (msg) => report('warn', { message: String(msg) }));
+  // One warning per broken URL would bury the rest on a big site: the
+  // first ones print, the others only with --verbose.
+  let perUrlWarnings = 0;
+  crawler.on('warn', (msg) => {
+    const message = String(msg);
+    if (!values.verbose && /^(HTTP \d{3} on |Fetch failed )/.test(message)) {
+      perUrlWarnings++;
+      if (perUrlWarnings > PER_URL_WARNINGS_SHOWN) {
+        if (perUrlWarnings === PER_URL_WARNINGS_SHOWN + 1) {
+          report('warn', { message: 'more per-URL warnings not shown; --verbose shows all' });
+        }
+        return;
+      }
+    }
+    report('warn', { message });
+  });
   if (values.verbose) crawler.on('info', (msg) => report('info', { message: String(msg) }));
+
+  // Soft stop: the first signal saves the queue for --resume and stops the
+  // crawler, which still recounts issues. The handlers go at once, so a
+  // second signal gets the default action and kills the process even
+  // while a long synchronous recount holds the event loop.
+  let interrupted = false;
+  let stoppedByFile = false;
+  const signals = ['SIGINT', 'SIGTERM', 'SIGBREAK'] as const;
+  const dropSignalHandlers = () => {
+    for (const s of signals) process.off(s, softStop);
+  };
+  const softStop = () => {
+    dropSignalHandlers();
+    if (stopFileTimer) clearInterval(stopFileTimer);
+    if (crawler.finishingRun) {
+      // Stopping now would only lose the history entry of a finished crawl.
+      report('warn', {
+        message: 'The crawl has finished; recounting issues. Press Ctrl-C again to quit at once.',
+      });
+      return;
+    }
+    interrupted = true;
+    report('warn', {
+      message:
+        'Stopping: finishing writes and recounting issues. Press Ctrl-C again to quit at once.',
+    });
+    void crawler.saveQueueCheckpoint().finally(() => crawler.stop());
+  };
+  for (const s of signals) process.on(s, softStop);
+  const stopFileTimer =
+    stopFile === null
+      ? null
+      : setInterval(() => {
+          if (!existsSync(stopFile)) return;
+          stoppedByFile = true;
+          softStop();
+        }, 1000);
 
   await crawler.start();
   if (progressTimer) clearInterval(progressTimer);
+  if (stopFileTimer) clearInterval(stopFileTimer);
+  dropSignalHandlers();
+  if (stoppedByFile) rmSync(stopFile!, { force: true });
+  if (perUrlWarnings > PER_URL_WARNINGS_SHOWN) {
+    report('warn', {
+      message: `${perUrlWarnings} per-URL warnings in all, ${PER_URL_WARNINGS_SHOWN} of them shown`,
+    });
+  }
+  if (interrupted) db.walCheckpoint();
+  if (interrupted && (values.out || postCrawlExport || compareWith !== null)) {
+    report('warn', { message: 'export and compare skipped: the crawl was stopped' });
+  }
   if (!jsonMode) process.stdout.write('\n');
 
   const summary = db.getSummary();
   let exportedTo: string | null = null;
   let rowsWritten = 0;
-  if (values.out) {
+  if (values.out && !interrupted) {
     const outPath = resolve(values.out);
     // Auto-detect format from extension. `.json` -> full JSON dump, anything
     // else -> CSV (existing behaviour).
@@ -623,7 +701,7 @@ async function main(): Promise<void> {
   }
 
   let exported: ExportOutcome | null = null;
-  if (postCrawlExport) {
+  if (postCrawlExport && !interrupted) {
     // Ctrl-C from here on exits at once; the exit hook drops any
     // half-written `.part` file.
     exitOnInterrupt();
@@ -632,13 +710,13 @@ async function main(): Promise<void> {
       rawHeaders: Boolean(values['raw-headers']),
       projectFile: dbPath,
       toolVersion: cliVersion(),
-      onProgress: progressLine,
+      onProgress: jsonMode ? (line) => report('export', { message: line }) : progressLine,
     });
   }
 
   let compared: CompareSummary | null = null;
   let compareError: string | null = null;
-  if (compareWith !== null) {
+  if (compareWith !== null && !interrupted) {
     try {
       const previous = await openCompareProject(compareWith);
       try {
@@ -662,11 +740,13 @@ async function main(): Promise<void> {
   const siteWide = overview.site?.siteWide ?? null;
   const sitemapFindings = overview.site?.sitemapFindings ?? null;
   const crawlStoppedAtLimit = overview.site?.crawlStoppedAtLimit ?? null;
-  // A crawl that fetched nothing (unreachable seed, everything filtered) is a
-  // failure for CI purposes — a successful spider always fetches ≥1 page.
-  const complete = crawlError === null && summary.total > 0;
+  // Not complete: stopped, ended early for a reason the crawler names, or
+  // not a single page answered (everything filtered or unreachable).
+  const incomplete = crawler.incomplete;
+  const complete = !interrupted && incomplete === null && db.countCrawledUrls() > 0;
   const hasErrors =
     !complete ||
+    crawlError !== null ||
     Object.keys(summary.byStatus).some((k) => {
       const n = Number.parseInt(k, 10);
       return Number.isFinite(n) && n >= 400;
@@ -678,7 +758,8 @@ async function main(): Promise<void> {
         {
           ok: !hasErrors,
           complete,
-          interrupted: false,
+          interrupted,
+          incomplete,
           error: crawlError,
           startUrl,
           dbPath,
@@ -762,11 +843,13 @@ async function main(): Promise<void> {
   // 4: the crawl itself did not finish, so its numbers are not a verdict;
   // 1: it finished and found broken URLs, or a step after it failed.
   process.exit(
-    !complete
-      ? 4
-      : hasErrors || (exported !== null && exported.errors.length > 0) || compareError !== null
-        ? 1
-        : 0,
+    interrupted
+      ? 130
+      : !complete
+        ? 4
+        : hasErrors || (exported !== null && exported.errors.length > 0) || compareError !== null
+          ? 1
+          : 0,
   );
 }
 
@@ -2002,6 +2085,9 @@ function cliVersion(): string {
 }
 
 /** Export progress: one line on stderr, so `--json` stdout stays clean. */
+/** Per-URL crawl warnings printed before the rest are held back. */
+const PER_URL_WARNINGS_SHOWN = 20;
+
 function progressLine(line: string): void {
   process.stderr.write(`${line}\n`);
 }

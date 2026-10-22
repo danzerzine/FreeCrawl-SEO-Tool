@@ -399,6 +399,9 @@ function redirectTargetOf(
   return loc ? (normalizeUrl(loc, url) ?? loc) : null;
 }
 
+/** Why a crawl ended without doing its job (`Crawler.incomplete`). */
+export type IncompleteReason = 'invalid-pattern' | 'seed' | 'memory' | 'no-urls';
+
 export class Crawler extends EventEmitter {
   private config: CrawlConfig;
   private readonly db: ProjectDb;
@@ -614,6 +617,29 @@ export class Crawler extends EventEmitter {
         `queue checkpoint failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+  /**
+   * Write the queue checkpoint now, from the whole pending set including
+   * the URLs in flight. For a host about to `stop()` on purpose, so a later
+   * resume starts exactly here instead of from the last 30-second tick.
+   */
+  async saveQueueCheckpoint(): Promise<void> {
+    this.queueCheckpointNeedsFull = true;
+    await this.flushQueueCheckpoint();
+  }
+  /**
+   * Why the last `start()` ended without doing its job, or null when it
+   * did: an unusable pattern, a spider seed that failed, the memory
+   * watchdog, or no URLs to crawl. Events cannot tell a host this, since
+   * some `error` events are not fatal.
+   */
+  get incomplete(): IncompleteReason | null {
+    return this.incompleteReason;
+  }
+  private incompleteReason: IncompleteReason | null = null;
+  /** True while a crawl that was not stopped runs its end-of-crawl passes. */
+  get finishingRun(): boolean {
+    return this.finishing && !this.stopped;
   }
   private stopQueueCheckpointTimer(): void {
     if (this.queueCheckpointTimer) {
@@ -1196,9 +1222,11 @@ export class Crawler extends EventEmitter {
 
   async start(): Promise<void> {
     this.startedAt = Date.now();
+    this.incompleteReason = null;
     if (this.invalidPatterns.length > 0) {
       // Before any request or project write: the crawl the user asked for
       // cannot be scoped, so none runs.
+      this.incompleteReason = 'invalid-pattern';
       this.emit('error', this.invalidPatterns[0]!);
       this.emitProgressFinal();
       this.emit('done', this.db.getSummary());
@@ -1277,6 +1305,7 @@ export class Crawler extends EventEmitter {
       },
     );
     if (!start) {
+      this.incompleteReason = 'seed';
       this.emit(
         'error',
         `Invalid start URL: ${this.config.startUrl} — neither https:// nor http:// responded within 5s. Check that the host is reachable from this machine (try opening it in a browser).`,
@@ -1468,6 +1497,7 @@ export class Crawler extends EventEmitter {
         } else if (autoPaused && this.paused) {
           stuckSamples++;
           if (stuckSamples >= MEMORY_STUCK_SAMPLES) {
+            this.incompleteReason = 'memory';
             this.emit(
               'error',
               `Memory stayed at ${rssMb} MB (≥ ${resumeAt} MB) for ` +
@@ -2872,6 +2902,7 @@ export class Crawler extends EventEmitter {
   private async startListMode(): Promise<void> {
     const urls = this.dedupeNormalized(this.config.urlList);
     if (urls.length === 0) {
+      this.incompleteReason = 'no-urls';
       this.emit('error', 'List mode: urlList is empty (or no entries normalised to valid URLs).');
       this.finishEmptyFixedCrawl();
       return;
@@ -2894,6 +2925,7 @@ export class Crawler extends EventEmitter {
   private async startSitemapMode(): Promise<void> {
     const sitemapUrl = this.config.startUrl.trim();
     if (!sitemapUrl) {
+      this.incompleteReason = 'no-urls';
       this.emit('error', 'Sitemap mode: no sitemap URL provided.');
       this.finishEmptyFixedCrawl();
       return;
@@ -2931,6 +2963,7 @@ export class Crawler extends EventEmitter {
       );
     } catch (err) {
       if (!this.stopped) {
+        this.incompleteReason = 'no-urls';
         this.emit(
           'error',
           `Sitemap mode: could not fetch ${sitemapUrl} — ${formatFetchError(err)}`,
@@ -2947,6 +2980,7 @@ export class Crawler extends EventEmitter {
 
     const urls = this.dedupeNormalized(entries.map((e) => e.url));
     if (urls.length === 0) {
+      this.incompleteReason = 'no-urls';
       this.emit('error', `Sitemap mode: ${sitemapUrl} yielded no crawlable URLs.`);
       this.finishEmptyFixedCrawl();
       return;
@@ -3215,7 +3249,7 @@ export class Crawler extends EventEmitter {
     } catch (err) {
       // Aborts during stop() are expected and not user-visible noise.
       if (this.stopped) return;
-      this.emit('warn', `Sitemap discovery skipped: ${formatFetchError(err)}`);
+      this.emit('error', `Sitemap discovery skipped: ${formatFetchError(err)}`);
     }
   }
 
@@ -3392,7 +3426,7 @@ export class Crawler extends EventEmitter {
       .add(() => this.probeExternal(url))
       .catch((err: unknown) => {
         this.emit(
-          'warn',
+          'error',
           `External probe error: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
@@ -3624,7 +3658,7 @@ export class Crawler extends EventEmitter {
     this.externalQueue
       .add(() => this.probeAmpTarget(url))
       .catch((err: unknown) => {
-        this.emit('warn', `AMP probe error: ${err instanceof Error ? err.message : String(err)}`);
+        this.emit('error', `AMP probe error: ${err instanceof Error ? err.message : String(err)}`);
       });
   }
 
@@ -4620,6 +4654,7 @@ export class Crawler extends EventEmitter {
       // produce zero pages without it.
       if (statusCode >= 400) {
         const isSeed = item.depth === 0 && item.url === this.config.startUrl;
+        if (isSeed && this.config.mode === 'spider') this.incompleteReason = 'seed';
         const serverHint = res.headers.get('server');
         const cfRay = res.headers.get('cf-ray');
         const wafHint = cfRay
@@ -5763,6 +5798,7 @@ export class Crawler extends EventEmitter {
       // top-level list entry) — its failure is much higher-signal because
       // the crawl can't make any progress without it.
       const isSeed = item.depth === 0 && item.url === this.config.startUrl;
+      if (isSeed && this.config.mode === 'spider') this.incompleteReason = 'seed';
       this.emit(
         isSeed ? 'error' : 'warn',
         `Fetch failed [${elapsed}ms] ${item.url}: ${detail}`,

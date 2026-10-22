@@ -36,18 +36,18 @@ freecrawl-audit:
     # check judges it. `|| true`: the CLI exits 1 on ANY 4xx/5xx on its own,
     # and the rules decide what fails the pipeline.
     - >-
-      node apps/cli/dist/index.js "$TARGET_URL"
+      node apps/cli/dist/bin.js "$TARGET_URL"
       --max "$MAX_URLS" --db "$CI_PROJECT_DIR/site.seoproject"
       --out "$CI_PROJECT_DIR/crawl.json" || true
     # freecrawl-rules.json lives in your repo (format: docs/ci/README.md).
     # Exit 1 when a fail rule fired. Optional: --notify slack with
     # FREECRAWL_SLACK_WEBHOOK_URL from CI/CD variables.
     - >-
-      node apps/cli/dist/index.js check
+      node apps/cli/dist/bin.js check
       --project "$CI_PROJECT_DIR/site.seoproject"
       --rules "$CI_PROJECT_DIR/freecrawl-rules.json"
     # Sitemap validation is advisory — never fails the pipeline.
-    - node apps/cli/dist/index.js validate-sitemap "$TARGET_URL/sitemap.xml" || true
+    - node apps/cli/dist/bin.js validate-sitemap "$TARGET_URL/sitemap.xml" || true
   artifacts:
     paths:
       - crawl.json
