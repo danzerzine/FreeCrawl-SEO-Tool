@@ -984,6 +984,21 @@ function AnalyticsView({
       out.push(['URL Inspection', 'Indexing state', inspection.indexingState ?? '']);
       out.push(['URL Inspection', 'Canonical (Google)', inspection.googleCanonical ?? '']);
       out.push(['URL Inspection', 'Last crawl', inspection.lastCrawlTime ?? '']);
+      if (inspection.pageFetchState)
+        out.push(['URL Inspection', 'Page fetch', inspection.pageFetchState]);
+      if (inspection.crawledAs) out.push(['URL Inspection', 'Crawled as', inspection.crawledAs]);
+      for (const sm of inspection.sitemaps ?? []) out.push(['URL Inspection', 'Sitemap', sm]);
+      for (const ref of inspection.referringUrls ?? [])
+        out.push(['URL Inspection', 'Referring page', ref]);
+      for (const rt of inspection.richResults ?? [])
+        for (const it of rt.items)
+          out.push([
+            'URL Inspection',
+            `Rich result: ${rt.type}`,
+            `${it.name} · ${it.errors} error(s), ${it.warnings} warning(s)${
+              it.messages.length ? ` · ${it.messages.join(' | ')}` : ''
+            }`,
+          ]);
     }
     return out;
   };
@@ -1104,6 +1119,49 @@ function AnalyticsView({
               label="User canonical"
               value={inspection.userCanonical ?? '—'}
             />
+            {inspection.pageFetchState && (
+              <AnalyticsRow label="Page fetch" value={inspection.pageFetchState} />
+            )}
+            {inspection.crawledAs && (
+              <AnalyticsRow label="Crawled as" value={inspection.crawledAs} />
+            )}
+            {inspection.sitemaps?.map((sm) => (
+              <AnalyticsRow
+                key={sm}
+                label="Sitemap"
+                value={sm}
+                hint="Sitemaps Google lists for this page; not a complete list"
+              />
+            ))}
+            {inspection.referringCount != null && (
+              <AnalyticsRow
+                label="Linked from"
+                value={`${inspection.referringCount.toLocaleString()}${
+                  inspection.referringUrls && inspection.referringCount > inspection.referringUrls.length
+                    ? ` (first ${inspection.referringUrls.length} shown)`
+                    : ''
+                }`}
+              />
+            )}
+            {inspection.referringUrls?.map((ref) => (
+              <AnalyticsRow key={ref} label="Referring page" value={ref} />
+            ))}
+            {inspection.richResults?.map((rt) => (
+              <div key={rt.type} className="mt-1 border-t border-surface-800 pt-1">
+                <div className="text-[11px] font-medium text-surface-300">{rt.type}</div>
+                {rt.items.map((it, i) => (
+                  <div key={`${rt.type}-${i}`} className="mb-1 pl-2 text-[11px] text-surface-400">
+                    <span className="text-surface-300">{it.name || '—'}</span>
+                    {` · ${it.errors} error(s), ${it.warnings} warning(s)`}
+                    {it.messages.map((m) => (
+                      <div key={m} className="pl-2 text-surface-500">
+                        {m}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
           </>
         )}
       </AnalyticsCard>

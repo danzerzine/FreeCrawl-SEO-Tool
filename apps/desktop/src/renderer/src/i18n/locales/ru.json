@@ -1914,6 +1914,18 @@
     "summary_other": "{{count}} замечания"
   },
   "gscTab": {
+    "presetRichWarnings": "Расширенные результаты: только предупреждения",
+    "colSitemaps": "Карты сайта",
+    "colSitemapsTip": "Карты сайта, которые Google указывает для этой страницы; список неполный",
+    "colLinkedFrom": "Ссылаются",
+    "colRich": "Расширенные результаты",
+    "inspectDialogTitle": "Проверка URL",
+    "inspectGo": "Проверить",
+    "confirmInspectPlan": "Будет проверено {{n}}, пропущено {{m}} (проверены за последние 24 часа); это {{n}} из 2 000 проверок в сутки для ресурса.",
+    "reinspectRecent": "Перепроверить страницы, проверенные за последние 24 часа",
+    "inspectQuota": "Суточный лимит Google для этого ресурса исчерпан (2 000 в сутки, 600 в минуту); не проверено страниц: {{n}}, попробуйте завтра. Проверено {{inspected}}, пропущено {{skipped}}.",
+    "inspectStopped": "Проверка остановлена: {{message}} Не проверено страниц: {{n}}.",
+    "inspectDone": "Проверено {{inspected}}, пропущено {{skipped}} (проверены за последние 24 часа), с ошибкой {{failed}}.",
     "title": "Search Console",
     "loading": "Загрузка…",
     "unconfiguredTitle": "Google Search Console не настроен",

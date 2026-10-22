@@ -1856,6 +1856,18 @@
     "engineLocal": "offline dictionary — spelling only, no grammar"
   },
   "gscTab": {
+    "presetRichWarnings": "Rich Result Warnings Only",
+    "colSitemaps": "Sitemaps",
+    "colSitemapsTip": "Sitemaps Google lists for this page; not a complete list",
+    "colLinkedFrom": "Linked from",
+    "colRich": "Rich results",
+    "inspectDialogTitle": "URL Inspection",
+    "inspectGo": "Inspect",
+    "confirmInspectPlan": "{{n}} will be inspected, {{m}} inspected in the last 24 hours are skipped; this uses {{n}} of the property's 2 000 a day.",
+    "reinspectRecent": "Re-inspect pages checked in the last 24 hours",
+    "inspectQuota": "Google's daily limit for this property is used up (2 000 a day, 600 a minute); {{n}} pages were not inspected, try again tomorrow. {{inspected}} inspected, {{skipped}} skipped.",
+    "inspectStopped": "Inspection stopped: {{message}} {{n}} pages were not inspected.",
+    "inspectDone": "{{inspected}} inspected, {{skipped}} skipped (inspected in the last 24 hours), {{failed}} failed.",
     "title": "Search Console",
     "loading": "Loading…",
     "unconfiguredTitle": "Google Search Console is not set up",

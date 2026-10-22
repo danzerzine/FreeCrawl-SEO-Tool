@@ -158,3 +158,21 @@ describe('B38 runner: stopping', () => {
     expect(h.progress.at(-1)).toBe(2);
   });
 });
+
+describe('B38 tab source guards (the rendered check is the PC screenshot pass)', () => {
+  const tab = fs.readFileSync(
+    path.join(__dirname, '../renderer/src/tabs/SearchConsoleTab.tsx'),
+    'utf8',
+  );
+  it('has no not-in-sitemap preset and the Sitemaps column says the list is not complete', () => {
+    expect(tab).not.toContain('not-in-sitemap');
+    expect(tab).toContain('rich-result-warnings');
+    expect(tab).toContain('Sitemaps Google lists for this page; not a complete list');
+  });
+  it('the confirm reads the plan from main and sends force; it never counts the page list itself', () => {
+    expect(tab).toContain('gscInspectPlan');
+    expect(tab).toContain('Re-inspect pages checked in the last 24 hours');
+    expect(tab).toMatch(/force,\s*\n?\s*\}\)/);
+    expect(tab).not.toContain('window.confirm');
+  });
+});

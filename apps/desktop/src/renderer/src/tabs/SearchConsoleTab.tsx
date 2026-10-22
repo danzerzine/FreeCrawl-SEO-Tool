@@ -10,8 +10,11 @@ import {
   type GoogleAuthState,
   type GscDateRange,
   type GscFetchMeta,
+  type GscInspectPlan,
   type GscInspectProgress,
+  type GscInspectRunResult,
   type GscPreset,
+  type GscRichResultType,
   type GscRow,
   type GscSite,
 } from '@freecrawl/shared-types';
@@ -47,6 +50,7 @@ const FILTER_PRESETS: { value: GscPreset; labelKey: string; label: string }[] = 
   { value: 'not-mobile-friendly', labelKey: 'gscTab.presetMobile', label: 'Page is Not Mobile Friendly' },
   { value: 'amp-invalid', labelKey: 'gscTab.presetAmp', label: 'AMP URL Invalid' },
   { value: 'rich-result-invalid', labelKey: 'gscTab.presetRich', label: 'Rich Result Invalid' },
+  { value: 'rich-result-warnings', labelKey: 'gscTab.presetRichWarnings', label: 'Rich Result Warnings Only' },
 ];
 
 /** Average-position bands → cell colour (lower is better). */
@@ -96,6 +100,13 @@ export function SearchConsoleTab() {
   const [inspecting, setInspecting] = useState(false);
   const [inspectProgress, setInspectProgress] = useState<GscInspectProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The confirm dialog of the Inspect button: what will run, and whether recent pages are redone. */
+  const [inspectDialog, setInspectDialog] = useState<{
+    urls: string[];
+    force: boolean;
+    plan: GscInspectPlan | null;
+  } | null>(null);
+  const [inspectResult, setInspectResult] = useState<GscInspectRunResult | null>(null);
   /** Bumped by the error screen's Retry — re-runs the bootstrap effect. */
   const [retryNonce, setRetryNonce] = useState(0);
   /** After a pull: how many GSC URLs were missing from the crawl, and
@@ -305,35 +316,56 @@ export function SearchConsoleTab() {
     }
   }, [crawlingNew]);
 
-  const runInspect = useCallback(async () => {
+  const openInspect = useCallback(() => {
     if (!property || inspecting) return;
     const urls = rows.slice(0, INSPECT_BATCH).map((r) => r.url);
     if (urls.length === 0) return;
-    if (
-      !window.confirm(
-        t('gscTab.confirmInspect', {
-          defaultValue:
-            'This uses {{count}} of the {{property}} daily 2 000-URL Inspection quota. Continue?',
-          count: urls.length,
-          property,
-        }),
-      )
-    )
-      return;
+    setInspectResult(null);
+    setInspectDialog({ urls, force: false, plan: null });
+  }, [property, inspecting, rows]);
+
+  // The dialog's counts come from main, which applies the same skip rule as the run itself.
+  const dialogUrls = inspectDialog?.urls;
+  const dialogForce = inspectDialog?.force ?? false;
+  useEffect(() => {
+    if (!dialogUrls || !property) return;
+    let cancelled = false;
+    void window.freecrawl
+      .gscInspectPlan({
+        property,
+        urls: dialogUrls,
+        accountId: accountId || undefined,
+        force: dialogForce,
+      })
+      .then((plan) => {
+        if (!cancelled) setInspectDialog((d) => (d ? { ...d, plan } : d));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogUrls, dialogForce, property, accountId]);
+
+  const runInspect = useCallback(async () => {
+    if (!inspectDialog || !property || inspecting) return;
+    const { urls, force } = inspectDialog;
+    setInspectDialog(null);
     setInspecting(true);
     setError(null);
     try {
-      await window.freecrawl.gscInspectRun({
-        property,
-        urls,
-        accountId: accountId || undefined,
-      });
+      setInspectResult(
+        await window.freecrawl.gscInspectRun({
+          property,
+          urls,
+          accountId: accountId || undefined,
+          force,
+        }),
+      );
     } finally {
       setInspecting(false);
       setInspectProgress(null);
       void reload();
     }
-  }, [property, accountId, inspecting, rows, t, reload]);
+  }, [inspectDialog, property, accountId, inspecting, reload]);
 
   // Live URL Inspection progress.
   useEffect(() => {
@@ -421,7 +453,7 @@ export function SearchConsoleTab() {
 
   // ── Data view ────────────────────────────────────────────────────────
   return (
-    <div className="flex h-full w-full flex-col bg-surface-950">
+    <div className="relative flex h-full w-full flex-col bg-surface-950">
       <div
         className="flex items-center gap-2 border-b border-surface-800 bg-surface-900/40 px-3"
         style={{ height: TOOLBAR_HEIGHT }}
@@ -528,7 +560,7 @@ export function SearchConsoleTab() {
           </button>
           <button
             type="button"
-            onClick={() => void runInspect()}
+            onClick={openInspect}
             disabled={inspecting || fetching || !property || rows.length === 0}
             className="inline-flex h-6 items-center gap-1.5 rounded border border-surface-700 bg-surface-800 px-2.5 text-[11px] font-medium text-surface-200 hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
             title={t('gscTab.inspectTooltip', {
@@ -638,6 +670,86 @@ export function SearchConsoleTab() {
         </div>
       )}
 
+      {inspectResult && (
+        <div className="border-b border-surface-800 bg-surface-900/30 px-3 py-1 text-[10px] text-surface-300">
+          {inspectResult.quotaExhausted
+            ? t('gscTab.inspectQuota', {
+                defaultValue:
+                  "Google's daily limit for this property is used up (2 000 a day, 600 a minute); {{n}} pages were not inspected, try again tomorrow. {{inspected}} inspected, {{skipped}} skipped.",
+                n: inspectResult.remaining,
+                inspected: inspectResult.inspected,
+                skipped: inspectResult.skipped,
+              })
+            : inspectResult.stopMessage
+              ? t('gscTab.inspectStopped', {
+                  defaultValue: 'Inspection stopped: {{message}} {{n}} pages were not inspected.',
+                  message: inspectResult.stopMessage,
+                  n: inspectResult.remaining,
+                })
+              : t('gscTab.inspectDone', {
+                  defaultValue: '{{inspected}} inspected, {{skipped}} skipped (inspected in the last 24 hours), {{failed}} failed.',
+                  inspected: inspectResult.inspected,
+                  skipped: inspectResult.skipped,
+                  failed: inspectResult.failed,
+                })}
+        </div>
+      )}
+
+      {inspectDialog && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
+          <div
+            role="dialog"
+            aria-label={t('gscTab.inspectDialogTitle', { defaultValue: 'URL Inspection' })}
+            className="w-[420px] rounded border border-surface-700 bg-surface-900 p-4 text-[12px] text-surface-200 shadow-xl"
+          >
+            <div className="mb-2 text-[13px] font-semibold">
+              {t('gscTab.inspectDialogTitle', { defaultValue: 'URL Inspection' })}
+            </div>
+            <div className="mb-3 text-surface-300">
+              {inspectDialog.plan
+                ? t('gscTab.confirmInspectPlan', {
+                    defaultValue:
+                      "{{n}} will be inspected, {{m}} inspected in the last 24 hours are skipped; this uses {{n}} of the property's 2 000 a day.",
+                    n: inspectDialog.plan.toInspect,
+                    m: inspectDialog.plan.skipped,
+                  })
+                : t('gscTab.loading', { defaultValue: 'Loading…' })}
+            </div>
+            {(inspectDialog.force || (inspectDialog.plan?.skipped ?? 0) > 0) && (
+              <label className="mb-3 flex items-center gap-2 text-surface-300">
+                <input
+                  type="checkbox"
+                  checked={inspectDialog.force}
+                  onChange={(e) =>
+                    setInspectDialog((d) => (d ? { ...d, force: e.target.checked, plan: null } : d))
+                  }
+                />
+                {t('gscTab.reinspectRecent', {
+                  defaultValue: 'Re-inspect pages checked in the last 24 hours',
+                })}
+              </label>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setInspectDialog(null)}
+                className="h-6 rounded border border-surface-700 bg-surface-800 px-2.5 text-[11px] hover:bg-surface-700"
+              >
+                {t('common.cancel', { defaultValue: 'Cancel' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => void runInspect()}
+                disabled={!inspectDialog.plan || inspectDialog.plan.toInspect === 0}
+                className="h-6 rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-surface-700 disabled:text-surface-500"
+              >
+                {t('gscTab.inspectGo', { defaultValue: 'Inspect' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Column header */}
       <div
         className="flex shrink-0 select-none items-center border-b border-surface-800 bg-surface-900/60 text-[10px] font-medium text-surface-400"
@@ -654,6 +766,11 @@ export function SearchConsoleTab() {
             example={'PASS = indexed · FAIL = not indexed · PART/NEU = discovered but not yet indexed'}
           />
         </div>
+        <div className="w-[64px] shrink-0 text-right" title={t('gscTab.colSitemapsTip', { defaultValue: 'Sitemaps Google lists for this page; not a complete list' })}>
+          {t('gscTab.colSitemaps', { defaultValue: 'Sitemaps' })}
+        </div>
+        <div className="w-[76px] shrink-0 text-right">{t('gscTab.colLinkedFrom', { defaultValue: 'Linked from' })}</div>
+        <div className="w-[130px] shrink-0 px-2">{t('gscTab.colRich', { defaultValue: 'Rich results' })}</div>
         <div className="w-[72px] shrink-0 text-right">{t('gscTab.colClicks', { defaultValue: 'Clicks' })}</div>
         <div className="w-[92px] shrink-0 text-right">{t('gscTab.colImpr', { defaultValue: 'Impressions' })}</div>
         <div className="w-[64px] shrink-0 text-right">{t('gscTab.colCtr', { defaultValue: 'CTR' })}</div>
@@ -753,6 +870,7 @@ function GscDataRow({
   onSelect: () => void;
 }) {
   const g = row.gsc;
+  const insp = row.inspection;
   const status = row.statusCode;
   const statusCls =
     status === null
@@ -779,6 +897,22 @@ function GscDataRow({
       <div className="w-[64px] shrink-0 text-center">
         <VerdictBadge verdict={row.inspection?.verdict ?? null} title={row.inspection?.coverageState ?? null} />
       </div>
+      <div
+        className="w-[64px] shrink-0 text-right tabular-nums text-surface-300"
+        title={
+          insp?.sitemaps && insp.sitemaps.length > 0
+            ? `${insp.sitemaps[0]}\n(Sitemaps Google lists for this page; not a complete list)`
+            : undefined
+        }
+      >
+        {insp?.sitemaps ? insp.sitemaps.length : ''}
+      </div>
+      <div className="w-[76px] shrink-0 text-right tabular-nums text-surface-300">
+        {insp?.referringCount != null ? insp.referringCount.toLocaleString() : ''}
+      </div>
+      <div className="w-[130px] shrink-0 truncate px-2 text-surface-300" title={richSummary(insp?.richResults)}>
+        {richSummary(insp?.richResults)}
+      </div>
       <div className="w-[72px] shrink-0 text-right tabular-nums text-surface-200">
         {g ? g.clicks.toLocaleString() : '—'}
       </div>
@@ -800,6 +934,18 @@ function GscDataRow({
       </div>
     </div>
   );
+}
+
+/** «Product snippets 1E 2W, Breadcrumbs»: each type with its item error / warning counts; empty when not inspected. */
+function richSummary(types: GscRichResultType[] | null | undefined): string {
+  if (!types) return '';
+  return types
+    .map((ty) => {
+      const e = ty.items.filter((it) => it.errors > 0).length;
+      const w = ty.items.filter((it) => it.warnings > 0).length;
+      return [ty.type, e > 0 ? `${e}E` : '', w > 0 ? `${w}W` : ''].filter(Boolean).join(' ');
+    })
+    .join(', ');
 }
 
 function VerdictBadge({
