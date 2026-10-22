@@ -182,7 +182,7 @@ import {
   type Ga4IntegrationSettings,
   type GoogleAccount,
   defaultGscSettings,
-  defaultGa4Settings,
+  mergeGa4Settings,
   type Ga4ListPropertiesResult,
   type Ga4FetchInput,
   type Ga4FetchResult,
@@ -387,7 +387,8 @@ import {
 import { planInspection, runGscInspection, uniqueInspectUrls } from './gsc-inspect-run.js';
 import { exportCategoryToSheets } from './sheets-export.js';
 import { exportCategoryToBigQuery } from './bigquery-export.js';
-import { listProperties as ga4ListProperties, runReport as ga4RunReport } from './ga4.js';
+import { listProperties as ga4ListProperties } from './ga4.js';
+import { ga4FetchFromBridge, ga4FetchFromDesktop, type Ga4EntryEnv } from './ga4-pull.js';
 import {
   listCounters as metricaListCounters,
   fetchPageMetrics as metricaFetchPageMetrics,
@@ -6541,63 +6542,8 @@ function registerIpc(): void {
   );
   registerHandle(
     IPC.ga4Fetch,
-    async (_e, input: Ga4FetchInput): Promise<Ga4FetchResult> => {
-      if (!input.property) {
-        return {
-          ok: false,
-          error: 'No GA4 property selected.',
-          rowCount: 0,
-          meta: null,
-        };
-      }
-      // GA4 data is near-realtime — end the range at today.
-      const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
-      const end = new Date();
-      const start = new Date(end.getTime() - (input.days - 1) * 86_400_000);
-      const startDate = isoDate(start);
-      const endDate = isoDate(end);
-      const runDb = getDb();
-      const accountId = resolveGoogleAccount('ga4', input.accountId);
-      writeIntegrationSettings('ga4', {
-        accountId,
-        property: input.property,
-        propertyName: input.propertyName || input.property,
-        days: input.days,
-      });
-      try {
-        const rows = await ga4RunReport(
-          input.property,
-          startDate,
-          endDate,
-          accountId,
-        );
-        const fetchedAt = new Date().toISOString();
-        runDb.replaceGa4Results(rows, fetchedAt, accountId);
-        const meta: Ga4FetchMeta = {
-          property: input.property,
-          propertyName: input.propertyName || input.property,
-          startDate,
-          endDate,
-          fetchedAt,
-          rowCount: rows.length,
-        };
-        runDb.setMeta(googleMetaKey('ga4FetchMeta', accountId), JSON.stringify(meta));
-        fireDataChanged();
-        logger.log(
-          'info',
-          'ga4',
-          `GA4 pull stored — ${rows.length} page row(s)`,
-        );
-        return { ok: true, error: null, rowCount: rows.length, meta };
-      } catch (err) {
-        return {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-          rowCount: 0,
-          meta: null,
-        };
-      }
-    },
+    async (_e, input: Ga4FetchInput): Promise<Ga4FetchResult> =>
+      ga4FetchFromDesktop(input, ga4EntryEnv()),
   );
   registerHandle(
     IPC.ga4Query,
@@ -8196,10 +8142,21 @@ function registerIpc(): void {
 
   /** Resolve the effective GA4 settings (defaults + stored overrides). */
   function resolveGa4Settings(): Ga4IntegrationSettings {
+    return mergeGa4Settings(readIntegrationSettings('ga4'));
+  }
+
+  /** What the shared GA4 pull needs from the running app. */
+  function ga4EntryEnv(): Ga4EntryEnv {
     return {
-      ...defaultGa4Settings(),
-      ...(readIntegrationSettings('ga4') ?? {}),
-    } as Ga4IntegrationSettings;
+      db: getDb(),
+      now: () => new Date(),
+      resolveAccount: (requested) => resolveGoogleAccount('ga4', requested),
+      readSettings: resolveGa4Settings,
+      writeSettings: (patch) => {
+        writeIntegrationSettings('ga4', patch as Record<string, unknown>);
+      },
+      onChanged: () => fireDataChanged(),
+    };
   }
 
   /**
@@ -8906,55 +8863,9 @@ function registerIpc(): void {
       }
     },
 
-    'ga4-fetch': async (input) => {
-      // Mirrors the desktop's `ga4:fetch` IPC handler exactly — GA4 data
-      // is near-realtime so the range ends at today (unlike GSC's 2-day lag).
-      const i = input as Ga4FetchInput;
-      if (!i.property) {
-        return {
-          ok: false,
-          error: 'property is required (e.g. "properties/123456").',
-          rowCount: 0,
-          meta: null,
-        };
-      }
-      const days = (i.days ?? 28) as 7 | 28 | 90;
-      const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
-      const end = new Date();
-      const start = new Date(end.getTime() - (days - 1) * 86_400_000);
-      const startDate = isoDate(start);
-      const endDate = isoDate(end);
-      const runDb = getDb();
-      const accountId = resolveGoogleAccount('ga4', i.accountId);
-      try {
-        const rows = await ga4RunReport(
-          i.property,
-          startDate,
-          endDate,
-          accountId,
-        );
-        const fetchedAt = new Date().toISOString();
-        runDb.replaceGa4Results(rows, fetchedAt, accountId);
-        const meta = {
-          property: i.property,
-          propertyName: i.propertyName || i.property,
-          startDate,
-          endDate,
-          fetchedAt,
-          rowCount: rows.length,
-        };
-        runDb.setMeta(googleMetaKey('ga4FetchMeta', accountId), JSON.stringify(meta));
-        fireDataChanged();
-        return { ok: true, error: null, rowCount: rows.length, meta };
-      } catch (err) {
-        return {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-          rowCount: 0,
-          meta: null,
-        };
-      }
-    },
+    // Same helper as the desktop's `ga4:fetch` handler; days default to 28 here.
+    'ga4-fetch': async (input) =>
+      ga4FetchFromBridge(input as Ga4FetchInput, ga4EntryEnv()),
 
     'google-auth-status': async (input) => {
       const id = (input as { integrationId?: string }).integrationId ?? '';
