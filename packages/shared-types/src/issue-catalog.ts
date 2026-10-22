@@ -409,6 +409,10 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
     items: [
       { key: 'issues-noindex-js-injected', label: 'Noindex Added by JavaScript', category: 'issues:noindex-js-injected', count: 'noindexJsInjected' },
       { key: 'issues-title-changed-by-js', label: 'Title Changed by JavaScript', category: 'issues:title-changed-by-js', count: 'titleChangedByJs' },
+      { key: 'issues-h1-changed-by-js', label: 'H1 Changed by JavaScript', category: 'issues:h1-changed-by-js', count: 'h1ChangedByJs' },
+      { key: 'issues-canonical-changed-by-js', label: 'Canonical Changed by JavaScript', category: 'issues:canonical-changed-by-js', count: 'canonicalChangedByJs' },
+      { key: 'issues-links-changed-by-js', label: 'Links Changed by JavaScript', category: 'issues:links-changed-by-js', count: 'linksChangedByJs' },
+      { key: 'issues-text-changed-by-js', label: 'Text Changed by JavaScript', category: 'issues:text-changed-by-js', count: 'textChangedByJs' },
     ],
   },
   {

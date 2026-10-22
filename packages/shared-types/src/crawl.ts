@@ -142,6 +142,10 @@ export type UrlCategory =
   | 'issues:blocked-by-robots'
   | 'issues:noindex-js-injected'
   | 'issues:title-changed-by-js'
+  | 'issues:h1-changed-by-js'
+  | 'issues:canonical-changed-by-js'
+  | 'issues:links-changed-by-js'
+  | 'issues:text-changed-by-js'
   | 'issues:amp-validation-errors'
   | 'issues:amp-target-broken'
   | 'issues:amp-target-redirect'
@@ -666,6 +670,16 @@ export interface CrawlUrlRow {
   jsTitleChanged: number;
   /** The title JavaScript sets, when it can be read; null otherwise. */
   jsTitle: string | null;
+  /** `<h1>` differs between the served HTML and the rendered DOM: null not compared, 0 equal, 1 differs (B33). */
+  jsH1Changed: number | null;
+  /** Canonical differs between the served HTML and the rendered DOM (same values as `jsH1Changed`). */
+  jsCanonicalChanged: number | null;
+  /** Internal links added or removed by rendering (same values). */
+  jsLinksChanged: number | null;
+  /** Visible word count differs by more than 20 % and 30 words (same values). */
+  jsTextChanged: number | null;
+  /** JSON detail of what rendering changed (both H1 and canonical, link counts and targets, word counts); null when nothing differs or not compared. */
+  renderDiff: string | null;
   /** Highest estimated text similarity (%) to another page in its near-duplicate cluster. */
   nearDupSimilarity: number | null;
   /** Where the main text came from; null for pages crawled before it was recorded. */
@@ -2096,6 +2110,14 @@ export interface OverviewCounts {
     noindexJsInjected: number;
     /** Pages whose `<title>` is rewritten by JavaScript. */
     titleChangedByJs: number;
+    /** Pages whose `<h1>` differs between the served HTML and the rendered DOM. */
+    h1ChangedByJs: number;
+    /** Pages whose canonical differs between the served HTML and the rendered DOM. */
+    canonicalChangedByJs: number;
+    /** Pages whose internal links differ between the served HTML and the rendered DOM. */
+    linksChangedByJs: number;
+    /** Pages whose visible text differs a lot between the served HTML and the rendered DOM. */
+    textChangedByJs: number;
     ampValidationErrors: number;
     ampTargetBroken: number;
     ampTargetRedirect: number;

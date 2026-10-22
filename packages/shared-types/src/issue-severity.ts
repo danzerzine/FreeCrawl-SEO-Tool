@@ -106,6 +106,8 @@ const WARNING: UrlCategory[] = [
   'issues:blocked-by-robots',
   'issues:noindex-js-injected',
   'issues:title-changed-by-js',
+  'issues:h1-changed-by-js',
+  'issues:canonical-changed-by-js',
   'issues:compression-missing',
   'issues:non-indexable-in-sitemap',
   'issues:non-200-in-sitemap',
@@ -178,6 +180,8 @@ const WARNING: UrlCategory[] = [
 
 /** Informational / stylistic / nice-to-have signals. */
 const INFO: UrlCategory[] = [
+  'issues:links-changed-by-js',
+  'issues:text-changed-by-js',
   'issues:title-pixel-width-too-short',
   'issues:meta-pixel-width-too-short',
   'issues:h2-missing',

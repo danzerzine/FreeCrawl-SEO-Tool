@@ -188,7 +188,20 @@ export const CHECKS_FILLED_META_KEY = 'checksFilled';
  * absent on older projects, which then use the defaults.
  */
 export const SEO_THRESHOLDS_META_KEY = 'seoThresholds';
-/** Page checks added or changed since module 5; this build fills every one of them. */
+/**
+ * The raw-vs-rendered checks of B33. They have a verdict only for a page the
+ * crawl rendered with a render hook; a crawl without one does not fill them.
+ */
+export const RENDER_CHECKS: readonly UrlCategory[] = [
+  'issues:h1-changed-by-js',
+  'issues:canonical-changed-by-js',
+  'issues:links-changed-by-js',
+  'issues:text-changed-by-js',
+];
+/**
+ * Page checks added or changed since module 5. A crawl fills every one of
+ * them, except the RENDER_CHECKS when it did not render with a hook.
+ */
 export const LATER_CHECKS: readonly UrlCategory[] = [
   // Pixel widths: Cyrillic is measured per letter since B77, so an older crawl's widths differ.
   'issues:title-pixel-width-too-long',
@@ -209,6 +222,7 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:h2-duplicate',
   // Text ratio counts characters since B126; an older crawl counted UTF-8 bytes.
   'issues:text-code-ratio-low',
+  ...RENDER_CHECKS,
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -456,6 +470,13 @@ interface UrlRowDb {
   js_title_changed: number;
   /** The title JavaScript sets, when it can be read. */
   js_title: string | null;
+  /** Raw against rendered (B33): NULL not compared, 0 equal, 1 differs. */
+  js_h1_changed: number | null;
+  js_canonical_changed: number | null;
+  js_links_changed: number | null;
+  js_text_changed: number | null;
+  /** JSON detail of the raw-vs-rendered differences; NULL when none or not compared. */
+  render_diff: string | null;
   /** 128-byte MinHash signature of the main content (near-duplicate similarity). */
   minhash: Uint8Array | null;
   /** Best estimated similarity (%) to a near-duplicate cluster mate. */
@@ -759,6 +780,12 @@ export interface UpsertUrlInput {
   jsNoindex?: number;
   jsTitleChanged?: number;
   jsTitle?: string | null;
+  /** B33: NULL / undefined = not compared, 0 = equal, 1 = differs. */
+  jsH1Changed?: number | null;
+  jsCanonicalChanged?: number | null;
+  jsLinksChanged?: number | null;
+  jsTextChanged?: number | null;
+  renderDiff?: string | null;
   minhash?: Uint8Array | null;
   /** Template set the near-duplicate fingerprint was made with (B98); null = none. */
   templateSetId?: number | null;
@@ -948,7 +975,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
+    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
     template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
@@ -994,7 +1021,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
     :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
@@ -1157,6 +1184,11 @@ const UPSERT_URL_SQL = `
     js_noindex = excluded.js_noindex,
     js_title_changed = excluded.js_title_changed,
     js_title = excluded.js_title,
+    js_h1_changed = excluded.js_h1_changed,
+    js_canonical_changed = excluded.js_canonical_changed,
+    js_links_changed = excluded.js_links_changed,
+    js_text_changed = excluded.js_text_changed,
+    render_diff = excluded.render_diff,
     minhash = excluded.minhash,
     template_set_id = excluded.template_set_id,
     content_source = excluded.content_source,
@@ -3065,6 +3097,11 @@ export class ProjectDb {
       js_noindex: input.jsNoindex ?? 0,
       js_title_changed: input.jsTitleChanged ?? 0,
       js_title: input.jsTitle ?? null,
+      js_h1_changed: input.jsH1Changed ?? null,
+      js_canonical_changed: input.jsCanonicalChanged ?? null,
+      js_links_changed: input.jsLinksChanged ?? null,
+      js_text_changed: input.jsTextChanged ?? null,
+      render_diff: input.renderDiff ?? null,
       minhash: input.minhash ?? null,
       template_set_id: input.templateSetId ?? null,
       content_source: input.contentSource ?? null,
@@ -8055,6 +8092,10 @@ export class ProjectDb {
       ),
       noindexJsInjected: gatedCount('issues:noindex-js-injected'),
       titleChangedByJs: gatedCount('issues:title-changed-by-js'),
+      h1ChangedByJs: gatedCount('issues:h1-changed-by-js'),
+      canonicalChangedByJs: gatedCount('issues:canonical-changed-by-js'),
+      linksChangedByJs: gatedCount('issues:links-changed-by-js'),
+      textChangedByJs: gatedCount('issues:text-changed-by-js'),
       charsetMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND (charset IS NULL OR charset = '')`,
@@ -12228,6 +12269,11 @@ export class ProjectDb {
     jsNoindex: r.js_noindex ?? 0,
     jsTitleChanged: r.js_title_changed ?? 0,
     jsTitle: r.js_title ?? null,
+    jsH1Changed: r.js_h1_changed ?? null,
+    jsCanonicalChanged: r.js_canonical_changed ?? null,
+    jsLinksChanged: r.js_links_changed ?? null,
+    jsTextChanged: r.js_text_changed ?? null,
+    renderDiff: r.render_diff ?? null,
     nearDupSimilarity: r.near_dup_similarity ?? null,
     contentSource: (r.content_source as ContentSource | null) ?? null,
     ampPage: r.amp_page === 1,
@@ -12934,7 +12980,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'h1-changed-by-js', 'canonical-changed-by-js', 'links-changed-by-js', 'text-changed-by-js', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -13508,6 +13554,15 @@ function baseCategoryWhereClause(
       return "is_external = 0 AND content_kind = 'html' AND js_noindex > 0";
     case 'issues:title-changed-by-js':
       return "is_external = 0 AND content_kind = 'html' AND js_title_changed > 0";
+    // B33: raw page against rendered page. NULL = not compared, so a plain `= 1`.
+    case 'issues:h1-changed-by-js':
+      return "is_external = 0 AND content_kind = 'html' AND js_h1_changed = 1";
+    case 'issues:canonical-changed-by-js':
+      return "is_external = 0 AND content_kind = 'html' AND js_canonical_changed = 1";
+    case 'issues:links-changed-by-js':
+      return "is_external = 0 AND content_kind = 'html' AND js_links_changed = 1";
+    case 'issues:text-changed-by-js':
+      return "is_external = 0 AND content_kind = 'html' AND js_text_changed = 1";
     case 'issues:charset-missing':
       // HTML 2xx page declares no charset anywhere — neither
       // `<meta charset>` / `<meta http-equiv="Content-Type">` nor the

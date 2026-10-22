@@ -2768,6 +2768,25 @@ const MIGRATIONS: Migration[] = [
         db.exec('ALTER TABLE crawl_queue ADD COLUMN resource_row TEXT');
     },
   },
+  {
+    // B33: raw page against rendered page. NULL = not compared (an old row, a
+    // text-mode crawl, a failed render), 0 = compared and equal, 1 = differs.
+    // No backfill: an old row is "not checked", never 0.
+    version: 121,
+    name: 'add_render_diff',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as { name: string }[];
+      const names = new Set(cols.map((c) => c.name));
+      const add = (col: string, decl: string): void => {
+        if (!names.has(col)) db.exec(`ALTER TABLE urls ADD COLUMN ${col} ${decl}`);
+      };
+      add('js_h1_changed', 'INTEGER');
+      add('js_canonical_changed', 'INTEGER');
+      add('js_links_changed', 'INTEGER');
+      add('js_text_changed', 'INTEGER');
+      add('render_diff', 'TEXT');
+    },
+  },
 ];
 
 export function runMigrations(
