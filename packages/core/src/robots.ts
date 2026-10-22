@@ -142,7 +142,9 @@ export async function loadRobots(
   const attempts = retryDelaysMs.length + 1;
   // Why the last attempt failed in a way worth retrying; null = do not retry.
   let failure: string | null = null;
+  let tried = 0;
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    tried = attempt;
     if (attempt > 1) await new Promise((r) => setTimeout(r, retryDelaysMs[attempt - 2]));
     const earlier = failure;
     failure = null;
@@ -173,8 +175,12 @@ export async function loadRobots(
     } catch (err) {
       const code = retryableNetError(err);
       if (code) failure = `could not be fetched (${code})`;
-      // A timeout after a server error is still a failing robots.txt, not a silent allow.
-      else if (earlier) failure = 'could not be fetched';
+      // A timeout after a server error is still a failing robots.txt, not a
+      // silent allow; it is not retried, so a hung server costs one timeout.
+      else if (earlier) {
+        failure = 'could not be fetched';
+        break;
+      }
     } finally {
       clearTimeout(timeout);
     }
@@ -182,7 +188,7 @@ export async function loadRobots(
   }
   if (failure && onNotice) {
     onNotice(
-      `robots.txt for ${origin} ${failure} on all ${attempts} attempts. FreeCrawl crawls this origin as if robots.txt allowed everything (RFC 9309 says a 5xx means "disallow all", but a transient server error should not block the whole run) — verify the site is reachable if results look off.`,
+      `robots.txt for ${origin} ${failure} on ${tried === attempts ? "all " : ""}${tried} attempts. FreeCrawl crawls this origin as if robots.txt allowed everything (RFC 9309 says a 5xx means "disallow all", but a transient server error should not block the whole run) — verify the site is reachable if results look off.`,
     );
   }
   return NOOP;
