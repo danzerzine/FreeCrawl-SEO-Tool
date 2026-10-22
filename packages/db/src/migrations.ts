@@ -2775,16 +2775,13 @@ const MIGRATIONS: Migration[] = [
     version: 121,
     name: 'add_render_diff',
     up: (db) => {
-      const cols = db.prepare('PRAGMA table_info(urls)').all() as { name: string }[];
-      const names = new Set(cols.map((c) => c.name));
-      const add = (col: string, decl: string): void => {
-        if (!names.has(col)) db.exec(`ALTER TABLE urls ADD COLUMN ${col} ${decl}`);
-      };
-      add('js_h1_changed', 'INTEGER');
-      add('js_canonical_changed', 'INTEGER');
-      add('js_links_changed', 'INTEGER');
-      add('js_text_changed', 'INTEGER');
-      add('render_diff', 'TEXT');
+      addColumnsIfMissing(db, 'urls', [
+        ['js_h1_changed', 'INTEGER'],
+        ['js_canonical_changed', 'INTEGER'],
+        ['js_links_changed', 'INTEGER'],
+        ['js_text_changed', 'INTEGER'],
+        ['render_diff', 'TEXT'],
+      ]);
     },
   },
   {
@@ -2794,17 +2791,30 @@ const MIGRATIONS: Migration[] = [
     version: 122,
     name: 'add_console_log',
     up: (db) => {
-      const cols = db.prepare('PRAGMA table_info(urls)').all() as { name: string }[];
-      const names = new Set(cols.map((c) => c.name));
-      const add = (col: string, decl: string): void => {
-        if (!names.has(col)) db.exec(`ALTER TABLE urls ADD COLUMN ${col} ${decl}`);
-      };
-      add('console_errors', 'INTEGER');
-      add('failed_resources', 'INTEGER');
-      add('console_log', 'TEXT');
+      addColumnsIfMissing(db, 'urls', [
+        ['console_errors', 'INTEGER'],
+        ['failed_resources', 'INTEGER'],
+        ['console_log', 'TEXT'],
+      ]);
     },
   },
 ];
+
+/** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */
+function addColumnsIfMissing(
+  db: DatabaseSync,
+  table: string,
+  columns: ReadonlyArray<readonly [string, string]>,
+): void {
+  const have = new Set(
+    (db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[]).map(
+      (c) => c.name,
+    ),
+  );
+  for (const [col, decl] of columns) {
+    if (!have.has(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
+  }
+}
 
 export function runMigrations(
   db: DatabaseSync,
