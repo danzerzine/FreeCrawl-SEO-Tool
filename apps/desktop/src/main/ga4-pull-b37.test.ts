@@ -455,3 +455,27 @@ describe('B37 two entry points share one helper (r1 M2, r2-L3)', () => {
     expect(src).toMatch(/ga4FetchFromBridge\(/);
   });
 });
+
+describe('GA4 with a dead Google sign-in (P1)', () => {
+  const dead = (g: ReturnType<typeof fakeGoogle>) => {
+    g.deps.getToken = async () => {
+      throw new Error('Token has been expired or revoked.');
+    };
+  };
+
+  it('the pull fails with the reconnect error and sends no request', async () => {
+    const g = fakeGoogle(() => fiveReply());
+    dead(g);
+    const err = await runPull(g, { customMetrics: ['customEvent:reads'] }).catch((e: unknown) => e);
+    expect((err as Error).name).toBe('GoogleAuthError');
+    expect(g.log).toHaveLength(0);
+  });
+
+  it('listProperties fails the same way', async () => {
+    const { listProperties } = await import('./ga4.js');
+    const g = fakeGoogle(() => ({ status: 200 }));
+    dead(g);
+    const err = await listProperties(undefined, g.deps).catch((e: unknown) => e);
+    expect((err as Error).name).toBe('GoogleAuthError');
+  });
+});

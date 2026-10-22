@@ -52,8 +52,14 @@ export class GoogleAuthError extends Error {
   constructor(
     op: string,
     fix = 'Reconnect the Google account in Settings → Integrations and try again.',
+    /** Why no token could be had (the token request's own message); replaces the «HTTP 401» wording. */
+    reason?: string,
   ) {
-    super(`${op} failed: Google rejected the sign-in (HTTP 401). ${fix}`);
+    super(
+      reason
+        ? `${op} failed: no Google sign-in token (${reason}) ${fix}`
+        : `${op} failed: Google rejected the sign-in (HTTP 401). ${fix}`,
+    );
     this.name = 'GoogleAuthError';
   }
 }
@@ -124,7 +130,15 @@ function isRetryable(status: number): boolean {
 
 export async function googleRequest(deps: GoogleDeps, req: GoogleRequest): Promise<GoogleResponse> {
   const retryNetwork = req.retryNetwork ?? true;
-  let token = await deps.getToken();
+  let token: string;
+  try {
+    token = await deps.getToken();
+  } catch (err) {
+    // A dead refresh token or a disconnected account is the same stop as a rejected one; only an
+    // unreachable token endpoint stays a plain (network) error.
+    if (isNetworkFailure(err)) throw err;
+    throw new GoogleAuthError(req.op, deps.authFix, err instanceof Error ? err.message : String(err));
+  }
   let refreshed = false;
   let waited = 0;
   let attempt = 0;

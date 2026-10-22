@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { googleRequest, type GoogleDeps } from './google-retry.js';
+import { GoogleAuthError, googleRequest, type GoogleDeps } from './google-retry.js';
 
 type Reply = { status: number; headers?: Record<string, string>; body?: unknown } | 'network';
 
@@ -104,5 +104,28 @@ describe('googleRequest (B60)', () => {
     const t2 = makeDeps([{ status: 401 }]);
     await expect(googleRequest(t2.deps, req)).rejects.toThrow(/Reconnect the Google account/);
     expect(t2.calls).toHaveLength(2);
+  });
+});
+
+describe('googleRequest token failures (P1)', () => {
+  it('a plain Error from the first token request is a GoogleAuthError, and nothing is sent', async () => {
+    const t = makeDeps([{ status: 200 }]);
+    t.deps.getToken = async () => {
+      throw new Error('"gsc" is not connected — sign in with Google first.');
+    };
+    const err = await googleRequest(t.deps, req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(GoogleAuthError);
+    expect((err as Error).message).toContain('test op');
+    expect((err as Error).message).toContain('not connected');
+    expect(t.calls).toHaveLength(0);
+  });
+
+  it('a network failure of the first token request is not an auth error', async () => {
+    const t = makeDeps([{ status: 200 }]);
+    t.deps.getToken = async () => {
+      throw new TypeError('fetch failed');
+    };
+    const err = await googleRequest(t.deps, req).catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(GoogleAuthError);
   });
 });

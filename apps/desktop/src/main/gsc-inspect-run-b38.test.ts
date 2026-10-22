@@ -3,7 +3,13 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
-import { GoogleAuthError, GooglePermissionError, GoogleQuotaError } from './google-retry.js';
+import {
+  GoogleAuthError,
+  GooglePermissionError,
+  GoogleQuotaError,
+  googleRequest,
+  type GoogleDeps,
+} from './google-retry.js';
 import { planInspection, runGscInspection } from './gsc-inspect-run.js';
 import type { GscInspectionRaw } from './gsc.js';
 
@@ -174,5 +180,45 @@ describe('B38 tab source guards (the rendered check is the PC screenshot pass)',
     expect(tab).toContain('Re-inspect pages checked in the last 24 hours');
     expect(tab).toMatch(/force,\s*\n?\s*\}\)/);
     expect(tab).not.toContain('window.confirm');
+  });
+});
+
+describe('B38 runner: a dead Google sign-in (P1)', () => {
+  it('a token request that fails stops the run: one token request, ok rows untouched, no error rows', async () => {
+    const urls = [u(1), u(2), u(3)];
+    for (const url of urls) seed(url, 'acc1', { ageH: 30 });
+    const before = db.gscInspectionStates(urls, 'acc1');
+    let tokenRequests = 0;
+    const deps: GoogleDeps = {
+      fetch: (async () => {
+        throw new Error('the API must not be reached without a token');
+      }) as unknown as GoogleDeps['fetch'],
+      // What getAccessToken throws for invalid_grant or a disconnected account: a plain Error.
+      getToken: async () => {
+        tokenRequests++;
+        throw new Error('Token has been expired or revoked.');
+      },
+      sleep: async () => {},
+      now: () => NOW,
+      random: () => 0,
+      log: () => {},
+    };
+    const res = await runGscInspection(
+      { property: 'sc-domain:ex.test', urls, accountId: 'acc1' },
+      {
+        inspect: async (_p, url) => {
+          await googleRequest(deps, { op: 'URL Inspection', method: 'POST', url: `https://x.test/${url}` });
+          return raw();
+        },
+        db,
+        now: () => NOW,
+        isCancelled: () => false,
+      },
+    );
+    expect(tokenRequests).toBe(1);
+    expect(res.stopMessage).toContain('URL Inspection');
+    expect(res).toMatchObject({ inspected: 0, failed: 0, remaining: 3 });
+    expect(db.gscInspectionStates(urls, 'acc1')).toEqual(before);
+    for (const s of db.gscInspectionStates(urls, 'acc1').values()) expect(s.status).toBe('ok');
   });
 });
