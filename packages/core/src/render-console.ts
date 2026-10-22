@@ -64,13 +64,11 @@ export function attachConsoleCollector(
     const text = m.text();
     if (RESOURCE_ECHO.test(text)) return;
     log.errors++;
-    if (log.entries.length < CONSOLE_LOG_MAX_ENTRIES) push({ kind: 'console', text: clip(text) });
+    push({ kind: 'console', text: clip(text) });
   };
   const onPageError = (e: unknown): void => {
     log.errors++;
-    if (log.entries.length < CONSOLE_LOG_MAX_ENTRIES) {
-      push({ kind: 'pageerror', text: clip(e instanceof Error ? e.message : String(e)) });
-    }
+    push({ kind: 'pageerror', text: clip(e instanceof Error ? e.message : String(e)) });
   };
   const onResponse = (resp: { status(): number; url(): string; request(): Req }): void => {
     const status = resp.status();

@@ -560,15 +560,17 @@ export async function renderUrl(
       scriptResult = outcome.json;
       if (outcome.timedOut) {
         // A script that blocks the renderer also hangs everything after it.
+        let probeTimer: ReturnType<typeof setTimeout> | undefined;
         const answered = await Promise.race([
           page.evaluate('1').then(
             () => true,
             () => false,
           ),
-          new Promise<boolean>((r) =>
-            setTimeout(() => r(false), opts.pageScriptProbeMs ?? PAGE_SCRIPT_PROBE_MS),
-          ),
+          new Promise<boolean>((r) => {
+            probeTimer = setTimeout(() => r(false), opts.pageScriptProbeMs ?? PAGE_SCRIPT_PROBE_MS);
+          }),
         ]);
+        clearTimeout(probeTimer);
         if (!answered) {
           discard = true;
           await page.close({ runBeforeUnload: false }).catch(() => {});
