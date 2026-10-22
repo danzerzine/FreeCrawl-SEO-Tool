@@ -53,18 +53,19 @@ afterAll(() => {
 });
 
 describe('screenshots', () => {
-  const shots = (): string => path.join(dir, 'shots');
-  const png = (name: string): string => {
-    const p = path.join(shots(), name);
-    fs.mkdirSync(shots(), { recursive: true });
+  // Only PNGs in the project's own `<file>.screenshots/` folder are copied.
+  const shots = (project: string): string => path.join(dir, `${project}.screenshots`);
+  const png = (project: string, name: string): string => {
+    const p = path.join(shots(project), name);
+    fs.mkdirSync(shots(project), { recursive: true });
     fs.writeFileSync(p, Buffer.from(`PNG:${name}`));
     return p;
   };
 
   it('copies the PNGs and lists them in screenshots.csv; a missing file is an error, the rest are still written', () => {
-    const a = png('a-full.png');
-    const b = png('a-fold.png');
-    const missing = path.join(shots(), 'gone.png');
+    const a = png('shots.seoproject', 'a-full.png');
+    const b = png('shots.seoproject', 'a-fold.png');
+    const missing = path.join(shots('shots.seoproject'), 'gone.png');
     const project = fixtureProject(
       'shots.seoproject',
       `INSERT INTO urls (id, url, status_code) VALUES (1, 'https://ex.com/a', 200), (2, 'https://ex.com/b', 200);
@@ -86,8 +87,8 @@ describe('screenshots', () => {
     expect(j.errors[0]!.error).toContain(missing);
   });
   it('two URLs with the same last path segment get different names', () => {
-    const a = png('one.png');
-    const b = png('two.png');
+    const a = png('shots-same-stem.seoproject', 'one.png');
+    const b = png('shots-same-stem.seoproject', 'two.png');
     const project = fixtureProject(
       'shots-same-stem.seoproject',
       `INSERT INTO urls (id, url, status_code) VALUES (1, 'https://ex.com/a/pricing', 200), (2, 'https://ex.com/b/pricing', 200);

@@ -254,14 +254,18 @@ export options:
                                     previous crawl's count, change since
                         screenshots screenshots/ (the PNGs of the project's .screenshots folder, named
                                     <page>-<fullpage|fold|mobile>.png) and screenshots.csv. Not in bulk. Only
-                                    projects saved by the desktop app have screenshots; none stored: exit 1
+                                    projects saved by the desktop app have screenshots; none stored: exit 1.
+                                    Only PNGs inside the project's .screenshots folder are copied; any
+                                    other stored path is listed as "outside project" and not copied
                         pdfs        pdfs/ (the PDF documents of the crawl, downloaded now at 2 requests/s,
                                     50 MB per file) and pdfs.csv (url, file, bytes, status, title, author,
                                     pages). Not in bulk. A file already in pdfs/ is not fetched again. Uses
                                     the user agent and custom headers of --config, else of the project's last
                                     crawl config; secrets saved by the desktop app cannot be read, so with a
                                     login (basic, digest, bearer, browser) nothing is requested: every row
-                                    says why and the run exits 1. A saved proxy is not applied.
+                                    says why and the run exits 1. A digest or form login that is readable
+                                    is not performed either: those PDFs are skipped the same way. A reply
+                                    that is not a PDF is never saved. A saved proxy is not applied.
                                     PDF text is not extracted.
                         tab:<key> / issues:<key>
                                     one category CSV, e.g. tab:redirects, issues:title-missing
@@ -273,7 +277,8 @@ export options:
                                     response-headers, images, pagespeed, crux, spelling, ai:<provider>,
                                     seo:<provider>
                                     (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies
-                                    exceed the CSV cell limit). issue-inlinks writes every issue into
+                                    exceed the CSV cell limit; not in bulk). crawl-queue is the URLs a
+                                    stopped crawl had not fetched yet (in bulk). issue-inlinks writes every issue into
                                     the issue-inlinks/ subfolder (not in bulk: every link into every
                                     flagged page, tens of GB on a large site: prefer issue-inlinks:<check>). Nothing stored: no file, reason in
                                     errors and on stderr (exit 1). Not offered: selected-* (use

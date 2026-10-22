@@ -16,7 +16,8 @@ import type { ProjectDb } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import { fetch as undiciFetch } from 'undici';
 import { writeExportFile } from './export-file.js';
-import { defaultRequestHeaders } from './http-client.js';
+import { defaultRequestHeaders, formatFetchError } from './http-client.js';
+import { locateScreenshot, screenshotDirFor } from './screenshot-paths.js';
 import { escapeCsv } from './spreadsheet.js';
 
 /** What one media export did; the caller turns `errors` into the run's errors. */
@@ -53,12 +54,16 @@ function urlStem(url: string): string {
 /** A short hash of the URL, appended to a name another URL already took. */
 const shortHash = (url: string): string => createHash('sha1').update(url).digest('hex').slice(0, 8);
 
-/** `<stem><suffix><ext>`; the URL's short hash goes after the stem when another URL took the name. */
+/**
+ * `<stem><suffix><ext>`; the URL's short hash goes after the stem when another
+ * URL took the name. Names are compared lower-cased: macOS and Windows file
+ * systems treat `Guide.pdf` and `guide.pdf` as one file.
+ */
 function uniqueName(taken: Set<string>, url: string, suffix: string, ext: string): string {
   const stem = urlStem(url);
   let name = `${stem}${suffix}${ext}`;
-  if (taken.has(name)) name = `${stem}-${shortHash(url)}${suffix}${ext}`;
-  taken.add(name);
+  if (taken.has(name.toLowerCase())) name = `${stem}-${shortHash(url)}${suffix}${ext}`;
+  taken.add(name.toLowerCase());
   return name;
 }
 
@@ -72,22 +77,47 @@ async function writeSmallCsv(path: string, header: string[], rows: unknown[][]):
   await writeExportFile(path, (partPath) => writeFile(partPath, text, 'utf8'));
 }
 
+export interface ScreenshotExportOptions {
+  /**
+   * The project file as it is now. Only PNGs inside its `<name>.screenshots/`
+   * folder are copied (the rule of the desktop's screenshot viewer); none
+   * given means no folder, so every stored path counts as outside.
+   */
+  projectFile?: string;
+}
+
+const OUTSIDE_STATUS = 'outside project';
+
 /**
  * Copy the stored screenshot PNGs into `<outDir>/screenshots/` as
  * `<stem>-<fullpage|fold|mobile>.png` and list them in `screenshots.csv`
- * (url, kind, file, bytes). A path whose file is gone is an error entry;
- * the others are still written.
+ * (url, kind, file, bytes, status). Only a `.png` inside the project's
+ * sidecar folder is copied; a path from the sidecar of the project's old
+ * place or name is found by file name in the current one. Any other path is
+ * a row with status "outside project" and an error entry; a file that is
+ * gone is an error entry. The others are still written.
  */
-export async function exportScreenshots(db: ProjectDb, outDir: string): Promise<MediaExportResult> {
+export async function exportScreenshots(
+  db: ProjectDb,
+  outDir: string,
+  options: ScreenshotExportOptions = {},
+): Promise<MediaExportResult> {
   const errors: string[] = [];
   const rows: unknown[][] = [];
   const taken = new Set<string>();
+  const roots = options.projectFile ? [screenshotDirFor(options.projectFile)] : [];
   let stored = 0;
   for (const shot of db.iterateScreenshotPaths()) {
     stored++;
+    const source = locateScreenshot(shot.path, roots);
+    if (!source) {
+      errors.push(`${shot.url} (${shot.kind}): ${OUTSIDE_STATUS}: ${shot.path}`);
+      rows.push([shot.url, shot.kind, '', null, OUTSIDE_STATUS]);
+      continue;
+    }
     let bytes: number;
     try {
-      bytes = (await stat(shot.path)).size;
+      bytes = (await stat(source)).size;
     } catch {
       errors.push(`${shot.url} (${shot.kind}): file not found: ${shot.path}`);
       continue;
@@ -96,13 +126,13 @@ export async function exportScreenshots(db: ProjectDb, outDir: string): Promise<
     try {
       await mkdir(join(outDir, 'screenshots'), { recursive: true });
       await writeExportFile(join(outDir, 'screenshots', name), (partPath) =>
-        copyFile(shot.path, partPath),
+        copyFile(source, partPath),
       );
     } catch (err) {
       errors.push(`${shot.url} (${shot.kind}): ${(err as Error).message}`);
       continue;
     }
-    rows.push([shot.url, shot.kind, `screenshots/${basename(name)}`, bytes]);
+    rows.push([shot.url, shot.kind, `screenshots/${basename(name)}`, bytes, 'copied']);
   }
   if (stored === 0) {
     return {
@@ -114,7 +144,7 @@ export async function exportScreenshots(db: ProjectDb, outDir: string): Promise<
   }
   if (rows.length === 0) return { rows: 0, csvPath: null, errors, skipped: [] };
   const csvPath = join(outDir, 'screenshots.csv');
-  await writeSmallCsv(csvPath, ['url', 'kind', 'file', 'bytes'], rows);
+  await writeSmallCsv(csvPath, ['url', 'kind', 'file', 'bytes', 'status'], rows);
   return { rows: rows.length, csvPath, errors, skipped: [] };
 }
 
@@ -158,11 +188,27 @@ export function authSecretsEncrypted({ config, secretsEnc }: PdfCrawlConfig): bo
   return login?.enabled === true && login.browser?.passwordValue === '';
 }
 
+const PDF_MAGIC = Buffer.from('%PDF-');
 const PDF_MAX_FILE_BYTES = 50 * 1024 * 1024;
 export const PDF_MAX_RUN_BYTES = 2 * 1024 * 1024 * 1024;
 const PDF_REQUEST_GAP_MS = 500;
 const PDF_REQUEST_TIMEOUT_MS = 120_000;
 const AUTH_SKIP_STATUS = 'skipped: auth secrets are encrypted by the desktop app';
+
+/**
+ * What in a readable config the PDF fetch cannot do: it sends plain headers
+ * (basic, bearer, custom) and nothing else. Digest needs a challenge round
+ * trip and a form login needs the crawler's session, so those PDFs would
+ * come back as 401 or as the login page. Null when nothing blocks.
+ */
+export function unsupportedPdfAuth(config: Partial<CrawlConfig>): string | null {
+  if (config.auth?.type === 'digest') return 'digest authentication';
+  const login = config.formLogin;
+  if (login?.enabled === true && (login.mode === 'browser' || (login.steps?.length ?? 0) > 0)) {
+    return 'form login';
+  }
+  return null;
+}
 
 export interface PdfExportOptions {
   /** From `--config` or the project's `lastCrawlConfig`; none: defaults. */
@@ -171,6 +217,8 @@ export interface PdfExportOptions {
   maxBytes?: number;
   /** One line per notice (the CLI sends it to stderr). */
   onProgress?: (line: string) => void;
+  /** Pause between two requests, ms (default 500: 2 per second); tests pass 0. */
+  requestGapMs?: number;
 }
 
 /** Thrown for a file left out on purpose; the message is its reason. */
@@ -200,10 +248,15 @@ export async function exportPdfs(
   }
   const errors: string[] = [];
   const skipped: string[] = [];
-  const authSkip = authSecretsEncrypted(crawl);
-  if (authSkip) {
+  const unsupported = authSecretsEncrypted(crawl) ? null : unsupportedPdfAuth(crawl.config);
+  const authSkipStatus = authSecretsEncrypted(crawl)
+    ? AUTH_SKIP_STATUS
+    : unsupported
+      ? `skipped: ${unsupported} is not supported for PDF files`
+      : null;
+  if (authSkipStatus) {
     errors.push(
-      `${files.length} PDF(s) not requested: auth secrets are encrypted by the desktop app`,
+      `${files.length} PDF(s) not requested: ${authSkipStatus.replace(/^skipped: /, '')}`,
     );
   } else if (crawl.secretsEnc) {
     progress(
@@ -217,6 +270,9 @@ export async function exportPdfs(
     config.customHeaders,
     config.auth,
   );
+  for (const key of Object.keys(headers)) {
+    if (['accept', 'accept-encoding'].includes(key.toLowerCase())) delete headers[key];
+  }
   headers['accept'] = 'application/pdf,*/*;q=0.8';
   headers['accept-encoding'] = 'identity';
   const runCap = options.maxBytes ?? PDF_MAX_RUN_BYTES;
@@ -224,8 +280,9 @@ export async function exportPdfs(
   const rows: unknown[][] = [];
   let total = 0;
   let lastRequest = 0;
+  const gapMs = options.requestGapMs ?? PDF_REQUEST_GAP_MS;
   const request = async (method: 'GET' | 'HEAD', url: string) => {
-    const wait = lastRequest + PDF_REQUEST_GAP_MS - Date.now();
+    const wait = lastRequest + gapMs - Date.now();
     if (wait > 0) await sleep(wait);
     lastRequest = Date.now();
     return undiciFetch(url, {
@@ -246,8 +303,8 @@ export async function exportPdfs(
       status,
       ...meta,
     ];
-    if (authSkip) {
-      rows.push(row(AUTH_SKIP_STATUS, null));
+    if (authSkipStatus) {
+      rows.push(row(authSkipStatus, null));
       continue;
     }
     try {
@@ -263,7 +320,6 @@ export async function exportPdfs(
         present = head.ok && Number(head.headers.get('content-length')) === have;
       }
       if (present) {
-        total += have;
         rows.push(row('already present', have));
         continue;
       }
@@ -285,12 +341,21 @@ export async function exportPdfs(
         await res.body.cancel();
         throw new PdfSkip(`skipped: would pass the run cap of ${runCap} bytes`);
       }
+      const type = res.headers.get('content-type') ?? '';
       let bytes = 0;
+      let first = true;
       await writeExportFile(dest, (partPath) =>
         pipeline(
           Readable.fromWeb(res.body as ReadableStream),
           new Transform({
             transform(chunk: Buffer, _enc, cb) {
+              if (first) {
+                first = false;
+                // Servers answer a login page or an error page with 200: only a PDF is kept.
+                if (!/application\/pdf/i.test(type) && !chunk.subarray(0, 5).equals(PDF_MAGIC)) {
+                  return cb(new Error(`not a PDF (got ${type.split(';')[0]!.trim() || 'no content type'})`));
+                }
+              }
               bytes += chunk.length;
               cb(
                 bytes > room
@@ -310,7 +375,7 @@ export async function exportPdfs(
       total += bytes;
       rows.push(row('downloaded', bytes));
     } catch (err) {
-      const msg = (err as Error).message;
+      const msg = err instanceof PdfSkip ? err.message : formatFetchError(err);
       if (err instanceof PdfSkip) skipped.push(`${f.url}: ${msg}`);
       else errors.push(`${f.url}: ${msg}`);
       rows.push(row(err instanceof PdfSkip ? msg : `failed: ${msg}`, null));

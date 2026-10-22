@@ -238,7 +238,9 @@ export async function runExportItems(
         });
         outcome.files.push({ path, label: 'HTML Report', rows: null });
       } else if (item.kind === 'screenshots') {
-        const r = await exportScreenshots(db, outDir);
+        const r = await exportScreenshots(db, outDir, {
+          ...(options.projectFile ? { projectFile: options.projectFile } : {}),
+        });
         if (r.csvPath) outcome.files.push({ path: r.csvPath, label: 'Screenshots', rows: r.rows });
         for (const error of r.errors) {
           progress(`Screenshots: ${error}`);

@@ -324,6 +324,8 @@ import {
   buildLogExportCsv,
   extractProseText,
   issueTrend,
+  screenshotDirFor,
+  pngInsideRoots,
   compareChangesText,
   type CompareSummary,
   type LogAnalysisResult,
@@ -2599,14 +2601,9 @@ function markDirty(s: ProjectSession): void {
   updateWindowTitle(s);
 }
 
-/**
- * V2 Faz 1 — Screenshot PNGs are too big to sit in the database, so they
- * live on disk in a sidecar directory named after the file the session is
- * bound to: `<name>.screenshots/`.
- */
-function screenshotDirFor(basePath: string): string {
-  return join(dirname(basePath), `${basename(basePath)}.screenshots`);
-}
+// V2 Faz 1 — Screenshot PNGs are too big to sit in the database, so they live
+// in a sidecar directory named `<name>.screenshots/` (`screenshotDirFor`, core,
+// shared with `freecrawl export --what screenshots`).
 
 /**
  * Sidecar for whatever this session is actually writing to. An unsaved
@@ -4985,25 +4982,16 @@ function registerIpc(): void {
     IPC.screenshotRead,
     async (_e, absolutePath: string): Promise<string | null> => {
       if (typeof absolutePath !== 'string' || absolutePath.length === 0) return null;
-      // Resolve both the requested file AND the allowed root so `..`
-      // traversal can't escape the sidecar. Without `path.resolve` the
-      // naive startsWith() lets `<root>/../../../etc/passwd` pass.
-      const resolved = resolvePath(absolutePath);
       const allowedRoots: string[] = [];
       const sess = currentSession();
       // Both sidecars: the document's own, and the working/scratch one —
       // rows captured before the project was ever saved point at the latter.
       for (const base of [sess.currentProjectPath, sess.scratchPath]) {
-        if (base) allowedRoots.push(resolvePath(screenshotDirFor(base)));
+        if (base) allowedRoots.push(screenshotDirFor(base));
       }
-      // Append the separator so that `<root>` doesn't match `<root>2`.
-      const safe = allowedRoots.some(
-        (root) => resolved === root || resolved.startsWith(root + pathSep),
-      );
-      if (!safe) return null;
-      // Only allow PNGs — extra defence in depth against the guard
-      // returning unintended files if the roots set ever broadens.
-      if (!resolved.toLowerCase().endsWith('.png')) return null;
+      // Inside a sidecar (`..` resolved, `<root>2` not matching) and a .png.
+      const resolved = pngInsideRoots(absolutePath, allowedRoots);
+      if (!resolved) return null;
       try {
         const buf = readFileSync(resolved);
         return `data:image/png;base64,${buf.toString('base64')}`;
