@@ -139,6 +139,16 @@ describe('exportPdfs', () => {
         res.writeHead(200, { 'content-type': 'text/html' });
         return void res.end('<html>please log in</html>');
       }
+      if (url === '/empty.pdf') {
+        res.writeHead(200, { 'content-type': 'application/pdf', 'content-length': 0 });
+        return void res.end();
+      }
+      if (url === '/split.pdf') {
+        // No content type, and the first chunk is shorter than the 5-byte magic.
+        res.writeHead(200, { 'content-type': 'application/octet-stream' });
+        res.write('%P');
+        return void setTimeout(() => res.end('DF-1.4\nsplit'), 50);
+      }
       const body = FILES[url];
       if (!body) return void res.writeHead(404).end();
       res.writeHead(200, { 'content-type': 'application/pdf', 'content-length': body.length });
@@ -166,6 +176,21 @@ describe('exportPdfs', () => {
     expect(r.errors.join('\n')).toMatch(/not a PDF \(got text\/html\)/);
     expect(fs.existsSync(path.join(out, 'pdfs', 'login.pdf'))).toBe(false);
     expect(csv(path.join(out, 'pdfs.csv')).join('\n')).toMatch(/failed: not a PDF/);
+  });
+
+  it('an empty 200 body is an error, not a downloaded 0-byte file', async () => {
+    const out = path.join(dir, 'out-empty');
+    const r = await exportPdfs(project(['/empty.pdf']), out, opts);
+    expect(r.errors.join('\n')).toMatch(/empty body/);
+    expect(csv(path.join(out, 'pdfs.csv')).join('\n')).toMatch(/failed: empty body/);
+    expect(fs.existsSync(path.join(out, 'pdfs', 'empty.pdf'))).toBe(false);
+  });
+
+  it('the %PDF- check waits for 5 bytes when the first chunk is shorter', async () => {
+    const out = path.join(dir, 'out-split');
+    const r = await exportPdfs(project(['/split.pdf']), out, opts);
+    expect(r.errors).toEqual([]);
+    expect(fs.readFileSync(path.join(out, 'pdfs', 'split.pdf'), 'utf8')).toBe('%PDF-1.4\nsplit');
   });
 
   it.each([

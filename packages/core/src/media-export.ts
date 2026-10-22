@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { copyFile, mkdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Readable, Transform } from 'node:stream';
+import { Readable, Transform, type TransformCallback } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream } from 'node:stream/web';
 import type { ProjectDb } from '@freecrawl/db';
@@ -344,30 +344,43 @@ export async function exportPdfs(
       }
       const type = res.headers.get('content-type') ?? '';
       let bytes = 0;
-      let first = true;
+      // The magic check needs 5 bytes: a shorter first chunk waits for the next one.
+      let head: Buffer | null = Buffer.alloc(0);
+      const accept = (chunk: Buffer, cb: TransformCallback): void => {
+        bytes += chunk.length;
+        cb(
+          bytes > room
+            ? new PdfSkip(
+                bytes > PDF_MAX_FILE_BYTES
+                  ? `skipped: larger than the ${PDF_MAX_FILE_BYTES / 1024 / 1024} MB per-file cap`
+                  : `skipped: would pass the run cap of ${runCap} bytes`,
+              )
+            : null,
+          chunk,
+        );
+      };
+      const notPdf = (): Error =>
+        new Error(`not a PDF (got ${type.split(';')[0]!.trim() || 'no content type'})`);
       await writeExportFile(dest, (partPath) =>
         pipeline(
           Readable.fromWeb(res.body as ReadableStream),
           new Transform({
             transform(chunk: Buffer, _enc, cb) {
-              if (first) {
-                first = false;
-                // Servers answer a login page or an error page with 200: only a PDF is kept.
-                if (!/application\/pdf/i.test(type) && !chunk.subarray(0, 5).equals(PDF_MAGIC)) {
-                  return cb(new Error(`not a PDF (got ${type.split(';')[0]!.trim() || 'no content type'})`));
-                }
+              if (head === null) return accept(chunk, cb);
+              head = Buffer.concat([head, chunk]);
+              if (head.length < 5 && !/application\/pdf/i.test(type)) return cb(); // wait for 5 bytes
+              // Servers answer a login page or an error page with 200: only a PDF is kept.
+              if (!/application\/pdf/i.test(type) && !head.subarray(0, 5).equals(PDF_MAGIC)) {
+                return cb(notPdf());
               }
-              bytes += chunk.length;
-              cb(
-                bytes > room
-                  ? new PdfSkip(
-                      bytes > PDF_MAX_FILE_BYTES
-                        ? `skipped: larger than the ${PDF_MAX_FILE_BYTES / 1024 / 1024} MB per-file cap`
-                        : `skipped: would pass the run cap of ${runCap} bytes`,
-                    )
-                  : null,
-                chunk,
-              );
+              const all = head;
+              head = null;
+              accept(all, cb);
+            },
+            flush(cb) {
+              if (bytes === 0 && (head === null || head.length === 0)) return cb(new Error('empty body'));
+              if (head === null) return cb();
+              cb(notPdf()); // the whole body is under 5 bytes and no PDF content type
             },
           }),
           createWriteStream(partPath),
