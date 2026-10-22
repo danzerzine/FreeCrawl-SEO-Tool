@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import { Crawler } from './crawler.js';
+import type { ServerHealth } from './server-health.js';
 
 /*
  * A site of pages /p/N, each linking to three more. Per test, some pages
@@ -207,8 +208,22 @@ describe('adaptive speed on server trouble (B30)', () => {
   it('503 answers are rate limiting, not server trouble', async () => {
     failing = (k) => k > 0 && k % 3 === 0;
     failStatus = 503;
-    const run = await crawl({ adaptiveSpeed: true, maxUrls: 20, retryAttempts: 0 });
-    expect(run.events).toEqual([]);
+    let trouble = 0;
+    await crawl(
+      { adaptiveSpeed: true, maxUrls: 20, retryAttempts: 0 },
+      {
+        setup: (c) => {
+          const health = (c as unknown as { serverHealth: ServerHealth }).serverHealth;
+          const note = health.noteOutcome.bind(health);
+          health.noteOutcome = (bad, now) => {
+            if (bad) trouble++;
+            return note(bad, now);
+          };
+        },
+      },
+    );
+    // Rate-limit cuts would hide a trouble message, so the outcomes are counted.
+    expect(trouble).toBe(0);
   }, 60_000);
 
   it('answers slowing from 50 ms to 600 ms: a cut', async () => {
