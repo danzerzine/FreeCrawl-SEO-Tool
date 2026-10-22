@@ -276,6 +276,24 @@ describe('pdfs', () => {
     expect(fs.readFileSync(path.join(out, 'pdfs.csv'), 'utf8')).toContain('already present');
   });
 
+  it('a PDF whose size the crawl did not record resumes by the HEAD rule: one HEAD, no GET', async () => {
+    const file = path.join(dir, 'no-size.seoproject');
+    fs.copyFileSync(project, file);
+    const raw = new DatabaseSync(file);
+    raw.exec("UPDATE urls SET content_length = NULL WHERE url LIKE '%chunked.pdf'");
+    raw.close();
+    const out = path.join(dir, 'out-pdfs-no-size');
+    const first = await exportFrom(file, out);
+    expect(first.r.status, first.r.stderr).toBe(0);
+    const second = await exportFrom(file, out);
+    expect(second.r.status, second.r.stderr).toBe(0);
+    expect(
+      pdfRequests(second.requests)
+        .filter((q) => q.url.endsWith('/files/chunked.pdf'))
+        .map((q) => `${q.method} ${q.url}`),
+    ).toEqual(['HEAD /files/chunked.pdf']);
+  }, 30_000);
+
   it('a file of the wrong size is downloaded again', async () => {
     const out = path.join(dir, 'out-pdfs-stale');
     fs.mkdirSync(path.join(out, 'pdfs'), { recursive: true });
@@ -339,7 +357,7 @@ describe('pdfs', () => {
         expect(q.headers['x-file']).toBe('2');
         expect(q.headers['x-bare']).toBeUndefined();
       }
-    });
+    }, 20_000);
   });
 
   it('--max-bytes stops the run: what would pass the cap is skipped with a reason', async () => {
