@@ -1583,6 +1583,13 @@
     "noBodyHint": "Ver renderizado só é preenchido quando a página foi rastreada com Modo de renderização = Renderização de JavaScript. Mude para o modo JS em Configurações → Rastreador e rastreie a URL novamente para capturar o DOM pós-JS.",
     "renderMs": "renderizado em {{ms}} ms"
   },
+  "renderDiff": {
+    "title": "Alterado por JavaScript (HTML servido → página renderizada)",
+    "none": "(nenhum)",
+    "skipped": "Não comparado: {{why}}",
+    "links": "Links internos: +{{added}} / −{{removed}}",
+    "words": "Palavras: {{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "Carregando a captura…",
     "empty": "Nenhuma captura armazenada para esta URL.",

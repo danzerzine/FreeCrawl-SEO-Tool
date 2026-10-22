@@ -1583,6 +1583,13 @@
     "noBodyHint": "Voir le rendu n'est rempli que si la page a été explorée avec Mode de rendu = Rendu JavaScript. Basculez en mode JS dans Paramètres → Explorateur et relancez l'exploration de l'URL pour capturer le DOM après JS.",
     "renderMs": "rendu en {{ms}} ms"
   },
+  "renderDiff": {
+    "title": "Modifié par JavaScript (HTML servi → page rendue)",
+    "none": "(aucun)",
+    "skipped": "Non comparé : {{why}}",
+    "links": "Liens internes : +{{added}} / −{{removed}}",
+    "words": "Mots : {{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "Chargement de la capture…",
     "empty": "Aucune capture stockée pour cette URL.",

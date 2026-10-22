@@ -1529,6 +1529,13 @@
     "noBodyHint": "렌더링 보기는 페이지를 렌더링 모드 = JavaScript 렌더링으로 크롤했을 때만 채워집니다. 설정 → 크롤러에서 JS 모드로 바꾸고 해당 URL을 다시 크롤하면 JS 실행 후 DOM이 기록됩니다.",
     "renderMs": "렌더링 {{ms}}밀리초"
   },
+  "renderDiff": {
+    "title": "JavaScript가 변경함 (서버 HTML → 렌더링된 페이지)",
+    "none": "(없음)",
+    "skipped": "비교하지 않음: {{why}}",
+    "links": "내부 링크: +{{added}} / −{{removed}}",
+    "words": "단어: {{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "스크린샷을 불러오는 중…",
     "empty": "이 URL에 저장된 스크린샷이 없습니다.",

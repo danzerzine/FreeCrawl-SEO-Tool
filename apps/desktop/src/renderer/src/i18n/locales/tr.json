@@ -1556,6 +1556,13 @@
     "noBodyHint": "View Rendered yalnızca Render Modu = JavaScript Render ile crawl edilmiş sayfalarda dolar. Settings → Crawler altından JS moduna geçip URL'i yeniden crawl ederek post-JS DOM'u yakalayın.",
     "renderMs": "render {{ms}}ms"
   },
+  "renderDiff": {
+    "title": "JavaScript tarafından değiştirildi (sunulan HTML → işlenmiş sayfa)",
+    "none": "(yok)",
+    "skipped": "Karşılaştırılmadı: {{why}}",
+    "links": "İç bağlantılar: +{{added}} / −{{removed}}",
+    "words": "Sözcük: {{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "Ekran görüntüsü yükleniyor…",
     "empty": "Bu URL için ekran görüntüsü kaydedilmemiş.",

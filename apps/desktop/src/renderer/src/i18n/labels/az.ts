@@ -232,6 +232,10 @@ export const AZ_LABELS: Record<string, string> = {
   'Redirect Chain (2+ hops)': 'Yönləndirmə zənciri (2+ addım)',
   'Noindex Added by JavaScript': 'JavaScript ilə əlavə edilən noindex',
   'Title Changed by JavaScript': 'JavaScript ilə dəyişdirilən başlıq',
+  'H1 Changed by JavaScript': 'JavaScript ilə dəyişdirilən H1',
+  'Canonical Changed by JavaScript': 'JavaScript ilə dəyişdirilən canonical',
+  'Links Changed by JavaScript': 'JavaScript ilə dəyişdirilən keçidlər',
+  'Text Changed by JavaScript': 'JavaScript ilə dəyişdirilən mətn',
   'AMP Validation Errors': 'AMP yoxlama xətaları',
   'AMP Version Broken': 'AMP versiyası xarabdır',
   'AMP Version Redirects': 'AMP versiyası yönləndirir',
@@ -627,6 +631,11 @@ export const AZ_LABELS: Record<string, string> = {
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",
   "JS Title": "JS başlığı",
+  "JS H1 Changed": "JS H1 dəyişib",
+  "JS Canonical Changed": "JS canonical dəyişib",
+  "JS Links Changed": "JS keçidlər dəyişib",
+  "JS Text Changed": "JS mətn dəyişib",
+  "Render Diff": "Render fərqi",
   Words: 'Söz',
 
   // URL Details (NameValueView) field labels

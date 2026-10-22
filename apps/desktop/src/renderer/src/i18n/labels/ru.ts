@@ -224,6 +224,10 @@ export const RU_LABELS: Record<string, string> = {
   'Redirect Chain (2+ hops)': 'Цепочка перенаправлений (2+ переходов)',
   'Noindex Added by JavaScript': 'noindex, добавленный JavaScript',
   'Title Changed by JavaScript': 'Заголовок, изменённый JavaScript',
+  'H1 Changed by JavaScript': 'H1, изменённый JavaScript',
+  'Canonical Changed by JavaScript': 'canonical, изменённый JavaScript',
+  'Links Changed by JavaScript': 'Ссылки, изменённые JavaScript',
+  'Text Changed by JavaScript': 'Текст, изменённый JavaScript',
   'AMP Validation Errors': 'Ошибки проверки AMP',
   'AMP Version Broken': 'Битая AMP-версия',
   'AMP Version Redirects': 'AMP-версия перенаправляет',
@@ -622,6 +626,11 @@ export const RU_LABELS: Record<string, string> = {
   "HTTP Charset": "Charset HTTP",
   "Meta Charset": "Charset в meta",
   "JS Title": "Заголовок JS",
+  "JS H1 Changed": "H1 изменён JS",
+  "JS Canonical Changed": "Canonical изменён JS",
+  "JS Links Changed": "Ссылки изменены JS",
+  "JS Text Changed": "Текст изменён JS",
+  "Render Diff": "Разница рендера",
   Words: 'Слова',
 
   // URL Details (NameValueView) field labels

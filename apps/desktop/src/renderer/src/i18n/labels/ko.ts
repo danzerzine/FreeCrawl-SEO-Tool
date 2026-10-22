@@ -224,6 +224,10 @@ export const KO_LABELS: Record<string, string> = {
   'Redirect Chain (2+ hops)': '리다이렉트 체인(2홉 이상)',
   'Noindex Added by JavaScript': 'JavaScript가 추가한 noindex',
   'Title Changed by JavaScript': 'JavaScript가 변경한 제목',
+  'H1 Changed by JavaScript': 'JavaScript가 변경한 H1',
+  'Canonical Changed by JavaScript': 'JavaScript가 변경한 canonical',
+  'Links Changed by JavaScript': 'JavaScript가 변경한 링크',
+  'Text Changed by JavaScript': 'JavaScript가 변경한 텍스트',
   'AMP Validation Errors': 'AMP 검증 오류',
   'AMP Version Broken': 'AMP 버전 오류',
   'AMP Version Redirects': 'AMP 버전 리디렉션',
@@ -615,6 +619,11 @@ export const KO_LABELS: Record<string, string> = {
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",
   "JS Title": "JS 제목",
+  "JS H1 Changed": "JS H1 변경",
+  "JS Canonical Changed": "JS canonical 변경",
+  "JS Links Changed": "JS 링크 변경",
+  "JS Text Changed": "JS 텍스트 변경",
+  "Render Diff": "렌더링 차이",
   Words: '단어',
 
   // URL Details (NameValueView) field labels

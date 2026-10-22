@@ -259,6 +259,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Empty', category: 'issues:h1-empty' },
     { label: 'Over 70 Characters', category: 'issues:h1-too-long' },
     { label: 'H1 = Title', category: 'issues:h1-equals-title' },
+    { label: 'H1 Changed by JavaScript', category: 'issues:h1-changed-by-js' },
   ],
 
   // ─── H2 tab ─────────────────────────────────────────────────────────────
@@ -281,6 +282,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Critical Size (>3MB)', category: 'issues:page-too-large-critical' },
     { label: 'Charset Missing', category: 'issues:charset-missing' },
     { label: 'Charset Mismatch (HTTP vs HTML)', category: 'issues:charset-mismatch' },
+    { label: 'Text Changed by JavaScript', category: 'issues:text-changed-by-js' },
   ],
 
   // ─── Canonicals tab ─────────────────────────────────────────────────────
@@ -300,6 +302,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Canonical Not Absolute', category: 'issues:canonical-not-absolute' },
     { label: 'Canonical Chain (Multi-hop)', category: 'issues:canonical-chain-multi-hop' },
     { label: 'Canonical Outside <head>', category: 'issues:canonical-outside-head' },
+    { label: 'Canonical Changed by JavaScript', category: 'issues:canonical-changed-by-js' },
   ],
 
   // ─── Redirects tab ──────────────────────────────────────────────────────
@@ -377,6 +380,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Internal Link → Redirect', category: 'issues:internal-link-to-redirect' },
     { label: 'Dead External Domain', category: 'issues:dead-external-domain' },
     { label: 'Pages With Uncrawlable Internal Outlinks', category: 'issues:js-only-navigation' },
+    { label: 'Links Changed by JavaScript', category: 'issues:links-changed-by-js' },
   ],
 
   // ─── Analytics tab ──────────────────────────────────────────────────────
@@ -933,7 +937,8 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
     cat === 'issues:page-large' ||
     cat === 'issues:page-too-large-critical' ||
     cat === 'issues:charset-missing' ||
-    cat === 'issues:charset-mismatch'
+    cat === 'issues:charset-mismatch' ||
+    cat === 'issues:text-changed-by-js'
   ) {
     return 'content';
   }
@@ -1008,6 +1013,7 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
     cat === 'issues:internal-link-to-redirect' ||
     cat === 'issues:dead-external-domain' ||
     cat === 'issues:js-only-navigation' ||
+    cat === 'issues:links-changed-by-js' ||
     // Empty-anchor is a link-level issue whose count is page-level; it was
     // routed to the Broken Links tab, which runs `queryBrokenLinks` (4xx/5xx
     // targets only) and never applied the empty-anchor clause — so the

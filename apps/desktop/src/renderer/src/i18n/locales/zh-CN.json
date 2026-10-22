@@ -1529,6 +1529,13 @@
     "noBodyHint": "“查看渲染结果”只有在页面以“渲染模式 = JavaScript 渲染”抓取时才会有内容。请在“设置 → 抓取器”中切换到 JS 模式并重新抓取该 URL，以保存 JS 执行后的 DOM。",
     "renderMs": "渲染 {{ms}} 毫秒"
   },
+  "renderDiff": {
+    "title": "被 JavaScript 修改（服务器 HTML → 渲染后页面）",
+    "none": "（无）",
+    "skipped": "未比较：{{why}}",
+    "links": "内部链接：+{{added}} / −{{removed}}",
+    "words": "字数：{{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "正在加载截图…",
     "empty": "未为此 URL 保存截图。",

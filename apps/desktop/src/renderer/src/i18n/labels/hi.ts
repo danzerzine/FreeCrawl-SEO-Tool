@@ -224,6 +224,10 @@ export const HI_LABELS: Record<string, string> = {
   'Redirect Chain (2+ hops)': 'रीडायरेक्ट शृंखला (2+ चरण)',
   'Noindex Added by JavaScript': 'JavaScript द्वारा जोड़ा गया noindex',
   'Title Changed by JavaScript': 'JavaScript द्वारा बदला गया शीर्षक',
+  'H1 Changed by JavaScript': 'JavaScript द्वारा बदला गया H1',
+  'Canonical Changed by JavaScript': 'JavaScript द्वारा बदला गया canonical',
+  'Links Changed by JavaScript': 'JavaScript द्वारा बदले गए लिंक',
+  'Text Changed by JavaScript': 'JavaScript द्वारा बदला गया टेक्स्ट',
   'AMP Validation Errors': 'AMP सत्यापन त्रुटियाँ',
   'AMP Version Broken': 'AMP संस्करण टूटा है',
   'AMP Version Redirects': 'AMP संस्करण रीडायरेक्ट करता है',
@@ -620,6 +624,11 @@ export const HI_LABELS: Record<string, string> = {
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",
   "JS Title": "JS शीर्षक",
+  "JS H1 Changed": "JS से H1 बदला",
+  "JS Canonical Changed": "JS से canonical बदला",
+  "JS Links Changed": "JS से लिंक बदले",
+  "JS Text Changed": "JS से टेक्स्ट बदला",
+  "Render Diff": "रेंडर अंतर",
   Words: 'शब्द',
 
   // URL Details (NameValueView) field labels

@@ -1583,6 +1583,13 @@
     "noBodyHint": "Vedi renderizzato si popola solo se la pagina è stata scansionata con Modalità di rendering = Rendering JavaScript. Passa alla modalità JS in Impostazioni → Scanner e riesegui la scansione dell'URL per acquisire il DOM dopo il JS.",
     "renderMs": "reso in {{ms}} ms"
   },
+  "renderDiff": {
+    "title": "Modificato da JavaScript (HTML servito → pagina renderizzata)",
+    "none": "(nessuno)",
+    "skipped": "Non confrontato: {{why}}",
+    "links": "Link interni: +{{added}} / −{{removed}}",
+    "words": "Parole: {{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "Caricamento della schermata…",
     "empty": "Nessuna schermata archiviata per questo URL.",

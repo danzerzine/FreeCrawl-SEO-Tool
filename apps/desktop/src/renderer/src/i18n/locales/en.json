@@ -1556,6 +1556,13 @@
     "noBodyHint": "View Rendered is only populated when the page was crawled with Rendering Mode = JavaScript Rendering. Switch to JS mode in Settings → Crawler and re-crawl the URL to capture the post-JS DOM.",
     "renderMs": "render {{ms}}ms"
   },
+  "renderDiff": {
+    "title": "Changed by JavaScript (served HTML → rendered page)",
+    "none": "(none)",
+    "skipped": "Not compared: {{why}}",
+    "links": "Internal links: +{{added}} / −{{removed}}",
+    "words": "Words: {{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "Loading screenshot…",
     "empty": "No screenshots stored for this URL.",

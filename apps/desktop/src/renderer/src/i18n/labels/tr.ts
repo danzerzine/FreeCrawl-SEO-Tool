@@ -223,6 +223,10 @@ export const TR_LABELS: Record<string, string> = {
   'Redirect Chain (2+ hops)': 'Yönlendirme Zinciri (2+ hop)',
   'Noindex Added by JavaScript': 'JavaScript ile Eklenen Noindex',
   'Title Changed by JavaScript': 'JavaScript ile Değişen Başlık',
+  'H1 Changed by JavaScript': 'JavaScript ile Değişen H1',
+  'Canonical Changed by JavaScript': 'JavaScript ile Değişen Canonical',
+  'Links Changed by JavaScript': 'JavaScript ile Değişen Bağlantılar',
+  'Text Changed by JavaScript': 'JavaScript ile Değişen Metin',
   'AMP Validation Errors': 'AMP Doğrulama Hataları',
   'AMP Version Broken': 'AMP sürümü bozuk',
   'AMP Version Redirects': 'AMP sürümü yönlendiriyor',
@@ -610,6 +614,11 @@ export const TR_LABELS: Record<string, string> = {
   "HTTP Charset": "HTTP Charset",
   "Meta Charset": "Meta Charset",
   "JS Title": "JS Başlığı",
+  "JS H1 Changed": "JS H1 Değişti",
+  "JS Canonical Changed": "JS Canonical Değişti",
+  "JS Links Changed": "JS Bağlantılar Değişti",
+  "JS Text Changed": "JS Metin Değişti",
+  "Render Diff": "Render Farkı",
   Words: 'Kelime',
 
   // URL Details (NameValueView) field labels

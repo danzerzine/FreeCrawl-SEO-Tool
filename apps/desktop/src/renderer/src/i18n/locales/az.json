@@ -1556,6 +1556,13 @@
     "noBodyHint": "Renderə bax yalnız səhifə Render rejimi = JavaScript renderi ilə tarandıqda dolur. Parametrlər → Tarayıcı bölməsində JS rejiminə keçin və URL-i yenidən tarayın ki, JS-dən sonraki DOM qeydə alınsın.",
     "renderMs": "render {{ms}} ms"
   },
+  "renderDiff": {
+    "title": "JavaScript ilə dəyişdirilib (serverin HTML-i → render olunmuş səhifə)",
+    "none": "(yoxdur)",
+    "skipped": "Müqayisə edilməyib: {{why}}",
+    "links": "Daxili keçidlər: +{{added}} / −{{removed}}",
+    "words": "Söz: {{served}} → {{rendered}}"
+  },
   "screenshot": {
     "loading": "Ekran görüntüsü yüklənir…",
     "empty": "Bu URL üçün saxlanılmış ekran görüntüsü yoxdur.",

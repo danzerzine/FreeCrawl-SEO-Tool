@@ -223,6 +223,10 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Redirect Chain (2+ hops)': '重定向链（2 跳及以上）',
   'Noindex Added by JavaScript': 'JavaScript 添加的 noindex',
   'Title Changed by JavaScript': 'JavaScript 修改的标题',
+  'H1 Changed by JavaScript': 'JavaScript 修改的 H1',
+  'Canonical Changed by JavaScript': 'JavaScript 修改的 canonical',
+  'Links Changed by JavaScript': 'JavaScript 修改的链接',
+  'Text Changed by JavaScript': 'JavaScript 修改的文本',
   'AMP Validation Errors': 'AMP 校验错误',
   'AMP Version Broken': 'AMP 版本失效',
   'AMP Version Redirects': 'AMP 版本重定向',
@@ -613,6 +617,11 @@ export const ZH_CN_LABELS: Record<string, string> = {
   "HTTP Charset": "HTTP charset",
   "Meta Charset": "Meta charset",
   "JS Title": "JS 标题",
+  "JS H1 Changed": "JS 修改的 H1",
+  "JS Canonical Changed": "JS 修改的 canonical",
+  "JS Links Changed": "JS 修改的链接",
+  "JS Text Changed": "JS 修改的文本",
+  "Render Diff": "渲染差异",
   Words: '词数',
 
   // URL Details (NameValueView) field labels

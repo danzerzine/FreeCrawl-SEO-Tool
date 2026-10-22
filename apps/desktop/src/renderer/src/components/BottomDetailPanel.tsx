@@ -596,7 +596,12 @@ export function BottomDetailPanel() {
           <ViewSourceView urlId={detail.row.id} pageUrl={detail.row.url} kind="raw" />
         )}
         {detail && subTab === 'view-rendered' && (
-          <ViewSourceView urlId={detail.row.id} pageUrl={detail.row.url} kind="rendered" />
+          <div className="flex h-full flex-col">
+            <RenderDiffList row={detail.row} />
+            <div className="min-h-0 flex-1">
+              <ViewSourceView urlId={detail.row.id} pageUrl={detail.row.url} kind="rendered" />
+            </div>
+          </div>
         )}
         {detail && subTab === 'screenshot' && (
           <ScreenshotView urlId={detail.row.id} />
@@ -1336,6 +1341,74 @@ function ScreenshotView({ urlId }: { urlId: number | null }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** What rendering changed against the served HTML (B33), from the row's `renderDiff`; nothing when it is empty. */
+function RenderDiffList({ row }: { row: CrawlUrlRow }) {
+  const { t } = useTranslation();
+  if (!row.renderDiff) return null;
+  let d: {
+    skipped?: string;
+    h1?: { served: string | null; rendered: string | null };
+    canonical?: { served: string | null; rendered: string | null };
+    links?: { added: number; removed: number; addedTargets: string[]; removedTargets: string[] };
+    words?: { served: number; rendered: number };
+  };
+  try {
+    d = JSON.parse(row.renderDiff);
+  } catch {
+    return null;
+  }
+  const none = t('renderDiff.none', { defaultValue: '(none)' });
+  const lines: string[] = [];
+  if (d.skipped) {
+    lines.push(
+      t('renderDiff.skipped', {
+        defaultValue: 'Not compared: {{why}}',
+        why: d.skipped,
+      }),
+    );
+  } else {
+    if (row.jsH1Changed === 1 && d.h1) {
+      lines.push(`H1: ${d.h1.served ?? none} → ${d.h1.rendered ?? none}`);
+    }
+    if (row.jsCanonicalChanged === 1 && d.canonical) {
+      lines.push(`Canonical: ${d.canonical.served ?? none} → ${d.canonical.rendered ?? none}`);
+    }
+    if (d.links && (d.links.added > 0 || d.links.removed > 0)) {
+      lines.push(
+        t('renderDiff.links', {
+          defaultValue: 'Internal links: +{{added}} / −{{removed}}',
+          added: d.links.added,
+          removed: d.links.removed,
+        }),
+      );
+      for (const u of d.links.addedTargets) lines.push(`  + ${u}`);
+      for (const u of d.links.removedTargets) lines.push(`  − ${u}`);
+    }
+    if (row.jsTextChanged === 1 && d.words) {
+      lines.push(
+        t('renderDiff.words', {
+          defaultValue: 'Words: {{served}} → {{rendered}}',
+          served: d.words.served,
+          rendered: d.words.rendered,
+        }),
+      );
+    }
+  }
+  if (lines.length === 0) return null;
+  return (
+    <div className="max-h-40 overflow-auto border-b border-surface-800 bg-surface-900 px-3 py-1.5 text-[11px] text-surface-300">
+      <div className="mb-1 text-surface-500">
+        {t('renderDiff.title', { defaultValue: 'Changed by JavaScript (served HTML → rendered page)' })}
+      </div>
+      {lines.map((l, i) => (
+        <div key={i} className="whitespace-pre-wrap break-all font-mono">
+          {l}
+        </div>
+      ))}
     </div>
   );
 }

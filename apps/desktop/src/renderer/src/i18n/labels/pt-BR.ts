@@ -225,6 +225,10 @@ export const PT_BR_LABELS: Record<string, string> = {
   'Redirect Chain (2+ hops)': 'Cadeia de redirecionamentos (2+ saltos)',
   'Noindex Added by JavaScript': 'noindex adicionado por JavaScript',
   'Title Changed by JavaScript': 'Título alterado por JavaScript',
+  'H1 Changed by JavaScript': 'H1 alterado por JavaScript',
+  'Canonical Changed by JavaScript': 'Canonical alterada por JavaScript',
+  'Links Changed by JavaScript': 'Links alterados por JavaScript',
+  'Text Changed by JavaScript': 'Texto alterado por JavaScript',
   'AMP Validation Errors': 'Erros de validação do AMP',
   'AMP Version Broken': 'Versão AMP quebrada',
   'AMP Version Redirects': 'A versão AMP redireciona',
@@ -626,6 +630,11 @@ export const PT_BR_LABELS: Record<string, string> = {
   "HTTP Charset": "Charset HTTP",
   "Meta Charset": "Charset meta",
   "JS Title": "Título JS",
+  "JS H1 Changed": "H1 alterado (JS)",
+  "JS Canonical Changed": "Canonical alterada (JS)",
+  "JS Links Changed": "Links alterados (JS)",
+  "JS Text Changed": "Texto alterado (JS)",
+  "Render Diff": "Diferença de renderização",
   Words: 'Palavras',
 
   // URL Details (NameValueView) field labels

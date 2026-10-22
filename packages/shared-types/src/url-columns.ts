@@ -82,6 +82,11 @@ export const URL_COLUMN_HEADERS = {
   statusText: 'Status Text',
   canonicalHttp: 'HTTP Canonical',
   crawledAt: 'Crawl Timestamp',
+  jsH1Changed: 'JS H1 Changed',
+  jsCanonicalChanged: 'JS Canonical Changed',
+  jsLinksChanged: 'JS Links Changed',
+  jsTextChanged: 'JS Text Changed',
+  renderDiff: 'Render Diff',
 } as const;
 
 /** Header for a `CrawlUrlRow` key: the grid label, else the key split into Title Case words. */
