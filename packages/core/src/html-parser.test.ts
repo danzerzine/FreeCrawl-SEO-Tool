@@ -300,6 +300,29 @@ describe('parseHtml: structured-data rules from Google\'s pages', () => {
     ).toEqual([{ block: 0, type: 'ListItem', kind: 'missing-required', props: ['item'] }]);
   });
 
+  it('finds the last breadcrumb by position when the list also holds a reference', () => {
+    expect(
+      required({
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://example.com/' },
+          { '@type': 'ListItem', position: 2, name: 'Page' },
+          { '@id': '#crumb-extra' },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it('checks the thing a standalone Review rates only through the review', () => {
+    const review = {
+      '@type': 'Review',
+      author: { name: 'A' },
+      reviewRating: { ratingValue: 4 },
+      itemReviewed: { '@type': 'Product', name: 'Mug' },
+    };
+    expect(required(review)).toEqual([]);
+  });
+
   it('asks an Event for a place address, and accepts a hybrid event', () => {
     const base = { '@type': 'MusicEvent', name: 'E', startDate: '2026-11-01' };
     expect(required({ ...base, location: 'Town hall' })).toEqual([
