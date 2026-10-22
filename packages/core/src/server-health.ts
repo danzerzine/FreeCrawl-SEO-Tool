@@ -81,7 +81,7 @@ export class ServerHealth {
       return false;
     }
     const m = median(this.samples);
-    if (this.samples.length === LATENCY_WINDOW && m < this.base / SLOW_FACTOR) this.base = m;
+    if (m < this.base / SLOW_FACTOR) this.base = m;
     if (this.unhelped !== null && ++this.unhelped >= LATENCY_WINDOW) {
       if (m > RECOVER_FACTOR * this.base) this.accept(m);
       else this.unhelped = null;
