@@ -32,6 +32,8 @@ import {
   TEMPLATE_LEARN_META_KEY,
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
+  unsafePatternReason,
+  type UnsafePatternReason,
 } from '@freecrawl/db';
 import {
   normalizeUrl,
@@ -6595,18 +6597,32 @@ function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
-/** One message per include/exclude pattern that is not a valid regular expression. */
+/** Longest include/exclude pattern a crawl accepts; long alternation lists are normal there. */
+const URL_PATTERN_MAX_LENGTH = 1000;
+const UNSAFE_PATTERN_WORDING: Record<UnsafePatternReason, string> = {
+  'too-long': `longer than ${URL_PATTERN_MAX_LENGTH} characters`,
+  'nested-quantifier': 'a repeat inside a repeated group can hang the crawl',
+};
+
+/**
+ * One message per include/exclude pattern that is not a valid regular
+ * expression, or that `unsafePatternReason` refuses.
+ */
 export function invalidUrlPatterns(
   config: Pick<CrawlConfig, 'includePatterns' | 'excludePatterns'>,
 ): string[] {
   const out: string[] = [];
   compilePatterns(config.includePatterns ?? [], (p, err) =>
-    out.push(`Invalid include pattern "${p}": ${err}`),
+    out.push(`Invalid include pattern "${shortPattern(p)}": ${err}`),
   );
   compilePatterns(config.excludePatterns ?? [], (p, err) =>
-    out.push(`Invalid exclude pattern "${p}": ${err}`),
+    out.push(`Invalid exclude pattern "${shortPattern(p)}": ${err}`),
   );
   return out;
+}
+
+function shortPattern(p: string): string {
+  return p.length > 80 ? `${p.slice(0, 80)}…` : p;
 }
 
 function compilePatterns(
@@ -6617,6 +6633,11 @@ function compilePatterns(
   for (const raw of patterns) {
     const pattern = raw.trim();
     if (!pattern) continue;
+    const unsafe = unsafePatternReason(pattern, URL_PATTERN_MAX_LENGTH);
+    if (unsafe) {
+      onInvalid(pattern, UNSAFE_PATTERN_WORDING[unsafe]);
+      continue;
+    }
     try {
       out.push(new RegExp(pattern));
     } catch (err) {

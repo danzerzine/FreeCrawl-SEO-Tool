@@ -113,6 +113,7 @@ import {
 } from '@freecrawl/shared-types';
 import { buildCrawlSnapshot } from './crawl-snapshot.js';
 import { runMigrations } from './migrations.js';
+import { unsafePatternReason } from './safe-pattern.js';
 
 /** `meta` key holding the JSON list of silenced issue categories. */
 export const DISABLED_ISSUES_META_KEY = 'disabledIssues';
@@ -214,15 +215,13 @@ export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
 /** `project_meta` key holding the JSON list of path patterns the cross-source orphan report hides. */
 export const ORPHAN_EXCLUDE_META_KEY = 'orphanExcludePatterns';
 const ORPHAN_EXCLUDE_MAX_LENGTH = 200;
-// A quantified group that itself holds a quantifier — `(a+)+`, `(.*)*`,
-// `(x{2,})+` — is the classic catastrophic-backtracking shape.
-const NESTED_QUANTIFIER = /\((?:[^()\\]|\\.)*(?:[+*]|\{\d+,\d*\})(?:[^()\\]|\\.)*\)(?:[+*]|\{\d+,\d*\})/;
 
 /**
  * Compiles user-typed exclusion patterns for the orphan report. The same
- * `new RegExp` the crawl include/exclude lists use, plus a guard those lists
- * lack: patterns are re-run over every orphan candidate, so an over-long or
- * nested-quantifier pattern is rejected up front instead of hanging a reader.
+ * `new RegExp` the crawl include/exclude lists use, behind the same guard
+ * (`unsafePatternReason`): patterns are re-run over every orphan candidate,
+ * so an over-long or nested-quantifier pattern is rejected up front instead
+ * of hanging a reader.
  * Throws on the first bad pattern; blank lines are skipped.
  */
 export function compileOrphanExcludePatterns(patterns: readonly string[]): RegExp[] {
@@ -230,10 +229,11 @@ export function compileOrphanExcludePatterns(patterns: readonly string[]): RegEx
   for (const raw of patterns) {
     const pattern = raw.trim();
     if (!pattern) continue;
-    if (pattern.length > ORPHAN_EXCLUDE_MAX_LENGTH) {
+    const unsafe = unsafePatternReason(pattern, ORPHAN_EXCLUDE_MAX_LENGTH);
+    if (unsafe === 'too-long') {
       throw new Error(`Exclusion pattern too long (max ${ORPHAN_EXCLUDE_MAX_LENGTH}): ${pattern.slice(0, 40)}…`);
     }
-    if (NESTED_QUANTIFIER.test(pattern)) {
+    if (unsafe === 'nested-quantifier') {
       throw new Error(`Exclusion pattern rejected, nested quantifier can hang: ${pattern}`);
     }
     try {
