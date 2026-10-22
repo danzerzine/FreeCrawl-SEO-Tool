@@ -187,6 +187,7 @@ const defaultDeps = (getCreds: () => Record<string, string>): GoogleDeps => ({
   now: () => Date.now(),
   random: Math.random,
   log: (level, message) => logger.log(level, 'bigquery', message),
+  authFix: 'Check the service-account key in Settings → Integrations (BigQuery): it may be deleted, disabled or pasted wrong.',
 });
 
 /** `Meta description` -> `meta_description`; a column name may not start with a digit. */

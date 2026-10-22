@@ -109,13 +109,13 @@ describe('Sheets and BigQuery exports on a revoked Google sign-in', () => {
     expect(t.sleeps).toEqual([]);
   });
 
-  it('BigQuery: reconnect message from the first call, not a network error or "HTTP 401"', async () => {
+  it('BigQuery: service-account key message from the first call, not a network error', async () => {
     const t = deps(() => json(401));
     const err = (await exportCategoryToBigQuery(fakeDb(3), 'all' as never, {
       creds: () => ({ projectId: 'proj' }),
       deps: t.d,
     }).catch((e: Error) => e)) as Error;
-    expect(err.message).toMatch(RECONNECT);
+    expect(err.message).toMatch(/service-account key/i);
     expect(t.sleeps).toEqual([]);
   });
 });

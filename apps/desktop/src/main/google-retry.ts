@@ -5,9 +5,10 @@
  * backoff (1, 2, 4 ... 64 s, each plus 0-1 s of jitter); a longer
  * `Retry-After` replaces the computed delay. The total wait per request is
  * capped, then the error names the operation, the last status and the wait.
- * A 401 refreshes the token once; a 401 that stays (or a refresh that fails)
- * is a {@link GoogleAuthError}: the grant is revoked or the key deleted, so
- * nothing is retried and the message says to reconnect the account. Time
+ * A 401 refreshes the token once; a 401 that stays (or a refresh
+ * that Google answers with an error) is a {@link GoogleAuthError}: the grant is revoked or the key deleted, so
+ * nothing is retried and the message says to reconnect the account (or check
+ * the service-account key). A refresh that never got an answer is a network error and is retried. Time
  * spent inside the requests counts toward the wait cap. Other 4xx answers are returned as they
  * are for the caller to read.
  *
@@ -25,6 +26,8 @@ export interface GoogleDeps {
   /** Jitter source, 0 <= n < 1. */
   random: () => number;
   log: (level: 'info' | 'warn', message: string) => void;
+  /** What to do when the sign-in is rejected; default: reconnect the Google account. */
+  authFix?: string;
 }
 
 export interface GoogleRequest {
@@ -46,12 +49,17 @@ export interface GoogleResponse {
 
 /** The Google sign-in no longer works: reconnecting the account is the only fix. */
 export class GoogleAuthError extends Error {
-  constructor(op: string) {
-    super(
-      `${op} failed: Google rejected the sign-in (HTTP 401). Reconnect the Google account in Settings → Integrations and try again.`,
-    );
+  constructor(op: string, fix = 'Reconnect the Google account in Settings → Integrations and try again.') {
+    super(`${op} failed: Google rejected the sign-in (HTTP 401). ${fix}`);
     this.name = 'GoogleAuthError';
   }
+}
+
+/** A refresh that failed before any answer (timeout, DNS, reset), as opposed to Google saying no. */
+function isNetworkFailure(err: unknown): boolean {
+  if (err instanceof TypeError) return true; // undici: "fetch failed"
+  const name = (err as { name?: string } | null)?.name;
+  return name === 'TimeoutError' || name === 'AbortError';
 }
 
 const MAX_TOTAL_WAIT_MS = 180_000;
@@ -97,15 +105,18 @@ export async function googleRequest(deps: GoogleDeps, req: GoogleRequest): Promi
       }
     }
     if (res && res.status === 401) {
-      if (refreshed) throw new GoogleAuthError(req.op);
+      if (refreshed) throw new GoogleAuthError(req.op, deps.authFix);
       refreshed = true;
       try {
         token = await deps.getToken(true);
-      } catch {
-        // Revoked grant, expired refresh token, deleted key: not the network.
-        throw new GoogleAuthError(req.op);
+        continue;
+      } catch (err) {
+        // Revoked grant, expired refresh token, deleted key: Google said no.
+        if (!isNetworkFailure(err)) throw new GoogleAuthError(req.op, deps.authFix);
+        // The token endpoint was unreachable: retry as a network error.
+        res = null;
+        refreshed = false;
       }
-      continue;
     }
     if (res && !isRetryable(res.status)) {
       return {
