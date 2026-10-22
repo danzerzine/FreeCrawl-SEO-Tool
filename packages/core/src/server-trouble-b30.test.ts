@@ -18,6 +18,7 @@ let pageHits: number[] = [];
 let failing: (n: number) => boolean = () => false;
 let hanging: (n: number) => boolean = () => false;
 let delayMs: (hit: number) => number = () => 0;
+let failStatus = 500;
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'b30-'));
@@ -27,7 +28,7 @@ beforeAll(async () => {
     const n = m ? Number(m[1]) : 0;
     pageHits.push(Date.now());
     if (hanging(n)) return;
-    if (failing(n)) return void res.writeHead(500).end();
+    if (failing(n)) return void res.writeHead(failStatus).end();
     const body =
       `<html><head><title>p${n}</title></head><body>` +
       [1, 2, 3].map((k) => `<a href="/p/${n * 3 + k}">x</a>`).join('') +
@@ -47,6 +48,7 @@ beforeEach(() => {
   failing = () => false;
   hanging = () => false;
   delayMs = () => 0;
+  failStatus = 500;
 });
 
 let n = 0;
@@ -152,8 +154,8 @@ describe('adaptive speed on server trouble (B30)', () => {
             c.on('info', (m) => {
               if (cutAt || !String(m).startsWith('Adaptive speed: answers slowing')) return;
               cutAt = pageHits.length;
-              // Fast again within the 20 answers after the cut: the slowdown was load.
-              fastFrom = cutAt + 15;
+              // Still slow for 35 answers after the cut, more than the 25 clean ones a rise needs.
+              fastFrom = cutAt + 35;
             });
             c.on('debug', (m) => {
               if (!String(m).startsWith('Adaptive speed: recovering')) return;
@@ -196,6 +198,19 @@ describe('adaptive speed on server trouble (B30)', () => {
     expect(run.events[0]?.message).toMatch(/^Adaptive speed: server errors/);
   }, 60_000);
 
+  it('a single answer over 5 s counts as trouble', async () => {
+    delayMs = (hit) => (hit % 3 === 0 ? 400 : 0);
+    const run = await withPause('ADAPTIVE_SLOW_ANSWER_MS', 200, () => crawl({ adaptiveSpeed: true }));
+    expect(run.events[0]?.message).toMatch(/^Adaptive speed: server errors/);
+  }, 60_000);
+
+  it('503 answers are rate limiting, not server trouble', async () => {
+    failing = (k) => k > 0 && k % 3 === 0;
+    failStatus = 503;
+    const run = await crawl({ adaptiveSpeed: true, maxUrls: 20, retryAttempts: 0 });
+    expect(run.events).toEqual([]);
+  }, 60_000);
+
   it('answers slowing from 50 ms to 600 ms: a cut', async () => {
     delayMs = (hit) => (hit > 30 ? 600 : 50);
     const run = await crawl({ adaptiveSpeed: true, maxUrls: 120, maxRps: 40 });
@@ -209,7 +224,7 @@ describe('night rate (B30)', () => {
   const gaps = () => pageHits.slice(1, 6).map((t, i) => t - pageHits[i]!);
 
   it('inside the window requests are spaced at nightMaxRps', async () => {
-    await crawl({ maxRps: 50, nightMaxRps: 2, nightFromHour: hour, nightToHour: (hour + 1) % 24, maxUrls: 8 });
+    await crawl({ maxRps: 50, nightMaxRps: 2, nightFromHour: (hour + 23) % 24, nightToHour: (hour + 2) % 24, maxUrls: 8 });
     expect(gaps().length).toBe(5);
     for (const g of gaps()) expect(g).toBeGreaterThanOrEqual(450);
   }, 60_000);
@@ -218,8 +233,8 @@ describe('night rate (B30)', () => {
     await crawl({
       maxRps: 50,
       nightMaxRps: 2,
-      nightFromHour: (hour + 1) % 24,
-      nightToHour: (hour + 2) % 24,
+      nightFromHour: (hour + 2) % 24,
+      nightToHour: (hour + 4) % 24,
       maxUrls: 8,
     });
     expect(Math.max(...gaps())).toBeLessThan(400);

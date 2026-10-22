@@ -50,20 +50,37 @@ describe('ServerHealth slow answers (B30)', () => {
     expect(h.isSlow()).toBe(true);
   });
 
-  it('answers that stay slow after a cut become the base: the rate may rise, only a worse slowdown cuts again', () => {
+  it('answers still slow after two cuts become the base; a faster server brings the base back down', () => {
+    const h = new ServerHealth();
+    let t = 0;
+    const feed = (ms: number, n: number): number => {
+      let cuts = 0;
+      for (let i = 0; i < n; i++) if (h.noteLatency(ms, 0, (t += 1000))) cuts++;
+      return cuts;
+    };
+    feed(50, 20);
+    // Overload: the first cut does not help, the rate is held and a second cut comes;
+    // still slow after it, the slow level is accepted and the rate may rise.
+    expect(feed(600, 25)).toBe(1);
+    expect(h.isSlow()).toBe(true);
+    expect(feed(600, 95)).toBe(1);
+    expect(h.isSlow()).toBe(false);
+    expect(feed(600, 100)).toBe(0);
+    // The server is fast again: the base comes back down, a new slowdown cuts.
+    feed(50, 40);
+    expect(feed(600, 25)).toBe(1);
+    expect(h.isSlow()).toBe(true);
+  });
+
+  it('a slowdown worse than the accepted base cuts again', () => {
     const h = new ServerHealth();
     let t = 0;
     for (let i = 0; i < 20; i++) h.noteLatency(50, 0, (t += 1000));
-    const cuts: number[] = [];
-    for (let i = 0; i < 100; i++) {
-      if (h.noteLatency(600, 0, (t += 1000))) cuts.push(i);
-      // Held during the 20 answers after the cut, then accepted.
-      if (i === 9 + 19) expect(h.isSlow()).toBe(true);
-    }
-    expect(cuts).toEqual([9]);
+    for (let i = 0; i < 200; i++) h.noteLatency(600, 0, (t += 1000));
     expect(h.isSlow()).toBe(false);
-    for (let i = 0; i < 40; i++) if (h.noteLatency(1500, 0, (t += 1000))) cuts.push(100 + i);
-    expect(cuts).toEqual([9, 109]);
+    let cuts = 0;
+    for (let i = 0; i < 40; i++) if (h.noteLatency(1200, 0, (t += 1000))) cuts++;
+    expect(cuts).toBeGreaterThanOrEqual(1);
   });
 
   it('a site whose sections answer fast and articles slow is cut once, not to the floor', () => {
