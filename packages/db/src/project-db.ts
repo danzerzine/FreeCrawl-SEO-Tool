@@ -7371,6 +7371,38 @@ export class ProjectDb {
     }
   }
 
+  /**
+   * B37 — long-form export of the custom values the tab shows (ok fields of the last pull, for
+   * its property): one row per page, field and value; GA4 pages the crawl lacks have no status.
+   */
+  *iterateGa4CustomLong(
+    accountId = '',
+  ): IterableIterator<{ url: string; statusCode: number | null; custom: { field: string; value: string; sessions: number | null } }> {
+    const sel = this.ga4CustomSelection(accountId);
+    if (!sel) return;
+    const rows = this.db
+      .prepare(
+        `SELECT v.url AS url, u.status_code AS status_code, v.field AS field, v.value AS value, v.sessions AS sessions
+           FROM ga4_custom_values v LEFT JOIN urls u ON u.url = v.url
+          WHERE v.account_id = ? AND v.property = ? AND v.field IN (${sel.fields.map(() => '?').join(',')})
+          ORDER BY v.url, v.field, v.sessions DESC, v.value`,
+      )
+      .iterate(accountId, sel.property, ...sel.fields) as unknown as Iterable<{
+      url: string;
+      status_code: number | null;
+      field: string;
+      value: string;
+      sessions: number | null;
+    }>;
+    for (const r of rows) {
+      yield {
+        url: r.url,
+        statusCode: r.status_code,
+        custom: { field: r.field, value: r.value, sessions: r.sessions },
+      };
+    }
+  }
+
   /** B37 — custom values of the given pages by URL then field; dimension values by sessions. */
   private ga4CustomValuesFor(
     urls: string[],

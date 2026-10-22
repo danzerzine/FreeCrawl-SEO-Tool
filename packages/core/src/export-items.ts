@@ -42,7 +42,7 @@ export type ExportItem =
   | { kind: 'issue-inlinks'; name: string; issueKeys: string[] };
 
 /** Datasets pulled from a linked Google / Yandex account, which the CLI has none of. */
-const ACCOUNT_DATASETS: readonly ExportDatasetKey[] = ['search-console', 'analytics', 'metrica'];
+const ACCOUNT_DATASETS: readonly ExportDatasetKey[] = ['search-console', 'analytics', 'analytics-custom', 'metrica'];
 
 /**
  * Datasets `--what dataset:<key>` can write. Left out: the `selected-*`

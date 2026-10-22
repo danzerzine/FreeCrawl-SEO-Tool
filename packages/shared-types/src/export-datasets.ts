@@ -37,6 +37,7 @@ export type ExportDatasetKey =
   | 'spelling'
   | 'search-console'
   | 'analytics'
+  | 'analytics-custom'
   | 'metrica'
   | `ai:${AiProvider}`
   | `seo:${SeoProvider}`;
@@ -277,6 +278,13 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'ga4.engagementRate', header: 'Engagement Rate' },
     { key: 'ga4.avgSessionDuration', header: 'Avg. Session Duration' },
     { key: 'ga4.fetchedAt', header: 'Fetched At' },
+  ],
+  // B37: the chosen custom GA4 fields, long form (one row per page, field and value).
+  'analytics-custom': [
+    ...PAGE,
+    { key: 'custom.field', header: 'Field' },
+    { key: 'custom.value', header: 'Value' },
+    { key: 'custom.sessions', header: 'Sessions' },
   ],
   // Pageviews are hit-level (page URL); the rest are session-level,
   // counted for the landing page. The headers say so.

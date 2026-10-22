@@ -128,7 +128,13 @@ const DATASET_TABS: Partial<Record<TabKey, DatasetTab>> = {
   crux: { dataset: 'crux' },
   spelling: { dataset: 'spelling' },
   'search-console': { dataset: 'search-console' },
-  analytics: { dataset: 'analytics' },
+  analytics: {
+    subdir: 'analytics',
+    providers: [
+      { id: 'analytics', label: 'GA4', dataset: 'analytics' },
+      { id: 'custom-fields', label: 'GA4 custom fields', dataset: 'analytics-custom' },
+    ],
+  },
   metrica: { dataset: 'metrica' },
   ai: {
     subdir: 'ai',

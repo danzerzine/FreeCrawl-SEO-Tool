@@ -169,6 +169,8 @@ export function datasetRows(
       return asRecords(
         paged((limit, offset) => db.queryGa4({ limit, offset, accountId: ctx.ga4AccountId })),
       );
+    case 'analytics-custom':
+      return asRecords(db.iterateGa4CustomLong(ctx.ga4AccountId ?? ''));
     case 'metrica':
       // queryMetrica caps a page at 1000 rows; a larger page would read as
       // the last one.
