@@ -1151,48 +1151,53 @@ function AnalyticsView({
       >
         {inspection && (
           <>
-            <AnalyticsRow label="Verdict" value={inspection.verdict ?? '—'} />
-            <AnalyticsRow label="Coverage" value={inspection.coverageState ?? '—'} />
-            <AnalyticsRow label="Indexing" value={inspection.indexingState ?? '—'} />
+            <AnalyticsRow label={t('analyticsView.inspectionVerdict', { defaultValue: 'Verdict' })} value={inspection.verdict ?? '—'} />
+            <AnalyticsRow label={t('analyticsView.inspectionCoverage', { defaultValue: 'Coverage' })} value={inspection.coverageState ?? '—'} />
+            <AnalyticsRow label={t('analyticsView.inspectionIndexing', { defaultValue: 'Indexing' })} value={inspection.indexingState ?? '—'} />
             <AnalyticsRow label="robots.txt" value={inspection.robotsTxtState ?? '—'} />
             <AnalyticsRow
-              label="Last crawl"
+              label={t('analyticsView.inspectionLastCrawl', { defaultValue: 'Last crawl' })}
               value={inspection.lastCrawlTime ?? '—'}
             />
             <AnalyticsRow
-              label="Google canonical"
+              label={t('analyticsView.inspectionGoogleCanonical', { defaultValue: 'Google canonical' })}
               value={inspection.googleCanonical ?? '—'}
             />
             <AnalyticsRow
-              label="User canonical"
+              label={t('analyticsView.inspectionUserCanonical', { defaultValue: 'User canonical' })}
               value={inspection.userCanonical ?? '—'}
             />
             {inspection.pageFetchState && (
-              <AnalyticsRow label="Page fetch" value={inspection.pageFetchState} />
+              <AnalyticsRow label={t('analyticsView.inspectionPageFetch', { defaultValue: 'Page fetch' })} value={inspection.pageFetchState} />
             )}
             {inspection.crawledAs && (
-              <AnalyticsRow label="Crawled as" value={inspection.crawledAs} />
+              <AnalyticsRow label={t('analyticsView.inspectionCrawledAs', { defaultValue: 'Crawled as' })} value={inspection.crawledAs} />
             )}
             {inspection.sitemaps?.map((sm) => (
               <AnalyticsRow
                 key={sm}
-                label="Sitemap"
+                label={t('analyticsView.inspectionSitemap', { defaultValue: 'Sitemap' })}
                 value={sm}
-                hint="Sitemaps Google lists for this page; not a complete list"
+                hint={t('analyticsView.inspectionSitemapHint', {
+                  defaultValue: 'Sitemaps Google lists for this page; not a complete list',
+                })}
               />
             ))}
             {inspection.referringCount != null && (
               <AnalyticsRow
-                label="Linked from"
+                label={t('analyticsView.inspectionLinkedFrom', { defaultValue: 'Linked from' })}
                 value={`${inspection.referringCount.toLocaleString()}${
                   inspection.referringUrls && inspection.referringCount > inspection.referringUrls.length
-                    ? ` (first ${inspection.referringUrls.length} shown)`
+                    ? ` (${t('analyticsView.inspectionFirstShown', {
+                        defaultValue: 'first {{n}} shown',
+                        n: inspection.referringUrls.length,
+                      })})`
                     : ''
                 }`}
               />
             )}
             {inspection.referringUrls?.map((ref) => (
-              <AnalyticsRow key={ref} label="Referring page" value={ref} />
+              <AnalyticsRow key={ref} label={t('analyticsView.inspectionReferringPage', { defaultValue: 'Referring page' })} value={ref} />
             ))}
             {inspection.richResults?.map((rt) => (
               <div key={rt.type} className="mt-1 border-t border-surface-800 pt-1">
@@ -1200,7 +1205,11 @@ function AnalyticsView({
                 {rt.items.map((it, i) => (
                   <div key={`${rt.type}-${i}`} className="mb-1 pl-2 text-[11px] text-surface-400">
                     <span className="text-surface-300">{it.name || '—'}</span>
-                    {` · ${it.errors} error(s), ${it.warnings} warning(s)`}
+                    {` · ${t('analyticsView.inspectionErrWarn', {
+                      defaultValue: '{{errors}} error(s), {{warnings}} warning(s)',
+                      errors: it.errors,
+                      warnings: it.warnings,
+                    })}`}
                     {it.messages.map((m) => (
                       <div key={m} className="pl-2 text-surface-500">
                         {m}

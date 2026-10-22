@@ -408,6 +408,11 @@ export interface Ga4FetchMeta {
   customFields?: Ga4CustomFieldStatus[];
   /** B37: what happened to the fields not pulled, in words for the user. */
   customMessage?: string | null;
+  /** B37: the chosen fields that were not pulled; the tab words the message from these parts. */
+  customNotPulled?: string[];
+  /** B37: why the pull stopped before them: Google's quota, or any other error (see detail). */
+  customStop?: 'quota' | 'error' | null;
+  customStopDetail?: string | null;
   /** B37: distinct stored GA4 page URLs with no crawled row (tracking-parameter or slash variants). */
   unmatchedUrls?: number;
 }

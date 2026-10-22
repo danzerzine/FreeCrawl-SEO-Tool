@@ -304,7 +304,7 @@ export function WebmasterTab() {
         {
           defaultValue:
             progress.phase === 'events'
-              ? 'Fetching excluded pages · {{done}} / {{total}}'
+              ? 'Fetching Yandex search events · {{done}} / {{total}}'
               : 'Fetching broken links · {{done}} / {{total}}',
           done: progress.done.toLocaleString(),
           total: progress.total.toLocaleString(),
@@ -424,9 +424,10 @@ export function WebmasterTab() {
           <span>
             {t('webmasterTab.metaLine', {
               defaultValue:
-                '{{host}} · {{events}} excluded pages · {{links}} broken links · fetched {{when}}',
+                '{{host}} · {{events}} pages removed from search · {{links}} broken links · fetched {{when}}',
               host: meta.hostName,
-              events: meta.eventRows.toLocaleString(),
+              // meta.eventRows counts appearances too; only a store from before excludedRows lacks the right number.
+              events: (meta.excludedRows ?? meta.eventRows).toLocaleString(),
               links: meta.brokenLinkRows.toLocaleString(),
               when: dayOf(meta.fetchedAt),
             })}
@@ -451,6 +452,14 @@ export function WebmasterTab() {
         </div>
       )}
 
+      {view === 'excluded' && (
+        <div className="border-b border-surface-800 bg-surface-900/20 px-3 py-1 text-[10px] text-surface-500">
+          {t('webmasterTab.excludedNote', {
+            defaultValue:
+              'Pages Yandex removed from search (latest event per page). This is not the full list of excluded pages: a page whose latest event is a return to search is not shown here.',
+          })}
+        </div>
+      )}
       <div
         className="flex shrink-0 select-none items-center border-b border-surface-800 bg-surface-900/60 text-[10px] font-medium text-surface-400"
         style={{ height: HEADER_HEIGHT }}
@@ -460,6 +469,12 @@ export function WebmasterTab() {
             <div className="flex-1 px-2">{t('webmasterTab.colUrl', { defaultValue: 'URL' })}</div>
             <div className="w-[200px] shrink-0">
               {t('webmasterTab.colReason', { defaultValue: 'Reason' })}
+            </div>
+            <div className="w-[80px] shrink-0 text-center">
+              {t('webmasterTab.colHttp', { defaultValue: 'HTTP status (Yandex)' })}
+            </div>
+            <div className="w-[200px] shrink-0 px-2">
+              {t('webmasterTab.colTarget', { defaultValue: 'Yandex target' })}
             </div>
             <div className="w-[96px] shrink-0 text-right">
               {t('webmasterTab.colEventDate', { defaultValue: 'Excluded on' })}
@@ -596,6 +611,12 @@ function ExcludedRow({
       </div>
       <div className="w-[200px] shrink-0 truncate text-surface-300" title={reason}>
         {reason}
+      </div>
+      <div className="w-[80px] shrink-0 text-center tabular-nums text-surface-300">
+        {row.badHttpStatus ?? '—'}
+      </div>
+      <div className="w-[200px] shrink-0 truncate px-2 text-surface-300" title={row.targetUrl ?? undefined}>
+        {row.targetUrl ?? '—'}
       </div>
       <div className="w-[96px] shrink-0 text-right tabular-nums text-surface-300">
         {dayOf(row.eventDate)}

@@ -680,7 +680,16 @@ export function SearchConsoleTab() {
                 inspected: inspectResult.inspected,
                 skipped: inspectResult.skipped,
               })
-            : inspectResult.stopMessage
+            : inspectResult.cancelled
+              ? t('gscTab.inspectCancelled', {
+                  defaultValue:
+                    'Inspection cancelled: {{inspected}} inspected, {{skipped}} skipped, {{failed}} failed, {{n}} pages were not reached.',
+                  inspected: inspectResult.inspected,
+                  skipped: inspectResult.skipped,
+                  failed: inspectResult.failed,
+                  n: inspectResult.remaining,
+                })
+              : inspectResult.stopMessage
               ? t('gscTab.inspectStopped', {
                   defaultValue: 'Inspection stopped: {{message}} {{n}} pages were not inspected.',
                   message: inspectResult.stopMessage,

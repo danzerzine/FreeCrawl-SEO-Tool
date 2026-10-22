@@ -1988,7 +1988,8 @@
     "newUrlsQueued_one": "{{count}} новый URL, найденный в Search Console, добавлен в обход.",
     "newUrlsQueued_few": "{{count}} новых URL, найденных в Search Console, добавлено в обход.",
     "newUrlsQueued_many": "{{count}} новых URL, найденных в Search Console, добавлено в обход.",
-    "newUrlsQueued_other": "{{count}} новых URL, найденных в Search Console, добавлено в обход."
+    "newUrlsQueued_other": "{{count}} новых URL, найденных в Search Console, добавлено в обход.",
+    "inspectCancelled": "Проверка отменена: проверено {{inspected}}, пропущено {{skipped}}, с ошибкой {{failed}}, не дошли до {{n}} страниц."
   },
   "googleAccounts": {
     "title": "Подключённые аккаунты",
@@ -2099,7 +2100,9 @@
     "emptyNoMatch": "Под текущий фильтр не подходит ни одна страница.",
     "accountTitle": "По какому подключённому аккаунту Google этот проект строит отчёты. У каждого аккаунта свои сохранённые данные.",
     "customLegend": "Пусто = GA4 не дал данных за этот период. Параметр показывает значение с наибольшим числом сеансов, «+N» = ещё N значений (все — в панели Детали).",
-    "unmatched": "{{n}} адресов страниц из GA4 не совпали со страницами краулинга (метки в ссылках или варианты со слэшем)."
+    "unmatched": "{{n}} адресов страниц из GA4 не совпали со страницами краулинга (метки в ссылках или варианты со слэшем).",
+    "customNotPulledQuota": "Квота Google для этого ресурса исчерпана или почти исчерпана, поэтому эти поля не загружены: {{fields}}. Загрузите ещё раз позже сегодня, чтобы добрать только их; завтра диапазон дат сдвинется и загрузка начнётся заново.",
+    "customNotPulledError": "Загрузка остановилась{{detail}}, поэтому эти поля не загружены: {{fields}}. Загрузите ещё раз позже сегодня, чтобы добрать только их; завтра диапазон дат сдвинется и загрузка начнётся заново."
   },
   "metricaTab": {
     "agoNow": "только что",
@@ -2197,9 +2200,9 @@
     "errHostNotVerified": "Сайт не подтверждён в Яндекс Вебмастере, поэтому Яндекс не отдаёт по нему данные.",
     "errInvalidUser": "Яндекс Вебмастер не принял аккаунт, к которому привязан токен.",
     "errNetwork": "Не удалось связаться с Яндекс Вебмастером. Проверьте соединение и повторите; сохранённый прогресс не потерян.",
-    "progressEvents": "Загрузка исключённых страниц · {{done}} / {{total}}",
+    "progressEvents": "Загрузка событий Яндекса о поиске · {{done}} / {{total}}",
     "progressLinks": "Загрузка битых ссылок · {{done}} / {{total}}",
-    "metaLine": "{{host}} · исключённых страниц: {{events}} · битых ссылок: {{links}} · загружено {{when}}",
+    "metaLine": "{{host}} · страниц, убранных из поиска: {{events}} · битых ссылок: {{links}} · загружено {{when}}",
     "truncatedFlag": "Достигнут лимит строк: списки обрезаны",
     "colUrl": "URL",
     "colReason": "Причина",
@@ -2217,7 +2220,26 @@
     "notInCrawl": "нет в обходе",
     "seenYes": "да",
     "seenNo": "нет",
-    "summary": "{{shown}} из {{formatted}}"
+    "summary": "{{shown}} из {{formatted}}",
+    "excludedNote": "Страницы, которые Яндекс убрал из поиска (последнее событие по каждой странице). Это не полный список исключённых страниц: страница, у которой последнее событие — возвращение в поиск, здесь не показана.",
+    "colHttp": "HTTP-статус (Яндекс)",
+    "colTarget": "Цель по Яндексу",
+    "reason": {
+      "NOTHING_FOUND": "Ничего не найдено",
+      "HOST_ERROR": "Ошибка сайта",
+      "REDIRECT_NOTSEARCHABLE": "Редирект на страницу, не предназначенную для поиска",
+      "HTTP_ERROR": "Ошибка HTTP",
+      "NOT_CANONICAL": "Не каноническая страница",
+      "NOT_MAIN_MIRROR": "Не главное зеркало",
+      "PARSER_ERROR": "Не удалось разобрать страницу",
+      "ROBOTS_HOST_ERROR": "Закрыто в robots.txt (сайт)",
+      "ROBOTS_URL_ERROR": "Закрыто в robots.txt (URL)",
+      "DUPLICATE": "Дубль",
+      "LOW_QUALITY": "Низкое качество",
+      "CLEAN_PARAMS": "Исключено по Clean-param",
+      "NO_INDEX": "Запрет индексации (noindex)",
+      "OTHER": "Другое"
+    }
   },
   "aiTab": {
     "title": "ИИ",
@@ -2291,7 +2313,21 @@
     "webmasterRemoved": "Исключена из поиска",
     "webmasterDate": "Исключена",
     "webmasterStatus": "Статус, который увидел Яндекс",
-    "webmasterTarget": "Цель редиректа или canonical"
+    "webmasterTarget": "Цель редиректа или canonical",
+    "inspectionVerdict": "Вердикт",
+    "inspectionCoverage": "Покрытие",
+    "inspectionIndexing": "Индексация",
+    "inspectionLastCrawl": "Последний обход",
+    "inspectionGoogleCanonical": "Canonical по Google",
+    "inspectionUserCanonical": "Canonical, указанный на странице",
+    "inspectionPageFetch": "Загрузка страницы",
+    "inspectionCrawledAs": "Обход как",
+    "inspectionSitemap": "Sitemap",
+    "inspectionSitemapHint": "Sitemap, которые Google перечисляет для этой страницы; список может быть неполным",
+    "inspectionLinkedFrom": "Ссылаются",
+    "inspectionFirstShown": "показаны первые {{n}}",
+    "inspectionReferringPage": "Страница со ссылкой",
+    "inspectionErrWarn": "ошибок: {{errors}}, предупреждений: {{warnings}}"
   },
   "brokenTab": {
     "searchPlaceholder": "Поиск по битым целевым URL…",

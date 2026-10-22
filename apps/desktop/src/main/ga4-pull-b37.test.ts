@@ -216,6 +216,9 @@ describe('B37 resume', () => {
     expect(m1.customMessage).toMatch(/today/i);
     expect(m1.customMessage).not.toMatch(/continues? tomorrow/i);
     expect(m1.customMessage).toContain('customUser:plan');
+    // the tab words the message itself (en/ru) from these parts (P12)
+    expect(m1.customNotPulled).toEqual(['customUser:plan']);
+    expect(m1.customStop).toBe('quota');
 
     state.fail = false;
     const g2 = fakeGoogle(failSecond(state));

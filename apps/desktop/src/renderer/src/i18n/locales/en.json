@@ -1926,7 +1926,8 @@
     "newUrlsQueued_one": "{{count}} new URL discovered in Search Console was added to the crawl.",
     "newUrlsQueued_other": "{{count}} new URLs discovered in Search Console were added to the crawl.",
     "crawlNewUrls": "Crawl {{n}} new URLs",
-    "accountTitle": "Which linked Google account this project reports on. Each account keeps its own stored data."
+    "accountTitle": "Which linked Google account this project reports on. Each account keeps its own stored data.",
+    "inspectCancelled": "Inspection cancelled: {{inspected}} inspected, {{skipped}} skipped, {{failed}} failed, {{n}} pages were not reached."
   },
   "googleAccounts": {
     "title": "Connected Accounts",
@@ -2037,7 +2038,9 @@
     "emptyNoMatch": "No pages match the current filter.",
     "accountTitle": "Which linked Google account this project reports on. Each account keeps its own stored data.",
     "customLegend": "Blank = no data from GA4 for this range. A dimension shows its top value by sessions, «+N» = N more values (all of them in the Detail panel).",
-    "unmatched": "{{n}} GA4 page URLs match no crawled page (tracking parameters or slash variants)."
+    "unmatched": "{{n}} GA4 page URLs match no crawled page (tracking parameters or slash variants).",
+    "customNotPulledQuota": "Google's quota for this property is used up or nearly so, so these fields were not pulled: {{fields}}. Fetch again later today to pull only these; from tomorrow the date range moves and the pull starts again.",
+    "customNotPulledError": "The pull stopped{{detail}}, so these fields were not pulled: {{fields}}. Fetch again later today to pull only these; from tomorrow the date range moves and the pull starts again."
   },
   "metricaTab": {
     "agoNow": "just now",
@@ -2129,9 +2132,9 @@
     "errHostNotVerified": "This site is not verified in Yandex Webmaster, so Yandex gives no data for it.",
     "errInvalidUser": "Yandex Webmaster did not accept the account behind the token.",
     "errNetwork": "Could not reach Yandex Webmaster. Check the connection and try again; saved progress is kept.",
-    "progressEvents": "Fetching excluded pages · {{done}} / {{total}}",
+    "progressEvents": "Fetching Yandex search events · {{done}} / {{total}}",
     "progressLinks": "Fetching broken links · {{done}} / {{total}}",
-    "metaLine": "{{host}} · {{events}} excluded pages · {{links}} broken links · fetched {{when}}",
+    "metaLine": "{{host}} · {{events}} pages removed from search · {{links}} broken links · fetched {{when}}",
     "truncatedFlag": "Row limit reached: the lists are cut short",
     "colUrl": "URL",
     "colReason": "Reason",
@@ -2149,7 +2152,26 @@
     "notInCrawl": "not in crawl",
     "seenYes": "yes",
     "seenNo": "no",
-    "summary": "{{shown}} of {{formatted}}"
+    "summary": "{{shown}} of {{formatted}}",
+    "excludedNote": "Pages Yandex removed from search (latest event per page). This is not the full list of excluded pages: a page whose latest event is a return to search is not shown here.",
+    "colHttp": "HTTP status (Yandex)",
+    "colTarget": "Yandex target",
+    "reason": {
+      "NOTHING_FOUND": "Nothing found",
+      "HOST_ERROR": "Site error",
+      "REDIRECT_NOTSEARCHABLE": "Redirects to a page not for search",
+      "HTTP_ERROR": "HTTP error",
+      "NOT_CANONICAL": "Not the canonical page",
+      "NOT_MAIN_MIRROR": "Not the main mirror",
+      "PARSER_ERROR": "Page could not be parsed",
+      "ROBOTS_HOST_ERROR": "Blocked by robots.txt (site)",
+      "ROBOTS_URL_ERROR": "Blocked by robots.txt (URL)",
+      "DUPLICATE": "Duplicate",
+      "LOW_QUALITY": "Low quality",
+      "CLEAN_PARAMS": "Excluded by Clean-param",
+      "NO_INDEX": "Noindex",
+      "OTHER": "Other"
+    }
   },
   "aiTab": {
     "title": "AI",
@@ -2223,7 +2245,21 @@
     "webmasterRemoved": "Removed from search",
     "webmasterDate": "Removed on",
     "webmasterStatus": "Status Yandex saw",
-    "webmasterTarget": "Redirect or canonical target"
+    "webmasterTarget": "Redirect or canonical target",
+    "inspectionVerdict": "Verdict",
+    "inspectionCoverage": "Coverage",
+    "inspectionIndexing": "Indexing",
+    "inspectionLastCrawl": "Last crawl",
+    "inspectionGoogleCanonical": "Google canonical",
+    "inspectionUserCanonical": "User canonical",
+    "inspectionPageFetch": "Page fetch",
+    "inspectionCrawledAs": "Crawled as",
+    "inspectionSitemap": "Sitemap",
+    "inspectionSitemapHint": "Sitemaps Google lists for this page; not a complete list",
+    "inspectionLinkedFrom": "Linked from",
+    "inspectionFirstShown": "first {{n}} shown",
+    "inspectionReferringPage": "Referring page",
+    "inspectionErrWarn": "{{errors}} error(s), {{warnings}} warning(s)"
   },
   "brokenTab": {
     "searchPlaceholder": "Search broken target URLs…",

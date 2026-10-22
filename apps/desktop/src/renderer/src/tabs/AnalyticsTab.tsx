@@ -476,7 +476,20 @@ export function AnalyticsTab() {
 
       {meta?.customMessage && (
         <div className="border-b border-amber-700/40 bg-amber-900/20 px-3 py-1 text-[10px] text-amber-200">
-          {meta.customMessage}
+          {meta.customNotPulled && meta.customStop
+            ? meta.customStop === 'quota'
+              ? t('ga4Tab.customNotPulledQuota', {
+                  defaultValue:
+                    "Google's quota for this property is used up or nearly so, so these fields were not pulled: {{fields}}. Fetch again later today to pull only these; from tomorrow the date range moves and the pull starts again.",
+                  fields: meta.customNotPulled.join(', '),
+                })
+              : t('ga4Tab.customNotPulledError', {
+                  defaultValue:
+                    'The pull stopped{{detail}}, so these fields were not pulled: {{fields}}. Fetch again later today to pull only these; from tomorrow the date range moves and the pull starts again.',
+                  detail: meta.customStopDetail ? ` (${meta.customStopDetail})` : '',
+                  fields: meta.customNotPulled.join(', '),
+                })
+            : meta.customMessage}
         </div>
       )}
       {(meta?.customFields ?? []).some((f) => !f.ok && !meta?.customMessage) && (

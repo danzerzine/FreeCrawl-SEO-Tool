@@ -97,6 +97,7 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
   const failed = new Map<string, string>();
   let quota: Ga4Quota = {};
   let stopped: string | null = null;
+  let stopKind: 'quota' | 'error' | null = null;
   let fatal: Error | null = null;
 
   const store = (fieldsOfRequest: string[], list: { url: string; field: string; value: string; sessions: number | null }[]): void => {
@@ -115,6 +116,7 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
   const guard = (): boolean => {
     if (lowQuota(quota)) {
       stopped = "Google's quota for this property is nearly used up";
+      stopKind = 'quota';
       return false;
     }
     return true;
@@ -210,6 +212,7 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
     } catch (err) {
       if (err instanceof GoogleQuotaError) {
         stopped = "Google's quota for this property is used up";
+        stopKind = 'quota';
       } else if (err instanceof GoogleAuthError || err instanceof GooglePermissionError) {
         fatal = err;
         errorText = err.message;
@@ -257,6 +260,9 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
     rowCount: rows.length,
     customFields,
     customMessage,
+    customNotPulled: notPulled,
+    customStop: notPulled.length === 0 ? null : stopKind ?? 'error',
+    customStopDetail: notPulled.length === 0 ? null : errorText,
     unmatchedUrls: db.ga4UnmatchedUrlCount(account),
   };
   db.setMeta(googleMetaKey('ga4FetchMeta', account), JSON.stringify(meta));
