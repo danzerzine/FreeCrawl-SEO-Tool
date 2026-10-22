@@ -21,7 +21,7 @@ beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'b50-'));
   ext = createServer((req, res) => {
     extHits.push(`${req.method} ${req.url}`);
-    res.writeHead(200, { 'content-type': 'text/html' }).end('<html><body>ext</body></html>');
+    res.writeHead(200, { 'content-type': 'text/html' }).end('<html><body><a href="/y">ext</a></body></html>');
   });
   await new Promise<void>((r) => ext.listen(0, '127.0.0.1', r));
   extPort = (ext.address() as AddressInfo).port;
@@ -92,6 +92,24 @@ describe('on/off flags in both directions (B50)', () => {
     await cli([`${base}/`, '--no-sitemap-discovery', '--check-external'], { checkExternalLinks: false });
     expect(extHits.length).toBeGreaterThan(0);
   }, 60_000);
+
+  it('--no-external crawls no external page over a file that turned it on', async () => {
+    // A crawled external page has its links followed: /y is asked for.
+    const file = { crawlExternal: true, discoverSitemaps: false };
+    await cli([`${base}/`], file);
+    expect(extHits).toContain('GET /y');
+    extHits.length = 0;
+    const { code } = await cli([`${base}/`, '--no-external'], file);
+    expect(code).toBe(0);
+    expect(extHits.filter((h) => h.endsWith('/y'))).toEqual([]);
+  });
+
+  it('an include pattern that can hang exits 2 before any request', async () => {
+    const { code, err } = await cli([`${base}/`, '--include', '(a+)+$']);
+    expect(code).toBe(2);
+    expect(err).toMatch(/pattern/i);
+    expect(hits).toEqual([]);
+  });
 
   it('a --no- form of a flag that has none exits 2', async () => {
     const r = await cli([`${base}/`, '--no-json']);

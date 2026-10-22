@@ -101,6 +101,20 @@ describe('MCP server on projects saved by the desktop app (B3)', () => {
     expect(copies()).toEqual([]);
   }, 30_000);
 
+  it('set_project sent while the default project is still opening wins', async () => {
+    const big = await saved('big', 40_000);
+    const small = await saved('small', 2);
+    const s = new Server(big);
+    const first = s.call('get_summary');
+    await s.call('set_project', { path: small });
+    expect((await first)['total']).toBe(40_000);
+    expect((await s.call('get_summary'))['total']).toBe(2);
+    expect(copies()).toHaveLength(1);
+    s.closeStdin();
+    await s.exited;
+    expect(copies()).toEqual([]);
+  }, 60_000);
+
   it('set_project on the same path reads a newer save of it', async () => {
     const a = await saved('a', 2);
     const s = new Server();

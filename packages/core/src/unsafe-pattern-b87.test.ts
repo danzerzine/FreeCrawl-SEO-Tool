@@ -62,10 +62,11 @@ it('a long pattern is cut to 80 characters in the message (B87)', () => {
 });
 
 it('safe repeated groups and a 999-character list still crawl (B87)', () => {
-  const list = Array.from({ length: 200 }, (_, i) => `/p${i}`).join('|').slice(0, 999);
+  const list = Array.from({ length: 200 }, (_, i) => `/${(i + 1296).toString(36)}`).join('|');
+  expect(list).toHaveLength(999);
   expect(
     invalidUrlPatterns({
-      includePatterns: ['(/page/\\d+)+', '(?:/[a-z]+)*/x', list.replace(/\|[^|]*$/, '')],
+      includePatterns: ['(/page/\\d+)+', '(?:/[a-z]+)*/x', list],
       excludePatterns: ['/search/', 'go-to-comment', '/login'],
     }),
   ).toEqual([]);

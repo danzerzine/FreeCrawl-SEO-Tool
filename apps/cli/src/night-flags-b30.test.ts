@@ -67,25 +67,28 @@ function cli(args: string[], file?: object): Promise<{ code: number | null; err:
   });
 }
 
+// Windows two hours wide, so a run crossing the hour stays inside (or outside).
 const hour = new Date().getHours();
+const now = `${hour}-${(hour + 2) % 24}`;
+const later = `${(hour + 2) % 24}-${(hour + 3) % 24}`;
 const gaps = () => pageHits.slice(1).map((t, i) => t - pageHits[i]!);
 
 describe('--night-rps / --night (B30)', () => {
   it('inside the window pages come at the night rate', async () => {
-    const { code } = await cli(['--night-rps', '2', '--night', `${hour}-${(hour + 1) % 24}`]);
+    const { code } = await cli(['--night-rps', '2', '--night', now]);
     expect(code).toBe(0);
     expect(gaps().length).toBeGreaterThanOrEqual(5);
     for (const g of gaps()) expect(g).toBeGreaterThanOrEqual(450);
   }, 30_000);
 
   it('outside it at --rps', async () => {
-    const { code } = await cli(['--night-rps', '2', '--night', `${(hour + 1) % 24}-${(hour + 2) % 24}`]);
+    const { code } = await cli(['--night-rps', '2', '--night', later]);
     expect(code).toBe(0);
     expect(Math.max(...gaps())).toBeLessThan(400);
   }, 30_000);
 
   it('a night rate from the file takes a --night window', async () => {
-    const { code } = await cli(['--night', `${hour}-${(hour + 1) % 24}`], { nightMaxRps: 2 });
+    const { code } = await cli(['--night', now], { nightMaxRps: 2 });
     expect(code).toBe(0);
     for (const g of gaps()) expect(g).toBeGreaterThanOrEqual(450);
   }, 30_000);
@@ -110,8 +113,9 @@ describe('--night-rps / --night (B30)', () => {
     expect(err).toContain('--night needs --night-rps');
   });
 
-  it('a bad --night-rps exits 2', async () => {
-    const { code } = await cli(['--night-rps', 'fast']);
+  it.each([['fast'], ['-1']])('--night-rps %s exits 2', async (value) => {
+    const { code } = await cli([`--night-rps=${value}`]);
     expect(code).toBe(2);
+    expect(pageHits).toEqual([]);
   });
 });

@@ -59,8 +59,11 @@ interface Run {
   stopLagMs: number;
 }
 
-/** Crawls; stops two seconds after the first trouble message, if any. */
-async function crawl(over: Partial<CrawlConfig>): Promise<Run> {
+/** Crawls; stops `stopAfterMs` after the first trouble message, if any. */
+async function crawl(
+  over: Partial<CrawlConfig>,
+  { stopAfterMs = 2000, setup }: { stopAfterMs?: number; setup?: (c: Crawler) => void } = {},
+): Promise<Run> {
   const db = new ProjectDb(join(dir, `p${++n}.seoproject`));
   const c = new Crawler(
     {
@@ -84,6 +87,7 @@ async function crawl(over: Partial<CrawlConfig>): Promise<Run> {
     },
     db,
   );
+  setup?.(c);
   const events: Run['events'] = [];
   let hitsAfterFirst = 0;
   let stoppedAt = 0;
@@ -91,20 +95,82 @@ async function crawl(over: Partial<CrawlConfig>): Promise<Run> {
     const message = String(m);
     if (!/^Adaptive speed: (server|answers)/.test(message)) return;
     events.push({ at: Date.now(), message });
-    if (events.length > 1) return;
+    if (events.length > 1 || stopAfterMs === Infinity) return;
     const at = pageHits.length;
     setTimeout(() => {
       hitsAfterFirst = pageHits.length - at;
       stoppedAt = Date.now();
       c.stop();
-    }, 2000);
+    }, stopAfterMs);
   });
   await c.start();
   db.close();
   return { events, hitsAfterFirst, stopLagMs: stoppedAt ? Date.now() - stoppedAt : 0 };
 }
 
+/** Shortens a pause of the crawler for one test. */
+async function withPause<T>(name: string, ms: number, run: () => Promise<T>): Promise<T> {
+  const statics = Crawler as unknown as Record<string, number>;
+  const was = statics[name]!;
+  statics[name] = ms;
+  try {
+    return await run();
+  } finally {
+    statics[name] = was;
+  }
+}
+
 describe('adaptive speed on server trouble (B30)', () => {
+  it('after the pause the rate is cut', async () => {
+    failing = (k) => k > 0 && k % 3 === 0;
+    const run = await withPause('ADAPTIVE_TROUBLE_PAUSE_MS', 300, () =>
+      crawl({ adaptiveSpeed: true, maxUrls: 200, retryAttempts: 0 }, { stopAfterMs: 4000 }),
+    );
+    const first = run.events[0]!.at;
+    const after = pageHits.filter((t) => t > first + 1000 && t <= first + 4000).length / 3;
+    // maxRps 10, halved to 5.
+    expect(after).toBeGreaterThan(2);
+    expect(after).toBeLessThan(6.5);
+  }, 60_000);
+
+  it('answers slowing: a cut within 30 answers, no rise while slow, recovery once fast', async () => {
+    let switchedAt = 0;
+    let fastFrom = Infinity;
+    delayMs = (hit) => {
+      if (hit <= 30) return 50;
+      switchedAt ||= hit;
+      return hit < fastFrom ? 400 : 50;
+    };
+    let cutAt = 0;
+    const recoveries: number[] = [];
+    await withPause('ADAPTIVE_SLOW_PAUSE_MS', 200, () =>
+      crawl(
+        { adaptiveSpeed: true, maxUrls: 600, maxRps: 40 },
+        {
+          stopAfterMs: Infinity,
+          setup: (c) => {
+            c.on('info', (m) => {
+              if (cutAt || !String(m).startsWith('Adaptive speed: answers slowing')) return;
+              cutAt = pageHits.length;
+              // 40 more slow answers, then fast ones.
+              fastFrom = cutAt + 40;
+            });
+            c.on('debug', (m) => {
+              if (!String(m).startsWith('Adaptive speed: recovering')) return;
+              recoveries.push(pageHits.length);
+              if (pageHits.length >= fastFrom) c.stop();
+            });
+          },
+        },
+      ),
+    );
+    expect(cutAt).toBeGreaterThan(0);
+    expect(cutAt - switchedAt).toBeLessThanOrEqual(30);
+    // No rise while answers stay slow (in-flight ones may finish after the switch).
+    expect(recoveries.filter((h) => h < fastFrom)).toEqual([]);
+    expect(recoveries.length).toBeGreaterThan(0);
+  }, 90_000);
+
   it('every third page failing: a pause and a cut with adaptive speed on, nothing with it off', async () => {
     failing = (k) => k > 0 && k % 3 === 0;
     const on = await crawl({ adaptiveSpeed: true });
