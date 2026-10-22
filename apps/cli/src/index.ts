@@ -71,6 +71,7 @@ import {
   type ExportItem,
   type ExportOutcome,
   type LogAnalysisResult,
+  type StartDecision,
 } from '@freecrawl/core';
 import {
   ProjectDb,
@@ -148,6 +149,10 @@ Options:
                         Per-flag overrides on the command line still win — useful for CI
                         ("scheduled config + per-run --max").
   --db <file>         SQLite project file (default: ./crawl.seoproject)
+  --resume            Continue the crawl in --db where it stopped: pages already fetched are not
+                        fetched again. Without it, a crawl into a --db holding the same site fetches
+                        every page again (a refresh) and one holding another site replaces it.
+                        Spider: the URL must be the project's site; list: pass the same --list.
   --stop-file <file>  Stop the crawl softly when <file> appears (checked every second), as Ctrl-C
                         does; the file is deleted then. For Windows, where a wrapper cannot send
                         Ctrl-C. Must not exist at start.
@@ -309,6 +314,7 @@ function parseCliArgs() {
       'compare-with': { type: 'string' },
       export: { type: 'string' },
       'pid-file': { type: 'string' },
+      resume: { type: 'boolean' },
       'stop-file': { type: 'string' },
       verbose: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
@@ -568,10 +574,26 @@ async function main(): Promise<void> {
   }
   if (values['pid-file'] !== undefined) writePidFile(resolve(values['pid-file']));
 
+  // One crawl per project file; a lock left by a killed process is taken over.
+  try {
+    pendingCleanups.add(lockProject(dbPath));
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(2);
+  }
+  const resume = values.resume ? resumeTarget(dbPath, listFile !== undefined, startUrl) : null;
+  if (resume !== null) config.startUrl = resume;
+
   // Opened only after every flag validated, so a bad argument leaves no
   // empty project file behind.
   const db = new ProjectDb(dbPath);
-  const crawler = new Crawler(config, db, { toolVersion: cliVersion() });
+  const crawler = new Crawler(config, db, {
+    toolVersion: cliVersion(),
+    resumeOnly: resume !== null,
+  });
+  // URLs that were queued or in flight when the crawl stopped; the ones
+  // fetched after the last checkpoint write are left out.
+  if (resume !== null) crawler.enqueueCheckpointed(db.loadUnfetchedQueueCheckpoint());
   const jsonMode = Boolean(values.json);
 
   // Events while the crawl runs go to stderr, so stdout keeps only the
@@ -629,6 +651,19 @@ async function main(): Promise<void> {
     report('warn', { message });
   });
   if (values.verbose) crawler.on('info', (msg) => report('info', { message: String(msg) }));
+  let refreshing = false;
+  crawler.on('start-decision', (d: StartDecision) => {
+    refreshing = d.kind === 'refresh';
+    if (d.kind === 'refresh') {
+      report('warn', {
+        message: `${d.knownPages} pages already in ${dbPath}; all of them are fetched again. To continue an interrupted crawl, add --resume.`,
+      });
+    } else if (d.kind === 'replace') {
+      report('warn', {
+        message: `${dbPath} held a crawl of ${d.previousStartUrl}; it is replaced by this one.`,
+      });
+    }
+  });
 
   // Soft stop: the first signal saves the queue for --resume and stops the
   // crawler, which still recounts issues. The handlers go at once, so a
@@ -655,6 +690,12 @@ async function main(): Promise<void> {
       message:
         'Stopping: finishing writes and recounting issues. Press Ctrl-C again to quit at once.',
     });
+    if (refreshing) {
+      report('warn', {
+        message:
+          'This was a refresh: --resume finishes only new pages; run without --resume to fetch every page again.',
+      });
+    }
     void crawler.saveQueueCheckpoint().finally(() => crawler.stop());
   };
   for (const s of signals) process.on(s, softStop);
@@ -2085,6 +2126,51 @@ function cliVersion(): string {
 }
 
 /** Export progress: one line on stderr, so `--json` stdout stays clean. */
+/**
+ * `--resume`: the start URL to continue from (the list's first line in list
+ * mode), or null for a new crawl when the project is missing or empty.
+ * Exits 2 when the project holds another site or another kind of crawl.
+ * Read-only, so a refused resume leaves the file as it was.
+ */
+function resumeTarget(dbPath: string, listMode: boolean, startUrl: string): string | null {
+  let stored: string | null = null;
+  let rows = 0;
+  if (existsSync(dbPath)) {
+    const p = new ProjectDb(dbPath, { readOnly: true });
+    try {
+      stored = p.getMeta('startUrl');
+      rows = p.countUrls();
+    } finally {
+      p.close();
+    }
+  }
+  if (stored === null || rows === 0) {
+    console.error(`Nothing to resume in ${dbPath}; starting a new crawl.`);
+    return null;
+  }
+  const storedIsList = !/^https?:\/\//.test(stored);
+  if (listMode !== storedIsList) {
+    console.error(
+      storedIsList
+        ? `${dbPath} holds a list crawl; continue it with --resume --list <file>.`
+        : `${dbPath} holds a crawl of ${stored}; --resume --list cannot continue it.`,
+    );
+    process.exit(2);
+  }
+  if (listMode) return startUrl;
+  const site = (u: string) =>
+    new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`).hostname
+      .toLowerCase()
+      .replace(/^www\./, '');
+  if (site(startUrl) !== site(stored)) {
+    console.error(
+      `${dbPath} holds a crawl of ${stored}; --resume continues it: pass that URL or another --db.`,
+    );
+    process.exit(2);
+  }
+  return stored;
+}
+
 /** Per-URL crawl warnings printed before the rest are held back. */
 const PER_URL_WARNINGS_SHOWN = 20;
 

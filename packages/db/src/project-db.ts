@@ -2479,6 +2479,30 @@ export class ProjectDb {
     ).map((r) => r.url);
   }
 
+  /** Internal or external URLs only, for a resume that counts them apart. */
+  getUrlsByScope(external: boolean): string[] {
+    return (
+      this.db
+        .prepare('SELECT url FROM urls WHERE is_external = ?')
+        .all(external ? 1 : 0) as unknown as { url: string }[]
+    ).map((r) => r.url);
+  }
+
+  /**
+   * The saved queue minus the URLs that already have a response: a
+   * checkpoint is written every 30 s, so it can still list pages fetched
+   * after its last write.
+   */
+  loadUnfetchedQueueCheckpoint(): { url: string; depth: number }[] {
+    return this.db
+      .prepare(
+        `SELECT q.url, q.depth FROM crawl_queue q
+         LEFT JOIN urls u ON u.url = q.url
+         WHERE u.id IS NULL OR u.status_code IS NULL`,
+      )
+      .all() as { url: string; depth: number }[];
+  }
+
   /**
    * Internal non-HTML rows — images, CSS, JS, fonts, media. Used to seed the
    * crawler's subresource budget quota when resuming, so a resumed crawl

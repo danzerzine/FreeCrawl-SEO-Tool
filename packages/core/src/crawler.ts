@@ -399,6 +399,15 @@ function redirectTargetOf(
   return loc ? (normalizeUrl(loc, url) ?? loc) : null;
 }
 
+/** The `start-decision` event: what a run does with the project's pages. */
+export interface StartDecision {
+  kind: 'new' | 'resume' | 'refresh' | 'replace';
+  /** The project's start URL (or list fingerprint) before this run. */
+  previousStartUrl: string | null;
+  /** Internal pages with a response before this run. */
+  knownPages: number;
+}
+
 /** Why a crawl ended without doing its job (`Crawler.incomplete`). */
 export type IncompleteReason = 'invalid-pattern' | 'seed' | 'memory' | 'no-urls';
 
@@ -640,6 +649,23 @@ export class Crawler extends EventEmitter {
   /** True while a crawl that was not stopped runs its end-of-crawl passes. */
   get finishingRun(): boolean {
     return this.finishing && !this.stopped;
+  }
+  /**
+   * `start-decision`: what this run does with the pages the project
+   * already holds, for a host to tell its user. 'refresh' and 'replace'
+   * with an empty project are a plain new crawl.
+   */
+  private emitStartDecision(
+    kind: 'resume' | 'refresh' | 'replace',
+    previousStartUrl: string | null,
+  ): void {
+    const knownPages = this.db.countCrawledUrls();
+    const decision: StartDecision = {
+      kind: kind !== 'resume' && knownPages === 0 ? 'new' : kind,
+      previousStartUrl,
+      knownPages,
+    };
+    this.emit('start-decision', decision);
   }
   private stopQueueCheckpointTimer(): void {
     if (this.queueCheckpointTimer) {
@@ -1286,7 +1312,7 @@ export class Crawler extends EventEmitter {
     }
 
     const startProbeT0 = Date.now();
-    const start = await resolveStartUrl(
+    let start = await resolveStartUrl(
       this.config.startUrl,
       this.config.userAgent,
       5000,
@@ -1330,6 +1356,23 @@ export class Crawler extends EventEmitter {
       'info',
       `Start URL resolved: ${this.config.startUrl} -> ${start} (in ${Date.now() - startProbeT0} ms)`,
     );
+    // A resume continues the crawl the project holds. If the start URL now
+    // resolves elsewhere (a changed redirect, locale or www rule), the
+    // stored one is kept: taking the new one would wipe the project below.
+    const storedStart = this.db.getMeta('startUrl');
+    if (
+      this.resumeOnly &&
+      this.respiderSeeds === null &&
+      storedStart &&
+      /^https?:\/\//.test(storedStart) &&
+      storedStart !== start
+    ) {
+      this.emit(
+        'warn',
+        `Start URL now resolves to ${start}; the resumed crawl keeps ${storedStart}`,
+      );
+      start = storedStart;
+    }
     // Persist the resolved URL back into the active config so scope checks,
     // progress events, and link classification all see the same canonical value.
     this.config = { ...this.config, startUrl: start };
@@ -1351,9 +1394,15 @@ export class Crawler extends EventEmitter {
     // the user was looking at).
     // A crash-recovery resume is exempt from the re-fetch half only — it
     // is the same site, so the tables must survive.
-    const previousStart = this.db.getMeta('startUrl');
+    const previousStart = storedStart;
     const isRespider = this.respiderSeeds !== null;
     const isSameSite = previousStart === start;
+    if (!isRespider) {
+      this.emitStartDecision(
+        this.resumeOnly ? 'resume' : isSameSite ? 'refresh' : 'replace',
+        previousStart,
+      );
+    }
     // Wipe ONLY when this is genuinely a different site. Keep this
     // condition keyed on `isSameSite` rather than on `isRefresh` — a
     // resume or a re-spider is also "not a refresh", and resetting on
@@ -1685,6 +1734,13 @@ export class Crawler extends EventEmitter {
     // Suppress 'done' if a stop() ran during teardown — otherwise the
     // zombie crawler's done-event clobbers the new crawl's UI state.
     if (!this.stopped) {
+      // Nothing is left to resume, as in list mode; a stale checkpoint
+      // would put crawled pages back on the next resume.
+      try {
+        this.db.clearQueueCheckpoint();
+      } catch {
+        /* checkpoint table may not yet exist on very old DBs — ignore */
+      }
       // Before 'done', so a listener reacting to the finish (alerts,
       // trends) already sees this crawl in the history.
       await this.recordCrawlRun();
@@ -3042,6 +3098,10 @@ export class Crawler extends EventEmitter {
     afterReset?: () => Promise<void>,
   ): Promise<void> {
     const previousStart = this.db.getMeta('startUrl');
+    this.emitStartDecision(
+      this.resumeOnly ? 'resume' : previousStart === fingerprint ? 'refresh' : 'replace',
+      previousStart,
+    );
     // A crash-recovery resume continues the interrupted crawl, so its rows
     // must survive even though the fingerprint may no longer match — a
     // sitemap that gained or lost a single URL changes the count baked into
@@ -3301,8 +3361,14 @@ export class Crawler extends EventEmitter {
   private async hydrateFromDb(
     opts: { refresh: boolean } = { refresh: false },
   ): Promise<void> {
-    // Mark every already-known URL as "seen" so enqueue can skip them.
-    for (const url of this.db.getAllUrls()) {
+    // Mark every already-known page as "seen" so enqueue can skip them.
+    // Known external URLs go to the external set further down, as in a
+    // fresh crawl: in `seen` they would count against `maxUrls` and a
+    // resumed crawl would stop short of its page limit.
+    const knownExternal = this.config.crawlExternal ? [] : this.db.getUrlsByScope(true);
+    for (const url of this.config.crawlExternal
+      ? this.db.getAllUrls()
+      : this.db.getUrlsByScope(false)) {
       this.seen.add(url);
     }
     // A refresh counts its own work from zero — the progress bar should
@@ -3399,6 +3465,8 @@ export class Crawler extends EventEmitter {
     for (const extUrl of this.db.getUnprobedExternalUrls()) {
       this.enqueueExternal(extUrl);
     }
+    // The probed ones are done: seen, so links to them are not re-probed.
+    for (const url of knownExternal) this.externalSeen.add(url);
   }
 
   private enqueueExternal(url: string): void {
