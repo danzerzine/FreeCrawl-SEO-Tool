@@ -56,6 +56,7 @@ import type {
   GscFetchMeta,
   GscPreset,
   Ga4Property,
+  Ga4Field,
   Ga4Row,
   Ga4FetchMeta,
   UrlAnalyticsDetail,
@@ -443,6 +444,8 @@ export const IPC = {
    *  crawled pages joined with that stored data. */
   ga4ListProperties: 'ga4:list-properties',
   ga4Fetch: 'ga4:fetch',
+  /** B37 — metrics and dimensions of a property (custom ones flagged) for the picker. */
+  ga4ListFields: 'ga4:list-fields',
   ga4Query: 'ga4:query',
   /** Yandex Metrica. `metricaListCounters` lists the counters the stored
    *  token can read; `metricaFetch` pulls per-page pageviews (hit-level)
@@ -1861,6 +1864,20 @@ export interface Ga4ListPropertiesResult {
   properties: Ga4Property[];
 }
 
+export interface Ga4ListFieldsInput {
+  /** Property resource name (`properties/<id>`). */
+  property: string;
+  accountId?: string;
+  /** Ask Google again instead of the session's copy. */
+  refresh?: boolean;
+}
+
+export interface Ga4ListFieldsResult {
+  ok: boolean;
+  error: string | null;
+  fields: Ga4Field[];
+}
+
 export interface Ga4FetchInput {
   /** Property resource name (`properties/<id>`). */
   property: string;
@@ -2449,6 +2466,8 @@ export interface FreeCrawlApi {
   ga4ListProperties(accountId?: string): Promise<Ga4ListPropertiesResult>;
   /** Pull per-page GA4 metrics for the given property + range. */
   ga4Fetch(input: Ga4FetchInput): Promise<Ga4FetchResult>;
+  /** B37 — the property's metrics and dimensions, for choosing custom fields. */
+  ga4ListFields(input: Ga4ListFieldsInput): Promise<Ga4ListFieldsResult>;
   /** List crawled pages joined with their stored GA4 metrics. */
   ga4Query(input: Ga4QueryInput): Promise<Ga4QueryResult>;
   /** Yandex Metrica — counters, unsampled per-page pull, joined query. */

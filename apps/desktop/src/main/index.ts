@@ -187,6 +187,8 @@ import {
   type Ga4FetchInput,
   type Ga4FetchResult,
   type Ga4FetchMeta,
+  type Ga4ListFieldsInput,
+  type Ga4ListFieldsResult,
   type Ga4QueryInput,
   type Ga4QueryResult,
   type MetricaIntegrationSettings,
@@ -387,7 +389,7 @@ import {
 import { planInspection, runGscInspection, uniqueInspectUrls } from './gsc-inspect-run.js';
 import { exportCategoryToSheets } from './sheets-export.js';
 import { exportCategoryToBigQuery } from './bigquery-export.js';
-import { listProperties as ga4ListProperties } from './ga4.js';
+import { listProperties as ga4ListProperties, getMetadata as ga4GetMetadata } from './ga4.js';
 import { ga4FetchFromBridge, ga4FetchFromDesktop, type Ga4EntryEnv } from './ga4-pull.js';
 import {
   listCounters as metricaListCounters,
@@ -6537,6 +6539,20 @@ function registerIpc(): void {
           error: err instanceof Error ? err.message : String(err),
           properties: [],
         };
+      }
+    },
+  );
+  registerHandle(
+    IPC.ga4ListFields,
+    async (_e, input: Ga4ListFieldsInput): Promise<Ga4ListFieldsResult> => {
+      try {
+        const account = resolveGoogleAccount('ga4', input.accountId);
+        const fields = await ga4GetMetadata(input.property, account, undefined, {
+          refresh: input.refresh,
+        });
+        return { ok: true, error: null, fields };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err), fields: [] };
       }
     },
   );

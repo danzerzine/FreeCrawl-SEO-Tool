@@ -154,6 +154,8 @@ import {
   type GscQueryResult,
   type GscCrawlNewUrlsResult,
   type Ga4ListPropertiesResult,
+  type Ga4ListFieldsInput,
+  type Ga4ListFieldsResult,
   type Ga4FetchInput,
   type Ga4FetchResult,
   type Ga4QueryInput,
@@ -542,6 +544,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.gscCrawlNewUrls),
   ga4ListProperties: (accountId?: string): Promise<Ga4ListPropertiesResult> =>
     ipcRenderer.invoke(IPC.ga4ListProperties, accountId),
+  ga4ListFields: (input: Ga4ListFieldsInput): Promise<Ga4ListFieldsResult> =>
+    ipcRenderer.invoke(IPC.ga4ListFields, input),
   ga4Fetch: (input: Ga4FetchInput): Promise<Ga4FetchResult> =>
     ipcRenderer.invoke(IPC.ga4Fetch, input),
   ga4Query: (input: Ga4QueryInput): Promise<Ga4QueryResult> =>
