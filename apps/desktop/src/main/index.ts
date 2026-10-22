@@ -434,7 +434,7 @@ import {
   setSchedule,
   type SchedulerStore,
 } from './scheduler.js';
-import { runScheduledExport } from './scheduled-export.js';
+import { runScheduledExport, runScheduledSheets } from './scheduled-export.js';
 import { keepPreviousCrawl, previousCrawlPath, runChangeReport } from './change-report.js';
 import { cancelledCompareResult, compareWithOpenProject } from './compare-load.js';
 import { monitorHistory, monitorMetricNames } from './monitor-history.js';
@@ -7822,20 +7822,12 @@ function registerIpc(): void {
     }
     let sheetsUrl: string | null = null;
     if (after.sheets) {
-      try {
-        const r = await exportCategoryToSheets(db, 'all', `FreeCrawl — ${project} — ${stamp}`);
-        sheetsUrl = r.spreadsheetUrl || null;
-        logger.log('info', 'main', `Scheduled Sheets export: ${sheetsUrl} (${r.rowsWritten} rows)`, undefined, sess.logTag);
-        if (r.truncated) {
-          const note = `exported ${r.rowsWritten} of ${r.totalRows} rows (Google Sheets holds at most 10 million cells)`;
-          errors.push(`sheets: ${note}`);
-          logger.log('warn', 'main', `Scheduled Sheets export: ${note}`, undefined, sess.logTag);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`sheets: ${msg}`);
-        logger.log('warn', 'main', `Scheduled Sheets export failed: ${msg}`, undefined, sess.logTag);
-      }
+      const step = await runScheduledSheets(db, `FreeCrawl — ${project} — ${stamp}`, {
+        exportToSheets: exportCategoryToSheets,
+        log: (level, message) => logger.log(level, 'main', message, undefined, sess.logTag),
+      });
+      sheetsUrl = step.sheetsUrl;
+      errors.push(...step.errors);
     }
     if (after.webhook) {
       const url = sess.lastCrawlConfig?.webhookUrl?.trim() ?? '';

@@ -71,3 +71,42 @@ export async function runScheduledExport(
     errors: r.errors.map((e) => `${e.label}: ${e.error}`),
   };
 }
+
+/** What the scheduled Sheets step needs from the Sheets export (injected: it needs Electron). */
+export interface ScheduledSheetsDeps {
+  exportToSheets: (
+    db: ProjectDb,
+    category: 'all',
+    title: string,
+  ) => Promise<{ spreadsheetUrl: string; rowsWritten: number; totalRows: number; truncated: boolean }>;
+  log: (level: 'info' | 'warn', message: string) => void;
+}
+
+/**
+ * The Google Sheets push of a scheduled crawl. Best-effort like the rest:
+ * a failure, or a result cut at the 10 million cell limit, becomes an entry
+ * of `errors` (which the webhook payload carries) and a log line.
+ */
+export async function runScheduledSheets(
+  db: ProjectDb,
+  title: string,
+  deps: ScheduledSheetsDeps,
+): Promise<{ sheetsUrl: string | null; errors: string[] }> {
+  const errors: string[] = [];
+  let sheetsUrl: string | null = null;
+  try {
+    const r = await deps.exportToSheets(db, 'all', title);
+    sheetsUrl = r.spreadsheetUrl || null;
+    deps.log('info', `Scheduled Sheets export: ${sheetsUrl} (${r.rowsWritten} rows)`);
+    if (r.truncated) {
+      const note = `exported ${r.rowsWritten} of ${r.totalRows} rows (Google Sheets holds at most 10 million cells)`;
+      errors.push(`sheets: ${note}`);
+      deps.log('warn', `Scheduled Sheets export: ${note}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`sheets: ${msg}`);
+    deps.log('warn', `Scheduled Sheets export failed: ${msg}`);
+  }
+  return { sheetsUrl, errors };
+}
