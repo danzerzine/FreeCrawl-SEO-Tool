@@ -1,4 +1,10 @@
 import type { BrowserPool } from './browser-pool.js';
+import {
+  PAGE_SCRIPT_PROBE_MS,
+  RENDER_LIMIT_MARGIN_MS,
+  clampPageScriptTimeout,
+  runPageScript,
+} from './page-script.js';
 import { attachConsoleCollector, type ConsoleLog } from './render-console.js';
 
 export interface RenderOptions {
@@ -39,6 +45,31 @@ export interface RenderOptions {
   collectConsole?: boolean;
   /** Resource types the pool blocks on purpose; their failures are not the site's. */
   blockedTypes?: readonly string[];
+  /**
+   * The user's page script (B34): runs once per rendered 2xx page, after the
+   * wait and before `page.content()`. Empty or unset: nothing runs and no
+   * render time limit applies.
+   */
+  pageScript?: string;
+  /** How long the script may run (clamped 500..30 000, default 5 000). */
+  pageScriptTimeoutMs?: number;
+  /** Test knob: how long a page may take to answer after the script timed out. Default 2 000. */
+  pageScriptProbeMs?: number;
+  /** Test knob: margin of the render time limit. Default 5 000. */
+  renderMarginMs?: number;
+}
+
+/**
+ * The time one render may take once it holds a browser page: goto + wait +
+ * script + margin. Only a render with a page script is limited.
+ */
+export function renderLimitMs(opts: RenderOptions): number {
+  return (
+    opts.timeoutMs +
+    opts.ajaxTimeoutMs +
+    clampPageScriptTimeout(opts.pageScriptTimeoutMs) +
+    (opts.renderMarginMs ?? RENDER_LIMIT_MARGIN_MS)
+  );
 }
 
 export interface LcpCandidate {
@@ -96,6 +127,12 @@ export interface RenderResult {
   servedHtml?: string;
   /** Console errors and failed resources of this render; set only with `collectConsole`, on a successful render. */
   consoleLog?: ConsoleLog;
+  /** A page script ran for this page (B34). */
+  scriptRan?: boolean;
+  /** JSON the script produced (the value, or `{"error": ...}`); unset when it returned nothing. */
+  scriptResult?: string;
+  /** `page.content()` taken just before the script ran (B33's compare reads this, not the post-script DOM). */
+  renderedHtmlPreScript?: string;
 }
 
 /** V2 Faz 16 — in-page accessibility audit result. */
@@ -416,6 +453,12 @@ export async function renderUrl(
     ok: false,
   };
 
+  // Stop arrived while this call waited for a slot: give the slot back, no navigation.
+  if (signal?.aborted) {
+    release(false);
+    return { ...result, error: 'aborted' };
+  }
+
   // On abort: close the page so the in-flight page.goto / waitForTimeout
   // bails out immediately (closing the page rejects all pending evaluate
   // calls with `Target closed`). The pool replaces the closed page when
@@ -427,6 +470,20 @@ export async function renderUrl(
     page.close({ runBeforeUnload: false }).catch(() => {});
   };
   signal?.addEventListener('abort', abortHandler);
+
+  // The render time limit (B34) starts here, after the wait for a slot, so a
+  // queue of renders never eats it. Only a render with a page script has one.
+  const hasScript = !!opts.pageScript && opts.pageScript.trim() !== '';
+  let limitHit = false;
+  // A page whose script blocked it, or that hit the limit, is closed and replaced.
+  let discard = false;
+  const limitTimer = hasScript
+    ? setTimeout(() => {
+        limitHit = true;
+        discard = true;
+        page.close({ runBeforeUnload: false }).catch(() => {});
+      }, renderLimitMs(opts))
+    : null;
 
   // Save the viewport so we can restore it on a per-render override.
   // Done before any navigation so even an early throw can roll back.
@@ -475,6 +532,46 @@ export async function renderUrl(
 
     if (aborted || signal?.aborted) {
       throw new Error('aborted');
+    }
+
+    let scriptRan: boolean | undefined;
+    let scriptResult: string | undefined;
+    let renderedHtmlPreScript: string | undefined;
+    const status2xx = (response?.status() ?? 0) >= 200 && (response?.status() ?? 0) < 300;
+    if (hasScript && status2xx) {
+      // The DOM before the script is the site's own; B33 compares that one.
+      try {
+        renderedHtmlPreScript = await page.content();
+      } catch {
+        renderedHtmlPreScript = undefined;
+      }
+      scriptRan = true;
+      const outcome = await runPageScript(
+        page,
+        opts.pageScript as string,
+        clampPageScriptTimeout(opts.pageScriptTimeoutMs),
+      );
+      scriptResult = outcome.json;
+      if (outcome.timedOut) {
+        // A script that blocks the renderer also hangs everything after it.
+        const answered = await Promise.race([
+          page.evaluate('1').then(
+            () => true,
+            () => false,
+          ),
+          new Promise<boolean>((r) =>
+            setTimeout(() => r(false), opts.pageScriptProbeMs ?? PAGE_SCRIPT_PROBE_MS),
+          ),
+        ]);
+        if (!answered) {
+          discard = true;
+          await page.close({ runBeforeUnload: false }).catch(() => {});
+          throw new Error('script blocked the page');
+        }
+      }
+      if (aborted || signal?.aborted) {
+        throw new Error('aborted');
+      }
     }
 
     const html = await page.content();
@@ -586,19 +683,27 @@ export async function renderUrl(
       navigatedTo,
       servedHtml,
       consoleLog: collector?.finish(),
+      scriptRan,
+      scriptResult,
+      renderedHtmlPreScript,
     };
   } catch (err) {
     result = {
       ...result,
       timingMs: Date.now() - t0,
       ok: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: limitHit
+        ? 'render time limit exceeded'
+        : err instanceof Error
+          ? err.message
+          : String(err),
     };
   } finally {
+    if (limitTimer) clearTimeout(limitTimer);
     // Pages are reused: a listener must never outlive its render.
     collector?.finish();
     signal?.removeEventListener('abort', abortHandler);
-    if (!aborted) {
+    if (!aborted && !discard) {
       // Best-effort cookie wipe between URLs so cross-URL state
       // doesn't leak. Aborted renders skip this — the page is being
       // closed + replaced anyway.
@@ -618,7 +723,7 @@ export async function renderUrl(
     }
     // On abort the page was closed; the pool replaces it before the
     // next acquire. On normal completion the page stays warm.
-    release(aborted);
+    release(aborted || discard);
   }
 
   return result;
