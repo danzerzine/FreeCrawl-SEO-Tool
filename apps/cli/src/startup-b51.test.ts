@@ -42,6 +42,17 @@ describe('startup entry (B51)', () => {
     expect(r.stderr).toContain('something else');
   });
 
+  it('bin.js refuses an old Node before anything loads node:sqlite', () => {
+    // A preload fakes the version; a static import of node:sqlite anywhere
+    // in bin.js's graph would run before the check and the message would
+    // never print.
+    const fake = `data:text/javascript,Object.defineProperty(process.versions,'node',{value:'23.1.0'})`;
+    const r = spawnSync(process.execPath, ['--import', fake, BIN, '--help'], { encoding: 'utf8', timeout: 20000 });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('FreeCrawl needs Node 22.13+');
+    expect(r.stdout).toBe('');
+  });
+
   it('bin.js --help runs the CLI with a clean stderr', () => {
     const r = spawnSync(process.execPath, [BIN, '--help'], { encoding: 'utf8', timeout: 20000 });
     expect(r.status).toBe(0);

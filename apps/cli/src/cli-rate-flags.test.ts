@@ -20,7 +20,9 @@ beforeEach(async () => {
   pageHits.length = 0;
   server = http.createServer((req, res) => {
     const m = /^\/p\/(\d+)$/.exec(req.url ?? '');
-    if (m) pageHits.push(Date.now());
+    // Every request: the start-URL probe and sitemap reads wait for the
+    // rate limit too.
+    pageHits.push(Date.now());
     const i = m ? Number(m[1]) : 0;
     res.setHeader('content-type', 'text/html');
     res.end(`<html><head><title>p${i}</title></head><body>` +
@@ -49,7 +51,7 @@ describe('crawl rate flags', () => {
     expect(r.status).toBe(2);
   });
 
-  it('--rps 0.5 spaces page requests about 2 s apart instead of turning the limit off', async () => {
+  it('--rps 0.5 spaces requests about 2 s apart instead of turning the limit off', async () => {
     const child = spawn(process.execPath, [CLI, base, '--rps', '0.5', '--concurrency', '4', '--no-robots',
       '--db', path.join(dir, 't.seoproject')], { stdio: 'ignore' });
     await new Promise((r) => setTimeout(r, 7000));

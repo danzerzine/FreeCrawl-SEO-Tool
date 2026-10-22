@@ -16,12 +16,14 @@ let base: string;
 let delayMs = 0;
 let with404 = false;
 let crawlDelay = false;
+let brokenLinks = 0;
 
 beforeEach(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fc-b48-'));
   delayMs = 0;
   with404 = false;
   crawlDelay = false;
+  brokenLinks = 0;
   server = http.createServer((req, res) => {
     const url = req.url ?? '/';
     // No robots.txt and no sitemap: the crawl must still count as clean.
@@ -33,7 +35,7 @@ beforeEach(async () => {
       res.writeHead(404).end();
       return;
     }
-    if (url === '/missing') {
+    if (url === '/missing' || url.startsWith('/gone/')) {
       res.writeHead(404, { 'content-type': 'text/html' }).end('<html><body>gone</body></html>');
       return;
     }
@@ -41,6 +43,7 @@ beforeEach(async () => {
     const i = m ? Number(m[1]) : 0;
     const links = [`<a href="/p/${i + 1}">next</a>`];
     if (with404 && i === 0) links.push('<a href="/missing">missing</a>');
+    if (i === 0) for (let k = 0; k < brokenLinks; k++) links.push(`<a href="/gone/${k}">g</a>`);
     setTimeout(() => {
       res.writeHead(200, { 'content-type': 'text/html' });
       res.end(`<html><head><title>p${i}</title></head><body>${links.join('')}</body></html>`);
@@ -84,7 +87,23 @@ describe('exit codes (B48)', () => {
   it('an unreachable start URL exits 4 and says the crawl did not complete', async () => {
     const r = await crawl(['http://127.0.0.1:9/', '--json']);
     expect(r.status).toBe(4);
-    expect(JSON.parse(r.stdout)).toMatchObject({ ok: false, complete: false, interrupted: false });
+    const doc = JSON.parse(r.stdout);
+    expect(doc).toMatchObject({ ok: false, complete: false, interrupted: false });
+    expect(doc.incomplete).toBeTruthy();
+  }, 30000);
+
+  it('a start page that answers 404 exits 4', async () => {
+    const r = await crawl([`${base}missing`, '--json']);
+    expect(r.status).toBe(4);
+    expect(JSON.parse(r.stdout)).toMatchObject({ complete: false, incomplete: 'seed' });
+  }, 30000);
+
+  it('a list whose first line is a 404 still completes: exit 1, not 4', async () => {
+    const list = path.join(dir, 'list.txt');
+    fs.writeFileSync(list, `${base}missing\n${base}p/1\n`);
+    const r = await crawl(['--list', list, '--json']);
+    expect(r.status).toBe(1);
+    expect(JSON.parse(r.stdout)).toMatchObject({ complete: true, incomplete: null });
   }, 30000);
 });
 
@@ -120,6 +139,24 @@ describe('stderr while the crawl runs (B48)', () => {
       .map((l) => JSON.parse(l) as { type: string; message: string })
       .filter((e) => e.type === 'warn');
     expect(warns.some((w) => w.message.includes('Crawl-delay'))).toBe(true);
+  }, 30000);
+
+  it('per-URL warnings stop after 20 with one line saying so; --verbose shows all', async () => {
+    brokenLinks = 30;
+    const quiet = await crawl([base, '--max', '40', '--no-check-external']);
+    const perUrl = (t: string) => t.split('\n').filter((l) => /^\[warn\] HTTP 404 on /.test(l)).length;
+    expect(perUrl(quiet.stderr)).toBe(20);
+    expect(quiet.stderr.match(/more per-URL warnings not shown/g)).toHaveLength(1);
+    const loud = await crawl([base, '--max', '40', '--no-check-external', '--verbose']);
+    expect(perUrl(loud.stderr)).toBe(30);
+  }, 30000);
+
+  it('--json with --export-dir: every stderr line is still JSON', async () => {
+    const r = await crawl([base, '--max', '3', '--json', '--export-dir', path.join(dir, 'out')]);
+    expect(r.status).toBe(0);
+    const lines = r.stderr.split('\n').filter((l) => l.trim() !== '');
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines) expect(() => JSON.parse(l), l).not.toThrow();
   }, 30000);
 
   it('--verbose prints info events; without it they stay quiet', async () => {
