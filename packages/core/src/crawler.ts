@@ -87,6 +87,7 @@ import { discoverSitemapUrls, fetchSitemaps, type SitemapEntry } from './sitemap
 import { runJsonExtractionRules } from './extraction.js';
 import { SessionCookieJar } from './cookie-jar.js';
 import { runBrowserLogin } from './browser-login.js';
+import { LoopDelayProbe, nightAwareMaxRps, ServerHealth } from './server-health.js';
 
 export interface CrawlerEvents {
   progress: (p: CrawlProgress) => void;
@@ -4038,6 +4039,9 @@ export class Crawler extends EventEmitter {
   }
 
   private stopMemoryMonitor(): void {
+    // The event-loop probe of adaptive speed lives for the same span.
+    this.loopProbe?.stop();
+    this.loopProbe = null;
     if (this.memoryMonitorTimer) {
       clearInterval(this.memoryMonitorTimer);
       this.memoryMonitorTimer = null;
@@ -4488,9 +4492,10 @@ export class Crawler extends EventEmitter {
     // `Retry-After` header before this dispatch even reserves a slot. The
     // cooldown is a *global* pause — every worker waits it out — which is
     // exactly how a server's rate-limit window works.
-    if (this.config.adaptiveSpeed && this.adaptiveCooldownUntil > 0) {
-      const waitCooldown = this.adaptiveCooldownUntil - Date.now();
-      if (waitCooldown > 0 && !this.stopped) await sleep(waitCooldown);
+    // Waited in short steps so Stop is not held up by a 30 s pause; the
+    // cooldown may also grow while this worker waits.
+    while (this.config.adaptiveSpeed && !this.stopped && this.adaptiveCooldownUntil > Date.now()) {
+      await sleep(Math.min(250, this.adaptiveCooldownUntil - Date.now()));
     }
     // A robots.txt `Crawl-delay` means "one request every N seconds to this
     // origin" — a *global* spacing, not a per-worker one. Applying it as a
@@ -4499,16 +4504,15 @@ export class Crawler extends EventEmitter {
     // time by the worker count. Folding it into the dispatch gate honours it
     // literally when the user opts in. Only reached when `respectCrawlDelay`
     // is on — `robotsCrawlDelayMs` stays 0 otherwise.
-    const rpsInterval = this.config.maxRps > 0 ? 1000 / this.config.maxRps : 0;
+    const maxRps = nightAwareMaxRps(this.config, new Date());
+    const rpsInterval = maxRps > 0 ? 1000 / maxRps : 0;
     let minInterval = Math.max(rpsInterval, this.robotsCrawlDelayMs);
     // Adaptive slow-down: widen the dispatch interval by the current scale
     // (0.1–1). When the user left RPS unlimited (0), a base derived from the
     // concurrency ceiling gives the controller a rate to shrink from once a
     // 429 arrives — otherwise there is nothing to slow.
     if (this.config.adaptiveSpeed && this.adaptiveRateScale < 1) {
-      const baseRps =
-        this.config.maxRps > 0 ? this.config.maxRps : Math.max(1, this.config.maxConcurrency);
-      minInterval = Math.max(minInterval, 1000 / (baseRps * this.adaptiveRateScale));
+      minInterval = Math.max(minInterval, 1000 / (this.adaptiveBaseRps() * this.adaptiveRateScale));
     }
     if (minInterval <= 0) return;
     const now = Date.now();
@@ -4539,14 +4543,20 @@ export class Crawler extends EventEmitter {
   private adaptiveCleanStreak = 0;
   /** Last time the rate was cut — dedups a burst of 429s into one step. */
   private lastAdaptiveCutTs = 0;
+  private serverHealth = new ServerHealth();
+  /** Started on the first latency sample, stopped with the memory monitor. */
+  private loopProbe: LoopDelayProbe | null = null;
   private static readonly ADAPTIVE_MIN_SCALE = 0.1;
   private static readonly ADAPTIVE_CUT_COOLDOWN_MS = 1_000;
   private static readonly ADAPTIVE_RECOVERY_STREAK = 25;
   private static readonly ADAPTIVE_MAX_COOLDOWN_MS = 120_000;
+  /** A single answer this slow counts as server trouble. */
+  private static readonly ADAPTIVE_SLOW_ANSWER_MS = 5_000;
 
   /** Base rate the scale is applied to, for user-facing rate messages. */
   private adaptiveBaseRps(): number {
-    return this.config.maxRps > 0 ? this.config.maxRps : Math.max(1, this.config.maxConcurrency);
+    const maxRps = nightAwareMaxRps(this.config, new Date());
+    return maxRps > 0 ? maxRps : Math.max(1, this.config.maxConcurrency);
   }
 
   /**
@@ -4556,12 +4566,27 @@ export class Crawler extends EventEmitter {
    */
   private noteRateLimited(retryAfterMs: number | null): void {
     if (!this.config.adaptiveSpeed || !this.running) return;
-    const now = Date.now();
     const cooldown =
       retryAfterMs && retryAfterMs > 0
         ? Math.min(retryAfterMs, Crawler.ADAPTIVE_MAX_COOLDOWN_MS)
         : 2_000;
-    this.adaptiveCooldownUntil = Math.max(this.adaptiveCooldownUntil, now + cooldown);
+    this.slowDown(
+      cooldown,
+      (rps) =>
+        `Adaptive speed: rate limited — slowing to ~${rps} URL/s${
+          retryAfterMs ? `, honouring Retry-After ${Math.round(cooldown / 1000)}s` : ''
+        }`,
+    );
+  }
+
+  /**
+   * Pause dispatch for `cooldownMs` and, at most once per
+   * {@link ADAPTIVE_CUT_COOLDOWN_MS}, halve the effective rate + concurrency;
+   * `message` gets the new rate when the cut changed it.
+   */
+  private slowDown(cooldownMs: number, message: (rps: string) => string): void {
+    const now = Date.now();
+    this.adaptiveCooldownUntil = Math.max(this.adaptiveCooldownUntil, now + cooldownMs);
     this.adaptiveCleanStreak = 0;
     if (now - this.lastAdaptiveCutTs < Crawler.ADAPTIVE_CUT_COOLDOWN_MS) return;
     this.lastAdaptiveCutTs = now;
@@ -4572,15 +4597,39 @@ export class Crawler extends EventEmitter {
     // OS-pressure throttle.
     this.setThrottleScale(this.adaptiveRateScale, 'adaptive');
     if (this.adaptiveRateScale !== prev) {
-      this.emit(
-        'info',
-        `Adaptive speed: rate limited — slowing to ~${(
-          this.adaptiveBaseRps() * this.adaptiveRateScale
-        ).toFixed(1)} URL/s${
-          retryAfterMs ? `, honouring Retry-After ${Math.round(cooldown / 1000)}s` : ''
-        }`,
-      );
+      this.emit('info', message((this.adaptiveBaseRps() * this.adaptiveRateScale).toFixed(1)));
     }
+  }
+
+  /**
+   * One finished internal URL, after its retries. A server failing a share
+   * of its URLs (5xx other than 503, timeouts, network errors, answers over
+   * 5 s) gets a 30 s pause and a cut.
+   */
+  private noteServerOutcome(trouble: boolean): void {
+    if (!this.config.adaptiveSpeed || !this.running) return;
+    if (trouble) this.adaptiveCleanStreak = 0;
+    if (!this.serverHealth.noteOutcome(trouble, Date.now())) return;
+    this.slowDown(
+      30_000,
+      (rps) =>
+        `Adaptive speed: server errors on many recent URLs — pausing 30s, slowing to ~${rps} URL/s`,
+    );
+  }
+
+  /**
+   * Time to headers of a 2xx internal page fetched in one attempt. Answers
+   * slowing well past the crawl's first ones get a 20 s pause and a cut.
+   */
+  private noteServerLatency(ttfbMs: number): void {
+    if (!this.config.adaptiveSpeed || !this.running) return;
+    this.loopProbe ??= new LoopDelayProbe();
+    const busyMs = this.loopProbe.maxSinceLastMs();
+    if (!this.serverHealth.noteLatency(ttfbMs, busyMs, Date.now())) return;
+    this.slowDown(
+      20_000,
+      (rps) => `Adaptive speed: answers slowing — pausing 20s, slowing to ~${rps} URL/s`,
+    );
   }
 
   /**
@@ -4592,6 +4641,8 @@ export class Crawler extends EventEmitter {
     if (!this.config.adaptiveSpeed || !this.running) return;
     if (this.adaptiveRateScale >= 1) return;
     if (Date.now() < this.adaptiveCooldownUntil) return;
+    // Answers still well slower than at the start: hold the rate.
+    if (this.serverHealth.isSlow()) return;
     if (++this.adaptiveCleanStreak < Crawler.ADAPTIVE_RECOVERY_STREAK) return;
     this.adaptiveCleanStreak = 0;
     this.adaptiveRateScale = Math.min(1, this.adaptiveRateScale + 0.1);
@@ -4686,6 +4737,8 @@ export class Crawler extends EventEmitter {
           )
         : null;
 
+    // The fetch itself answered: a later error is ours, not the server's.
+    let fetched = false;
     try {
       // Manual redirect handling — each hop becomes its own row so the
       // Response Codes > 3xx view and `redirect_target` column are
@@ -4696,6 +4749,7 @@ export class Crawler extends EventEmitter {
       // only at write time, after the body is read.
       const alpnProbe = item.url.startsWith('https:') ? this.negotiatedProtocol(item.url) : null;
       const res = await this.fetchWithRetry(item.url, controller.signal);
+      fetched = true;
 
       const responseTimeMs = Date.now() - t0;
       this.totalResponseTimeMs += responseTimeMs;
@@ -4778,6 +4832,20 @@ export class Crawler extends EventEmitter {
           this.noteRateLimited(parseRetryAfterMs(res.headers.get('retry-after')));
         } else if (statusCode < 400) {
           this.noteCleanResponse();
+        }
+        if (isInScope(this.config.startUrl, item.url, this.config.scope)) {
+          const ttfb = res.ttfbMs;
+          this.noteServerOutcome(
+            (statusCode >= 500 && statusCode !== 503) || ttfb > Crawler.ADAPTIVE_SLOW_ANSWER_MS,
+          );
+          if (
+            statusCode >= 200 &&
+            statusCode < 300 &&
+            res.attempts === 1 &&
+            (contentType ?? '').toLowerCase().includes('text/html')
+          ) {
+            this.noteServerLatency(ttfb);
+          }
         }
       }
       // Bot protection answered instead of the page. Recorded as "not
@@ -5885,6 +5953,9 @@ export class Crawler extends EventEmitter {
         return;
       }
       this.failed++;
+      if (!fetched && isInScope(this.config.startUrl, item.url, this.config.scope)) {
+        this.noteServerOutcome(true);
+      }
       const detail = formatFetchError(err);
       const elapsed = Date.now() - t0;
       // Distinguish the seed URL (depth 0 means the user's start URL or a
@@ -6234,7 +6305,7 @@ export class Crawler extends EventEmitter {
   private async fetchWithRetry(
     url: string,
     signal: AbortSignal,
-  ): Promise<Response & { ttfbMs: number }> {
+  ): Promise<Response & { ttfbMs: number; attempts: number }> {
     const maxAttempts = Math.max(0, this.config.retryAttempts) + 1;
     const baseDelay = Math.max(0, this.config.retryInitialDelayMs);
     let lastError: unknown = null;
@@ -6311,8 +6382,8 @@ export class Crawler extends EventEmitter {
         // ttfbMs as a non-enumerable property so the existing call sites
         // can read it without breaking the Response shape elsewhere.
         if (attempt === maxAttempts - 1 || !isRetryableStatus(res.status)) {
-          (res as unknown as { ttfbMs: number }).ttfbMs = ttfbMs;
-          return res as unknown as Response & { ttfbMs: number };
+          Object.assign(res, { ttfbMs, attempts: attempt + 1 });
+          return res as unknown as Response & { ttfbMs: number; attempts: number };
         }
         // Drain body so the connection can be reused, then back off.
         try {

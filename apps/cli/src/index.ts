@@ -129,8 +129,12 @@ Options:
                         the links are still stored, just without a status)
   --image-variants    Also fetch and measure srcset / <picture> image variants (off by default;
                         a WordPress blog can go from ~2k to ~40k image requests with this on)
-  --adaptive-speed    Back off automatically on HTTP 429/503 and Retry-After, then recover
-                        (off by default; the fixed --rps / --concurrency hold otherwise)
+  --adaptive-speed    Slow down on server trouble, then recover: HTTP 429/503 and Retry-After,
+                        5xx errors or timeouts on many URLs, answers growing slow (off by default;
+                        the fixed --rps / --concurrency hold otherwise)
+  --night-rps <n>     Max requests per second at night (default window 0-7 local time)
+  --night <from>-<to> Night hours for --night-rps, 0-23, local time; the window may wrap
+                        midnight (e.g. --night 22-6)
   --header <K: V>     Extra request header; repeatable (e.g. --header "Authorization: Bearer X");
                         replaces the headers of a --config file
   --sitemap <url>     Read this sitemap and crawl its URLs too; repeatable
@@ -288,6 +292,8 @@ function parseCliArgs() {
       max: { type: 'string' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
+      'night-rps': { type: 'string' },
+      night: { type: 'string' },
       'user-agent': { type: 'string' },
       robots: { type: 'boolean' },
       'respect-crawl-delay': { type: 'boolean' },
@@ -534,6 +540,12 @@ async function main(): Promise<void> {
     ...(values.rps !== undefined
       ? { maxRps: parseNumeric('rps', values.rps, DEFAULT_CRAWL_CONFIG.maxRps, { integer: false }) }
       : {}),
+    ...(values['night-rps'] !== undefined
+      ? {
+          nightMaxRps: parseNumeric('night-rps', values['night-rps'], 0, { integer: false }),
+        }
+      : {}),
+    ...(values.night !== undefined ? parseNightWindow(values.night) : {}),
     ...(values['user-agent'] !== undefined ? { userAgent: values['user-agent'] } : {}),
     // On/off flags in either direction (`--robots` / `--no-robots`);
     // absent, the file value (or default) stands.
@@ -565,6 +577,15 @@ async function main(): Promise<void> {
   }
   const { config, listMode } = merged;
   const startUrl = config.startUrl;
+  if (values.night !== undefined && !(config.nightMaxRps > 0)) {
+    console.error('--night needs --night-rps <n> (or nightMaxRps in --config).');
+    process.exit(2);
+  }
+  if (config.nightMaxRps > 0 && config.nightFromHour === config.nightToHour) {
+    merged.notes.push(
+      `The night window starts and ends at ${config.nightFromHour}:00, so the night rate is never used.`,
+    );
+  }
   for (const message of merged.notes) {
     process.stderr.write(
       values.json
@@ -992,6 +1013,18 @@ function parseNumeric(
     process.exit(2);
   }
   return n;
+}
+
+/** `--night 22-6`: whole hours 0-23, local time. */
+function parseNightWindow(value: string): Pick<CrawlConfig, 'nightFromHour' | 'nightToHour'> {
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(value.trim());
+  const from = m ? Number(m[1]) : NaN;
+  const to = m ? Number(m[2]) : NaN;
+  if (!(from <= 23 && to <= 23)) {
+    console.error(`Invalid --night: ${value} (expected <from>-<to>, hours 0-23, e.g. 22-6).`);
+    process.exit(2);
+  }
+  return { nightFromHour: from, nightToHour: to };
 }
 
 /**

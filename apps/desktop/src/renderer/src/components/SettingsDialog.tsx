@@ -2512,16 +2512,16 @@ function SpeedPanel({ form, update }: PanelProps) {
       />
       <div className="mt-2">
         <Bool
-          label={t('settingsPanels.speed.adaptiveSpeed', { defaultValue: 'Adaptive speed (auto-slow on 429 / Retry-After)' })}
+          label={t('settingsPanels.speed.adaptiveSpeed', { defaultValue: 'Adaptive speed (auto-slow on 429, server errors, slow answers)' })}
           checked={form.adaptiveSpeed}
           onChange={(v) => update('adaptiveSpeed', v)}
-          info="Treat the concurrency and RPS above as a ceiling and let the target server set the real pace. On a 429/503 (or a Retry-After header) the crawler pauses for the penalty window and steps the rate + concurrency down; after a sustained run of clean responses it grows them back toward the ceiling. Off = hold the configured rate no matter how the server responds."
+          info="Treat the concurrency and RPS above as a ceiling and let the target server set the real pace. On a 429/503 (or a Retry-After header) the crawler pauses for the penalty window and steps the rate + concurrency down; so it does when 5xx errors or timeouts hit a fifth of the recent URLs (30 s pause) or answers grow much slower than at the crawl's start (20 s pause); after a sustained run of clean responses it grows them back toward the ceiling. Off = hold the configured rate no matter how the server responds."
           example="Turn on for sites behind Cloudflare / a WAF that returns 429s; leave off for your own infrastructure where the fixed rate is safe."
         />
         <p className="mt-1 text-[10px] text-surface-500">
           {t('settingsPanels.speed.adaptiveSpeedHint', {
             defaultValue:
-              'Only affects behaviour when the server pushes back — a healthy site is crawled at the full ceiling either way.',
+              'Only affects behaviour when the server pushes back or struggles — a healthy site is crawled at the full ceiling either way.',
           })}
         </p>
       </div>

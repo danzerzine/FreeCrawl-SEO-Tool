@@ -891,11 +891,28 @@ export interface CrawlConfig {
   maxConcurrency: number;
   maxRps: number;
   /**
+   * Requests per second inside the night window, in place of `maxRps`
+   * (also as the adaptive base). 0 = no night rate. Independent of
+   * `adaptiveSpeed`; checked per request, so a crawl crossing the window's
+   * edge changes rate. It also replaces an MCP `configOverrides.maxRps` at
+   * night, and the desktop settings do not show it yet: a value imported
+   * from a settings file works but is not visible there.
+   */
+  nightMaxRps: number;
+  /** First hour of the night window, local time of the crawling machine (0–23). */
+  nightFromHour: number;
+  /** Hour the night window ends, exclusive (0–23); may be below
+   *  `nightFromHour` to wrap midnight (22 → 6). Equal to it: no window. */
+  nightToHour: number;
+  /**
    * Adaptive speed. Off by default. When on, the crawler treats
    * `maxConcurrency` / `maxRps` as a *ceiling* and automatically slows
    * down when the target pushes back — a 429/503 (or a `Retry-After`
-   * header) shrinks the dispatch rate and concurrency, and a sustained
-   * run of clean responses gradually restores them toward the ceiling.
+   * header) shrinks the dispatch rate and concurrency, and so does a
+   * server in trouble: 5xx answers, timeouts and network errors on a
+   * share of the URLs, or answers growing much slower than at the start.
+   * A sustained run of clean responses gradually restores the rate
+   * toward the ceiling.
    * When off, the crawler holds exactly the configured rate regardless
    * of how the server responds (the previous, only, behaviour).
    */
@@ -2896,6 +2913,9 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   maxUrls: 1_000_000,
   maxConcurrency: 20,
   maxRps: 20,
+  nightMaxRps: 0,
+  nightFromHour: 0,
+  nightToHour: 7,
   adaptiveSpeed: false,
   requestTimeoutMs: 20_000,
   userAgent: 'FreeCrawlSEO/0.1 (+https://github.com/kemalai/FreeCrawl-SEO-Tool)',
