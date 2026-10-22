@@ -262,7 +262,7 @@ describe('pdfs', () => {
     }
   });
 
-  it('a second run into the same folder downloads nothing again; a chunked file is decided by a HEAD', async () => {
+  it('a second run into the same folder downloads nothing again; the crawl counted a chunked file, so no request is needed', async () => {
     const out = path.join(dir, 'out-pdfs-resume');
     const first = await exportPdfs(out);
     expect(first.r.status, first.r.stderr).toBe(0);
@@ -270,7 +270,9 @@ describe('pdfs', () => {
     const second = await exportPdfs(out);
     expect(second.r.status, second.r.stderr).toBe(0);
     expect(pdfGets(second.requests)).toEqual([]);
-    expect(pdfRequests(second.requests).map((q) => `${q.method} ${q.url}`)).toEqual(['HEAD /files/chunked.pdf']);
+    // The crawler now records the byte count of a chunked body (integration B-series), so no HEAD is needed;
+    // the HEAD path stays as the fallback for projects crawled before that.
+    expect(pdfRequests(second.requests)).toEqual([]);
     expect(fs.readFileSync(path.join(out, 'pdfs.csv'), 'utf8')).toContain('already present');
   });
 
