@@ -4,6 +4,7 @@ import {
   BREADCRUMB_ITEM_RULE,
   OFFER_RULE,
   SCHEMA_RULES,
+  isSchemaTypeOf,
   normalizeSchemaType,
   rulesForType,
 } from './schema-rules.js';
@@ -54,5 +55,19 @@ describe('structured-data rules', () => {
     expect(normalizeSchemaType('schema:Product')).toBe('Product');
     expect(normalizeSchemaType('https://example.com/Product')).toBe('https://example.com/Product');
     expect(normalizeSchemaType('Product')).toBe('Product');
+  });
+
+  it('knows the part 2 type families the vocabulary file gives', () => {
+    expect(isSchemaTypeOf('BlogPosting', 'SocialMediaPosting')).toBe(true);
+    expect(isSchemaTypeOf('LiveBlogPosting', 'SocialMediaPosting')).toBe(true);
+    expect(isSchemaTypeOf('DiscussionForumPosting', 'SocialMediaPosting')).toBe(true);
+    expect(isSchemaTypeOf('DataFeed', 'Dataset')).toBe(true);
+    expect(isSchemaTypeOf('EmployerAggregateRating', 'AggregateRating')).toBe(true);
+    expect(isSchemaTypeOf('BreadcrumbList', 'ItemList')).toBe(true);
+    expect(isSchemaTypeOf('HowToStep', 'ItemList')).toBe(true);
+    expect(isSchemaTypeOf('TVClip', 'Clip')).toBe(true);
+    expect(isSchemaTypeOf('Answer', 'Comment')).toBe(true);
+    expect(isSchemaTypeOf('VacationRental', 'LocalBusiness')).toBe(true);
+    expect(isSchemaTypeOf('Dataset', 'DataFeed')).toBe(false);
   });
 });
