@@ -798,7 +798,8 @@ describe('parseHtml: structured-data rules, part 2', () => {
     });
 
     it('does not make a carousel of an ItemList of Products', () => {
-      const product = { '@type': 'Product', name: 'P', offers: { '@type': 'Offer', price: 1, priceCurrency: 'EUR', availability: 'InStock' } };
+      const product = { '@type': 'Product', name: 'P',
+        image: 'https://example.com/p.jpg', offers: { '@type': 'Offer', price: 1, priceCurrency: 'EUR', availability: 'InStock' } };
       expect(required(list([entry({ position: undefined }, product)]))).toEqual([]);
       expect(findings(list([entry({ position: undefined }, product)]))).toEqual([]);
     });
@@ -963,6 +964,86 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(
         required({ ...social, author: { name: 'Ann' }, comment: { '@type': 'Comment' } }),
       ).toEqual([req('Comment', 'author', 'datePublished', 'text | image | video')]);
+    });
+  });
+
+  describe('product and merchant rows (7, 12, 13, 14)', () => {
+    const offer = { '@type': 'Offer', price: '9.99', priceCurrency: 'EUR', availability: 'InStock' };
+    const shipping = {
+      '@type': 'OfferShippingDetails',
+      deliveryTime: { '@type': 'ShippingDeliveryTime' },
+      shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'DE' },
+      shippingRate: { '@type': 'MonetaryAmount', value: 4.9, currency: 'EUR' },
+    };
+
+    it('asks a UnitPriceSpecification for price, and recommends priceCurrency', () => {
+      expect(required({ '@type': 'UnitPriceSpecification', priceCurrency: 'EUR' })).toEqual([
+        req('UnitPriceSpecification', 'price'),
+      ]);
+      expect(recommended({ '@type': 'UnitPriceSpecification', price: 3 })).toEqual([
+        rec('UnitPriceSpecification', 'priceCurrency'),
+      ]);
+      expect(findings({ '@type': 'UnitPriceSpecification', price: 3, priceCurrency: 'EUR' })).toEqual([]);
+    });
+
+    it('checks OfferShippingDetails when it is there', () => {
+      expect(findings(shipping)).toEqual([]);
+      expect(
+        required({ ...shipping, shippingRate: { '@type': 'MonetaryAmount', value: 4.9 } }),
+      ).toEqual([req('OfferShippingDetails', 'shippingRate.currency')]);
+      expect(
+        required({ ...shipping, shippingRate: { currency: 'EUR', maxValue: 9 } }),
+      ).toEqual([]);
+      expect(required({ ...shipping, deliveryTime: undefined })).toEqual([
+        req('OfferShippingDetails', 'deliveryTime'),
+      ]);
+    });
+
+    it('does not ask a Product for shippingDetails', () => {
+      expect(required({ '@type': 'Product', name: 'P', offers: offer })).toEqual([]);
+    });
+
+    it('asks a DefinedRegion for addressCountry and a ShippingService for shippingConditions', () => {
+      expect(required({ '@type': 'DefinedRegion' })).toEqual([req('DefinedRegion', 'addressCountry')]);
+      expect(required({ '@type': 'DefinedRegion', addressCountry: 'DE' })).toEqual([]);
+      expect(required({ '@type': 'ShippingService' })).toEqual([
+        req('ShippingService', 'shippingConditions'),
+      ]);
+    });
+
+    it('accepts a return policy with a link instead of the country and category', () => {
+      expect(
+        required({ '@type': 'MerchantReturnPolicy', merchantReturnLink: 'https://example.com/returns' }),
+      ).toEqual([]);
+    });
+
+    it('asks a return policy for country and category, or the link', () => {
+      expect(required({ '@type': 'MerchantReturnPolicy' })).toEqual([
+        req(
+          'MerchantReturnPolicy',
+          'applicableCountry | merchantReturnLink',
+          'returnPolicyCategory | merchantReturnLink',
+        ),
+      ]);
+    });
+
+    it('asks for the fee amount when returns cost shipping', () => {
+      const policy = {
+        '@type': 'MerchantReturnPolicy',
+        applicableCountry: 'DE',
+        returnPolicyCategory: 'MerchantReturnUnlimitedWindow',
+        returnFees: 'https://schema.org/ReturnShippingFees',
+      };
+      expect(required(policy)).toEqual([req('MerchantReturnPolicy', 'returnShippingFeesAmount')]);
+      expect(required({ ...policy, returnShippingFeesAmount: { value: 5 } })).toEqual([]);
+      expect(required({ ...policy, returnFees: 'FreeReturn' })).toEqual([]);
+    });
+
+    it('recommends an image on a Product', () => {
+      const product = { '@type': 'Product', name: 'P', offers: offer };
+      expect(recommended(product)).toEqual([rec('Product', 'image')]);
+      expect(findings({ ...product, image: 'https://example.com/p.jpg' })).toEqual([]);
+      expect(findings({ '@type': 'ProductGroup', name: 'G' })).toEqual([]);
     });
   });
   // PART2-END

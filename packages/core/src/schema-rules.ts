@@ -146,6 +146,8 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
     types: ['Product'],
     exclude: ['ProductGroup'],
     required: ['name', 'review | aggregateRating | offers'],
+    // Merchant listings ask for it; every product result shows it.
+    recommended: ['image'],
   },
   { source: `${GOOGLE}product-variants`, types: ['ProductGroup'], required: ['name'] },
   {
@@ -226,6 +228,29 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
     required: ['author', 'author.name', 'datePublished', 'text | image | video | url'],
     // A post that stands for a thread on another page needs no content of its own.
     only: { url: (node, pageUrl) => pointsElsewhere(node['url'], pageUrl) },
+  },
+  {
+    source: `${GOOGLE}product-snippet`,
+    types: ['UnitPriceSpecification'],
+    required: ['price'],
+    recommended: ['priceCurrency'],
+  },
+  {
+    source: `${GOOGLE}merchant-listing`,
+    types: ['OfferShippingDetails'],
+    required: [
+      'deliveryTime',
+      'shippingDestination',
+      'shippingRate',
+      'shippingRate.currency',
+      'shippingRate.value | shippingRate.maxValue',
+    ],
+  },
+  { source: `${GOOGLE}shipping-policy`, types: ['DefinedRegion'], required: ['addressCountry'] },
+  {
+    source: `${GOOGLE}shipping-policy`,
+    types: ['ShippingService'],
+    required: ['shippingConditions'],
   },
   {
     source: `${GOOGLE}return-policy`,
