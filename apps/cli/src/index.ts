@@ -142,7 +142,8 @@ Options:
                         crawls plain HTML instead of stopping)
   --page-script <file>  With --render: run the JavaScript in <file> once on every rendered page after it
                         loaded (click "Load more", scroll); what it returns is stored in Extracted Data
-                        under $script. Also set as jsRender.pageScript in --config (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
+                        under $script. Also set as jsRender.pageScript in --config
+  --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
   --no-robots         Ignore robots.txt (it is still read once for its Sitemap: lines while sitemap
