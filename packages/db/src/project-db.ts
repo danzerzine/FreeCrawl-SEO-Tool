@@ -2532,14 +2532,20 @@ export class ProjectDb {
   }
 
   /**
-   * Fetched internal pages per host name. Seeds the crawler's per-host page
-   * counts (`maxUrlsPerHost`) on a resume.
+   * Internal pages per host name the crawl has taken in: every row but
+   * subresources (by kind), robots-blocked URLs and the saved queue, which
+   * the resume counts again as it re-queues it. A PDF, an error page or a
+   * failed fetch counts, as it did while the crawl ran. Seeds the crawler's
+   * per-host page counts (`maxUrlsPerHost`) on a resume.
    */
-  countFetchedPagesByHost(): Map<string, number> {
+  countAdmittedPagesByHost(): Map<string, number> {
     const counts = new Map<string, number>();
     const rows = this.db
       .prepare(
-        "SELECT url FROM urls WHERE is_external = 0 AND content_kind = 'html' AND status_code IS NOT NULL",
+        `SELECT url FROM urls WHERE is_external = 0
+           AND content_kind NOT IN ('css', 'js', 'image', 'font')
+           AND (indexability IS NULL OR indexability <> 'non-indexable:robots-blocked')
+           AND url NOT IN (SELECT url FROM crawl_queue)`,
       )
       .iterate() as Iterable<{ url: string }>;
     for (const { url } of rows) {

@@ -611,7 +611,8 @@ async function main(): Promise<void> {
       console.error(`Cannot read --list ${listFile}: ${(err as Error).message}`);
       process.exit(2);
     }
-    if (listUrls.length === 0) {
+    // Checked as the crawler reads them: a page fetched by mistake has lines, not URLs.
+    if (!listUrls.some((u) => normalizeUrl(u) !== null)) {
       console.error(`--list ${listFile} contains no URLs.`);
       process.exit(2);
     }

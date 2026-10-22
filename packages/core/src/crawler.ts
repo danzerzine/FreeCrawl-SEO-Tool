@@ -4240,7 +4240,7 @@ export class Crawler extends EventEmitter {
 
   private seedHostAdmitted(): void {
     this.hostAdmitted =
-      this.config.maxUrlsPerHost > 0 ? this.db.countFetchedPagesByHost() : new Map();
+      this.config.maxUrlsPerHost > 0 ? this.db.countAdmittedPagesByHost() : new Map();
   }
 
   /**
@@ -4369,15 +4369,6 @@ export class Crawler extends EventEmitter {
     ) {
       return;
     }
-    // Per-host limit. A URL over it stays out of `seen`, so it is met and
-    // skipped again; `hostSkipped` counts it once.
-    const hostKey = this.perHostKey(item);
-    if (hostKey !== null && (this.hostAdmitted.get(hostKey) ?? 0) >= this.config.maxUrlsPerHost) {
-      let skipped = this.hostSkipped.get(hostKey);
-      if (!skipped) this.hostSkipped.set(hostKey, (skipped = new Set()));
-      if (skipped.size < Crawler.HOST_SKIP_CAP) skipped.add(item.url);
-      return;
-    }
     if (item.depth > this.config.maxDepth) return;
     // Link-loop guard, before robots/filters so a runaway `/a/a/a/...` fan-out
     // costs one cheap string check rather than a robots lookup per hop.
@@ -4422,6 +4413,17 @@ export class Crawler extends EventEmitter {
       this.config.maxQueueSize > 0 &&
       this.queue.size + this.queue.pending >= this.config.maxQueueSize
     ) {
+      return;
+    }
+    // Per-host limit, last, so only URLs it alone keeps out count as
+    // skipped and a robots-blocked one is still recorded. A URL over it
+    // stays out of `seen`, so it is met and skipped again; `hostSkipped`
+    // counts it once.
+    const hostKey = this.perHostKey(item);
+    if (hostKey !== null && (this.hostAdmitted.get(hostKey) ?? 0) >= this.config.maxUrlsPerHost) {
+      let skipped = this.hostSkipped.get(hostKey);
+      if (!skipped) this.hostSkipped.set(hostKey, (skipped = new Set()));
+      if (skipped.size < Crawler.HOST_SKIP_CAP) skipped.add(item.url);
       return;
     }
 

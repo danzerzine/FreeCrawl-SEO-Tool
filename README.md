@@ -357,6 +357,8 @@ By default the server reads `<userData>/projects/default.seoproject` (the same f
 }
 ```
 
+A project saved by the desktop app is unpacked into a working copy, by default in the system temp folder. Set `FREECRAWL_WORK_DIR` to a folder on a large local disk to put it in a `FreeCrawl-work` subfolder there; the server does not read the desktop app's Settings → Storage → Working folder.
+
 </details>
 
 <br />

@@ -5549,12 +5549,6 @@ function SpellingPanel() {
 }
 
 /**
- * Settings for parallel MCP agent sessions (Issue #12): how many headless
- * sessions may run at once, and how long an idle one lives before it is
- * auto-closed (saved first if it has a document). Persisted as prefs the main
- * process reads directly (`maxAgentSessions`, `agentSessionIdleMinutes`).
- */
-/**
  * Settings → Storage → Working folder (B31): where opened projects are
  * unpacked and crawled into. A folder the main process refuses keeps the
  * old setting and says why.
@@ -5653,6 +5647,12 @@ function WorkDirSettings() {
   );
 }
 
+/**
+ * Settings for parallel MCP agent sessions (Issue #12): how many headless
+ * sessions may run at once, and how long an idle one lives before it is
+ * auto-closed (saved first if it has a document). Persisted as prefs the main
+ * process reads directly (`maxAgentSessions`, `agentSessionIdleMinutes`).
+ */
 function AgentSessionsSettings() {
   const { t } = useTranslation();
   const [maxSessions, setMaxSessions] = useState<number>(() => {

@@ -25,9 +25,6 @@ export {
 export {
   asNoSpaceError,
   checkFreeSpace,
-  freeBytes,
-  isDiskFull,
-  noSpaceMessage,
   PACKED_PER_UNPACKED,
   saveTempPid,
   sweepWorkingFolder,
@@ -35,7 +32,6 @@ export {
   workDirProblem,
   workDirProblemText,
   workFolder,
-  WORK_SUBDIR,
 } from './work-dir.js';
 export { buildCrawlSnapshot } from './crawl-snapshot.js';
 export {

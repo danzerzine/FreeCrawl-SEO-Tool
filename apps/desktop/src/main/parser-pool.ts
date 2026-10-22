@@ -3,8 +3,6 @@ import { fileURLToPath } from 'node:url';
 import { ParserPool, poolParseHtml, type ParseHtmlFn, type ParsePoolLog } from '@freecrawl/core';
 import * as logger from './logger.js';
 
-export { ParserTimeoutError } from '@freecrawl/core';
-
 // The worker is an electron-vite entry built next to this bundle.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const log: ParsePoolLog = (level, message) => logger.log(level, 'main', message);
