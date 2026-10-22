@@ -986,6 +986,8 @@ export interface BulkExportResult {
   files: BulkExportFile[];
   /** Files that failed to write — exposed so the UI can summarise partial successes. */
   errors: { label: string; error: string }[];
+  /** Tables left out because the crawl stored nothing for them, with why (not a failure). */
+  skipped?: { label: string; reason: string }[];
 }
 
 /** The kinds of change between two crawls; the one list core, the CLI, the MCP tool and the dialog read. */

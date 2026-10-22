@@ -216,7 +216,8 @@ describe('freecrawl export', () => {
     expect(listed).toContain('issues-summary.csv');
     expect(listed).toContain('error-inlinks.csv');
     expect(listed).toContain('issues-title-missing.csv');
-    expect(m.skipped.map((s) => s.label)).toEqual(['Internal Links — Redirects to Error']);
+    // The bulk dump skips the sitemap table of a crawl that read no sitemap (B61).
+    expect(m.skipped.map((s) => s.label)).toEqual(['Sitemap vs Crawl', 'Internal Links — Redirects to Error']);
     expect(m.errors).toEqual([]);
     expect(fs.existsSync(path.join(out, 'manifest.json.part'))).toBe(false);
   });
@@ -478,6 +479,59 @@ describe('freecrawl export', () => {
       expect(j2.errors[0]?.error).toMatch(/storeBodySnapshots/);
       expect(r2.stderr).toMatch(/storeBodySnapshots/);
       expect(fs.existsSync(path.join(out2, 'page-html.jsonl'))).toBe(false);
+    });
+
+    describe('sitemap-reconciliation (B61)', () => {
+      type Out = {
+        ok: boolean;
+        files: { path: string }[];
+        errors: { label: string; error: string }[];
+        skipped: { label: string; reason: string }[];
+      };
+
+      it('a project that read no sitemap: an explicit request writes no file and exits 1 with the reason', () => {
+        const out = path.join(dir, 'rec-none');
+        const { r, j } = exportJson(out, 'dataset:sitemap-reconciliation');
+        expect(r.status).toBe(1);
+        expect(j.ok).toBe(false);
+        expect(j.errors[0]?.error).toMatch(/no sitemap/i);
+        expect(r.stderr).toMatch(/no sitemap/i);
+        expect(fs.existsSync(path.join(out, 'sitemap-reconciliation.csv'))).toBe(false);
+      });
+
+      it('inside bulk the same item is skipped with the reason in the manifest, exit 0', () => {
+        const out = path.join(dir, 'rec-bulk');
+        const r = run(['export', '--project', project, '--out', out, '--json', '--what', 'bulk']);
+        expect(r.status, r.stderr).toBe(0);
+        expect(fs.existsSync(path.join(out, 'sitemap-reconciliation.csv'))).toBe(false);
+        const m = JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8')) as Out;
+        expect(m.errors).toEqual([]);
+        const skip = m.skipped.find((s) => s.label === 'Sitemap vs Crawl');
+        expect(skip?.reason).toMatch(/no sitemap/i);
+        expect((JSON.parse(r.stdout) as Out).skipped.map((s) => s.label)).toContain('Sitemap vs Crawl');
+      });
+
+      it('a project with sitemap data: the CSV has the defined columns and one verdict per URL', () => {
+        const withSitemap = path.join(dir, 'with-sitemap.seoproject');
+        fs.copyFileSync(project, withSitemap);
+        const raw = new DatabaseSync(withSitemap);
+        raw.prepare('INSERT INTO sitemap_urls (url, lastmod, source_sitemap) VALUES (?, ?, ?)').run(
+          `${base}p/1`, '2026-01-02', `${base}sitemap.xml`);
+        raw.prepare('INSERT INTO sitemap_urls (url, lastmod, source_sitemap) VALUES (?, ?, ?)').run(
+          `${base}never-crawled`, null, `${base}sitemap.xml`);
+        raw.close();
+        const out = path.join(dir, 'rec-ok');
+        const r = run(['export', '--project', withSitemap, '--out', out, '--json', '--raw-headers', '--what', 'dataset:sitemap-reconciliation']);
+        expect(r.status, r.stderr).toBe(0);
+        const lines = fs.readFileSync(path.join(out, 'sitemap-reconciliation.csv'), 'utf8').trim().split('\n');
+        expect(lines[0]).toBe(
+          'url,inCrawl,inSitemap,statusCode,indexability,sitemapLastmod,lastModifiedHeader,lastmodDiffDays,verdict,note',
+        );
+        const row = (url: string) => lines.find((l) => l.startsWith(url + ','));
+        expect(row(`${base}never-crawled`)).toBe(`${base}never-crawled,false,true,,,,,,sitemap-not-fetched,not-in-crawl`);
+        expect(row(`${base}p/1`)).toMatch(/,true,true,200,indexable,2026-01-02,.*,ok,$/);
+        expect(row(`${base}p/2`)).toMatch(/,true,false,200,indexable,,,,crawled-not-in-sitemap,$/);
+      });
     });
 
     it.each([

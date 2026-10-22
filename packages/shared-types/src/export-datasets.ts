@@ -27,6 +27,7 @@ export type ExportDatasetKey =
   | 'selected-outlinks'
   | 'sitemap-urls'
   | 'sitemap-files'
+  | 'sitemap-reconciliation'
   | 'crawl-queue'
   | 'response-headers'
   | 'page-html'
@@ -192,6 +193,19 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'lastmod', header: 'Last Modified' },
     { key: 'sourceSitemap', header: 'Source Sitemap' },
     { key: 'sitemapCount', header: 'Sitemaps Listing It' },
+  ],
+  // The crawl against the sitemap, one row per URL of either (B61).
+  'sitemap-reconciliation': [
+    { key: 'url', header: 'URL' },
+    { key: 'inCrawl', header: 'In Crawl' },
+    { key: 'inSitemap', header: 'In Sitemap' },
+    { key: 'statusCode', header: 'Status' },
+    { key: 'indexability', header: 'Indexability' },
+    { key: 'sitemapLastmod', header: 'Sitemap Lastmod' },
+    { key: 'lastModifiedHeader', header: 'Last-Modified Header' },
+    { key: 'lastmodDiffDays', header: 'Lastmod Difference (days)' },
+    { key: 'verdict', header: 'Verdict' },
+    { key: 'note', header: 'Note' },
   ],
   'sitemap-files': [
     { key: 'url', header: 'Sitemap' },

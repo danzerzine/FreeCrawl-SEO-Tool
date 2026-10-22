@@ -9626,6 +9626,78 @@ export class ProjectDb {
     }
   }
 
+  /**
+   * The crawl against the sitemap: every URL in `sitemap_urls` and every
+   * internal crawled HTML URL (`urls`), once, with what a verdict needs. One
+   * streamed SQL, no temp table: `urls` LEFT JOIN `sitemap_urls`, then
+   * `sitemap_urls` LEFT JOIN `urls` for the sitemap URLs the crawl has no row
+   * for. The first half is `internal HTML OR in the sitemap`, so a sitemap PDF
+   * with a `urls` row is a row and an external URL that is not in the sitemap
+   * is not. Matching is exact URL equality, as in the sitemap issue predicates
+   * (no trailing-slash or case normalisation). Nothing when no sitemap URL is
+   * stored: a crawl that read no sitemap has no table to make.
+   */
+  *iterateSitemapReconciliation(): IterableIterator<{
+    url: string;
+    /** The URL has an internal `urls` row. */
+    inCrawl: boolean;
+    inSitemap: boolean;
+    /** A `urls` row exists (it may be external, or queued with no status). */
+    hasUrlRow: boolean;
+    statusCode: number | null;
+    indexability: string | null;
+    sitemapLastmod: string | null;
+    crawledAt: string;
+    headers: { 'last-modified'?: string; date?: string; age?: string };
+  }> {
+    if (!this.db.prepare('SELECT 1 FROM sitemap_urls LIMIT 1').get()) return;
+    const headerStmt = this.db.prepare(
+      "SELECT name, value FROM headers WHERE url_id = ? AND name IN ('last-modified', 'date', 'age')",
+    );
+    const rows = this.db
+      .prepare(
+        `SELECT u.id AS id, u.url AS url, (u.is_external = 0) AS in_crawl, (s.id IS NOT NULL) AS in_sitemap,
+                1 AS has_url_row, u.status_code AS status_code, u.indexability AS indexability,
+                s.lastmod AS lastmod, u.crawled_at AS crawled_at
+           FROM urls u LEFT JOIN sitemap_urls s ON s.url = u.url
+          WHERE (u.is_external = 0 AND u.content_kind = 'html') OR s.id IS NOT NULL
+         UNION ALL
+         SELECT NULL, s.url, 0, 1, 0, NULL, NULL, s.lastmod, ''
+           FROM sitemap_urls s LEFT JOIN urls u ON u.url = s.url
+          WHERE u.id IS NULL`,
+      )
+      .iterate() as unknown as Iterable<{
+      id: number | null;
+      url: string;
+      in_crawl: number;
+      in_sitemap: number;
+      has_url_row: number;
+      status_code: number | null;
+      indexability: string | null;
+      lastmod: string | null;
+      crawled_at: string;
+    }>;
+    for (const r of rows) {
+      const headers: { 'last-modified'?: string; date?: string; age?: string } = {};
+      if (r.id !== null) {
+        for (const h of headerStmt.all(r.id) as unknown as { name: 'last-modified' | 'date' | 'age'; value: string }[]) {
+          headers[h.name] = h.value;
+        }
+      }
+      yield {
+        url: r.url,
+        inCrawl: r.in_crawl === 1,
+        inSitemap: r.in_sitemap === 1,
+        hasUrlRow: r.has_url_row === 1,
+        statusCode: r.status_code,
+        indexability: r.indexability,
+        sitemapLastmod: r.lastmod,
+        crawledAt: r.crawled_at,
+        headers,
+      };
+    }
+  }
+
   /** The sitemap files the last crawl read or listed, in the order met; `where` filters them. */
   *iterateSitemapFiles(where = '1'): IterableIterator<SitemapFileRow> {
     const rows = this.db

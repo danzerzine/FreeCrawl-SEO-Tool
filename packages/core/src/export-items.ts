@@ -189,7 +189,7 @@ export async function runExportItems(
       outcome.errors.push({ label: 'Issue lists recompute', error: (err as Error).message });
     }
   }
-  const addBulk = (r: Pick<BulkExportResult, 'files' | 'errors'>): void => {
+  const addBulk = (r: Pick<BulkExportResult, 'files' | 'errors' | 'skipped'>): void => {
     outcome.files.push(
       ...r.files.map((f) => ({
         path: f.filePath,
@@ -201,6 +201,7 @@ export async function runExportItems(
       })),
     );
     outcome.errors.push(...r.errors);
+    outcome.skipped.push(...(r.skipped ?? []));
   };
   for (const item of items) {
     progress(`Exporting ${item.name}…`);

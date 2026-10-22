@@ -169,6 +169,7 @@ export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
   { label: 'Response Headers — One Row Per URL and Header', file: 'response-headers.csv', dataset: 'response-headers' },
   { label: 'Sitemap URLs', file: 'sitemap-urls.csv', dataset: 'sitemap-urls' },
   { label: 'Sitemap Files', file: 'sitemap-files.csv', dataset: 'sitemap-files' },
+  { label: 'Sitemap vs Crawl', file: 'sitemap-reconciliation.csv', dataset: 'sitemap-reconciliation' },
   { label: 'Crawl Queue (Unfetched)', file: 'crawl-queue.csv', dataset: 'crawl-queue' },
 ];
 
@@ -372,15 +373,20 @@ async function writeBulkExport(
       errors.push({ label, error: (err as Error).message });
     }
   }
+  const skipped: { label: string; reason: string }[] = [];
   for (const task of BULK_EXPORT_DATASET_TASKS) {
     const filePath = join(outputDir, task.file);
     const t0 = performance.now();
     try {
-      const { rowsWritten } = await exportDatasetFile(db, filePath, task.dataset, {
+      const { rowsWritten, skipped: why } = await exportDatasetFile(db, filePath, task.dataset, {
         label: task.label,
         headers: options.headers,
       });
-      if (rowsWritten === 0) continue;
+      if (rowsWritten === 0) {
+        // Empty because the crawl stored nothing it could have: say why.
+        if (why) skipped.push(...why);
+        continue;
+      }
       files.push({
         filePath,
         label: task.label,
@@ -393,7 +399,7 @@ async function writeBulkExport(
       errors.push({ label: task.label, error: (err as Error).message });
     }
   }
-  const result: BulkExportResult = { outputDir, files, errors };
+  const result: BulkExportResult = { outputDir, files, errors, skipped };
   if (writesManifest) await writeBulkManifest(result, startedAt, options);
   return result;
 }
@@ -425,6 +431,7 @@ async function writeBulkManifest(
         sharedPass: f.sharedPass,
       })),
       errors: result.errors,
+      skipped: result.skipped ?? [],
     };
     await writeExportFile(join(result.outputDir, 'manifest.json'), (partPath) =>
       writeFile(partPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8'),

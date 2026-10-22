@@ -1,6 +1,7 @@
 import type { ProjectDb } from '@freecrawl/db';
 import type { ExportDatasetKey } from '@freecrawl/shared-types';
 import { extractVisibleText } from './html-parser.js';
+import { sitemapReconciliationRows } from './sitemap-reconciliation.js';
 
 /**
  * Row sources for the non-URL-row export tables (see `ExportDatasetKey`).
@@ -101,6 +102,8 @@ export function datasetRows(
       return pageTexts(db);
     case 'sitemap-urls':
       return asRecords(db.iterateSitemapUrls());
+    case 'sitemap-reconciliation':
+      return asRecords(sitemapReconciliationRows(db));
     case 'sitemap-files':
       return asRecords(
         (function* () {
