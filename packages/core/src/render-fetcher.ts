@@ -1,4 +1,5 @@
 import type { BrowserPool } from './browser-pool.js';
+import { attachConsoleCollector, type ConsoleLog } from './render-console.js';
 
 export interface RenderOptions {
   /** Hard cap on navigation + post-load wait. */
@@ -31,6 +32,13 @@ export interface RenderOptions {
    * capture a 375×667 variant against the same warm pool.
    */
   viewport?: { width: number; height: number };
+  /**
+   * Record console errors, uncaught page errors, failed requests and
+   * subresource responses >= 400 of this render (B35). Off: no listener.
+   */
+  collectConsole?: boolean;
+  /** Resource types the pool blocks on purpose; their failures are not the site's. */
+  blockedTypes?: readonly string[];
 }
 
 export interface LcpCandidate {
@@ -86,6 +94,8 @@ export interface RenderResult {
    * be read (JavaScript navigation, closed page).
    */
   servedHtml?: string;
+  /** Console errors and failed resources of this render; set only with `collectConsole`, on a successful render. */
+  consoleLog?: ConsoleLog;
 }
 
 /** V2 Faz 16 — in-page accessibility audit result. */
@@ -422,6 +432,7 @@ export async function renderUrl(
   // Done before any navigation so even an early throw can roll back.
   const previousViewport = opts.viewport ? page.viewportSize() : null;
 
+  let collector: ReturnType<typeof attachConsoleCollector> | null = null;
   try {
     if (opts.viewport) {
       await page.setViewportSize(opts.viewport);
@@ -434,6 +445,11 @@ export async function renderUrl(
         // A page that refuses the init script still renders — route
         // discovery just falls back to whatever the DOM exposes.
       }
+    }
+    if (opts.collectConsole) {
+      collector = attachConsoleCollector(page, {
+        blockedTypes: opts.blockedTypes ? new Set(opts.blockedTypes) : undefined,
+      });
     }
     const response = await page.goto(url, {
       waitUntil: opts.waitUntil,
@@ -569,6 +585,7 @@ export async function renderUrl(
       spaRoutes,
       navigatedTo,
       servedHtml,
+      consoleLog: collector?.finish(),
     };
   } catch (err) {
     result = {
@@ -578,6 +595,8 @@ export async function renderUrl(
       error: err instanceof Error ? err.message : String(err),
     };
   } finally {
+    // Pages are reused: a listener must never outlive its render.
+    collector?.finish();
     signal?.removeEventListener('abort', abortHandler);
     if (!aborted) {
       // Best-effort cookie wipe between URLs so cross-URL state

@@ -1002,6 +1002,7 @@
       "mobileUsability": "Mobile Usability audit",
       "lcpCandidate": "LCP candidate detection",
       "a11yAudit": "Accessibility audit (contrast + focus)",
+      "consoleErrors": "Console errors and failed resources",
       "screenshotNone": "None (default)",
       "screenshotFold": "Above the fold",
       "screenshotFull": "Full page",

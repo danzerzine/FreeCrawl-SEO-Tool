@@ -1,6 +1,7 @@
 import type { CrawlConfig } from '@freecrawl/shared-types';
 import type { BrowserPool, BrowserPoolOptions } from './browser-pool.js';
 import { MOBILE_DEVICE_SCALE_FACTOR, MOBILE_USER_AGENT, MOBILE_VIEWPORT } from './http-client.js';
+import type { ConsoleLog } from './render-console.js';
 import { renderUrl, type RenderOptions } from './render-fetcher.js';
 
 /**
@@ -36,6 +37,13 @@ export function browserPoolOptionsFromConfig(config: CrawlConfig): BrowserPoolOp
   };
 }
 
+/** The resource types the crawl blocks on purpose (the pool aborts them). */
+function blockedResourceTypes(config: CrawlConfig): string[] | undefined {
+  const b = config.jsRender.blockResources;
+  const out = (['image', 'font', 'media', 'stylesheet', 'script'] as const).filter((t) => b[t]);
+  return out.length > 0 ? out : undefined;
+}
+
 /** How one URL is rendered: timeouts and waits from the crawl's settings. */
 export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
   return {
@@ -44,6 +52,8 @@ export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
     waitSelector: config.jsRender.waitSelector || undefined,
     waitUntil: config.jsRender.waitUntil,
     discoverSpaRoutes: config.jsRender.spaRouting,
+    collectConsole: config.jsRender.consoleErrors || undefined,
+    blockedTypes: blockedResourceTypes(config),
   };
 }
 
@@ -92,6 +102,8 @@ export interface RenderHookResult {
   scriptRan?: boolean;
   /** `page.content()` taken before the page script ran (B34, read by B33's compare). */
   renderedHtmlPreScript?: string;
+  /** Console errors and failed resources of the render (B35); set only with `jsRender.consoleErrors`. */
+  consoleLog?: ConsoleLog;
 }
 
 export type RenderHook = (
@@ -118,6 +130,7 @@ export function createRenderHook(pool: BrowserPool, config: CrawlConfig): Render
       spaRoutes: res.spaRoutes,
       navigatedTo: res.navigatedTo ?? null,
       servedHtml: res.servedHtml,
+      consoleLog: res.consoleLog,
     };
   };
 }

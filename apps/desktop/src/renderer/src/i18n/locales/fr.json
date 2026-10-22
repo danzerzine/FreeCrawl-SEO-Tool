@@ -1025,6 +1025,7 @@
       "mobileUsability": "Audit d'ergonomie mobile",
       "lcpCandidate": "Détection du candidat LCP",
       "a11yAudit": "Audit d'accessibilité (contraste + focus)",
+      "consoleErrors": "Erreurs de console et ressources non chargées",
       "screenshotNone": "Aucune (par défaut)",
       "screenshotFold": "Partie visible sans défilement",
       "screenshotFull": "Page entière",

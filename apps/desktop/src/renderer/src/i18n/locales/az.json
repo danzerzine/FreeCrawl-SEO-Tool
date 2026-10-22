@@ -1002,6 +1002,7 @@
       "mobileUsability": "Mobil istifadə rahatlığı auditi",
       "lcpCandidate": "LCP namizədinin aşkarlanması",
       "a11yAudit": "Əlçatanlıq auditi (kontrast + fokus)",
+      "consoleErrors": "Konsol xətaları və yüklənməyən resurslar",
       "screenshotNone": "Yoxdur (susmaya görə)",
       "screenshotFold": "Sürüşdürmədən görünən hissə",
       "screenshotFull": "Bütün səhifə",

@@ -1002,6 +1002,7 @@
       "mobileUsability": "मोबाइल उपयोगिता ऑडिट",
       "lcpCandidate": "LCP उम्मीदवार की पहचान",
       "a11yAudit": "पहुँच-योग्यता ऑडिट (कंट्रास्ट + फ़ोकस)",
+      "consoleErrors": "कंसोल त्रुटियाँ और लोड न हुए संसाधन",
       "screenshotNone": "कोई नहीं (डिफ़ॉल्ट)",
       "screenshotFold": "बिना स्क्रॉल दिखने वाला हिस्सा",
       "screenshotFull": "पूरा पृष्ठ",

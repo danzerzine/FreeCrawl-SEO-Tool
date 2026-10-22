@@ -2295,6 +2295,8 @@ function mergeCrawlConfig(parsed: Partial<CrawlConfig>): CrawlConfig {
         DEFAULT_CRAWL_CONFIG.jsRender.lcpCandidate,
       a11yAudit:
         parsed.jsRender?.a11yAudit ?? DEFAULT_CRAWL_CONFIG.jsRender.a11yAudit,
+      consoleErrors:
+        parsed.jsRender?.consoleErrors ?? DEFAULT_CRAWL_CONFIG.jsRender.consoleErrors,
     },
     performanceBudget: {
       ...DEFAULT_CRAWL_CONFIG.performanceBudget,
@@ -8146,6 +8148,7 @@ function registerIpc(): void {
           spaRoutes: res.spaRoutes,
           navigatedTo: res.navigatedTo ?? null,
           servedHtml: res.servedHtml,
+          consoleLog: res.consoleLog,
         };
       };
     }

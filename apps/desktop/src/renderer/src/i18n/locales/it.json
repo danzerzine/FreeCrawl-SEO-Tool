@@ -1025,6 +1025,7 @@
       "mobileUsability": "Audit di usabilità mobile",
       "lcpCandidate": "Rilevamento del candidato LCP",
       "a11yAudit": "Audit di accessibilità (contrasto + focus)",
+      "consoleErrors": "Errori della console e risorse non caricate",
       "screenshotNone": "Nessuna (predefinito)",
       "screenshotFold": "Parte visibile senza scorrere",
       "screenshotFull": "Pagina intera",

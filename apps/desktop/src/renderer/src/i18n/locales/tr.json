@@ -1002,6 +1002,7 @@
       "mobileUsability": "Mobil Kullanılabilirlik denetimi",
       "lcpCandidate": "LCP aday tespiti",
       "a11yAudit": "Erişilebilirlik denetimi (kontrast + odak)",
+      "consoleErrors": "Konsol hataları ve yüklenemeyen kaynaklar",
       "screenshotNone": "Yok (varsayılan)",
       "screenshotFold": "Katlama üstü",
       "screenshotFull": "Tam sayfa",

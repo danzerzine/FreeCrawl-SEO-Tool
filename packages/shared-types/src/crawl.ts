@@ -1689,6 +1689,14 @@ export interface JsRenderConfig {
    */
   a11yAudit: boolean;
   /**
+   * Record console errors, uncaught page errors and resources that failed
+   * to load (failed requests, subresource answers >= 400) while a page
+   * renders (B35). Feeds the Console Errors and Failed Resources issues.
+   * JS mode only. Off by default: the two issues would otherwise appear in
+   * every existing JavaScript-rendering workflow's report.
+   */
+  consoleErrors: boolean;
+  /**
    * Discover client-side routes an SPA reaches without a document
    * request: the History API (`pushState` / `replaceState` / `popstate`)
    * is hooked before the page's own scripts run, and hash-router links
@@ -3082,6 +3090,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
     mobileUsability: false,
     lcpCandidate: false,
     a11yAudit: false,
+    consoleErrors: false,
     spaRouting: false,
   },
   performanceBudget: {

@@ -257,6 +257,7 @@ interface FormState {
   jsMobileUsability: boolean;
   jsLcpCandidate: boolean;
   jsA11yAudit: boolean;
+  jsConsoleErrors: boolean;
   jsSpaRouting: boolean;
   // V2 Faz 15 — performance budget
   budgetEnabled: boolean;
@@ -721,6 +722,7 @@ function configToForm(c: CrawlConfig): FormState {
     jsMobileUsability: c.jsRender?.mobileUsability ?? false,
     jsLcpCandidate: c.jsRender?.lcpCandidate ?? false,
     jsA11yAudit: c.jsRender?.a11yAudit ?? false,
+    jsConsoleErrors: c.jsRender?.consoleErrors ?? false,
     jsSpaRouting: c.jsRender?.spaRouting ?? false,
     budgetEnabled: c.performanceBudget?.enabled ?? false,
     budgetMaxResponseMs: String(c.performanceBudget?.maxResponseMs ?? 800),
@@ -1114,6 +1116,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         mobileUsability: form.jsMobileUsability,
         lcpCandidate: form.jsLcpCandidate,
         a11yAudit: form.jsA11yAudit,
+        consoleErrors: form.jsConsoleErrors,
         spaRouting: form.jsSpaRouting,
       },
       performanceBudget: {
@@ -4998,6 +5001,14 @@ function RenderingPanel({ form, update }: PanelProps) {
             hint=""
             info="Audits the rendered DOM for WCAG AA colour-contrast failures (4.5:1 normal text, 3:1 large text) and stylesheet rules that suppress the keyboard focus outline without a :focus-visible fallback. Surfaces the Low-Contrast Text and Focus Outline Suppressed issue filters."
             example="On for accessibility / WCAG audits."
+          />
+          <Bool
+            label={t('settingsPanels.rendering.consoleErrors', { defaultValue: 'Console errors and failed resources' })}
+            checked={form.jsConsoleErrors}
+            onChange={(v) => update('jsConsoleErrors', v)}
+            hint=""
+            info="Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."
+            example="On to find broken scripts, images and API calls the HTML check does not see."
           />
           <Bool
             label={t('settingsPanels.rendering.spaRouting', { defaultValue: 'SPA route discovery' })}
