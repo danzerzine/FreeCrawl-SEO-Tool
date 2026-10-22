@@ -12,10 +12,10 @@
  * `getAccessToken('ga4')` mints / refreshes the bearer token; nothing
  * here touches credentials directly.
  */
-import type { Ga4Property } from '@freecrawl/shared-types';
+import type { Ga4Field, Ga4Property } from '@freecrawl/shared-types';
 import { getAccessToken } from './google-oauth.js';
 import { apiFetch } from './api-fetch.js';
-import { googleRequest, type GoogleDeps } from './google-retry.js';
+import { googleRequest, throwIfQuotaOrPermission, type GoogleDeps } from './google-retry.js';
 import * as logger from './logger.js';
 
 const ADMIN_BASE = 'https://analyticsadmin.googleapis.com/v1beta';
@@ -195,4 +195,136 @@ export async function runReport(
     `GA4 report: ${out.length} page row(s) for ${property} (${startDate}…${endDate})`,
   );
   return out;
+}
+
+/** The Data API refused the request as malformed: an unknown, removed or incompatible field. */
+export class Ga4BadRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'Ga4BadRequestError';
+  }
+}
+
+const metadataCache = new Map<string, Ga4Field[]>();
+
+/** Forget the session's metadata (tests; a property switch does not need it). */
+export function clearMetadataCache(): void {
+  metadataCache.clear();
+}
+
+/**
+ * Metrics and dimensions of a property, custom ones included (`GET .../metadata`). Cached in
+ * memory per (account, property) for the session and never stored in the project; `refresh`
+ * asks again. `customItem:` fields are left out: an item-scoped field cannot be combined with
+ * `pageLocation` in a useful way, so the picker does not offer it.
+ */
+export async function getMetadata(
+  property: string,
+  accountId?: string,
+  deps: GoogleDeps = defaultGa4Deps(accountId),
+  opts: { refresh?: boolean } = {},
+): Promise<Ga4Field[]> {
+  const key = `${accountId ?? ''}|${property}`;
+  const cached = metadataCache.get(key);
+  if (cached && !opts.refresh) return cached;
+  const res = await googleRequest(deps, {
+    op: 'GA4 metadata',
+    method: 'GET',
+    url: `${DATA_BASE}/${property}/metadata`,
+    timeoutMs: 30_000,
+  });
+  const json = res.json as { dimensions?: unknown; metrics?: unknown } | null;
+  if (!res.ok || !json) {
+    throwIfQuotaOrPermission('GA4 metadata', res.status, json);
+    throw new Error(apiError(json, res.status));
+  }
+  const read = (list: unknown, kind: Ga4Field['kind']): Ga4Field[] =>
+    (Array.isArray(list) ? (list as Record<string, unknown>[]) : [])
+      .filter((f) => typeof f['apiName'] === 'string' && !(f['apiName'] as string).startsWith('customItem:'))
+      .map((f) => ({
+        apiName: f['apiName'] as string,
+        uiName: typeof f['uiName'] === 'string' ? f['uiName'] : (f['apiName'] as string),
+        description: typeof f['description'] === 'string' ? f['description'] : '',
+        customDefinition: f['customDefinition'] === true,
+        category: typeof f['category'] === 'string' ? f['category'] : '',
+        kind,
+      }));
+  const fields = [...read(json.dimensions, 'dimension'), ...read(json.metrics, 'metric')];
+  metadataCache.set(key, fields);
+  return fields;
+}
+
+/** Remaining Data API tokens as of the last response; a missing bucket is absent. */
+export interface Ga4Quota {
+  tokensPerDay?: number;
+  tokensPerHour?: number;
+  tokensPerProjectPerHour?: number;
+}
+
+export interface Ga4CustomReportRow {
+  dims: string[];
+  metrics: string[];
+}
+
+const QUOTA_BUCKETS = ['tokensPerDay', 'tokensPerHour', 'tokensPerProjectPerHour'] as const;
+
+/**
+ * One report with any dimensions and metrics, paged like {@link runReport}, asking for the
+ * property quota so the caller can stop before the budget is gone. Throws
+ * {@link Ga4BadRequestError} on HTTP 400 and `GoogleQuotaError` when Google's quota answer persists.
+ */
+export async function runCustomReport(
+  property: string,
+  req: { startDate: string; endDate: string; dimensions: string[]; metrics: string[] },
+  accountId?: string,
+  deps: GoogleDeps = defaultGa4Deps(accountId),
+): Promise<{ rows: Ga4CustomReportRow[]; quota: Ga4Quota }> {
+  const op = 'GA4 report';
+  const endpoint = `${DATA_BASE}/${property}:runReport`;
+  const rows: Ga4CustomReportRow[] = [];
+  const quota: Ga4Quota = {};
+  let offset = 0;
+  for (;;) {
+    const res = await googleRequest(deps, {
+      op,
+      method: 'POST',
+      url: endpoint,
+      body: {
+        dateRanges: [{ startDate: req.startDate, endDate: req.endDate }],
+        dimensions: req.dimensions.map((name) => ({ name })),
+        metrics: req.metrics.map((name) => ({ name })),
+        limit: PAGE_LIMIT,
+        offset,
+        returnPropertyQuota: true,
+      },
+      timeoutMs: 60_000,
+    });
+    const json = res.json as {
+      rows?: {
+        dimensionValues?: { value?: unknown }[];
+        metricValues?: { value?: unknown }[];
+      }[];
+      rowCount?: unknown;
+      propertyQuota?: Record<string, { remaining?: unknown } | undefined>;
+    } | null;
+    if (!res.ok || !json) {
+      throwIfQuotaOrPermission(op, res.status, json);
+      if (res.status === 400) throw new Ga4BadRequestError(apiError(json, res.status));
+      throw new Error(apiError(json, res.status));
+    }
+    for (const b of QUOTA_BUCKETS) {
+      const remaining = json.propertyQuota?.[b]?.remaining;
+      if (typeof remaining === 'number') quota[b] = remaining;
+    }
+    const page = Array.isArray(json.rows) ? json.rows : [];
+    for (const r of page) {
+      const dims = (r.dimensionValues ?? []).map((d) => String(d?.value ?? ''));
+      if (!dims[0]) continue;
+      rows.push({ dims, metrics: (r.metricValues ?? []).map((m) => String(m?.value ?? '')) });
+    }
+    const total = typeof json.rowCount === 'number' ? json.rowCount : rows.length;
+    offset += page.length;
+    if (page.length === 0 || offset >= total || rows.length >= MAX_ROWS) break;
+  }
+  return { rows, quota };
 }

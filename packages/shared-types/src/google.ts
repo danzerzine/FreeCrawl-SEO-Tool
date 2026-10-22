@@ -285,6 +285,8 @@ export interface Ga4Row {
   statusCode: number | null;
   /** Null when the page had no GA4 traffic in the range. */
   ga4: Ga4Metrics | null;
+  /** B37: stored values of the chosen custom fields, by field; absent when none are chosen. */
+  custom?: Record<string, Ga4CustomValue[]>;
 }
 
 /** Combined per-URL Analytics view — GSC Search Analytics + GA4 +
@@ -317,11 +319,67 @@ export interface Ga4IntegrationSettings {
   propertyName: string;
   /** Trailing window in days. */
   days: 7 | 28 | 90;
+  /** B37: extra GA4 metrics pulled next to the five fixed ones (API names, at most
+   *  `GA4_MAX_CUSTOM_METRICS`). A project saved before this version reads as `[]`. */
+  customMetrics: string[];
+  /** B37: extra dimensions, one report each (at most `GA4_MAX_CUSTOM_DIMENSIONS`). */
+  customDimensions: string[];
 }
+
+export const GA4_MAX_CUSTOM_METRICS = 10;
+export const GA4_MAX_CUSTOM_DIMENSIONS = 5;
 
 /** Factory for the default GA4 settings (fresh object each call). */
 export function defaultGa4Settings(): Ga4IntegrationSettings {
-  return { accountId: '', property: '', propertyName: '', days: 28 };
+  return {
+    accountId: '',
+    property: '',
+    propertyName: '',
+    days: 28,
+    customMetrics: [],
+    customDimensions: [],
+  };
+}
+
+/** Defaults plus a stored settings blob; a missing or malformed custom list reads as `[]`. */
+export function mergeGa4Settings(stored: Record<string, unknown> | null | undefined): Ga4IntegrationSettings {
+  const names = (v: unknown, cap: number): string[] =>
+    Array.isArray(v)
+      ? Array.from(new Set(v.filter((x): x is string => typeof x === 'string' && x.length > 0))).slice(0, cap)
+      : [];
+  const merged = { ...defaultGa4Settings(), ...(stored ?? {}) } as Ga4IntegrationSettings;
+  merged.customMetrics = names(stored?.['customMetrics'], GA4_MAX_CUSTOM_METRICS);
+  merged.customDimensions = names(stored?.['customDimensions'], GA4_MAX_CUSTOM_DIMENSIONS);
+  return merged;
+}
+
+/** One field of a GA4 property from the Data API `getMetadata` call. */
+export interface Ga4Field {
+  apiName: string;
+  uiName: string;
+  description: string;
+  /** True for the property's own custom metrics and dimensions. */
+  customDefinition: boolean;
+  category: string;
+  kind: 'metric' | 'dimension';
+}
+
+/** How one chosen custom field fared in the last pull. */
+export interface Ga4CustomFieldStatus {
+  field: string;
+  kind: 'metric' | 'dimension';
+  /** Stored rows for the field. */
+  rows: number;
+  ok: boolean;
+  /** Why the field is not ok: Google's message, or «not pulled: …». */
+  error?: string;
+}
+
+/** One stored value of a custom field for a page. */
+export interface Ga4CustomValue {
+  value: string;
+  /** Sessions with this value (dimensions); null for a metric. */
+  sessions: number | null;
 }
 
 /** Metadata describing the most recent GA4 pull for the active project. */
@@ -336,4 +394,10 @@ export interface Ga4FetchMeta {
   fetchedAt: string;
   /** Number of page rows GA4 returned. */
   rowCount: number;
+  /** B37: every chosen custom field, finished ones included; absent on a pull from before this version. */
+  customFields?: Ga4CustomFieldStatus[];
+  /** B37: what happened to the fields not pulled, in words for the user. */
+  customMessage?: string | null;
+  /** B37: distinct stored GA4 page URLs with no crawled row (tracking-parameter or slash variants). */
+  unmatchedUrls?: number;
 }
