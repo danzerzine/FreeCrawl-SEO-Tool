@@ -34,6 +34,7 @@ import {
   normalizeSchemaType,
   rulesForType,
   type SchemaCondition,
+  type SchemaCount,
   type SchemaRule,
 } from './schema-rules.js';
 
@@ -2679,7 +2680,8 @@ function walkSchemaForValidation(
           }
           return [];
         });
-    const missingRequired = [...conditional('required'), ...missing(rule.required)];
+    const counted = (rule.counts ?? []).flatMap((c) => countGap(obj, c) ?? []);
+    const missingRequired = [...conditional('required'), ...missing(rule.required), ...counted];
     if (missingRequired.length > 0) {
       missingRequiredCount++;
       findings.push({ block, type, kind: 'missing-required', props: missingRequired });
@@ -2839,6 +2841,32 @@ function hasSchemaPath(obj: Record<string, unknown>, path: string): boolean {
     const o = v as Record<string, unknown>;
     return isSchemaReference(o) || hasSchemaPath(o, rest);
   });
+}
+
+/**
+ * The label of `count` when the node holds fewer named entries than asked.
+ * A reference on the way stands for a list defined elsewhere: counted as met.
+ */
+function countGap(obj: Record<string, unknown>, count: SchemaCount): string | undefined {
+  let total = 0;
+  for (const path of count.lists) {
+    let level: unknown[] = [obj];
+    for (const segment of path.split('.')) {
+      const next: unknown[] = [];
+      for (const v of level) {
+        if (!isSchemaObject(v)) continue;
+        if (isSchemaReference(v)) return undefined;
+        next.push(...[v[segment]].flat());
+      }
+      level = next;
+    }
+    for (const entry of level) {
+      if (!isSchemaObject(entry)) continue;
+      if (isSchemaReference(entry)) return undefined;
+      if (hasSchemaPath(entry, count.item)) total++;
+    }
+  }
+  return total < count.min ? count.label : undefined;
 }
 
 function isSchemaObject(v: unknown): v is Record<string, unknown> {

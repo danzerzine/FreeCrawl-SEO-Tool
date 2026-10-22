@@ -33,12 +33,26 @@ export interface SchemaRule {
    */
   conditions?: readonly SchemaCondition[];
   /**
+   * Lists the node must hold enough named entries in, counted over all `lists`
+   * together: a gap is a required finding worded `label`.
+   */
+  counts?: readonly SchemaCount[];
+  /**
    * Tested once `rulesForType` has picked the rule: false means the rule does
    * not apply to this node (no finding, no label).
    */
   appliesWhen?: (node: Record<string, unknown>, pageUrl: string) => boolean;
   /** A node this rule matched carries the label, so `CONTEXT_RULES` can look for children by it. */
   label?: string;
+}
+
+export interface SchemaCount {
+  /** Dotted paths ending at the property that holds the entries, e.g. `positiveNotes.itemListElement`. */
+  lists: readonly string[];
+  min: number;
+  /** An entry counts when it is an object with this property present. */
+  item: string;
+  label: string;
 }
 
 export interface SchemaCondition {
@@ -52,6 +66,8 @@ export interface SchemaCondition {
 export const SCHEMA_RULES_CHECKED = '2026-10-22';
 
 const GOOGLE = 'https://developers.google.com/search/docs/appearance/structured-data/';
+
+const REVIEW_EXCLUDE = ['ClaimReview', 'Recommendation', 'ReviewNewsArticle'];
 
 export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
@@ -142,7 +158,7 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
     source: `${GOOGLE}review-snippet`,
     types: ['Review'],
-    exclude: ['ClaimReview', 'Recommendation', 'ReviewNewsArticle'],
+    exclude: REVIEW_EXCLUDE,
     required: [
       'author',
       'reviewRating',
@@ -220,6 +236,21 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
         ifIs: ['ReturnShippingFees'],
         then: 'returnShippingFeesAmount',
         level: 'required',
+      },
+    ],
+  },
+  {
+    // Pros and cons: Google wants at least two notes over both lists.
+    source: `${GOOGLE}product-snippet`,
+    types: ['Review'],
+    exclude: REVIEW_EXCLUDE,
+    appliesWhen: (node) => isPresent(node['positiveNotes']) || isPresent(node['negativeNotes']),
+    counts: [
+      {
+        lists: ['positiveNotes.itemListElement', 'negativeNotes.itemListElement'],
+        min: 2,
+        item: 'name',
+        label: 'positiveNotes + negativeNotes: 2 or more notes',
       },
     ],
   },
@@ -381,6 +412,13 @@ export function rulesForType(type: string): SchemaRule[] {
       (h) => !hits.some((o) => o !== h && o.root !== h.root && isSchemaTypeOf(o.root, h.root)),
     )
     .map((h) => h.rule);
+}
+
+function isPresent(v: unknown): boolean {
+  if (typeof v === 'string') return v.trim().length > 0;
+  if (Array.isArray(v)) return v.length > 0;
+  if (v && typeof v === 'object') return Object.keys(v).length > 0;
+  return v !== undefined && v !== null;
 }
 
 const CAROUSEL_ITEMS = ['Course', 'Movie', 'Recipe', 'Restaurant'];

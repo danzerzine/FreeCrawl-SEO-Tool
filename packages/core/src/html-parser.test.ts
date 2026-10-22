@@ -856,5 +856,79 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(required(restaurant)).toEqual([]);
     });
   });
+
+  describe('R11 count rule: pros and cons notes (row 6)', () => {
+    const base = {
+      '@type': 'Review',
+      author: 'Ann',
+      reviewRating: { '@type': 'Rating', ratingValue: 4 },
+      itemReviewed: { '@type': 'Product', name: 'P' },
+      datePublished: '2026-10-01',
+    };
+    const notes = (...names: unknown[]) => ({
+      '@type': 'ItemList',
+      itemListElement: names.map((name, i) => ({ '@type': 'ListItem', position: i + 1, name })),
+    });
+    const gap = req('Review', 'positiveNotes + negativeNotes: 2 or more notes');
+
+    it('passes with one positive and one negative note', () => {
+      expect(required({ ...base, positiveNotes: notes('Fast'), negativeNotes: notes('Loud') })).toEqual([]);
+    });
+
+    it('passes with two positive notes and no negative ones', () => {
+      expect(required({ ...base, positiveNotes: notes('Fast', 'Light') })).toEqual([]);
+    });
+
+    it('fires with one note only', () => {
+      expect(required({ ...base, positiveNotes: notes('Fast') })).toEqual([gap]);
+      expect(required({ ...base, negativeNotes: notes('Loud') })).toEqual([gap]);
+    });
+
+    it('counts only notes with a name', () => {
+      expect(required({ ...base, positiveNotes: notes('Fast', undefined) })).toEqual([gap]);
+      expect(required({ ...base, positiveNotes: notes('Fast'), negativeNotes: notes(undefined) })).toEqual([gap]);
+    });
+
+    it('counts strings, numbers and an ItemList without entries as nothing', () => {
+      expect(required({ ...base, positiveNotes: ['Fast', 'Light'] })).toEqual([gap]);
+      expect(required({ ...base, positiveNotes: { '@type': 'ItemList' } })).toEqual([gap]);
+      expect(
+        required({ ...base, positiveNotes: { '@type': 'ItemList', itemListElement: ['Fast', 5] } }),
+      ).toEqual([gap]);
+    });
+
+    it('counts a single ListItem object once', () => {
+      const one = { '@type': 'ItemList', itemListElement: { '@type': 'ListItem', name: 'Fast' } };
+      expect(required({ ...base, positiveNotes: one })).toEqual([gap]);
+      expect(required({ ...base, positiveNotes: one, negativeNotes: one })).toEqual([]);
+    });
+
+    it('does not apply to a Review with neither property', () => {
+      expect(required(base)).toEqual([]);
+    });
+
+    it('treats a reference list as met', () => {
+      expect(required({ ...base, positiveNotes: { '@id': 'https://example.com/#pros' } })).toEqual([]);
+      expect(
+        required({ ...base, positiveNotes: { '@type': 'ItemList', itemListElement: { '@id': 'https://example.com/#x' } } }),
+      ).toEqual([]);
+    });
+
+    it('is its own finding next to the Review rule', () => {
+      expect(required({ ...base, author: undefined, positiveNotes: notes('Fast') })).toEqual([
+        req('Review', 'author'),
+        gap,
+      ]);
+    });
+
+    it('checks only the review of a Product that has notes', () => {
+      const product = {
+        '@type': 'Product',
+        name: 'P',
+        review: [{ ...base, positiveNotes: notes('Fast') }, base],
+      };
+      expect(required(product)).toEqual([gap]);
+    });
+  });
   // PART2-END
 });
