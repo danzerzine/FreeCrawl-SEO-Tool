@@ -22,6 +22,8 @@ export interface DatasetExportContext {
   ga4AccountId?: string;
   /** Yandex Metrica counter whose pull to export. */
   metricaCounterId?: string;
+  /** Yandex Webmaster host whose pull to export; without it nothing is exported. */
+  webmasterHostId?: string;
   /** Search Console URL-matching options (Settings → Integrations → GSC). */
   gscMatchSlash?: boolean;
   gscMatchCase?: boolean;
@@ -177,6 +179,22 @@ export function datasetRows(
       return asRecords(
         paged(
           (limit, offset) => db.queryMetrica({ limit, offset, counterId: ctx.metricaCounterId }),
+          1000,
+        ),
+      );
+    case 'webmaster':
+      return asRecords(
+        paged(
+          (limit, offset) =>
+            db.queryWebmasterExcluded({ hostId: ctx.webmasterHostId ?? '', limit, offset }),
+          1000,
+        ),
+      );
+    case 'webmaster-broken-links':
+      return asRecords(
+        paged(
+          (limit, offset) =>
+            db.queryWebmasterBrokenLinks({ hostId: ctx.webmasterHostId ?? '', limit, offset }),
           1000,
         ),
       );

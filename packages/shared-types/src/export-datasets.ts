@@ -39,6 +39,8 @@ export type ExportDatasetKey =
   | 'analytics'
   | 'analytics-custom'
   | 'metrica'
+  | 'webmaster'
+  | 'webmaster-broken-links'
   | `ai:${AiProvider}`
   | `seo:${SeoProvider}`;
 
@@ -296,6 +298,26 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'metrica.users', header: 'Users (landing page)' },
     { key: 'metrica.searchVisits', header: 'Search Visits (landing page)' },
     { key: 'metrica.fetchedAt', header: 'Fetched At' },
+  ],
+  // B39: pages Yandex last reported as removed from search (the Excluded pages view), then the
+  // broken internal links it reports. Keyed by Yandex's URL, so a row can have no crawl page.
+  webmaster: [
+    { key: 'url', header: 'URL' },
+    { key: 'reason', header: 'Yandex Reason' },
+    { key: 'badHttpStatus', header: 'Yandex HTTP Status' },
+    { key: 'targetUrl', header: 'Yandex Target URL' },
+    { key: 'eventDate', header: 'Event Date' },
+    { key: 'lastAccess', header: 'Last Access' },
+    { key: 'crawlStatusCode', header: 'Crawl Status' },
+    { key: 'crawlIndexability', header: 'Crawl Indexability' },
+  ],
+  'webmaster-broken-links': [
+    { key: 'sourceUrl', header: 'Source URL' },
+    { key: 'destinationUrl', header: 'Destination URL' },
+    { key: 'discoveryDate', header: 'Discovered' },
+    { key: 'sourceLastAccessDate', header: 'Source Last Access' },
+    { key: 'destinationStatusCode', header: 'Destination Crawl Status' },
+    { key: 'seenByCrawl', header: 'Also In Crawl Broken Links' },
   ],
   'ai:openai': AI,
   'ai:anthropic': AI,

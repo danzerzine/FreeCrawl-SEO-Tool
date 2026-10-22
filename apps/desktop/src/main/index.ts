@@ -8355,6 +8355,7 @@ function registerIpc(): void {
       gscAccountId: resolveGoogleAccount('gsc'),
       ga4AccountId: resolveGoogleAccount('ga4'),
       metricaCounterId: resolveMetricaSettings().counterId,
+      webmasterHostId: resolveWebmasterSettings().hostId,
       gscMatchSlash: gsc.matchSlash,
       gscMatchCase: gsc.matchCase,
     };
