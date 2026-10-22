@@ -313,14 +313,23 @@ describe('parseHtml: structured-data rules from Google\'s pages', () => {
     ).toEqual([]);
   });
 
-  it('checks the thing a standalone Review rates only through the review', () => {
-    const review = {
+  it('counts the review itself for the thing it rates, and checks the rest of that thing', () => {
+    const review = (itemReviewed: unknown) => ({
       '@type': 'Review',
       author: { name: 'A' },
       reviewRating: { ratingValue: 4 },
-      itemReviewed: { '@type': 'Product', name: 'Mug' },
-    };
-    expect(required(review)).toEqual([]);
+      itemReviewed,
+    });
+    expect(required(review({ '@type': 'Product', name: 'Mug' }))).toEqual([]);
+    expect(required(review({ '@type': 'Restaurant', name: 'R' }))).toEqual([
+      { block: 0, type: 'Restaurant', kind: 'missing-required', props: ['address'] },
+    ]);
+    expect(required(review({ '@type': 'SoftwareApplication', name: 'App' }))).toEqual([
+      { block: 0, type: 'SoftwareApplication', kind: 'missing-required', props: ['offers.price'] },
+    ]);
+    expect(required(review({ '@type': 'Recipe', name: 'Soup' }))).toEqual([
+      { block: 0, type: 'Recipe', kind: 'missing-required', props: ['image'] },
+    ]);
   });
 
   it('asks an Event for a place address, and accepts a hybrid event', () => {
@@ -406,6 +415,19 @@ describe('parseHtml: structured-data rules from Google\'s pages', () => {
     expect(required({ ...post, url: 'https://example.com/t/1' })).toEqual([]);
     expect(required({ ...post, url: PAGE })).toEqual([
       { block: 0, type: 'DiscussionForumPosting', kind: 'missing-required', props: ['text | image | video'] },
+    ]);
+  });
+
+  it('reads a forum post url that differs from the page only by its fragment as the page itself', () => {
+    const post = { '@type': 'DiscussionForumPosting', author: { name: 'A' }, datePublished: '2026-01-01' };
+    expect(required({ ...post, url: `${PAGE}#post-3` })).toEqual([
+      { block: 0, type: 'DiscussionForumPosting', kind: 'missing-required', props: ['text | image | video'] },
+    ]);
+  });
+
+  it('checks an offer without a type as an Offer', () => {
+    expect(required({ '@type': 'Product', name: 'Mug', offers: { priceCurrency: 'EUR' } })).toEqual([
+      { block: 0, type: 'Offer', kind: 'missing-required', props: ['price | priceSpecification.price'] },
     ]);
   });
 
