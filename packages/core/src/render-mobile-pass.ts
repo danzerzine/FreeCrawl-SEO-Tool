@@ -45,7 +45,8 @@ export async function runMobilePass(
       },
       signal,
     );
-    if (mobileRes.ok && mobileRes.screenshots?.fold) out.screenshotPath = mobileRes.screenshots.fold;
+    if (mobileRes.ok && mobileRes.screenshots?.fold)
+      out.screenshotPath = mobileRes.screenshots.fold;
   }
   if (config.jsRender.mobileUsability) {
     const audit = await auditMobileUsability(
@@ -55,7 +56,11 @@ export async function runMobilePass(
       signal,
     );
     if (audit) {
-      out.usability = { ok: audit.ok, overflowPx: audit.overflowPx, hasViewportMeta: audit.hasViewportMeta };
+      out.usability = {
+        ok: audit.ok,
+        overflowPx: audit.overflowPx,
+        hasViewportMeta: audit.hasViewportMeta,
+      };
     }
   }
   return out;
