@@ -2716,15 +2716,12 @@ function walkSchemaForValidation(
         findings.push({ block, type: raw, kind: 'unknown-type', props: [] });
         continue;
       }
-      // The value of `reviewRating` is a rating, even when typed AggregateRating;
-      // the thing a review rates is checked through the review's own rule.
-      if (reference || via === 'reviewRating' || via === 'itemReviewed') continue;
+      // The value of `reviewRating` is a rating, even when typed AggregateRating.
+      if (reference || via === 'reviewRating') continue;
       for (const rule of rulesForType(t)) {
         if (rules.includes(rule)) continue;
         rules.push(rule);
-        // A review or rating nested in the thing it rates is about that thing.
-        const nested = via === 'review' || via === 'aggregateRating';
-        check(obj, t, rule, nested ? ['itemReviewed', 'itemReviewed.name'] : []);
+        check(obj, t, rule, skipFor(rule, via));
       }
     }
 
@@ -2732,7 +2729,7 @@ function walkSchemaForValidation(
     if (!reference && via === 'offers' && parent.some((r) => r.types.includes('Product'))) {
       const t = types.map(normalizeSchemaType).find((x) => x) ?? 'Offer';
       if (isSchemaTypeOf(t, 'AggregateOffer')) check(obj, t, AGGREGATE_OFFER_RULE);
-      else if (types.length === 0 || isSchemaTypeOf(t, 'Offer')) check(obj, t, OFFER_RULE);
+      else if (isSchemaTypeOf(t, 'Offer')) check(obj, t, OFFER_RULE);
     }
 
     for (const [key, value] of Object.entries(obj)) {
@@ -2761,6 +2758,19 @@ function walkSchemaForValidation(
 
   visit(node, '', []);
   return { unknownTypeCount, missingRequiredCount, missingRecommendedCount };
+}
+
+/**
+ * Entries of `rule` the node's place in the graph already meets: a review or
+ * rating nested in the thing it rates is about that thing, and the thing a
+ * review rates has that review (its other entries are still checked).
+ */
+function skipFor(rule: SchemaRule, via: string): string[] {
+  if (via === 'review' || via === 'aggregateRating') return ['itemReviewed', 'itemReviewed.name'];
+  if (via !== 'itemReviewed') return [];
+  return [...(rule.required ?? []), ...(rule.recommended ?? [])].filter((entry) =>
+    entry.split(' | ').some((path) => path === 'review' || path === 'aggregateRating'),
+  );
 }
 
 /** `{"@id": …}`, optionally with `@type`: a pointer to a node defined elsewhere. */
