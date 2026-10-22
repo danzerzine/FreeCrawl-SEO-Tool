@@ -2787,6 +2787,23 @@ const MIGRATIONS: Migration[] = [
       add('render_diff', 'TEXT');
     },
   },
+  {
+    // B35: console errors and resources that failed to load, from the render.
+    // NULL = not recorded (text mode, option off, failed render, an old row),
+    // 0 = recorded and none. No backfill.
+    version: 122,
+    name: 'add_console_log',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(urls)').all() as { name: string }[];
+      const names = new Set(cols.map((c) => c.name));
+      const add = (col: string, decl: string): void => {
+        if (!names.has(col)) db.exec(`ALTER TABLE urls ADD COLUMN ${col} ${decl}`);
+      };
+      add('console_errors', 'INTEGER');
+      add('failed_resources', 'INTEGER');
+      add('console_log', 'TEXT');
+    },
+  },
 ];
 
 export function runMigrations(

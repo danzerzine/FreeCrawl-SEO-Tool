@@ -146,6 +146,8 @@ export type UrlCategory =
   | 'issues:canonical-changed-by-js'
   | 'issues:links-changed-by-js'
   | 'issues:text-changed-by-js'
+  | 'issues:console-errors'
+  | 'issues:failed-resources'
   | 'issues:amp-validation-errors'
   | 'issues:amp-target-broken'
   | 'issues:amp-target-redirect'
@@ -680,6 +682,12 @@ export interface CrawlUrlRow {
   jsTextChanged: number | null;
   /** JSON detail of what rendering changed (both H1 and canonical, link counts and targets, word counts); null when nothing differs or not compared. */
   renderDiff: string | null;
+  /** Console errors plus uncaught page errors of the render (B35): null not recorded, 0 none. */
+  consoleErrors: number | null;
+  /** Failed requests plus subresource answers >= 400 of the render (B35): null not recorded, 0 none. */
+  failedResources: number | null;
+  /** JSON entries (at most 50) behind the two counts; null when both are 0 or not recorded. */
+  consoleLog: string | null;
   /** Highest estimated text similarity (%) to another page in its near-duplicate cluster. */
   nearDupSimilarity: number | null;
   /** Where the main text came from; null for pages crawled before it was recorded. */
@@ -2126,6 +2134,10 @@ export interface OverviewCounts {
     linksChangedByJs: number;
     /** Pages whose visible text differs a lot between the served HTML and the rendered DOM. */
     textChangedByJs: number;
+    /** Pages whose render logged console errors or uncaught errors. */
+    consoleErrors: number;
+    /** Pages with resources that failed to load while rendering. */
+    failedResources: number;
     ampValidationErrors: number;
     ampTargetBroken: number;
     ampTargetRedirect: number;

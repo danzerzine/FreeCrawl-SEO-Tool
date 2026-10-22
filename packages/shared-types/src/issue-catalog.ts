@@ -413,6 +413,8 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-canonical-changed-by-js', label: 'Canonical Changed by JavaScript', category: 'issues:canonical-changed-by-js', count: 'canonicalChangedByJs' },
       { key: 'issues-links-changed-by-js', label: 'Links Changed by JavaScript', category: 'issues:links-changed-by-js', count: 'linksChangedByJs' },
       { key: 'issues-text-changed-by-js', label: 'Text Changed by JavaScript', category: 'issues:text-changed-by-js', count: 'textChangedByJs' },
+      { key: 'issues-console-errors', label: 'Console Errors', category: 'issues:console-errors', count: 'consoleErrors' },
+      { key: 'issues-failed-resources', label: 'Failed Resources', category: 'issues:failed-resources', count: 'failedResources' },
     ],
   },
   {

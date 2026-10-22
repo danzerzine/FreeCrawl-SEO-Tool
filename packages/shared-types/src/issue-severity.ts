@@ -108,6 +108,8 @@ const WARNING: UrlCategory[] = [
   'issues:title-changed-by-js',
   'issues:h1-changed-by-js',
   'issues:canonical-changed-by-js',
+  'issues:console-errors',
+  'issues:failed-resources',
   'issues:compression-missing',
   'issues:non-indexable-in-sitemap',
   'issues:non-200-in-sitemap',

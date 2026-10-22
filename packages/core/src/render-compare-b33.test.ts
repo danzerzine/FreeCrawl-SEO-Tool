@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LATER_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
+import { CONSOLE_CHECKS, LATER_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import { compareCrawls } from './compare.js';
 import { Crawler } from './crawler.js';
@@ -235,7 +235,7 @@ describe('checks filled and compare (B1)', () => {
     for (const db of [t, j]) {
       expect(issueKeys.some((k) => db.checksFilled().has(k))).toBe(false);
       // Everything else is still filled.
-      expect(LATER_CHECKS.filter((k) => !issueKeys.includes(k)).every((k) => db.checksFilled().has(k))).toBe(true);
+      expect(LATER_CHECKS.filter((k) => !issueKeys.includes(k) && !CONSOLE_CHECKS.includes(k)).every((k) => db.checksFilled().has(k))).toBe(true);
     }
     for (const db of [a, t, j]) db.close();
   }, 30_000);

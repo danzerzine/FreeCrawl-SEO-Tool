@@ -3,12 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { CHECKS_FILLED_META_KEY, LATER_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
+import { CHECKS_FILLED_META_KEY, CONSOLE_CHECKS, LATER_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG } from '@freecrawl/shared-types';
 import { Crawler } from './crawler.js';
 
-// A text-mode crawl compares nothing raw against rendered (B33).
-const FILLED_IN_TEXT_MODE = LATER_CHECKS.filter((k) => !RENDER_CHECKS.includes(k));
+// A text-mode crawl compares nothing raw against rendered (B33) and records no console (B35).
+const FILLED_IN_TEXT_MODE = LATER_CHECKS.filter(
+  (k) => !RENDER_CHECKS.includes(k) && !CONSOLE_CHECKS.includes(k),
+);
 
 let server: Server;
 let dir: string;

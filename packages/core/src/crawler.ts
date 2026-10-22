@@ -31,6 +31,7 @@ import {
   CHECKS_FILLED_META_KEY,
   LATER_CHECKS,
   RENDER_CHECKS,
+  CONSOLE_CHECKS,
   TEMPLATE_LEARN_META_KEY,
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
@@ -1460,7 +1461,12 @@ export class Crawler extends EventEmitter {
     // The raw-vs-rendered checks have a verdict only on pages rendered with a
     // hook; a text-mode crawl, or js without Chromium, never compared anything.
     const rendering = this.config.renderingMode === 'js' && !!this.renderUrlHook;
-    const fillable = LATER_CHECKS.filter((k) => rendering || !RENDER_CHECKS.includes(k));
+    // The console checks (B35) also need the option: with it off nothing was recorded.
+    const recordsConsole = rendering && this.config.jsRender.consoleErrors === true;
+    const fillable = LATER_CHECKS.filter(
+      (k) =>
+        (rendering || !RENDER_CHECKS.includes(k)) && (recordsConsole || !CONSOLE_CHECKS.includes(k)),
+    );
     const filled = continued ? fillable.filter((k) => before.has(k)) : fillable;
     this.db.setMeta(CHECKS_FILLED_META_KEY, JSON.stringify(filled));
     // A continued crawl keeps the AMP answers its earlier part got and
@@ -5414,6 +5420,10 @@ export class Crawler extends EventEmitter {
       let renderedHtml: string | null = null;
       // Extra copies of this page's HTML from the render (B33); dropped after the compare.
       let renderServedHtml: string | undefined;
+      // Console errors and failed resources of the render (B35); null = not recorded.
+      let consoleErrors: number | null = null;
+      let failedResources: number | null = null;
+      let consoleLog: string | null = null;
       let renderScriptRan = false;
       let renderPreScriptHtml: string | undefined;
       let renderMs = 0;
@@ -5480,6 +5490,12 @@ export class Crawler extends EventEmitter {
             parseBody = renderRes.html;
             renderedHtml = renderRes.html;
             renderServedHtml = renderRes.servedHtml;
+            if (this.config.jsRender.consoleErrors && renderRes.consoleLog) {
+              consoleErrors = renderRes.consoleLog.errors;
+              failedResources = renderRes.consoleLog.failed;
+              consoleLog =
+                consoleErrors + failedResources > 0 ? JSON.stringify(renderRes.consoleLog.entries) : null;
+            }
             renderScriptRan = renderRes.scriptRan === true;
             renderPreScriptHtml = renderRes.renderedHtmlPreScript;
           } else if (renderRes.error) {
@@ -5827,6 +5843,9 @@ export class Crawler extends EventEmitter {
           jsLinksChanged,
           jsTextChanged,
           renderDiff,
+          consoleErrors,
+          failedResources,
+          consoleLog,
           // A page the configured content area missed is fingerprinted on
           // its template, so it stays out of near-duplicate clustering. The
           // exact-content hash stays: an exact copy is still one.
