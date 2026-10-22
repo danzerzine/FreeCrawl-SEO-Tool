@@ -7420,6 +7420,18 @@ export class ProjectDb {
     return { events: one('webmaster_events'), links: one('webmaster_broken_links') };
   }
 
+  /** B39: host ids that have Webmaster rows or a finished pull stored (empty on an old project). */
+  webmasterStoredHostIds(): string[] {
+    const ids = new Set<string>();
+    for (const t of ['webmaster_events', 'webmaster_broken_links']) {
+      if (!this.hasTable(t)) continue;
+      for (const r of this.db.prepare(`SELECT DISTINCT host_id FROM ${t}`).all() as { host_id: string }[]) {
+        ids.add(r.host_id);
+      }
+    }
+    return [...ids].sort();
+  }
+
   private webmasterMeta(hostId: string): WebmasterFetchMeta | null {
     try {
       const raw = this.getMeta(`webmasterFetchMeta:${hostId}`);

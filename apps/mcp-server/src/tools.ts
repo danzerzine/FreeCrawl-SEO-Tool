@@ -814,6 +814,71 @@ export function buildTools(): Tool[] {
     },
 
     {
+      name: 'query_webmaster',
+      description:
+        'Yandex Webmaster data stored by the desktop next to the crawl. view "excluded" = pages whose LATEST Yandex event is a removal from search (the events list is a history, not a snapshot of every excluded page), with Yandex\'s `reason` (excluded_url_status), the HTTP status Yandex saw, its target (canonical / redirect), the event date, and the crawl\'s status code and indexability for the same URL (null = the crawl has no such URL). view "broken-links" = internal links Yandex reports as broken, with the crawl\'s status for the destination and `seenByCrawl` (the crawl also found a link from that source to that destination answering 400 or worse). Returns `{view, hostId, rows, total, meta}`; `meta.truncatedAtCap` true means Yandex\'s list was cut at 50 000 rows, so a missing row is not proof that a page is not excluded; `meta` null = no pull yet. Read-only: the desktop fetches (Settings → Integrations → Yandex Webmaster, then the Yandex Webmaster tab).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          view: { type: 'string', enum: ['excluded', 'broken-links'] },
+          filter: {
+            type: 'string',
+            enum: ['all', 'indexable-in-crawl', 'not-in-crawl', 'not-seen-by-crawl'],
+            description:
+              'excluded: `indexable-in-crawl` = Yandex dropped it but the crawl says indexable; `not-in-crawl` = URL the crawl does not have. broken-links: `not-seen-by-crawl` = Yandex found a broken link the crawl did not. Default "all".',
+          },
+          search: { type: 'string', description: 'Substring match on the URL (either URL for broken links).' },
+          hostId: {
+            type: 'string',
+            description: 'Webmaster host id, e.g. "https:example.com:443". Omitted = the host saved for this project.',
+          },
+          limit: { type: 'integer', minimum: 1, maximum: 1000 },
+          offset: { type: 'integer', minimum: 0 },
+        },
+        required: ['view'],
+      },
+      handler: (args, db) => {
+        const view = args.view;
+        if (view !== 'excluded' && view !== 'broken-links') {
+          throw new Error('query_webmaster: view must be "excluded" or "broken-links".');
+        }
+        const saved = integrationSettings(db, 'webmaster')['hostId'];
+        const hostId =
+          (typeof args.hostId === 'string' ? args.hostId.trim() : '') ||
+          (typeof saved === 'string' ? saved : '');
+        if (!hostId) {
+          throw new Error(
+            'query_webmaster: no Yandex Webmaster host. Pass hostId or pick a host in the desktop (Yandex Webmaster tab).',
+          );
+        }
+        const stored = db.webmasterStoredHostIds();
+        if (!stored.includes(hostId)) {
+          throw new Error(
+            `query_webmaster: no Yandex Webmaster data stored for host ${hostId}. ` +
+              (stored.length ? `Hosts with data: ${stored.join(', ')}.` : 'Nothing has been fetched in this project yet.'),
+          );
+        }
+        const params = {
+          hostId,
+          limit: clamp(args.limit, 1, 1000, 50),
+          offset: clamp(args.offset, 0, 10_000_000, 0),
+          search: typeof args.search === 'string' ? args.search : undefined,
+        };
+        const result =
+          view === 'excluded'
+            ? db.queryWebmasterExcluded({
+                ...params,
+                preset: args.filter === 'indexable-in-crawl' || args.filter === 'not-in-crawl' ? args.filter : 'all',
+              })
+            : db.queryWebmasterBrokenLinks({
+                ...params,
+                preset: args.filter === 'not-seen-by-crawl' ? 'not-seen-by-crawl' : 'all',
+              });
+        return { view, hostId, ...result };
+      },
+    },
+
+    {
       name: 'query_pagespeed',
       description:
         'PageSpeed Insights rows: lab perf/SEO/a11y scores, Core Web Vitals (LCP/CLS/INP/FCP/TTFB), opportunities. Populate via Settings → Integrations → PageSpeed Insights, then run a batch from the desktop.',
