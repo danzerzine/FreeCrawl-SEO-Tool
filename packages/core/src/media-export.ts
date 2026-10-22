@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { copyFile, mkdir, stat, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream } from 'node:stream/web';
@@ -43,12 +43,13 @@ function urlStem(url: string): string {
     /* keep the whole string */
   }
   const noExt = raw.replace(/\.[A-Za-z0-9]{1,5}$/, '');
-  return (
+  const stem =
     noExt
       .replace(/[^A-Za-z0-9._-]+/g, '-')
       .replace(/^[-.]+|[-.]+$/g, '')
-      .slice(0, 80) || 'page'
-  );
+      .slice(0, 80) || 'page';
+  // Windows cannot create a file called CON, NUL, COM1 ... whatever its extension.
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(stem) ? `${stem}_` : stem;
 }
 
 /** A short hash of the URL, appended to a name another URL already took. */
@@ -132,7 +133,7 @@ export async function exportScreenshots(
       errors.push(`${shot.url} (${shot.kind}): ${(err as Error).message}`);
       continue;
     }
-    rows.push([shot.url, shot.kind, `screenshots/${basename(name)}`, bytes, 'copied']);
+    rows.push([shot.url, shot.kind, `screenshots/${name}`, bytes, 'copied']);
   }
   if (stored === 0) {
     return {

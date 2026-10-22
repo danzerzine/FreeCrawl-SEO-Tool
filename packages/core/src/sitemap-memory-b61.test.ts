@@ -14,14 +14,24 @@ const CHILD = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'sitema
 const N = 50_000;
 /**
  * MB. The old array-based generator grew 140-240 MB between N and 4N with default V8 settings and about
- * 1100 MB with the semi-space cap below; the streaming one grows 0-35 MB. The bar sits between, under 25%
- * of the smallest old growth.
+ * 1100 MB with the semi-space cap below; the streaming one grows 0-35 MB. The bar sits between: about a
+ * quarter of the smallest growth with default V8 settings, a twentieth of the capped one (this test runs
+ * capped).
  */
 const BAR_MB = 50;
 /** Peak memory moves by tens of MB with garbage-collection timing: each size runs this often, the median counts. */
 const RUNS = 3;
 /** A small young generation keeps short-lived garbage from piling up and moving the peak with GC timing (also under load). */
 const NODE_FLAGS = ['--max-semi-space-size=2'];
+
+// The child imports the built packages; without them it would fail with a module error that hides the cause.
+const DIST = ['../dist/index.js', '../../db/dist/index.js'].map((p) =>
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), p),
+);
+const missingBuild = DIST.filter((p) => !fs.existsSync(p));
+if (missingBuild.length > 0) {
+  console.warn(`B61 memory test skipped: build output missing (${missingBuild.join(', ')}); run \`npx tsc -b\` first.`);
+}
 
 let dir: string;
 
@@ -72,7 +82,7 @@ beforeAll(() => {
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 describe('B61 sitemap export memory', () => {
-  it(`peak(4N) - peak(N) stays under ${BAR_MB} MB (N = ${N}, median of ${RUNS} runs)`, () => {
+  it.skipIf(missingBuild.length > 0)(`peak(4N) - peak(N) stays under ${BAR_MB} MB (N = ${N}, median of ${RUNS} runs)`, () => {
     const small = peakMb(N);
     const big = peakMb(4 * N);
     console.log(`B61 memory: N=${N} peak=${small} MB, 4N=${4 * N} peak=${big} MB, growth=${big - small} MB`);

@@ -101,6 +101,24 @@ describe('file names on a case-insensitive file system', () => {
   });
 });
 
+describe('file names Windows cannot create', () => {
+  it('a page called /con.html gets a name that is not a reserved device name', async () => {
+    const project = path.join(dir, 'reserved.seoproject');
+    const side = `${project}.screenshots`;
+    fs.mkdirSync(side, { recursive: true });
+    fs.writeFileSync(path.join(side, 'x.png'), 'X');
+    const p = path.join(side, 'x.png');
+    const { db } = fixture(
+      `INSERT INTO urls (id, url, status_code) VALUES (1, 'https://ex.com/con.html', 200);
+       INSERT INTO url_sources (url_id, body, body_length, screenshot_fullpage_path) VALUES (1, 'x', 1, '${p}');`,
+    );
+    const out = path.join(dir, 'out-reserved');
+    await exportScreenshots(db, out, { projectFile: project });
+    // The stem is guarded (it is also the whole name of a PDF: con.pdf), so the screenshot name carries it too.
+    expect(fs.readdirSync(path.join(out, 'screenshots'))).toEqual(['con_-fullpage.png']);
+  });
+});
+
 describe('exportPdfs', () => {
   let server: http.Server;
   let base: string;
