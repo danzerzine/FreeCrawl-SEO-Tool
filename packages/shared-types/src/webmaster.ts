@@ -81,3 +81,42 @@ export interface WebmasterIntegrationSettings {
 export function defaultWebmasterSettings(): WebmasterIntegrationSettings {
   return { hostId: '', hostName: '' };
 }
+
+/** Presets of the Excluded pages view. */
+export type WebmasterExcludedPreset = 'all' | 'indexable-in-crawl' | 'not-in-crawl';
+/** Presets of the Broken links view. */
+export type WebmasterBrokenPreset = 'all' | 'not-seen-by-crawl';
+
+/** One row of the Excluded pages view: Yandex's removal event next to the crawl of the same URL. */
+export interface WebmasterExcludedRow {
+  /** `urls.id` when the crawl has the URL, else null (the row is «not in crawl»). */
+  id: number | null;
+  url: string;
+  title: string | null;
+  reason: string | null;
+  badHttpStatus: number | null;
+  targetUrl: string | null;
+  eventDate: string | null;
+  lastAccess: string | null;
+  crawlStatusCode: number | null;
+  crawlIndexability: string | null;
+}
+
+/** One row of the Broken links view. */
+export interface WebmasterBrokenRow {
+  sourceUrl: string;
+  destinationUrl: string;
+  discoveryDate: string | null;
+  sourceLastAccessDate: string | null;
+  /** The crawl's status for the destination; null when the crawl has no such URL. */
+  destinationStatusCode: number | null;
+  /** The crawl also found a link from source to destination whose target answers 400 or worse. */
+  seenByCrawl: boolean;
+}
+
+export interface WebmasterQueryResult<T> {
+  rows: T[];
+  total: number;
+  /** The last finished pull of the host; null before any pull («no pull yet»). */
+  meta: WebmasterFetchMeta | null;
+}

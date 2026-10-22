@@ -2843,6 +2843,43 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    // B39: Yandex Webmaster. Removal events (one row per page, the newest event wins) and broken
+    // internal links, both keyed by the Webmaster host id. Only creates the two tables.
+    version: 125,
+    name: 'add_webmaster_tables',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS webmaster_events (
+          host_id TEXT NOT NULL,
+          url TEXT NOT NULL,
+          event TEXT,
+          reason TEXT,
+          bad_http_status INTEGER,
+          target_url TEXT,
+          title TEXT,
+          event_date TEXT,
+          last_access TEXT,
+          fetched_at TEXT NOT NULL,
+          PRIMARY KEY (host_id, url)
+        );
+        CREATE INDEX IF NOT EXISTS idx_webmaster_events_url ON webmaster_events(url);
+        CREATE TABLE IF NOT EXISTS webmaster_broken_links (
+          host_id TEXT NOT NULL,
+          source_url TEXT NOT NULL,
+          destination_url TEXT NOT NULL,
+          discovery_date TEXT,
+          source_last_access_date TEXT,
+          fetched_at TEXT NOT NULL,
+          PRIMARY KEY (host_id, source_url, destination_url)
+        );
+        CREATE INDEX IF NOT EXISTS idx_webmaster_links_destination
+          ON webmaster_broken_links(destination_url);
+        CREATE INDEX IF NOT EXISTS idx_webmaster_links_source
+          ON webmaster_broken_links(source_url);
+      `);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

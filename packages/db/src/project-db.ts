@@ -56,6 +56,14 @@ import type {
   Ga4Row,
   MetricaRow,
   MetricaNotice,
+  WebmasterBrokenLinkRow,
+  WebmasterBrokenPreset,
+  WebmasterBrokenRow,
+  WebmasterEventRow,
+  WebmasterExcludedPreset,
+  WebmasterExcludedRow,
+  WebmasterFetchMeta,
+  WebmasterQueryResult,
   AiProvider,
   AiResult,
   AiRow,
@@ -1891,6 +1899,8 @@ export class ProjectDb {
          DELETE FROM gsc_results;
          DELETE FROM ga4_results;
          DELETE FROM ga4_custom_values;
+         DELETE FROM webmaster_events;
+         DELETE FROM webmaster_broken_links;
          DELETE FROM metrica_results;
          DELETE FROM ai_results;
          DELETE FROM seo_results;
@@ -2140,22 +2150,25 @@ export class ProjectDb {
         // re-attach if the URL is re-crawled later. Driven off
         // `URL_KEYED_AUDIT_TABLES` so a newly-added audit table can never be
         // silently missed here.
-        const hostMatchSql = (table: string): string =>
+        const hostMatchSql = (table: string, col = 'url'): string =>
           `DELETE FROM ${table}
           WHERE LOWER(
             SUBSTR(
-              url,
-              INSTR(url, '://') + 3,
+              ${col},
+              INSTR(${col}, '://') + 3,
               CASE
-                WHEN INSTR(SUBSTR(url, INSTR(url, '://') + 3), '/') > 0
-                  THEN INSTR(SUBSTR(url, INSTR(url, '://') + 3), '/') - 1
-                ELSE LENGTH(url)
+                WHEN INSTR(SUBSTR(${col}, INSTR(${col}, '://') + 3), '/') > 0
+                  THEN INSTR(SUBSTR(${col}, INSTR(${col}, '://') + 3), '/') - 1
+                ELSE LENGTH(${col})
               END
             )
           ) = ?`;
         for (const table of ProjectDb.URL_KEYED_AUDIT_TABLES) {
           this.db.prepare(hostMatchSql(table)).run(target);
         }
+        // Webmaster's broken links name two URLs; a link from or to the deleted host goes.
+        this.db.prepare(hostMatchSql('webmaster_broken_links', 'source_url')).run(target);
+        this.db.prepare(hostMatchSql('webmaster_broken_links', 'destination_url')).run(target);
 
         return { urlsDeleted, linksDeleted };
       });
@@ -2702,6 +2715,9 @@ export class ProjectDb {
     'gsc_results',
     'ga4_results',
     'ga4_custom_values',
+    // Only webmaster_events is url-keyed. webmaster_broken_links has no `url` column and is
+    // deleted explicitly on source_url / destination_url (deleteUrl, deleteUrls, deleteByDomain).
+    'webmaster_events',
     'metrica_results',
     'ai_results',
     'seo_results',
@@ -2721,6 +2737,13 @@ export class ProjectDb {
           .prepare(`DELETE FROM ${table} WHERE url = (SELECT url FROM urls WHERE id = ?)`)
           .run(id);
       }
+      this.db
+        .prepare(
+          `DELETE FROM webmaster_broken_links
+            WHERE source_url = (SELECT url FROM urls WHERE id = ?)
+               OR destination_url = (SELECT url FROM urls WHERE id = ?)`,
+        )
+        .run(id, id);
       this.db.prepare('DELETE FROM urls_issues WHERE url_id = ?').run(id);
       this.db.prepare('DELETE FROM urls WHERE id = ?').run(id);
     });
@@ -2844,6 +2867,13 @@ export class ProjectDb {
             )
             .run(...slice);
         }
+        this.db
+          .prepare(
+            `DELETE FROM webmaster_broken_links
+              WHERE source_url IN (SELECT url FROM urls WHERE id IN (${placeholders}))
+                 OR destination_url IN (SELECT url FROM urls WHERE id IN (${placeholders}))`,
+          )
+          .run(...slice, ...slice);
         this.db
           .prepare(`DELETE FROM urls_issues WHERE url_id IN (${placeholders})`)
           .run(...slice);
@@ -7314,6 +7344,187 @@ export class ProjectDb {
   /** B37 — drop every custom value of one account. */
   wipeGa4CustomValues(accountId = ''): void {
     this.db.prepare('DELETE FROM ga4_custom_values WHERE account_id = ?').run(accountId);
+  }
+
+  /**
+   * B39: store a page of Yandex Webmaster removal events. Every conflict bumps `fetched_at`
+   * (so the end-of-run stale delete keeps a row the pull reported again); the event fields
+   * change only when the incoming event is newer, so a page that came back after a removal
+   * stays present and an old event reported again does not undo it. `event_date` is UTC ISO,
+   * so plain string comparison orders it.
+   */
+  upsertWebmasterEvents(hostId: string, rows: WebmasterEventRow[], fetchedAt: string): void {
+    if (rows.length === 0) return;
+    const newer = "excluded.event_date > COALESCE(webmaster_events.event_date, '')";
+    const keep = (col: string, from = col): string =>
+      `${col} = CASE WHEN ${newer} THEN excluded.${from} ELSE webmaster_events.${col} END`;
+    const stmt = this.db.prepare(
+      `INSERT INTO webmaster_events
+         (host_id, url, event, reason, bad_http_status, target_url, title, event_date, last_access, fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(host_id, url) DO UPDATE SET
+         fetched_at = excluded.fetched_at,
+         ${keep('event')}, ${keep('reason')}, ${keep('bad_http_status')}, ${keep('target_url')},
+         ${keep('title')}, ${keep('last_access')},
+         event_date = CASE WHEN ${newer} THEN excluded.event_date ELSE webmaster_events.event_date END`,
+    );
+    this.runInTransaction(() => {
+      for (const r of rows) {
+        stmt.run(
+          hostId, r.url, r.event, r.reason, r.badHttpStatus, r.targetUrl, r.title, r.eventDate, r.lastAccess, fetchedAt,
+        );
+      }
+    });
+  }
+
+  /** B39: store a page of Yandex Webmaster broken internal links (a repeat only refreshes it). */
+  upsertWebmasterBrokenLinks(hostId: string, rows: WebmasterBrokenLinkRow[], fetchedAt: string): void {
+    if (rows.length === 0) return;
+    const stmt = this.db.prepare(
+      `INSERT INTO webmaster_broken_links
+         (host_id, source_url, destination_url, discovery_date, source_last_access_date, fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(host_id, source_url, destination_url) DO UPDATE SET
+         discovery_date = excluded.discovery_date,
+         source_last_access_date = excluded.source_last_access_date,
+         fetched_at = excluded.fetched_at`,
+    );
+    this.runInTransaction(() => {
+      for (const r of rows) {
+        stmt.run(hostId, r.sourceUrl, r.destinationUrl, r.discoveryDate, r.sourceLastAccessDate, fetchedAt);
+      }
+    });
+  }
+
+  /** B39: after a complete pull, drop the host's rows that were not reported again. */
+  deleteStaleWebmasterRows(hostId: string, startedAt: string): { events: number; links: number } {
+    let events = 0;
+    let links = 0;
+    this.runInTransaction(() => {
+      events = Number(
+        this.db.prepare('DELETE FROM webmaster_events WHERE host_id = ? AND fetched_at < ?').run(hostId, startedAt).changes,
+      );
+      links = Number(
+        this.db
+          .prepare('DELETE FROM webmaster_broken_links WHERE host_id = ? AND fetched_at < ?')
+          .run(hostId, startedAt).changes,
+      );
+    });
+    return { events, links };
+  }
+
+  private webmasterMeta(hostId: string): WebmasterFetchMeta | null {
+    try {
+      const raw = this.getMeta(`webmasterFetchMeta:${hostId}`);
+      return raw ? (JSON.parse(raw) as WebmasterFetchMeta) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * B39: pages Yandex last reported as removed from search, next to the crawl of the same URL.
+   * A project from before the module has no table: empty list, no pull.
+   */
+  queryWebmasterExcluded(params: {
+    hostId: string;
+    preset?: WebmasterExcludedPreset;
+    search?: string;
+    limit: number;
+    offset: number;
+  }): WebmasterQueryResult<WebmasterExcludedRow> {
+    if (!this.hasTable('webmaster_events')) return { rows: [], total: 0, meta: null };
+    const limit = Math.min(Math.max(Math.trunc(Number(params.limit)) || 0, 1), 1000);
+    const offset = Math.max(Math.trunc(Number(params.offset)) || 0, 0);
+    const where = ["e.host_id = ?", "e.event = 'REMOVED_FROM_SEARCH'"];
+    const args: (string | number)[] = [params.hostId];
+    if (params.preset === 'indexable-in-crawl') where.push("u.indexability = 'indexable'");
+    else if (params.preset === 'not-in-crawl') where.push('u.id IS NULL');
+    if (params.search) {
+      where.push('e.url LIKE ?');
+      args.push(`%${params.search}%`);
+    }
+    const from = 'FROM webmaster_events e LEFT JOIN urls u ON u.url = e.url';
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    const total = (this.db.prepare(`SELECT COUNT(*) AS c ${from} ${whereSql}`).get(...args) as { c: number }).c;
+    const rows = this.db
+      .prepare(
+        `SELECT u.id AS id, e.url AS url, e.title AS title, e.reason AS reason,
+                e.bad_http_status AS bad_http_status, e.target_url AS target_url,
+                e.event_date AS event_date, e.last_access AS last_access,
+                u.status_code AS status_code, u.indexability AS indexability
+         ${from} ${whereSql}
+         ORDER BY e.event_date DESC, e.url ASC LIMIT ? OFFSET ?`,
+      )
+      .all(...args, limit, offset) as unknown as Record<string, unknown>[];
+    return {
+      total,
+      meta: this.webmasterMeta(params.hostId),
+      rows: rows.map((r) => ({
+        id: (r['id'] as number | null) ?? null,
+        url: r['url'] as string,
+        title: (r['title'] as string | null) ?? null,
+        reason: (r['reason'] as string | null) ?? null,
+        badHttpStatus: (r['bad_http_status'] as number | null) ?? null,
+        targetUrl: (r['target_url'] as string | null) ?? null,
+        eventDate: (r['event_date'] as string | null) ?? null,
+        lastAccess: (r['last_access'] as string | null) ?? null,
+        crawlStatusCode: (r['status_code'] as number | null) ?? null,
+        crawlIndexability: (r['indexability'] as string | null) ?? null,
+      })),
+    };
+  }
+
+  /**
+   * B39: internal links Yandex reports as broken, with the crawl's status for the destination and
+   * a flag for links the crawl also found broken (a link from the source to the destination whose
+   * target answers 400 or worse).
+   */
+  queryWebmasterBrokenLinks(params: {
+    hostId: string;
+    preset?: WebmasterBrokenPreset;
+    search?: string;
+    limit: number;
+    offset: number;
+  }): WebmasterQueryResult<WebmasterBrokenRow> {
+    if (!this.hasTable('webmaster_broken_links')) return { rows: [], total: 0, meta: null };
+    const limit = Math.min(Math.max(Math.trunc(Number(params.limit)) || 0, 1), 1000);
+    const offset = Math.max(Math.trunc(Number(params.offset)) || 0, 0);
+    const seen = `EXISTS (
+      SELECT 1 FROM urls s JOIN links l ON l.from_url_id = s.id
+      JOIN urls t ON t.url = l.to_url
+      WHERE s.url = b.source_url AND l.to_url = b.destination_url AND t.status_code >= 400)`;
+    const where = ['b.host_id = ?'];
+    const args: (string | number)[] = [params.hostId];
+    if (params.preset === 'not-seen-by-crawl') where.push(`NOT ${seen}`);
+    if (params.search) {
+      where.push('(b.source_url LIKE ? OR b.destination_url LIKE ?)');
+      args.push(`%${params.search}%`, `%${params.search}%`);
+    }
+    const from = 'FROM webmaster_broken_links b LEFT JOIN urls d ON d.url = b.destination_url';
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    const total = (this.db.prepare(`SELECT COUNT(*) AS c ${from} ${whereSql}`).get(...args) as { c: number }).c;
+    const rows = this.db
+      .prepare(
+        `SELECT b.source_url AS source_url, b.destination_url AS destination_url,
+                b.discovery_date AS discovery_date, b.source_last_access_date AS source_last_access_date,
+                d.status_code AS status_code, ${seen} AS seen
+         ${from} ${whereSql}
+         ORDER BY b.discovery_date DESC, b.source_url ASC, b.destination_url ASC LIMIT ? OFFSET ?`,
+      )
+      .all(...args, limit, offset) as unknown as Record<string, unknown>[];
+    return {
+      total,
+      meta: this.webmasterMeta(params.hostId),
+      rows: rows.map((r) => ({
+        sourceUrl: r['source_url'] as string,
+        destinationUrl: r['destination_url'] as string,
+        discoveryDate: (r['discovery_date'] as string | null) ?? null,
+        sourceLastAccessDate: (r['source_last_access_date'] as string | null) ?? null,
+        destinationStatusCode: (r['status_code'] as number | null) ?? null,
+        seenByCrawl: Number(r['seen']) === 1,
+      })),
+    };
   }
 
   /** B37 — drop the account's values of every field not in `keep` (a field the user unchose). */
