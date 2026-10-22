@@ -30,6 +30,8 @@ export class ServerHealth {
   private lastSlowCut = Number.NEGATIVE_INFINITY;
   /** Set by a cut until 20 fresh answers show whether slowing down helped. */
   private afterCut = false;
+  /** A cut did not help: answers counted since, to accept the slow level after 20. */
+  private unhelped: number | null = null;
 
   /**
    * One finished internal URL, counted once after its retries; `trouble`
@@ -56,10 +58,13 @@ export class ServerHealth {
    * over 1.8 × the base and over base + 300 ms, at most once per 30 s.
    *
    * The 20 answers after a cut are a fresh window. Still slower than
-   * 1.3 × the base, the slowness is not this crawl's load (a site whose
-   * first pages are cached sections and later ones articles looks like
-   * this): their median becomes the base, so the rate may rise again and
-   * only a further slowdown cuts again.
+   * 1.3 × the base, the rate is held for 20 more answers (a cut may come
+   * in them); still slow after a second cut or those answers, the slowness
+   * is not this crawl's load (a site whose first pages are cached sections
+   * and later ones articles looks like this): the slow median becomes the
+   * base, so the rate may rise again and only a further slowdown cuts
+   * again. A median under base / 1.8 brings the base back down, so a later
+   * slowdown of a server that recovered is cut again.
    */
   noteLatency(ms: number, busyMs: number, now: number): boolean {
     if (busyMs > BUSY_LOOP_MS) return false;
@@ -68,11 +73,19 @@ export class ServerHealth {
     if (this.base === null || this.afterCut) {
       if (this.samples.length < LATENCY_WINDOW) return false;
       const fresh = median(this.samples);
-      if (this.base === null || fresh > RECOVER_FACTOR * this.base) this.base = fresh;
       this.afterCut = false;
+      if (this.base === null) this.base = fresh;
+      else if (fresh <= RECOVER_FACTOR * this.base) this.unhelped = null;
+      else if (this.unhelped !== null) this.accept(fresh);
+      else this.unhelped = 0;
       return false;
     }
     const m = median(this.samples);
+    if (this.samples.length === LATENCY_WINDOW && m < this.base / SLOW_FACTOR) this.base = m;
+    if (this.unhelped !== null && ++this.unhelped >= LATENCY_WINDOW) {
+      if (m > RECOVER_FACTOR * this.base) this.accept(m);
+      else this.unhelped = null;
+    }
     if (m <= SLOW_FACTOR * this.base || m <= this.base + SLOW_MARGIN_MS) return false;
     if (now - this.lastSlowCut < SLOW_CUT_EVERY_MS) return false;
     this.lastSlowCut = now;
@@ -81,10 +94,16 @@ export class ServerHealth {
     return true;
   }
 
-  /** Right after a cut, or answers still slower than 1.3 × the base: hold the rate. */
+  /** After a cut until answers are back under 1.3 × the base, or that base is accepted: hold the rate. */
   isSlow(): boolean {
     if (this.base === null) return false;
-    return this.afterCut || median(this.samples) > RECOVER_FACTOR * this.base;
+    if (this.afterCut || this.unhelped !== null) return true;
+    return median(this.samples) > RECOVER_FACTOR * this.base;
+  }
+
+  private accept(slowMedian: number): void {
+    this.base = slowMedian;
+    this.unhelped = null;
   }
 }
 
