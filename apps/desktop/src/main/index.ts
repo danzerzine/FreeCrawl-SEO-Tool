@@ -215,7 +215,6 @@ import {
   type ExportSheetsResult,
   type ExportBigqueryInput,
   type ExportBigqueryResult,
-  type GscInspectionResult,
   type UrlAnalyticsDetail,
   type LogAnalyzeInput,
   type LogAnalyzeResult,

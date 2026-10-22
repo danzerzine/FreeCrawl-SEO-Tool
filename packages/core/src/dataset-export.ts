@@ -1,5 +1,5 @@
 import type { ProjectDb } from '@freecrawl/db';
-import type { ExportDatasetKey } from '@freecrawl/shared-types';
+import type { ExportDatasetKey, GscRow } from '@freecrawl/shared-types';
 import { extractVisibleText } from './html-parser.js';
 import { sitemapReconciliationRows } from './sitemap-reconciliation.js';
 
@@ -70,6 +70,38 @@ function* pageTexts(db: ProjectDb): Generator<Record<string, unknown>> {
   }
 }
 
+const JOIN = ' | ';
+
+/**
+ * The URL Inspection lists become flat cells (the column list stays static): sitemaps,
+ * referring pages, rich-result types and messages are joined with ` | `; the error and warning
+ * cells count the items that have any. A page never inspected, or inspected before these
+ * fields existed, gets null cells, never an empty list.
+ */
+function* flattenInspection(rows: Iterable<GscRow>): Generator<Record<string, unknown>> {
+  for (const row of rows) {
+    const i = row.inspection;
+    if (!i) {
+      yield row as unknown as Record<string, unknown>;
+      continue;
+    }
+    const rich = i.richResults ?? null;
+    const items = rich ? rich.flatMap((t) => t.items) : [];
+    yield {
+      ...row,
+      inspection: {
+        ...i,
+        sitemaps: i.sitemaps ? i.sitemaps.join(JOIN) : null,
+        referringUrls: i.referringUrls ? i.referringUrls.join(JOIN) : null,
+        richResultTypes: rich ? rich.map((t) => t.type).join(JOIN) : null,
+        richResultErrors: rich ? items.filter((it) => it.errors > 0).length : null,
+        richResultWarnings: rich ? items.filter((it) => it.warnings > 0).length : null,
+        richResultMessages: rich ? items.flatMap((it) => it.messages).join(JOIN) : null,
+      },
+    };
+  }
+}
+
 export function datasetRows(
   db: ProjectDb,
   dataset: ExportDatasetKey,
@@ -121,14 +153,16 @@ export function datasetRows(
       return asRecords(paged((limit, offset) => db.querySpelling({ limit, offset })));
     case 'search-console':
       return asRecords(
-        paged((limit, offset) =>
-          db.queryGsc({
-            limit,
-            offset,
-            accountId: ctx.gscAccountId,
-            matchSlash: ctx.gscMatchSlash,
-            matchCase: ctx.gscMatchCase,
-          }),
+        flattenInspection(
+          paged((limit, offset) =>
+            db.queryGsc({
+              limit,
+              offset,
+              accountId: ctx.gscAccountId,
+              matchSlash: ctx.gscMatchSlash,
+              matchCase: ctx.gscMatchCase,
+            }),
+          ),
         ),
       );
     case 'analytics':
