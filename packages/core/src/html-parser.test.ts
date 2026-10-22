@@ -1187,5 +1187,155 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(required(plain)).toEqual([req('AggregateRating', 'itemReviewed.name')]);
     });
   });
+
+  describe('inside a video (28-30) and inside a recipe (31)', () => {
+    const video = {
+      '@type': 'VideoObject',
+      name: 'V',
+      thumbnailUrl: 'https://example.com/t.jpg',
+      uploadDate: '2026-10-01',
+      description: 'd',
+      duration: 'PT1M',
+      contentUrl: 'https://example.com/v.mp4',
+    };
+    const clip = { '@type': 'Clip', name: 'C', startOffset: 10, endOffset: 20, url: 'https://example.com/v#t=10' };
+    const seek = {
+      '@type': 'SeekToAction',
+      target: 'https://example.com/v?t={seek_to_second_number}',
+      'startOffset-input': 'required name=seek_to_second_number',
+    };
+    const broadcast = {
+      '@type': 'BroadcastEvent',
+      isLiveBroadcast: true,
+      startDate: '2026-10-01T10:00',
+      endDate: '2026-10-01T11:00',
+    };
+
+    it('a complete video with a clip, a seek action and a broadcast has no finding', () => {
+      expect(
+        findings({ ...video, hasPart: clip, potentialAction: seek, publication: broadcast }),
+      ).toEqual([]);
+    });
+
+    it('checks a Clip of a video, a TVClip too', () => {
+      expect(required({ ...video, hasPart: { ...clip, startOffset: undefined } })).toEqual([
+        req('Clip', 'startOffset'),
+      ]);
+      expect(required({ ...video, hasPart: [clip, { ...clip, '@type': 'TVClip', name: undefined }] })).toEqual([
+        req('TVClip', 'name'),
+      ]);
+      expect(recommended({ ...video, hasPart: { ...clip, endOffset: undefined } })).toEqual([
+        rec('Clip', 'endOffset'),
+      ]);
+    });
+
+    it('checks a SeekToAction of a video', () => {
+      expect(required({ ...video, potentialAction: { ...seek, target: undefined } })).toEqual([
+        req('SeekToAction', 'target'),
+      ]);
+    });
+
+    it('checks a BroadcastEvent of a video, and the Event rule stays off it', () => {
+      expect(required({ ...video, publication: { ...broadcast, endDate: undefined } })).toEqual([
+        req('BroadcastEvent', 'endDate'),
+      ]);
+    });
+
+    it('gives the same nodes outside a video no rule', () => {
+      expect(findings({ ...clip, startOffset: undefined })).toEqual([]);
+      expect(findings({ '@type': 'SeekToAction' })).toEqual([]);
+      expect(findings({ '@type': 'BroadcastEvent' })).toEqual([]);
+      expect(required({ '@type': 'Article', hasPart: { '@type': 'Clip' }, publication: { '@type': 'BroadcastEvent' } })).toEqual([]);
+    });
+
+    const recipe = {
+      '@type': 'Recipe',
+      name: 'Soup',
+      image: 'https://example.com/s.jpg',
+    };
+    const step = { '@type': 'HowToStep', text: 'Boil' };
+
+    it('checks the steps of a Recipe', () => {
+      expect(required({ ...recipe, recipeInstructions: [step] })).toEqual([]);
+      expect(required({ ...recipe, recipeInstructions: [{ '@type': 'HowToStep' }] })).toEqual([
+        req('HowToStep', 'text | itemListElement'),
+      ]);
+      expect(required({ ...recipe, recipeInstructions: [{ '@type': 'HowToStep', itemListElement: [] }] })).toEqual([
+        req('HowToStep', 'text | itemListElement'),
+      ]);
+    });
+
+    it('checks sections and the steps inside them', () => {
+      expect(
+        required({ ...recipe, recipeInstructions: [{ '@type': 'HowToSection', itemListElement: [step] }] }),
+      ).toEqual([req('HowToSection', 'name')]);
+      expect(
+        required({
+          ...recipe,
+          recipeInstructions: { '@type': 'HowToSection', name: 'Prep', itemListElement: [step, { '@type': 'HowToStep' }] },
+        }),
+      ).toEqual([req('HowToStep', 'text | itemListElement')]);
+    });
+
+    it('checks the directions and tips of a step', () => {
+      const withParts = (...parts: object[]) => ({
+        ...recipe,
+        recipeInstructions: [{ '@type': 'HowToStep', itemListElement: parts }],
+      });
+      expect(required(withParts({ '@type': 'HowToDirection' }))).toEqual([req('HowToDirection', 'text')]);
+      expect(required(withParts({ '@type': 'HowToTip' }))).toEqual([req('HowToTip', 'text')]);
+      expect(required(withParts({ '@type': 'HowToDirection', text: 'Stir' }, { '@type': 'HowToTip', text: 'Salt' }))).toEqual([]);
+    });
+
+    it('skips plain text, untyped objects and the steps of a HowTo', () => {
+      expect(required({ ...recipe, recipeInstructions: 'Boil it.' })).toEqual([]);
+      expect(required({ ...recipe, recipeInstructions: ['Boil it.', 'Serve.'] })).toEqual([]);
+      expect(required({ ...recipe, recipeInstructions: [{ text: 'Boil' }] })).toEqual([]);
+      expect(required({ '@type': 'HowTo', step: [{ '@type': 'HowToStep' }] })).toEqual([]);
+      expect(required({ '@type': 'HowTo', recipeInstructions: [{ '@type': 'HowToStep' }] })).toEqual([]);
+    });
+  });
+
+  describe('skipped features (16, 19, 21, 23)', () => {
+    it('adds no finding for fact check, book actions, paywalled content or a vacation rental', () => {
+      expect(findings({ '@type': 'ClaimReview' })).toEqual([]);
+      expect(findings({ '@type': 'Claim' })).toEqual([]);
+      expect(findings({ '@type': 'Book', name: 'B', potentialAction: { '@type': 'ReadAction' } })).toEqual([]);
+      expect(
+        findings({ '@type': 'WebPage', isAccessibleForFree: false, hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.p' } }),
+      ).toEqual([]);
+      expect(required({ '@type': 'VacationRental', name: 'Cabin', address: 'Main St 1' })).toEqual([]);
+      expect(required({ '@type': 'VacationRental', name: 'Cabin' })).toEqual([req('VacationRental', 'address')]);
+    });
+  });
+
+  describe('regression: part 1 contexts are unchanged', () => {
+    it('gives a Product offer, a breadcrumb and a forum post the findings part 1 gave', () => {
+      expect(
+        findings({
+          '@graph': [
+            {
+              '@type': 'Product',
+              name: 'P',
+              image: 'https://example.com/p.jpg',
+              offers: [{ '@type': 'Offer', priceCurrency: 'EUR' }, { '@type': 'AggregateOffer', lowPrice: 1 }],
+            },
+            {
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                { '@type': 'ListItem', name: 'Home', item: 'https://example.com/' },
+                { '@type': 'ListItem', position: 2, name: 'Page' },
+              ],
+            },
+            { '@type': 'DiscussionForumPosting', datePublished: '2026-10-01', text: 'x', author: { name: 'A' }, comment: [] },
+          ],
+        }),
+      ).toEqual([
+        req('Offer', 'price | priceSpecification.price'),
+        req('AggregateOffer', 'priceCurrency'),
+        req('ListItem', 'position'),
+      ]);
+    });
+  });
   // PART2-END
 });

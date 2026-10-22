@@ -153,6 +153,7 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
     source: `${GOOGLE}recipe`,
     types: ['Recipe'],
+    label: 'recipe',
     required: ['name', 'image'],
     recommended: ['recipeIngredient', 'recipeInstructions', 'author'],
     conditions: [{ if: 'nutrition.calories', then: 'recipeYield', level: 'required' }],
@@ -187,6 +188,7 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
     source: `${GOOGLE}video`,
     types: ['VideoObject'],
+    label: 'video',
     required: ['name', 'thumbnailUrl', 'uploadDate'],
     recommended: ['description', 'duration', 'contentUrl | embedUrl'],
   },
@@ -454,6 +456,76 @@ export const CONTEXT_RULES: readonly ContextRule[] = [
     from: 'quiz',
     via: ['hasPart'],
     types: ['Question'],
+  },
+  // Inside a video only: Google defines these nowhere else.
+  {
+    rule: {
+      source: `${GOOGLE}video`,
+      types: ['Clip'],
+      required: ['name', 'startOffset', 'url'],
+      recommended: ['endOffset'],
+    },
+    from: 'video',
+    via: ['hasPart'],
+    types: ['Clip'],
+  },
+  {
+    rule: {
+      source: `${GOOGLE}video`,
+      types: ['SeekToAction'],
+      required: ['target', 'startOffset-input'],
+    },
+    from: 'video',
+    via: ['potentialAction'],
+    types: ['SeekToAction'],
+  },
+  {
+    rule: {
+      source: `${GOOGLE}video`,
+      types: ['BroadcastEvent'],
+      required: ['startDate', 'endDate', 'isLiveBroadcast'],
+    },
+    from: 'video',
+    via: ['publication'],
+    types: ['BroadcastEvent'],
+  },
+  // The steps of a Recipe: typed nodes only, a plain-text step is a string.
+  {
+    rule: {
+      source: `${GOOGLE}recipe`,
+      types: ['HowToSection'],
+      required: ['itemListElement', 'name'],
+    },
+    from: 'recipe',
+    via: ['recipeInstructions'],
+    types: ['HowToSection'],
+    label: 'steps',
+  },
+  {
+    rule: { source: `${GOOGLE}recipe`, types: ['HowToStep'], required: ['text | itemListElement'] },
+    from: 'recipe',
+    via: ['recipeInstructions'],
+    types: ['HowToStep'],
+    label: 'steps',
+  },
+  {
+    rule: { source: `${GOOGLE}recipe`, types: ['HowToStep'], required: ['text | itemListElement'] },
+    from: 'steps',
+    via: ['itemListElement'],
+    types: ['HowToStep'],
+    label: 'steps',
+  },
+  {
+    rule: { source: `${GOOGLE}recipe`, types: ['HowToDirection'], required: ['text'] },
+    from: 'steps',
+    via: ['itemListElement'],
+    types: ['HowToDirection'],
+  },
+  {
+    rule: { source: `${GOOGLE}recipe`, types: ['HowToTip'], required: ['text'] },
+    from: 'steps',
+    via: ['itemListElement'],
+    types: ['HowToTip'],
   },
   // The question itself is checked by the QAPage paths; this only passes the label on.
   { from: 'qa-page', via: ['mainEntity'], types: ['Question'], label: 'qa' },
