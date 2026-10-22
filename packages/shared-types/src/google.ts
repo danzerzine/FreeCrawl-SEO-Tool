@@ -303,6 +303,14 @@ export interface UrlAnalyticsDetail {
   inspection: GscInspectionResult | null;
   /** B37: every stored value of each chosen GA4 custom field for this page, by field. */
   ga4Custom?: Record<string, Ga4CustomValue[]>;
+  /** B39: Yandex Webmaster says it removed this page from search, and why. Absent when the
+   *  page is not in the stored removal list or came back. */
+  webmaster?: {
+    reason: string | null;
+    badHttpStatus: number | null;
+    targetUrl: string | null;
+    eventDate: string | null;
+  };
 }
 
 /**

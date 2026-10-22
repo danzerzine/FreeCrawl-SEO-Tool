@@ -136,6 +136,13 @@ const DATASET_TABS: Partial<Record<TabKey, DatasetTab>> = {
     ],
   },
   metrica: { dataset: 'metrica' },
+  webmaster: {
+    subdir: 'webmaster',
+    providers: [
+      { id: 'excluded', label: 'Excluded pages', dataset: 'webmaster' },
+      { id: 'broken-links', label: 'Broken internal links', dataset: 'webmaster-broken-links' },
+    ],
+  },
   ai: {
     subdir: 'ai',
     providers: [
@@ -205,6 +212,7 @@ const TAB_CATEGORY: Partial<Record<TabKey, UrlCategory>> = {
   'search-console': 'all',
   analytics: 'all',
   metrica: 'all',
+  webmaster: 'all',
   ai: 'all',
   seo: 'all',
 };

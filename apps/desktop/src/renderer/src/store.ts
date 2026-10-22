@@ -61,6 +61,7 @@ export type TabKey =
   | 'search-console'
   | 'analytics'
   | 'metrica'
+  | 'webmaster'
   | 'ai'
   | 'seo'
   | 'assistant';
@@ -97,6 +98,7 @@ export const TAB_ORDER: { key: TabKey; label: string }[] = [
   { key: 'search-console', label: 'Search Console' },
   { key: 'analytics', label: 'GA4' },
   { key: 'metrica', label: 'Yandex Metrica' },
+  { key: 'webmaster', label: 'Yandex Webmaster' },
   { key: 'ai', label: 'AI' },
   { key: 'seo', label: 'SEO Authority' },
   { key: 'assistant', label: 'Assistant' },
@@ -848,6 +850,7 @@ const DEDICATED_GRID_TABS: ReadonlySet<TabKey> = new Set<TabKey>([
   'search-console',
   'analytics',
   'metrica',
+  'webmaster',
   'ai',
   'seo',
   'assistant',

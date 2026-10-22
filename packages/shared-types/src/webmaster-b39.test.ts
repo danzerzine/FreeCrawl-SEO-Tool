@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INTEGRATIONS } from './integrations.js';
-import { defaultWebmasterSettings } from './webmaster.js';
+import { defaultWebmasterSettings, webmasterReasonFallback } from './webmaster.js';
 
 describe('B39 Webmaster credentials', () => {
   it('is its own integration with one secret token field, next to Metrica', () => {
@@ -14,5 +14,16 @@ describe('B39 Webmaster credentials', () => {
   });
   it('default settings hold no host', () => {
     expect(defaultWebmasterSettings()).toEqual({ hostId: '', hostName: '' });
+  });
+});
+
+describe('B39 Webmaster reason wording', () => {
+  it('turns an API status code into a readable fallback', () => {
+    expect(webmasterReasonFallback('HTTP_ERROR')).toBe('Http error');
+    expect(webmasterReasonFallback('NOT_CANONICAL')).toBe('Not canonical');
+  });
+  it('shows a dash for a row without a reason', () => {
+    expect(webmasterReasonFallback(null)).toBe('—');
+    expect(webmasterReasonFallback('')).toBe('—');
   });
 });

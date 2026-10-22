@@ -152,3 +152,13 @@ export type WebmasterFetchResult =
       exceededUntil: string | null;
       cancelled: boolean;
     };
+
+/**
+ * English fallback for Yandex's `excluded_url_status` code (`HTTP_ERROR` becomes `Http error`),
+ * used when the UI has no translation for the code. A row without a reason shows a dash.
+ */
+export function webmasterReasonFallback(reason: string | null): string {
+  if (!reason) return '—';
+  const words = reason.toLowerCase().replace(/_/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

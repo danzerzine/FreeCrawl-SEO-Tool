@@ -805,6 +805,7 @@ export const COLUMN_SPECS: Record<TabKey, ColumnSpec[]> = {
   'search-console': [],
   analytics: [],
   metrica: [],
+  webmaster: [],
   ai: [],
   seo: [],
   assistant: [],

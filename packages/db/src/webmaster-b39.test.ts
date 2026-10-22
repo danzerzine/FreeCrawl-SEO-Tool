@@ -255,3 +255,44 @@ describe('B39 storage', () => {
     });
   });
 });
+
+describe('B39 detail panel reason', () => {
+  const open = (): ProjectDb => {
+    const raw = new DatabaseSync(file);
+    runMigrations(raw);
+    raw.exec(`INSERT INTO urls (id, url, status_code, content_type, indexability) VALUES (1,'${A}',200,'text/html','indexable')`);
+    raw.close();
+    return new ProjectDb(file);
+  };
+
+  it('shows why Yandex removed the page, for the chosen host', () => {
+    const db = open();
+    db.upsertWebmasterEvents(HOST, [ev(A, { reason: 'NOT_CANONICAL', badHttpStatus: null })], '2026-10-10T00:00:00.000Z');
+    const got = db.getUrlAnalytics(A, '', '', '', undefined, HOST);
+    expect(got?.webmaster).toEqual({
+      reason: 'NOT_CANONICAL',
+      badHttpStatus: null,
+      targetUrl: null,
+      eventDate: '2026-10-01T00:00:00.000Z',
+    });
+    expect(db.getUrlAnalytics(A, '', '', '', undefined, 'https:other.test:443')).toBeNull();
+    expect(db.getUrlAnalytics(A)).toBeNull();
+    db.close();
+  });
+
+  it('says nothing about a page that came back', () => {
+    const db = open();
+    db.upsertWebmasterEvents(HOST, [ev(A, { event: 'APPEARED_IN_SEARCH', reason: null })], '2026-10-10T00:00:00.000Z');
+    expect(db.getUrlAnalytics(A, '', '', '', undefined, HOST)).toBeNull();
+    db.close();
+  });
+
+  it('answers on a project opened read-only before the tables existed', () => {
+    const raw = new DatabaseSync(file);
+    runMigrations(raw, BEFORE_B39);
+    raw.close();
+    const db = new ProjectDb(file, { readOnly: true });
+    expect(db.getUrlAnalytics(A, '', '', '', undefined, HOST)).toBeNull();
+    db.close();
+  });
+});

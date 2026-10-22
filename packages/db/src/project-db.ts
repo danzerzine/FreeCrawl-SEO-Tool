@@ -6695,6 +6695,7 @@ export class ProjectDb {
     ga4AccountId = '',
     metricaCounterId = '',
     ga4Custom?: { property: string; fields: string[] },
+    webmasterHostId = '',
   ): UrlAnalyticsDetail | null {
     const g = this.db
       .prepare(
@@ -6775,9 +6776,36 @@ export class ProjectDb {
     const custom = sel
       ? this.ga4CustomValuesFor([url], ga4AccountId, sel.property, sel.fields).get(url)
       : undefined;
-    if (!g && !a && !m && !i && !custom) return null;
+    // B39: why Yandex dropped this page, while the stored event still says «removed».
+    const w =
+      webmasterHostId && this.hasTable('webmaster_events')
+        ? (this.db
+            .prepare(
+              `SELECT reason, bad_http_status, target_url, event_date FROM webmaster_events
+               WHERE host_id = ? AND url = ? AND event = 'REMOVED_FROM_SEARCH'`,
+            )
+            .get(webmasterHostId, url) as
+            | {
+                reason: string | null;
+                bad_http_status: number | null;
+                target_url: string | null;
+                event_date: string | null;
+              }
+            | undefined)
+        : undefined;
+    if (!g && !a && !m && !i && !custom && !w) return null;
     return {
       ...(custom ? { ga4Custom: custom } : {}),
+      ...(w
+        ? {
+            webmaster: {
+              reason: w.reason,
+              badHttpStatus: w.bad_http_status,
+              targetUrl: w.target_url,
+              eventDate: w.event_date,
+            },
+          }
+        : {}),
       url,
       gsc: g
         ? {

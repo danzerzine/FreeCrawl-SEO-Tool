@@ -28,6 +28,7 @@ import { SpellingTab } from './tabs/SpellingTab.js';
 import { SearchConsoleTab } from './tabs/SearchConsoleTab.js';
 import { AnalyticsTab } from './tabs/AnalyticsTab.js';
 import { MetricaTab } from './tabs/MetricaTab.js';
+import { WebmasterTab } from './tabs/WebmasterTab.js';
 import { AiTab } from './tabs/AiTab.js';
 import { SeoTab } from './tabs/SeoTab.js';
 import { AssistantTab } from './tabs/AssistantTab.js';
@@ -636,6 +637,8 @@ export function App() {
                   <AnalyticsTab />
                 ) : activeTab === 'metrica' ? (
                   <MetricaTab />
+                ) : activeTab === 'webmaster' ? (
+                  <WebmasterTab />
                 ) : activeTab === 'ai' ? (
                   <AiTab />
                 ) : activeTab === 'seo' ? (

@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { translateLabel } from '../i18n/labels.js';
-import { DEFAULT_SEO_THRESHOLDS } from '@freecrawl/shared-types';
+import { DEFAULT_SEO_THRESHOLDS, webmasterReasonFallback } from '@freecrawl/shared-types';
 import type {
   Ga4CustomValue,
   CrawlConfig,
@@ -935,7 +935,7 @@ function AnalyticsView({
     );
   }
 
-  if (!data || (!data.gsc && !data.ga4 && !data.metrica && !data.inspection && !data.ga4Custom)) {
+  if (!data || (!data.gsc && !data.ga4 && !data.metrica && !data.inspection && !data.ga4Custom && !data.webmaster)) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-surface-500">
         {t('analyticsView.empty', {
@@ -1108,6 +1108,40 @@ function AnalyticsView({
           </>
         )}
       </AnalyticsCard>
+      {data.webmaster && (
+        <AnalyticsCard
+          title={t('analyticsView.webmasterTitle', { defaultValue: 'Yandex Webmaster' })}
+          empty=""
+          present
+        >
+          <AnalyticsRow
+            label={t('analyticsView.webmasterRemoved', { defaultValue: 'Removed from search' })}
+            value={
+              data.webmaster.reason
+                ? t(`webmasterTab.reason.${data.webmaster.reason}`, {
+                    defaultValue: webmasterReasonFallback(data.webmaster.reason),
+                  })
+                : '—'
+            }
+          />
+          <AnalyticsRow
+            label={t('analyticsView.webmasterDate', { defaultValue: 'Removed on' })}
+            value={data.webmaster.eventDate ? data.webmaster.eventDate.slice(0, 10) : '—'}
+          />
+          {data.webmaster.badHttpStatus !== null && (
+            <AnalyticsRow
+              label={t('analyticsView.webmasterStatus', { defaultValue: 'Status Yandex saw' })}
+              value={String(data.webmaster.badHttpStatus)}
+            />
+          )}
+          {data.webmaster.targetUrl && (
+            <AnalyticsRow
+              label={t('analyticsView.webmasterTarget', { defaultValue: 'Redirect or canonical target' })}
+              value={data.webmaster.targetUrl}
+            />
+          )}
+        </AnalyticsCard>
+      )}
       <AnalyticsCard
         title={t('analyticsView.inspectionTitle', { defaultValue: 'URL Inspection' })}
         empty={t('analyticsView.inspectionEmpty', {
