@@ -321,7 +321,7 @@ import {
 } from '@freecrawl/core';
 import { fetch as undiciFetch } from 'undici';
 import { apiFetch } from './api-fetch.js';
-import { ProjectDb, EXPENSIVE_ISSUE_DEFINITIONS } from '@freecrawl/db';
+import { ProjectDb, EXPENSIVE_ISSUE_DEFINITIONS, type SavedQueueItem } from '@freecrawl/db';
 import { buildAppMenu } from './menu.js';
 import {
   L,
@@ -561,8 +561,7 @@ class ProjectSession {
    * a superseded crawler's stale release then no-ops. Null when no
    * MCP-arbitrated crawl is running. */
   currentCrawlId: string | null = null;
-  pendingRecoveryCheckpoint: { url: string; depth: number; seedUrl: string }[] =
-    [];
+  pendingRecoveryCheckpoint: (SavedQueueItem & { seedUrl: string })[] = [];
   /** True from the moment the scheduler launches this session's crawl until
    *  its done/error event, so the handlers can record the schedule outcome.
    *  Per-session so concurrent scheduled crawls in different windows don't
@@ -10535,6 +10534,7 @@ function registerIpc(): void {
       const items = sess.pendingRecoveryCheckpoint.map((c) => ({
         url: c.url,
         depth: c.depth,
+        resourceRow: c.resourceRow,
       }));
       // Snapshot consumed — clear so a second click can't double-fire.
       sess.pendingRecoveryCheckpoint = [];

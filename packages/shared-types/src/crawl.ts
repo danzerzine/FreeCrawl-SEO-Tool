@@ -892,6 +892,12 @@ export interface CrawlConfig {
   scope: CrawlScope;
   maxDepth: number;
   maxUrls: number;
+  /**
+   * Pages per exact host name (each subdomain its own count); 0 = no limit.
+   * Images, scripts, styles and external URLs do not count. Config field
+   * only: the desktop settings have no control for it yet.
+   */
+  maxUrlsPerHost: number;
   maxConcurrency: number;
   maxRps: number;
   /**
@@ -2915,6 +2921,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   scope: 'subdomain',
   maxDepth: 10,
   maxUrls: 1_000_000,
+  maxUrlsPerHost: 0,
   maxConcurrency: 20,
   maxRps: 20,
   nightMaxRps: 0,

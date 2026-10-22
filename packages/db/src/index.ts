@@ -12,7 +12,7 @@ export {
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
 } from './project-db.js';
-export type { UpsertUrlInput, ProbeWrite } from './project-db.js';
+export type { UpsertUrlInput, ProbeWrite, SavedQueueItem } from './project-db.js';
 export { runMigrations } from './migrations.js';
 export { unsafePatternReason, type UnsafePatternReason } from './safe-pattern.js';
 export {

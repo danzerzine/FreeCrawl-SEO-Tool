@@ -653,11 +653,18 @@ function imageOrderBy(
  * only the difference, so the write cost tracks crawl throughput rather
  * than the size of the pending frontier.
  */
+/** A saved queue entry; `resourceRow` is set for images, CSS, JS and media. */
+export interface SavedQueueItem {
+  url: string;
+  depth: number;
+  resourceRow?: string | null;
+}
+
 export interface QueueCheckpointPatch {
   /** Wipe the table first — used for the first tick of a run and to
    *  resynchronise after a failed write. */
   replaceAll?: boolean;
-  added?: ReadonlyArray<{ url: string; depth: number }>;
+  added?: ReadonlyArray<SavedQueueItem>;
   removed?: readonly string[];
 }
 
@@ -2493,14 +2500,14 @@ export class ProjectDb {
    * checkpoint is written every 30 s, so it can still list pages fetched
    * after its last write.
    */
-  loadUnfetchedQueueCheckpoint(): { url: string; depth: number }[] {
+  loadUnfetchedQueueCheckpoint(): SavedQueueItem[] {
     return this.db
       .prepare(
-        `SELECT q.url, q.depth FROM crawl_queue q
+        `SELECT q.url, q.depth, q.resource_row AS resourceRow FROM crawl_queue q
          LEFT JOIN urls u ON u.url = q.url
          WHERE u.id IS NULL OR u.status_code IS NULL`,
       )
-      .all() as { url: string; depth: number }[];
+      .all() as unknown as SavedQueueItem[];
   }
 
   /**
@@ -2522,6 +2529,28 @@ export class ProjectDb {
         )
         .get() as { c: number }
     ).c;
+  }
+
+  /**
+   * Fetched internal pages per host name. Seeds the crawler's per-host page
+   * counts (`maxUrlsPerHost`) on a resume.
+   */
+  countFetchedPagesByHost(): Map<string, number> {
+    const counts = new Map<string, number>();
+    const rows = this.db
+      .prepare(
+        "SELECT url FROM urls WHERE is_external = 0 AND content_kind = 'html' AND status_code IS NOT NULL",
+      )
+      .iterate() as Iterable<{ url: string }>;
+    for (const { url } of rows) {
+      try {
+        const host = new URL(url).hostname;
+        counts.set(host, (counts.get(host) ?? 0) + 1);
+      } catch {
+        /* a malformed stored URL counts toward no host */
+      }
+    }
+    return counts;
   }
 
   /**
@@ -3474,14 +3503,14 @@ export class ProjectDb {
    * queue. A plain array is still accepted for the CLI / older callers.
    */
   checkpointQueue(
-    patch: ReadonlyArray<{ url: string; depth: number }> | QueueCheckpointPatch,
+    patch: ReadonlyArray<SavedQueueItem> | QueueCheckpointPatch,
     seedUrl: string,
   ): void {
     // `Array.isArray` doesn't narrow a `readonly T[]` out of the union,
     // so state the legacy shape as an explicit predicate.
     const isItemList = (
       v: typeof patch,
-    ): v is ReadonlyArray<{ url: string; depth: number }> => Array.isArray(v);
+    ): v is ReadonlyArray<SavedQueueItem> => Array.isArray(v);
     const { replaceAll, added, removed }: QueueCheckpointPatch = isItemList(patch)
       ? { replaceAll: true, added: patch, removed: [] }
       : patch;
@@ -3498,19 +3527,21 @@ export class ProjectDb {
         // crawl would inherit the deeper value and cut the subtree off
         // against `maxDepth`.
         const ins = this.db.prepare(
-          'INSERT OR REPLACE INTO crawl_queue (url, depth, seed_url) VALUES (?, ?, ?)',
+          'INSERT OR REPLACE INTO crawl_queue (url, depth, seed_url, resource_row) VALUES (?, ?, ?, ?)',
         );
-        for (const it of added) ins.run(it.url, it.depth, seed);
+        for (const it of added) ins.run(it.url, it.depth, seed, it.resourceRow ?? null);
       }
     });
   }
 
   /** Read the pending queue snapshot back. Empty array when nothing
    * was checkpointed (i.e. previous crawl exited cleanly). */
-  loadQueueCheckpoint(): { url: string; depth: number; seedUrl: string }[] {
+  loadQueueCheckpoint(): (SavedQueueItem & { seedUrl: string })[] {
     return this.db
-      .prepare('SELECT url, depth, seed_url AS seedUrl FROM crawl_queue')
-      .all() as { url: string; depth: number; seedUrl: string }[];
+      .prepare(
+        'SELECT url, depth, seed_url AS seedUrl, resource_row AS resourceRow FROM crawl_queue',
+      )
+      .all() as unknown as (SavedQueueItem & { seedUrl: string })[];
   }
 
   /** Wipe the checkpoint — called after a successful clean crawl

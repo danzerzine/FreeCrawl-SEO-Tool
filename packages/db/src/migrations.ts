@@ -2757,6 +2757,17 @@ const MIGRATIONS: Migration[] = [
         db.exec('ALTER TABLE urls ADD COLUMN h2_first TEXT');
     },
   },
+  {
+    // B83: a saved queue entry keeps whether it was an image, CSS, JS or
+    // media file, so a resume does not queue it as a page.
+    version: 120,
+    name: 'add_crawl_queue_resource_row',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(crawl_queue)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'resource_row'))
+        db.exec('ALTER TABLE crawl_queue ADD COLUMN resource_row TEXT');
+    },
+  },
 ];
 
 export function runMigrations(

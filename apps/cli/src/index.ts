@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 import { basename, resolve } from 'node:path';
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { mergeCrawlConfig } from './crawl-config.js';
+import { readListSource } from './list-source.js';
 import {
   COMPARE_CATEGORIES,
   DEFAULT_CRAWL_CONFIG,
@@ -114,6 +115,8 @@ Usage:
 Options:
   --depth <n>         Max crawl depth (default: ${DEFAULT_CRAWL_CONFIG.maxDepth})
   --max <n>           Max URLs (default: ${DEFAULT_CRAWL_CONFIG.maxUrls})
+  --max-per-host <n>  Max pages per host name, each subdomain its own count; images and
+                        external pages do not count (default: no limit)
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
@@ -144,7 +147,10 @@ Options:
                         socks5://…); replaces a proxy profile chosen in a --config file
   --include <regex>   Only crawl URLs matching this regex; repeatable
   --exclude <regex>   Skip URLs matching this regex; repeatable
-  --list <file>       List-mode crawl: fetch every URL in <file> (one per line), no link follow
+  --list <source>     List-mode crawl: fetch every URL in <source>, no link follow. <source> is a
+                        file (one URL per line, or the first column of a .csv), - for standard
+                        input, or an http(s) link to a list or a CSV; a Google Sheets link reads
+                        the sheet it names (shared as "anyone with the link")
   --config <file>     Load CrawlConfig from a JSON file (matches Settings → Export Settings format).
                         Per-flag overrides on the command line still win — useful for CI
                         ("scheduled config + per-run --max"). Nested settings merge field by
@@ -290,6 +296,7 @@ function parseCliArgs() {
     options: {
       depth: { type: 'string' },
       max: { type: 'string' },
+      'max-per-host': { type: 'string' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'night-rps': { type: 'string' },
@@ -487,23 +494,6 @@ async function main(): Promise<void> {
     process.exit(values.help ? 0 : 1);
   }
 
-  let listUrls: string[] = [];
-  if (listFile) {
-    try {
-      listUrls = readFileSync(resolve(listFile), 'utf8')
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith('#'));
-    } catch (err) {
-      console.error(`Cannot read --list file ${listFile}: ${(err as Error).message}`);
-      process.exit(2);
-    }
-    if (listUrls.length === 0) {
-      console.error(`--list file ${listFile} contains no URLs.`);
-      process.exit(2);
-    }
-  }
-
   const dbPath = resolve(values.db ?? 'crawl.seoproject');
 
   // Layered config: defaults → file (if `--config`) → command-line flags.
@@ -534,6 +524,9 @@ async function main(): Promise<void> {
     ...(values.max !== undefined
       ? { maxUrls: parseNumeric('max', values.max, DEFAULT_CRAWL_CONFIG.maxUrls) }
       : {}),
+    ...(values['max-per-host'] !== undefined
+      ? { maxUrlsPerHost: parsePositiveInt('max-per-host', values['max-per-host']) }
+      : {}),
     ...(values.concurrency !== undefined
       ? { maxConcurrency: parseNumeric('concurrency', values.concurrency, DEFAULT_CRAWL_CONFIG.maxConcurrency) }
       : {}),
@@ -562,6 +555,25 @@ async function main(): Promise<void> {
     ...(values.include !== undefined ? { includePatterns: values.include } : {}),
     ...(values.exclude !== undefined ? { excludePatterns: values.exclude } : {}),
   };
+  // Read after the config file so a link is fetched with the crawl's user agent.
+  let listUrls: string[] = [];
+  if (listFile) {
+    const userAgent =
+      values['user-agent'] ??
+      (typeof fileConfig.userAgent === 'string'
+        ? fileConfig.userAgent
+        : DEFAULT_CRAWL_CONFIG.userAgent);
+    try {
+      listUrls = await readListSource(listFile, { userAgent });
+    } catch (err) {
+      console.error(`Cannot read --list ${listFile}: ${(err as Error).message}`);
+      process.exit(2);
+    }
+    if (listUrls.length === 0) {
+      console.error(`--list ${listFile} contains no URLs.`);
+      process.exit(2);
+    }
+  }
   const merged = mergeCrawlConfig(
     fileConfig,
     flagConfig,
@@ -894,7 +906,13 @@ async function main(): Promise<void> {
           dbPath,
           summary,
           issues,
-          site: { soft404Probe, botBlocked, siteWide, crawlStoppedAtLimit },
+          site: {
+            soft404Probe,
+            botBlocked,
+            siteWide,
+            crawlStoppedAtLimit,
+            hostLimitSkipped: crawler.hostLimitSkipped,
+          },
           sitemapFindings,
           exportedTo,
           rowsExported: exportedTo ? rowsWritten : null,
@@ -1014,6 +1032,15 @@ function parseNumeric(
     console.error(
       `Invalid --${flag}: ${value} (expected a non-negative ${integer ? 'whole number' : 'number'}).`,
     );
+    process.exit(2);
+  }
+  return n;
+}
+
+function parsePositiveInt(flag: string, value: string): number {
+  const n = Number(value.trim());
+  if (value.trim() === '' || !Number.isInteger(n) || n <= 0) {
+    console.error(`Invalid --${flag}: ${value} (expected a positive whole number).`);
     process.exit(2);
   }
   return n;

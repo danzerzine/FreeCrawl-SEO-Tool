@@ -33,6 +33,7 @@ import {
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
   unsafePatternReason,
+  type SavedQueueItem,
   type UnsafePatternReason,
 } from '@freecrawl/db';
 import {
@@ -421,7 +422,7 @@ export class Crawler extends EventEmitter {
   private externalQueue: PQueue;
   private seen = new Set<string>();
   /** Saved-queue URLs handed over before `start()`; see `enqueueCheckpointed`. */
-  private checkpointed: { url: string; depth: number }[] = [];
+  private checkpointed: SavedQueueItem[] = [];
   private externalSeen = new Set<string>();
   /**
    * URLs in `seen` that robots.txt disallows. They are recorded, not fetched,
@@ -569,7 +570,7 @@ export class Crawler extends EventEmitter {
   private static readonly QUEUE_CHECKPOINT_INTERVAL_MS = 30_000;
   /** Pending queue snapshot used by the checkpoint timer. Mirrors
    * what's in `this.queue` minus already-completed items. */
-  private pendingItems = new Map<string, number>();
+  private pendingItems = new Map<string, SavedQueueItem>();
   /**
    * Enqueues and completions accumulated since the last checkpoint.
    * Shipping this delta instead of the whole of `pendingItems` is what
@@ -580,7 +581,7 @@ export class Crawler extends EventEmitter {
    * FIFO the per-URL page writes share and stalled the crawl loop for
    * tens of seconds each pass. The delta is a few hundred rows.
    */
-  private queueAdded = new Map<string, number>();
+  private queueAdded = new Map<string, SavedQueueItem>();
   private queueRemoved = new Set<string>();
   /** First tick of a run does a full replace so the table starts in a
    *  known state; set again after a failed write to resynchronise. */
@@ -615,15 +616,12 @@ export class Crawler extends EventEmitter {
           replaceAll: true,
           // The held saved queue too: a stop before it is queued would
           // otherwise replace the checkpoint without it.
-          added: [
-            ...this.checkpointed,
-            ...Array.from(this.pendingItems, ([url, depth]) => ({ url, depth })),
-          ],
+          added: [...this.checkpointed, ...this.pendingItems.values()],
           removed: [],
         }
       : {
           replaceAll: false,
-          added: Array.from(this.queueAdded, ([url, depth]) => ({ url, depth })),
+          added: [...this.queueAdded.values()],
           removed: Array.from(this.queueRemoved),
         };
     // Clear before awaiting so events arriving during the write land in
@@ -1752,6 +1750,7 @@ export class Crawler extends EventEmitter {
     // heap that's no longer needed once the queue is drained.
     this.seen.clear();
     this.robotsBlocked.clear();
+    this.hostAdmitted.clear();
     this.externalSeen.clear();
     this.emitProgressFinal();
     this.setOp('idle');
@@ -3176,6 +3175,7 @@ export class Crawler extends EventEmitter {
       this.crawled = this.db.countCrawledUrls();
       this.resourceAdmitted = this.db.countSubresourceUrls();
       this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(false));
+      this.seedHostAdmitted();
     }
 
     this.queueCheckpointed();
@@ -3206,6 +3206,7 @@ export class Crawler extends EventEmitter {
     this.stopMemoryMonitor();
     this.seen.clear();
     this.robotsBlocked.clear();
+    this.hostAdmitted.clear();
     this.externalSeen.clear();
     this.finishing = false;
     this.emitProgressFinal();
@@ -3411,6 +3412,9 @@ export class Crawler extends EventEmitter {
       this.seen.add(url);
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));
+    // Before the saved queue is re-admitted, which counts its own pages.
+    if (opts.refresh) this.hostAdmitted.clear();
+    else this.seedHostAdmitted();
     this.queueCheckpointed();
     // A refresh counts its own work from zero — the progress bar should
     // read "0 of 122 re-crawled", not start at 122 and never move.
@@ -4098,7 +4102,7 @@ export class Crawler extends EventEmitter {
    * URL is fetched again even though a partial crawl may already
    * have a row for it (the upsert handles dedup at the DB level).
    */
-  enqueueCheckpointed(items: ReadonlyArray<{ url: string; depth: number }>): void {
+  enqueueCheckpointed(items: ReadonlyArray<SavedQueueItem>): void {
     // Before `start()` they wait until the project is read back into
     // `seen`: queued at once, they were fetched while the start URL was
     // still being checked, and every known page they linked counted as new.
@@ -4108,7 +4112,14 @@ export class Crawler extends EventEmitter {
     }
     for (const item of items) {
       this.seen.delete(item.url);
-      this.enqueue({ url: item.url, depth: item.depth });
+      const row = item.resourceRow;
+      this.enqueue({
+        url: item.url,
+        depth: item.depth,
+        ...(row === 'image' || row === 'css' || row === 'js' || row === 'media'
+          ? { resourceRow: row }
+          : {}),
+      });
     }
   }
 
@@ -4183,6 +4194,49 @@ export class Crawler extends EventEmitter {
    * created it rather than starting a fresh one.
    */
   private resourceAdmitted = 0;
+
+  /**
+   * Pages admitted per host name against `maxUrlsPerHost`. Seeded from the
+   * project's fetched pages on resume; a refresh re-admits the known pages,
+   * so it counts from zero like `resourceAdmitted`.
+   */
+  private hostAdmitted = new Map<string, number>();
+  /** URLs `maxUrlsPerHost` turned away, per host, at most HOST_SKIP_CAP each. */
+  private hostSkipped = new Map<string, Set<string>>();
+  private static readonly HOST_SKIP_CAP = 10_000;
+
+  /** Hosts with URLs turned away by `maxUrlsPerHost`, most first, top 20. */
+  get hostLimitSkipped(): { host: string; skipped: number }[] {
+    return [...this.hostSkipped]
+      .map(([host, urls]) => ({ host, skipped: urls.size }))
+      .sort((a, b) => b.skipped - a.skipped || a.host.localeCompare(b.host))
+      .slice(0, 20);
+  }
+
+  /**
+   * The host name a URL counts against for `maxUrlsPerHost`, or null when it
+   * does not count: the limit is off, the URL is a subresource, or it is an
+   * external page. Every URL of a list counts.
+   */
+  private perHostKey(item: QueueItem): string | null {
+    if (this.config.maxUrlsPerHost <= 0 || item.resourceRow) return null;
+    if (
+      this.config.scope !== 'exact-url' &&
+      !isInScope(this.config.startUrl, item.url, 'all-subdomains')
+    ) {
+      return null;
+    }
+    try {
+      return new URL(item.url).hostname;
+    } catch {
+      return null;
+    }
+  }
+
+  private seedHostAdmitted(): void {
+    this.hostAdmitted =
+      this.config.maxUrlsPerHost > 0 ? this.db.countFetchedPagesByHost() : new Map();
+  }
 
   /**
    * Is `url` allowed by the robots.txt of ITS OWN origin? Caller guards on
@@ -4284,6 +4338,14 @@ export class Crawler extends EventEmitter {
   private enqueue(item: QueueItem): void {
     if (this.stopped) return;
     if (this.seen.has(item.url)) return;
+    // Already queued. Callers that drop a URL from `seen` to queue it again
+    // can meet one still waiting: a resume queues the saved queue, then the
+    // unfinished link targets, which list the same pages. It stays in `seen`,
+    // which the page limit counts.
+    if (this.pendingItems.has(item.url)) {
+      this.seen.add(item.url);
+      return;
+    }
     if (this.seen.size - this.robotsBlocked.size >= this.config.maxUrls) {
       if (!this.pageLimitHit) {
         // Recorded so «sitemap URLs not crawled» can say the limit, not the site, is why (B76).
@@ -4300,6 +4362,15 @@ export class Crawler extends EventEmitter {
       this.resourceAdmitted >=
         Math.round(this.config.maxUrls * Crawler.SUBRESOURCE_BUDGET_SHARE)
     ) {
+      return;
+    }
+    // Per-host limit. A URL over it stays out of `seen`, so it is met and
+    // skipped again; `hostSkipped` counts it once.
+    const hostKey = this.perHostKey(item);
+    if (hostKey !== null && (this.hostAdmitted.get(hostKey) ?? 0) >= this.config.maxUrlsPerHost) {
+      let skipped = this.hostSkipped.get(hostKey);
+      if (!skipped) this.hostSkipped.set(hostKey, (skipped = new Set()));
+      if (skipped.size < Crawler.HOST_SKIP_CAP) skipped.add(item.url);
       return;
     }
     if (item.depth > this.config.maxDepth) return;
@@ -4351,10 +4422,16 @@ export class Crawler extends EventEmitter {
 
     this.seen.add(item.url);
     if (item.resourceRow) this.resourceAdmitted++;
+    if (hostKey !== null) this.hostAdmitted.set(hostKey, (this.hostAdmitted.get(hostKey) ?? 0) + 1);
     this.pending++;
-    this.pendingItems.set(item.url, item.depth);
+    const saved: SavedQueueItem = {
+      url: item.url,
+      depth: item.depth,
+      resourceRow: item.resourceRow,
+    };
+    this.pendingItems.set(item.url, saved);
     this.queueRemoved.delete(item.url);
-    this.queueAdded.set(item.url, item.depth);
+    this.queueAdded.set(item.url, saved);
     this.queue
       .add(() => this.fetchAndProcess(item), { priority: Crawler.priorityFor(item) })
       .catch((err: unknown) => {
