@@ -166,6 +166,14 @@ import {
   type MetricaQueryInput,
   type MetricaQueryResult,
   type MetricaProgress,
+  type WebmasterListHostsResult,
+  type WebmasterFetchInput,
+  type WebmasterFetchResult,
+  type WebmasterExcludedQueryInput,
+  type WebmasterExcludedQueryResult,
+  type WebmasterBrokenQueryInput,
+  type WebmasterBrokenQueryResult,
+  type WebmasterProgress,
   type AiRunInput,
   type AiRunResult,
   type AiQueryInput,
@@ -558,6 +566,15 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.metricaQuery, input),
   metricaCancel: (): Promise<void> => ipcRenderer.invoke(IPC.metricaCancel),
   onMetricaProgress: (cb) => subscribe<MetricaProgress>(IPC.metricaProgress, cb),
+  webmasterListHosts: (): Promise<WebmasterListHostsResult> => ipcRenderer.invoke(IPC.webmasterListHosts),
+  webmasterFetch: (input: WebmasterFetchInput): Promise<WebmasterFetchResult> =>
+    ipcRenderer.invoke(IPC.webmasterFetch, input),
+  webmasterQueryExcluded: (input: WebmasterExcludedQueryInput): Promise<WebmasterExcludedQueryResult> =>
+    ipcRenderer.invoke(IPC.webmasterQueryExcluded, input),
+  webmasterQueryBroken: (input: WebmasterBrokenQueryInput): Promise<WebmasterBrokenQueryResult> =>
+    ipcRenderer.invoke(IPC.webmasterQueryBroken, input),
+  webmasterCancel: (): Promise<void> => ipcRenderer.invoke(IPC.webmasterCancel),
+  onWebmasterProgress: (cb) => subscribe<WebmasterProgress>(IPC.webmasterProgress, cb),
   aiRun: (input: AiRunInput): Promise<AiRunResult> =>
     ipcRenderer.invoke(IPC.aiRun, input),
   aiCancel: (): Promise<void> => ipcRenderer.invoke(IPC.aiCancel),

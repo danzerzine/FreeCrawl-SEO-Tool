@@ -76,6 +76,8 @@ const ALLOWED_METHODS = new Set<string>([
   'queryGsc',
   'queryGa4',
   'queryMetrica',
+  'queryWebmasterExcluded',
+  'queryWebmasterBrokenLinks',
   'queryAi',
   'querySeo',
   'getUrlAnalytics',

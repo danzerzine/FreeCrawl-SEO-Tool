@@ -278,6 +278,26 @@ export const INTEGRATIONS: IntegrationDef[] = [
       'Register an app of type "For API access or debugging" at oauth.yandex.com with the metrika:read permission, then open https://oauth.yandex.com/authorize?response_type=token&client_id=<your app ID> while signed in to an account that can view the counter, and paste the token shown. The token only reads data.',
   },
 
+  {
+    id: 'webmaster',
+    name: 'Yandex Webmaster',
+    category: 'seo',
+    authType: 'api-key',
+    description:
+      'Pages Yandex removed from search (with its reason) and the broken internal links it reports, matched to the crawled URLs.',
+    fields: [
+      {
+        key: 'token',
+        label: 'OAuth token',
+        secret: true,
+        placeholder: 'Paste a token with the webmaster:hostinfo and webmaster:verify scopes',
+      },
+    ],
+    helpUrl: 'https://yandex.com/dev/webmaster/doc/en/tasks/how-to-get-oauth',
+    setupHint:
+      'Register an app of type "For API access or debugging" at oauth.yandex.com with the webmaster:hostinfo and webmaster:verify permissions, then open https://oauth.yandex.com/authorize?response_type=token&client_id=<your app ID> while signed in to an account that owns the site in Yandex Webmaster, and paste the token shown. This is a separate token from Yandex Metrica. Yandex tokens last about 6 months. The token only reads data.',
+  },
+
   // ---- Google (OAuth bring-your-own-client) ----
   {
     id: 'gsc',

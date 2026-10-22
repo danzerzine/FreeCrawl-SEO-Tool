@@ -202,6 +202,16 @@ import {
   type MetricaProgress,
   type MetricaNotice,
   type MetricaErrorCode,
+  type WebmasterIntegrationSettings,
+  defaultWebmasterSettings,
+  type WebmasterListHostsResult,
+  type WebmasterFetchInput,
+  type WebmasterFetchResult,
+  type WebmasterExcludedQueryInput,
+  type WebmasterExcludedQueryResult,
+  type WebmasterBrokenQueryInput,
+  type WebmasterBrokenQueryResult,
+  type WebmasterProgress,
   type AiRunInput,
   type AiRunResult,
   type AiQueryInput,
@@ -397,6 +407,8 @@ import {
   MetricaCancelledError,
   MetricaError,
 } from './metrica.js';
+import { listHosts as webmasterListHosts, webmasterDeps, WebmasterError } from './webmaster.js';
+import { pullWebmaster } from './webmaster-pull.js';
 import { runAiBatch, type AiBatchItem } from './ai-batch.js';
 import { resolveModel, defaultConcurrency } from './ai-providers.js';
 import { runSeoBatch } from './seo-batch.js';
@@ -642,6 +654,7 @@ class ProjectSession {
     // count reports, and `abort` cancels mid-request or mid-backoff.
     metrica: { ...newFetchRunSlot(), abort: null as AbortController | null },
     gscInspect: { active: false, cancelRequested: false },
+    webmaster: { active: false, cancelRequested: false, abort: null as AbortController | null },
   };
 
   constructor(opts: {
@@ -6835,6 +6848,154 @@ function registerIpc(): void {
         /* no / corrupt meta — render without the context line */
       }
       return { rows: result.rows, total: result.total, meta, notice: result.notice ?? null };
+    },
+  );
+
+  // Yandex Webmaster (B39). Own pasted token; rows keyed by host id. The pull itself is
+  // webmaster-pull.ts (Electron-free, tested); this only wires the token, the open project,
+  // the URL normaliser and the cancel signal into it.
+  const webmasterToken = (): string => {
+    const token = resolveCredentials('webmaster')['token']?.trim() ?? '';
+    if (!token) {
+      throw new WebmasterError(
+        'Yandex Webmaster is not connected — paste a token in Settings → Integrations → Yandex Webmaster.',
+        'not-connected',
+      );
+    }
+    if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) {
+      throw new WebmasterError(
+        'The saved Yandex Webmaster token has an unexpected format — paste it again in Settings → Integrations → Yandex Webmaster.',
+        'token-format',
+      );
+    }
+    return token;
+  };
+  const resolveWebmasterSettings = (): WebmasterIntegrationSettings =>
+    ({
+      ...defaultWebmasterSettings(),
+      ...(readIntegrationSettings('webmaster') ?? {}),
+    }) as WebmasterIntegrationSettings;
+  registerHandle(IPC.webmasterListHosts, async (): Promise<WebmasterListHostsResult> => {
+    const savedHostId = resolveWebmasterSettings().hostId;
+    try {
+      const { hosts } = await webmasterListHosts(webmasterToken());
+      return { ok: true, error: null, errorCode: null, hosts, savedHostId };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        errorCode: err instanceof WebmasterError ? err.code : null,
+        hosts: [],
+        savedHostId,
+      };
+    }
+  });
+  const runWebmasterFetch = (input: WebmasterFetchInput): Promise<WebmasterFetchResult> => {
+    const fail = (
+      error: string,
+      errorCode: WebmasterFetchResult['errorCode'],
+      cancelled = false,
+    ): WebmasterFetchResult => ({ ok: false, meta: null, error, errorCode, exceededUntil: null, cancelled });
+    const saved = resolveWebmasterSettings();
+    const hostId = String(input.hostId || saved.hostId || '').trim();
+    if (!hostId) return Promise.resolve(fail('No Yandex Webmaster host selected.', 'host-not-verified'));
+    const hostName = String(input.hostName || (hostId === saved.hostId ? saved.hostName : '') || hostId);
+    const runSession = currentSession();
+    const run = runSession.fetchRuns.webmaster;
+    if (run.active) {
+      return Promise.resolve(fail('A Yandex Webmaster fetch is already running in this window.', 'api'));
+    }
+    let token: string;
+    let normalize: (url: string) => string | null;
+    try {
+      token = webmasterToken();
+      normalize = crawlUrlNormalizer();
+    } catch (err) {
+      return Promise.resolve(
+        fail(err instanceof Error ? err.message : String(err), err instanceof WebmasterError ? err.code : null),
+      );
+    }
+    // The choice is kept even when the pull fails (not verified, wrong user), so the user can pick another.
+    writeIntegrationSettings('webmaster', { hostId, hostName });
+    // Pin the pull to the project open now; a write after another project was opened is refused.
+    const runDb = runSession.getDb();
+    const guard = <A extends unknown[], R>(fn: (...a: A) => R) =>
+      (...a: A): R => {
+        if (runSession.db !== runDb) {
+          throw new WebmasterError(
+            'Another project was opened during the Yandex Webmaster fetch, so the rest was discarded. Fetch again in this project.',
+            'api',
+          );
+        }
+        return fn(...a);
+      };
+    const abort = new AbortController();
+    run.active = true;
+    run.cancelRequested = false;
+    run.abort = abort;
+    const sendProgress = (p: WebmasterProgress): void => runSession.send(IPC.webmasterProgress, p);
+    return (async (): Promise<WebmasterFetchResult> => {
+      try {
+        const result = await pullWebmaster(
+          { token, hostId, hostName, normalize, signal: abort.signal, onProgress: sendProgress },
+          {
+            db: {
+              getMeta: guard((k: string) => runDb.getMeta(k)),
+              setMeta: guard((k: string, v: string) => runDb.setMeta(k, v)),
+              upsertWebmasterEvents: guard((...a: Parameters<typeof runDb.upsertWebmasterEvents>) =>
+                runDb.upsertWebmasterEvents(...a),
+              ),
+              upsertWebmasterBrokenLinks: guard((...a: Parameters<typeof runDb.upsertWebmasterBrokenLinks>) =>
+                runDb.upsertWebmasterBrokenLinks(...a),
+              ),
+              deleteStaleWebmasterRows: guard((h: string, s: string) => runDb.deleteStaleWebmasterRows(h, s)),
+              countWebmasterRows: guard((h: string) => runDb.countWebmasterRows(h)),
+            },
+            api: webmasterDeps,
+            now: () => new Date(),
+          },
+        );
+        fireDataChanged(runSession);
+        logger.log(
+          result.ok ? 'info' : result.cancelled ? 'info' : 'warn',
+          'webmaster',
+          result.ok
+            ? `Webmaster pull stored — ${result.meta.eventRows} event row(s), ${result.meta.brokenLinkRows} broken link row(s)`
+            : `Webmaster pull stopped: ${result.error}`,
+        );
+        return result;
+      } finally {
+        run.active = false;
+        run.cancelRequested = false;
+        run.abort = null;
+        sendProgress({ running: false, phase: 'events', done: 0, total: 0 });
+      }
+    })();
+  };
+  registerHandle(IPC.webmasterFetch, (_e, input: WebmasterFetchInput) => runWebmasterFetch(input ?? {}));
+  registerHandle(IPC.webmasterCancel, () => {
+    const run = currentSession().fetchRuns.webmaster;
+    if (!run.active) return;
+    run.cancelRequested = true;
+    run.abort?.abort();
+    logger.log('info', 'webmaster', 'Webmaster pull cancellation requested');
+  });
+  registerHandle(
+    IPC.webmasterQueryExcluded,
+    async (_e, input: WebmasterExcludedQueryInput): Promise<WebmasterExcludedQueryResult> => {
+      const params = { ...input, hostId: input.hostId || resolveWebmasterSettings().hostId };
+      return callReaderOrFallback<WebmasterExcludedQueryResult>('queryWebmasterExcluded', [params], () =>
+        getDb().queryWebmasterExcluded(params),
+      );
+    },
+  );
+  registerHandle(
+    IPC.webmasterQueryBroken,
+    async (_e, input: WebmasterBrokenQueryInput): Promise<WebmasterBrokenQueryResult> => {
+      const params = { ...input, hostId: input.hostId || resolveWebmasterSettings().hostId };
+      return callReaderOrFallback<WebmasterBrokenQueryResult>('queryWebmasterBrokenLinks', [params], () =>
+        getDb().queryWebmasterBrokenLinks(params),
+      );
     },
   );
 

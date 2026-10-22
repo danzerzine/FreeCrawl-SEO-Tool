@@ -68,6 +68,18 @@ import type {
   MetricaNotice,
   MetricaErrorCode,
 } from './metrica.js';
+import type {
+  WebmasterBrokenPreset,
+  WebmasterBrokenRow,
+  WebmasterErrorCode,
+  WebmasterExcludedPreset,
+  WebmasterExcludedRow,
+  WebmasterFetchMeta,
+  WebmasterFetchResult,
+  WebmasterHost,
+  WebmasterProgress,
+  WebmasterQueryResult,
+} from './webmaster.js';
 import type { AiProvider, AiRow } from './ai.js';
 import type {
   AssistantApprovalInput,
@@ -458,6 +470,17 @@ export const IPC = {
   metricaCancel: 'metrica:cancel',
   /** main → renderer: live progress of an in-flight Metrica pull. */
   metricaProgress: 'metrica:progress',
+  /** Yandex Webmaster. `webmasterListHosts` lists the account's hosts; `webmasterFetch` pulls the
+   *  removal events and the broken internal links of one host (resuming a stopped pull);
+   *  the two queries list the stored rows next to the crawl. */
+  webmasterListHosts: 'webmaster:list-hosts',
+  webmasterFetch: 'webmaster:fetch',
+  webmasterQueryExcluded: 'webmaster:query-excluded',
+  webmasterQueryBroken: 'webmaster:query-broken',
+  /** Aborts an in-flight `webmasterFetch`, backoff pauses included. */
+  webmasterCancel: 'webmaster:cancel',
+  /** main → renderer: live progress of an in-flight Webmaster pull. */
+  webmasterProgress: 'webmaster:progress',
   /** Faz 7 — AI integrations (OpenAI / Anthropic / Ollama). `aiRun`
    *  applies a prompt template to each selected URL and stores the
    *  response; `aiQuery` lists crawled pages joined with the latest
@@ -1912,6 +1935,36 @@ export interface Ga4QueryResult {
   meta: Ga4FetchMeta | null;
 }
 
+export interface WebmasterListHostsResult {
+  ok: boolean;
+  error: string | null;
+  errorCode: WebmasterErrorCode | null;
+  hosts: WebmasterHost[];
+  /** The host saved in the project's settings, if any. */
+  savedHostId: string;
+}
+
+export interface WebmasterFetchInput {
+  /** Host to pull; empty means the one saved in the project's settings. */
+  hostId?: string;
+  hostName?: string;
+}
+
+export interface WebmasterQueryInput<P> {
+  /** Empty means the saved host. */
+  hostId?: string;
+  preset?: P;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
+export type WebmasterExcludedQueryInput = WebmasterQueryInput<WebmasterExcludedPreset>;
+export type WebmasterBrokenQueryInput = WebmasterQueryInput<WebmasterBrokenPreset>;
+export type WebmasterExcludedQueryResult = WebmasterQueryResult<WebmasterExcludedRow>;
+export type WebmasterBrokenQueryResult = WebmasterQueryResult<WebmasterBrokenRow>;
+export type { WebmasterFetchMeta, WebmasterFetchResult, WebmasterProgress };
+
 export interface MetricaListCountersResult {
   ok: boolean;
   error: string | null;
@@ -2478,6 +2531,15 @@ export interface FreeCrawlApi {
   metricaCancel(): Promise<void>;
   /** Live progress of an in-flight Metrica pull. */
   onMetricaProgress(cb: (p: MetricaProgress) => void): () => void;
+  /** Yandex Webmaster: hosts, a resumable pull, the two stored views. */
+  webmasterListHosts(): Promise<WebmasterListHostsResult>;
+  webmasterFetch(input: WebmasterFetchInput): Promise<WebmasterFetchResult>;
+  webmasterQueryExcluded(input: WebmasterExcludedQueryInput): Promise<WebmasterExcludedQueryResult>;
+  webmasterQueryBroken(input: WebmasterBrokenQueryInput): Promise<WebmasterBrokenQueryResult>;
+  /** Cancel an in-flight Webmaster pull; saved pages stay and the next pull continues. */
+  webmasterCancel(): Promise<void>;
+  /** Live progress of an in-flight Webmaster pull. */
+  onWebmasterProgress(cb: (p: WebmasterProgress) => void): () => void;
   /** Run an AI prompt against the given URLs through the chosen
    *  provider. Resolves when the run finishes; subscribe to
    *  `onAiProgress` for live updates. */
