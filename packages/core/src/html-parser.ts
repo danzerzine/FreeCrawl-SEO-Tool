@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { decodeHTML } from 'entities';
+import { decodeHTML, decodeHTMLAttribute } from 'entities';
 import type {
   ContentKind,
   CustomExtractionRule,
@@ -719,7 +719,7 @@ export function readServedHeadSignals(html: string, robotsBot = 'googlebot'): Se
   const headEnd = html.search(/<\/head\s*>/i);
   const head = headEnd >= 0 ? html.slice(0, headEnd) : html.slice(0, 200_000);
   const t = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(head);
-  const title = t?.[1] ? decodeEntities(t[1].replace(/\s+/g, ' ').trim()) || null : null;
+  const title = t?.[1] ? decodeEntities(t[1]).replace(/\s+/g, ' ').trim() || null : null;
   let noindex = false;
   for (const m of head.matchAll(/<meta\b[^>]*>/gi)) {
     const tag = m[0];
@@ -786,7 +786,7 @@ export function readServedPageSignals(
       baseUrl = pageUrl;
     }
   }
-  const h1 = decodeEntities($('h1').first().text().replace(/\s+/g, ' ').trim()) || null;
+  const h1 = decodeEntities($('h1').first().text()).replace(/\s+/g, ' ').trim() || null;
   const canonicalHref = (
     $('link[rel="canonical"]')
       .filter((_, el) => $(el).closest('body').length === 0)
@@ -826,7 +826,7 @@ export function readServedPageSignals(
   const $visibleBody = $('body').clone();
   $visibleBody.find('script, style, noscript').remove();
   const text = $visibleBody.text().replace(/\s+/g, ' ').trim();
-  const words = text.length > 0 ? text.split(' ').filter(Boolean).length : 0;
+  const words = countWords(text);
   return { h1, canonical, links, linksCapped, words };
 }
 
@@ -1172,15 +1172,15 @@ export function parseHtml(
     return head.length > 0 ? head.first() : els.first();
   };
   const titleOutsideHead = titleEls.filter(inBody).length;
-  const title = decodeEntities(collapseWs(headFirst(titleEls).text())) || null;
+  const title = collapseWs(decodeEntities(headFirst(titleEls).text())) || null;
   const descriptionEls = $('meta[name="description"]');
   const descriptionOutsideHead = descriptionEls.filter(inBody).length;
   const metaDescription =
-    decodeEntities(collapseWs(headFirst(descriptionEls).attr('content') ?? '')) || null;
-  const h1 = decodeEntities(collapseWs($('h1').first().text())) || null;
+    collapseWs(decodeAttr(headFirst(descriptionEls).attr('content') ?? '')) || null;
+  const h1 = collapseWs(decodeEntities($('h1').first().text())) || null;
   const h1Count = $('h1').length;
   const h2Count = $('h2').length;
-  const h2First = decodeEntities(collapseWs($('h2').first().text())) || null;
+  const h2First = collapseWs(decodeEntities($('h2').first().text())) || null;
   const h3Count = $('h3').length;
   const h4Count = $('h4').length;
   const h5Count = $('h5').length;
@@ -1312,8 +1312,8 @@ export function parseHtml(
     if (byName) ogNameAttr = 1;
     return byName;
   };
-  const ogTitle = decodeEntities(og('og:title')) || null;
-  const ogDescription = decodeEntities(og('og:description')) || null;
+  const ogTitle = decodeAttr(og('og:title')) || null;
+  const ogDescription = decodeAttr(og('og:description')) || null;
   const ogImage = og('og:image') || null;
   // Remaining OpenGraph metas. `og:url` we leave as the raw content for
   // downstream comparison with the canonical (the spec says it should
@@ -1321,7 +1321,7 @@ export function parseHtml(
   // verbatim is more useful than silently resolving).
   const ogType = og('og:type').toLowerCase() || null;
   const ogUrl = og('og:url') || null;
-  const ogSiteName = decodeEntities(og('og:site_name')) || null;
+  const ogSiteName = decodeAttr(og('og:site_name')) || null;
   const ogLocale = og('og:locale') || null;
 
   // Twitter Cards use `name=` (not `property=`) per Twitter's spec. Many
@@ -1329,20 +1329,20 @@ export function parseHtml(
   const twitterCard =
     ($('meta[name="twitter:card"]').attr('content') ?? '').trim().toLowerCase() || null;
   const twitterTitle =
-    decodeEntities(($('meta[name="twitter:title"]').attr('content') ?? '').trim()) || null;
+    decodeAttr(($('meta[name="twitter:title"]').attr('content') ?? '').trim()) || null;
   const twitterDescription =
-    decodeEntities(
+    decodeAttr(
       ($('meta[name="twitter:description"]').attr('content') ?? '').trim(),
     ) || null;
   const twitterImage =
     ($('meta[name="twitter:image"]').attr('content') ?? '').trim() || null;
 
   const metaKeywords =
-    decodeEntities(($('meta[name="keywords"]').attr('content') ?? '').trim()) || null;
+    decodeAttr(($('meta[name="keywords"]').attr('content') ?? '').trim()) || null;
   const metaAuthor =
-    decodeEntities(($('meta[name="author"]').attr('content') ?? '').trim()) || null;
+    decodeAttr(($('meta[name="author"]').attr('content') ?? '').trim()) || null;
   const metaGenerator =
-    decodeEntities(($('meta[name="generator"]').attr('content') ?? '').trim()) || null;
+    decodeAttr(($('meta[name="generator"]').attr('content') ?? '').trim()) || null;
   const themeColor =
     ($('meta[name="theme-color"]').attr('content') ?? '').trim() || null;
 
@@ -1795,7 +1795,7 @@ export function parseHtml(
   const $visibleBody = $('body').clone();
   $visibleBody.find('script, style, noscript').remove();
   const text = $visibleBody.text().replace(/\s+/g, ' ').trim();
-  const wordCount = text.length > 0 ? text.split(' ').filter(Boolean).length : 0;
+  const wordCount = countWords(text);
 
   // Main-content prose (chrome stripped) — the duplicate fingerprint and
   // the content-language check both judge a page on its own words, not
@@ -2026,7 +2026,7 @@ export function parseHtml(
     let altText: string | null = null;
     const imgAlt = $el.find('img[alt]').first().attr('alt');
     if (imgAlt !== undefined) {
-      altText = decodeEntities(imgAlt.trim());
+      altText = decodeAttr(imgAlt.trim());
       if (altText === '') altText = null;
     }
 
@@ -2331,7 +2331,7 @@ export function parseHtml(
   // attribute — screen readers skip it, so there is nothing to describe.
   const imgAlt = ($img: ReturnType<typeof $>): string | null => {
     const altAttr = $img.attr('alt');
-    if (altAttr !== undefined) return decodeEntities(altAttr.trim());
+    if (altAttr !== undefined) return decodeAttr(altAttr.trim());
     const role = ($img.attr('role') ?? '').trim().toLowerCase();
     const hidden = ($img.attr('aria-hidden') ?? '').trim().toLowerCase() === 'true';
     return role === 'presentation' || role === 'none' || hidden ? '' : null;
@@ -3432,7 +3432,26 @@ function detectLinkPosition(el: unknown): LinkPosition {
  */
 function decodeEntities(s: string): string {
   if (!s || s.indexOf('&') === -1) return s;
-  return decodeHTML(s);
+  return decodeHTML(s).replace(NBSP_RE, ' ');
+}
+
+/** U+00A0 became a plain space in every extracted string long before `entities`; titles, widths and compare keep that. */
+const NBSP_RE = /\u00a0/g;
+
+/**
+ * Attribute values (meta content, alt) decode with the attribute rules of the HTML
+ * spec: a legacy entity without a semicolon followed by `=` or a letter stays literal
+ * (`content="Tips&notes"` is not `Tips\u00ac es`). Same U+00A0 mapping as `decodeEntities`.
+ */
+function decodeAttr(s: string): string {
+  if (!s || s.indexOf('&') === -1) return s;
+  return decodeHTMLAttribute(s).replace(NBSP_RE, ' ');
+}
+
+/** One word splitter for served and rendered text: decode entities, fold all whitespace, split on single spaces. */
+function countWords(rawText: string): number {
+  const text = decodeEntities(rawText).replace(/\s+/g, ' ').trim();
+  return text.length > 0 ? text.split(' ').length : 0;
 }
 
 /**
