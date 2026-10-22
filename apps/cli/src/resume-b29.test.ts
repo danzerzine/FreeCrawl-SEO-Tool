@@ -281,6 +281,68 @@ describe('--resume (B29)', () => {
     expect(externalHits).toBe(first);
   }, 60000);
 
+  it('a resume checks the external links that had no answer when the crawl stopped', async () => {
+    // External checks answered slowly: some are still open at the stop.
+    other.removeAllListeners('request');
+    other.on('request', (_req, res) =>
+      setTimeout(() => res.writeHead(200, { 'content-type': 'text/html' }).end('<html></html>'), 3000),
+    );
+    const db = path.join(dir, 'ext-resume.seoproject');
+    await stopAfter(db, 10, [base]);
+    const raw = new DatabaseSync(db, { readOnly: true });
+    const open = (raw.prepare('SELECT url FROM urls WHERE is_external = 1 AND status_code IS NULL').all() as { url: string }[]).map((r) => r.url);
+    raw.close();
+    expect(open.length).toBeGreaterThan(0);
+    const hit: string[] = [];
+    other.removeAllListeners('request');
+    other.on('request', (req, res) => {
+      hit.push(new URL(req.url ?? '/', otherBase).toString());
+      res.writeHead(200, { 'content-type': 'text/html' }).end('<html></html>');
+    });
+    expect((await run([base, '--resume', '--db', db])).code).toBe(0);
+    for (const u of open) expect(hit).toContain(u);
+  }, 60000);
+
+  it('refuses a spider resume into a list project and leaves the file as it was', async () => {
+    const db = path.join(dir, 'list-first.seoproject');
+    const list = path.join(dir, 'l.txt');
+    fs.writeFileSync(list, Array.from({ length: 40 }, (_, i) => `${base}p/${i + 1}`).join('\n'));
+    await stopAfter(db, 5, ['--list', list]);
+    const bytes = fs.readFileSync(db);
+    const r = await run([base, '--resume', '--db', db]);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('holds a list crawl; continue it with --resume --list');
+    expect(fs.readFileSync(db).equals(bytes)).toBe(true);
+  }, 60000);
+
+  it('refuses a list resume into a spider project and leaves the file as it was', async () => {
+    const db = path.join(dir, 'spider-first.seoproject');
+    await stopAfter(db, 5, [base]);
+    const bytes = fs.readFileSync(db);
+    const list = path.join(dir, 'l2.txt');
+    fs.writeFileSync(list, `${base}p/1\n`);
+    const r = await run(['--list', list, '--resume', '--db', db]);
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('--resume --list cannot continue it');
+    expect(fs.readFileSync(db).equals(bytes)).toBe(true);
+  }, 60000);
+
+  it('a crawl refused because the project is in use leaves its bytes unchanged', async () => {
+    const db = path.join(dir, 'busy-bytes.seoproject');
+    expect((await run([base, '--max', '5', '--db', db])).code).toBe(0);
+    const bytes = fs.readFileSync(db);
+    // A live owner: this test process holds the lock file.
+    fs.writeFileSync(`${db}.lock`, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), id: "test" }));
+    try {
+      const r = await run([base, '--max', '5', '--db', db]);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('in use');
+      expect(fs.readFileSync(db).equals(bytes)).toBe(true);
+    } finally {
+      fs.rmSync(`${db}.lock`, { force: true });
+    }
+  }, 60000);
+
   it('--resume --json: the note is a JSON line', async () => {
     const r = await run([base, '--max', '3', '--resume', '--json', '--db', path.join(dir, 'j.seoproject')]);
     const lines = r.err.split('\n').filter((l) => l.trim() !== '');

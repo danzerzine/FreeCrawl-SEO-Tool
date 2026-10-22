@@ -149,6 +149,62 @@ describe('soft stop (B47)', () => {
     expect(fs.existsSync(out) ? fs.readdirSync(out) : []).toEqual([]);
   }, 60000);
 
+  it('a stopped refresh says that --resume finishes only new pages', async () => {
+    const db = path.join(dir, 'refresh.seoproject');
+    expect((await start(['--max', '5', '--db', db]).done).code).toBe(0);
+    // The same site again without --resume: every known page is fetched again.
+    const { child, done } = start(['--db', db]);
+    child.stderr!.on('data', (d) => {
+      if (String(d).includes('fetched again')) setTimeout(() => child.kill('SIGINT'), 500);
+    });
+    const r = await done;
+    expect(r.code).toBe(130);
+    const stopping = r.err.indexOf('Stopping');
+    expect(stopping).toBeGreaterThan(-1);
+    expect(r.err.indexOf('This was a refresh: --resume finishes only new pages')).toBeGreaterThan(stopping);
+  }, 60000);
+
+  it('Ctrl-C while a finished crawl recounts its checks does not stop it', async () => {
+    // Two pages, each with an image answered slowly: the image-size probe
+    // after the crawl holds the end-of-crawl passes open for the signal.
+    const site = http.createServer((req, res) => {
+      if (req.url === '/slow.png') {
+        return void setTimeout(() => res.writeHead(200, { 'content-type': 'image/png' }).end(), 3000);
+      }
+      if (req.url !== '/' && req.url !== '/a') return void res.writeHead(404).end();
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<html><head><title>t</title></head><body><a href="/a">a</a><img src="/slow.png"></body></html>');
+    });
+    await new Promise<void>((r) => site.listen(0, '127.0.0.1', r));
+    try {
+      const db = path.join(dir, 'finishing.seoproject');
+      const url = `http://127.0.0.1:${(site.address() as AddressInfo).port}/`;
+      const child = spawn(process.execPath, [CLI, url, '--no-robots', '--json', '--verbose', '--db', db]);
+      let out = '';
+      let err = '';
+      child.stdout.on('data', (d) => (out += d));
+      child.stderr.on('data', (d) => {
+        err += d;
+        if (String(d).includes('Probing')) child.kill('SIGINT');
+      });
+      const code = await new Promise<number | null>((r) => child.on('exit', (c) => r(c)));
+      expect(err).toContain('Probing');
+      expect(err).toContain('The crawl has finished; recounting issues.');
+      expect(err).not.toContain('Stopping');
+      expect(code).toBe(0);
+      expect(JSON.parse(out)).toMatchObject({ interrupted: false, complete: true });
+      const p = new ProjectDb(db, { readOnly: true });
+      try {
+        // The run is in the history, as for any finished crawl.
+        expect(p.listCrawlRuns(url).length).toBe(1);
+      } finally {
+        p.close();
+      }
+    } finally {
+      await new Promise((r) => site.close(r));
+    }
+  }, 60000);
+
   it('a stop file already there at start is a usage error, no project created', async () => {
     const db = path.join(dir, 'pre.seoproject');
     const stopFile = path.join(dir, 'STOP');
