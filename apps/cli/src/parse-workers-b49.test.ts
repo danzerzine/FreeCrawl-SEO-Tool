@@ -64,6 +64,18 @@ describe('--parse-workers (B49)', () => {
     expect(Number.isInteger(json.summary.peakRssMb) && json.summary.peakRssMb > 0).toBe(true);
   });
 
+  it('defaults to min(4, cores - 1) workers (PC measurement, 2.05x faster)', async () => {
+    const want = Math.min(4, os.cpus().length - 1);
+    const r = await start([base, '--verbose', '--json', '--db', db('default')]).done;
+    expect(r.code).toBe(0);
+    const messages = r.err
+      .split('\n')
+      .filter((l) => l.trim() !== '')
+      .map((l) => (JSON.parse(l) as { message?: string }).message ?? '');
+    if (want > 0) expect(messages).toContain(`parser-pool: spawned ${want} parser worker(s)`);
+    else expect(messages.some((m) => m.startsWith('parser-pool: spawned'))).toBe(false);
+  });
+
   it('prints the peak memory in the Done line', async () => {
     const r = await start([base, '--db', db('done')]).done;
     expect(r.code).toBe(0);

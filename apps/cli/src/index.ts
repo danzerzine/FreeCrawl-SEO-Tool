@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import { cpus } from 'node:os';
 import { basename, resolve } from 'node:path';
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { mergeCrawlConfig } from './crawl-config.js';
@@ -1127,10 +1128,11 @@ function parseNumeric(
 }
 
 /**
- * Worker threads for HTML parsing when `--parse-workers` is absent. 0 until
- * the pool beats inline parsing in the PC measurement (B49).
+ * Worker threads for HTML parsing when `--parse-workers` is absent: in the PC
+ * measurement (B49, 16 cores, 19 721 pages) 3 workers were 2.05x faster than
+ * inline, ranges apart. The main thread keeps one core.
  */
-const DEFAULT_PARSE_WORKERS = 0;
+const DEFAULT_PARSE_WORKERS = Math.max(0, Math.min(4, cpus().length - 1));
 
 function parsePositiveInt(flag: string, value: string): number {
   const n = Number(value.trim());
