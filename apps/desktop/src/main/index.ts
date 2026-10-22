@@ -6953,6 +6953,7 @@ function registerIpc(): void {
             },
             api: webmasterDeps,
             now: () => new Date(),
+            log: (level, message) => logger.log(level, 'webmaster', message),
           },
         );
         fireDataChanged(runSession);

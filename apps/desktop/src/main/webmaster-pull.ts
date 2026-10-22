@@ -7,7 +7,8 @@
  * continue where it stopped:
  *
  *   - valid until `max(startedAt, exceededUntil) + 24 h` (a daily quota stop sets `exceededUntil`,
- *     the time Yandex opens the quota again, so the pull resumes after the quota window opens);
+ *     the time Yandex opens the quota again, so the pull resumes after the quota window opens;
+ *     the resumed run clears `exceededUntil` but keeps that window start in `windowFrom`);
  *   - only while the API's `count` for the list is unchanged; a changed count means the list
  *     shifted under the saved offset, so the whole pull restarts at 0 with a new `startedAt`
  *     (both phases, so the stale delete below cannot remove rows the new run never re-read);
@@ -39,8 +40,6 @@ export interface WebmasterPullInput {
   hostName: string;
   /** Maps a URL as Yandex's robot saw it onto `urls.url`; null when it cannot be mapped. */
   normalize: (url: string) => string | null;
-  /** Skips the `GET /user` request when the caller has it. */
-  userId?: number;
   signal?: AbortSignal;
   onProgress?: (p: WebmasterProgress) => void;
 }
@@ -58,6 +57,8 @@ export interface WebmasterPullDeps {
   /** HTTP, base URL, pause and clock of the client; tests point `baseUrl` at a local server. */
   api?: WebmasterDeps;
   now: () => Date;
+  /** App log; gets the cause of a failure that is not a Yandex API error. */
+  log?: (level: 'warn', message: string) => void;
 }
 
 /** The list moved under the saved offset in the links phase: restart both phases. */
@@ -89,7 +90,9 @@ function readRecord(raw: string | null, nowMs: number): WebmasterRunProgress | n
     const started = Date.parse(r.startedAt);
     if (Number.isNaN(started)) return null;
     const until = r.exceededUntil ? Date.parse(r.exceededUntil) : NaN;
-    const from = Math.max(started, Number.isNaN(until) ? 0 : until);
+    // `windowFrom` outlives `exceededUntil`: a resumed run clears the latter but keeps the window.
+    const kept = r.windowFrom ? Date.parse(r.windowFrom) : NaN;
+    const from = Math.max(started, Number.isNaN(until) ? 0 : until, Number.isNaN(kept) ? 0 : kept);
     if (nowMs > from + WINDOW_MS) return null;
     return { ...fresh(r.startedAt), ...r };
   } catch {
@@ -136,7 +139,7 @@ export async function pullWebmaster(
     input.onProgress?.({ running: true, phase, done, total });
 
   try {
-    const userId = input.userId ?? (await getWebmasterUserId(input.token, api, input.signal));
+    const userId = await getWebmasterUserId(input.token, api, input.signal);
 
     for (;;) {
       try {
@@ -228,6 +231,7 @@ export async function pullWebmaster(
       hostName: input.hostName,
       fetchedAt: nowIso(),
       eventRows: counts.events,
+      excludedRows: counts.excluded,
       brokenLinkRows: counts.links,
       skippedRows: record.skippedRows ?? 0,
       truncatedAtCap: record.truncatedAtCap === true,
@@ -239,10 +243,17 @@ export async function pullWebmaster(
     if (err instanceof WebmasterError) {
       if (err.code === 'quota-exceeded') {
         record.exceededUntil = err.exceededUntil;
+        const opens = err.exceededUntil ? Date.parse(err.exceededUntil) : NaN;
+        if (!Number.isNaN(opens)) {
+          record.windowFrom = new Date(Math.max(Date.parse(record.startedAt), opens)).toISOString();
+        }
         save();
       }
       return failure(err.message, err.code, err.exceededUntil, err.code === 'cancelled');
     }
+    // Not an API error (database busy or full, a bug in a mapper): the user text stays generic,
+    // the cause goes to the log. The token cannot be in such an error; network errors are wrapped.
+    deps.log?.('warn', `Webmaster pull failed: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`);
     return failure('Yandex Webmaster pull failed unexpectedly.', 'api');
   }
 }

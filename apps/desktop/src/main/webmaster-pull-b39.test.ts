@@ -176,6 +176,19 @@ describe('B39 pull', () => {
     expect(db.queryWebmasterExcluded({ hostId: HOST, limit: 500, offset: 0 }).total).toBe(228);
   });
 
+  it('the excluded count of the meta is the table total, with appeared-in-search events present (P2)', async () => {
+    for (const i of [0, 1, 2, 3, 4, 5, 6]) {
+      events[i] = event(`https://ex.test/p${i}`, { event: 'APPEARED_IN_SEARCH' });
+    }
+    await pull();
+    const meta = JSON.parse(db.getMeta(`webmasterFetchMeta:${HOST}`)!);
+    const table = db.queryWebmasterExcluded({ hostId: HOST, limit: 10, offset: 0 });
+    expect(table.total).toBe(223);
+    expect(meta.excludedRows).toBe(table.total);
+    expect(table.meta?.excludedRows).toBe(table.total);
+    expect(meta.eventRows).toBe(230);
+  });
+
   it('URLs are normalised with the project rewrites: the newer event of two spellings of one page wins; unreadable URLs are counted, not stored', async () => {
     events = [
       event('HTTP://WWW.Ex.com/A/', { event_date: '2026-10-01T03:00:00,000+0300' }),
@@ -322,6 +335,26 @@ describe('B39 pull errors', () => {
     expect(runRecord()).toBeNull();
   });
 
+  it('a resumed run keeps the quota window: cancelled after startedAt + 24 h, the next run still continues from the offset (P3)', async () => {
+    fault = (l) =>
+      l.kind === 'events' && l.offset === 100
+        ? { status: 429, body: { error_code: 'QUOTA_EXCEEDED', exceeded_until: new Date(T0 + hours(30)).toISOString() } }
+        : null;
+    await pull();
+    fault = () => null;
+
+    clock = T0 + hours(31);
+    const ac = new AbortController();
+    const cancelled = await pull({ signal: ac.signal, onProgress: (p) => p.done >= 200 && ac.abort() });
+    expect(cancelled).toMatchObject({ ok: false, cancelled: true });
+    expect(runRecord()).toMatchObject({ eventsOffset: 200 });
+
+    log = [];
+    clock = T0 + hours(33); // past startedAt + 24 h, inside the quota window + 24 h
+    expect((await pull()).ok).toBe(true);
+    expect(listLog('events')[0]).toBe(200);
+  });
+
   it('a resume is not valid after exceeded_until + 24 h', async () => {
     fault = (l) =>
       l.kind === 'events' && l.offset === 100
@@ -358,6 +391,22 @@ describe('B39 pull errors', () => {
     expect(log.filter((l) => l.kind === 'events')).toHaveLength(1);
     fault = (l) => (l.kind === 'events' ? { status: 403, body: { error_code: 'INVALID_USER_ID' } } : null);
     expect(await pull()).toMatchObject({ ok: false, errorCode: 'invalid-user' });
+  });
+
+  it('a failure that is not an API error is generic for the user and logged with its cause (S6)', async () => {
+    const logged: string[] = [];
+    const broken = Object.create(db) as ProjectDb;
+    broken.upsertWebmasterEvents = () => {
+      throw new Error('database or disk is full');
+    };
+    const res = await pullWebmaster(input(), {
+      db: broken,
+      api: api(),
+      now: () => new Date(clock),
+      log: (_l, m) => logged.push(m),
+    });
+    expect(res).toMatchObject({ ok: false, errorCode: 'api', error: 'Yandex Webmaster pull failed unexpectedly.' });
+    expect(logged.join('\n')).toContain('database or disk is full');
   });
 
   it('the error text never contains the token', async () => {

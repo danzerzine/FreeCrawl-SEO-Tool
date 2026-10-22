@@ -59,6 +59,8 @@ export interface WebmasterRunProgress {
   linksCount: number | null;
   /** UTC ISO time at which Yandex's daily quota opens again, set by a QUOTA_EXCEEDED stop. */
   exceededUntil?: string | null;
+  /** Start of the 24 h resume window set by a quota stop; kept when a resumed run clears `exceededUntil`. */
+  windowFrom?: string | null;
   /** Rows whose URL normalised to nothing so far in this run. */
   skippedRows?: number;
   /** A list was cut at the 50 000 row cap. */
@@ -69,7 +71,10 @@ export interface WebmasterRunProgress {
 export interface WebmasterFetchMeta {
   hostName: string;
   fetchedAt: string;
+  /** Every stored event row (appearances and removals): the pages with a Yandex search event. */
   eventRows: number;
+  /** Pages whose latest event is a removal: the total of the Excluded view. Absent in older stores. */
+  excludedRows?: number;
   brokenLinkRows: number;
   /** Rows whose URL normalised to nothing: counted, not stored. */
   skippedRows?: number;

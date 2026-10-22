@@ -7442,10 +7442,14 @@ export class ProjectDb {
   }
 
   /** B39: how many rows of each Webmaster table the host holds. */
-  countWebmasterRows(hostId: string): { events: number; links: number } {
-    const one = (t: string): number =>
-      (this.db.prepare(`SELECT COUNT(*) AS c FROM ${t} WHERE host_id = ?`).get(hostId) as { c: number }).c;
-    return { events: one('webmaster_events'), links: one('webmaster_broken_links') };
+  countWebmasterRows(hostId: string): { events: number; excluded: number; links: number } {
+    const one = (t: string, extra = ''): number =>
+      (this.db.prepare(`SELECT COUNT(*) AS c FROM ${t} WHERE host_id = ?${extra}`).get(hostId) as { c: number }).c;
+    return {
+      events: one('webmaster_events'),
+      excluded: one('webmaster_events', " AND event = 'REMOVED_FROM_SEARCH'"),
+      links: one('webmaster_broken_links'),
+    };
   }
 
   /** B39: host ids that have Webmaster rows or a finished pull stored (empty on an old project). */
