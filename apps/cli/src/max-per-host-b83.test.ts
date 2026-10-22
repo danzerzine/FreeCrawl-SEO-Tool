@@ -42,6 +42,9 @@ beforeEach(async () => {
         .writeHead(200, { 'content-type': 'text/csv' })
         .end(['url,note', ...rows].join('\r\n'));
     }
+    if (url.startsWith('/doc/')) {
+      return void setTimeout(() => res.writeHead(200, { 'content-type': 'application/pdf' }).end('%PDF'), delayMs);
+    }
     if (url === '/logo.png') return void res.writeHead(200, { 'content-type': 'image/png' }).end('png');
     const links =
       url === '/hub'
@@ -135,6 +138,17 @@ describe('--max-per-host (B83)', () => {
     expect(fetchedCount(db)).toBe(5);
   });
 
+  it('counts as skipped only URLs the limit kept out, not excluded ones', async () => {
+    const db = path.join(dir, 'exclude.seoproject');
+    const r = await start([
+      `http://127.0.0.1:${port}/hub`, '--max-per-host', '2', '--exclude', '/p/[4-6]$', '--db', db, '--json',
+    ]).done;
+    expect(r.code).toBe(0);
+    const json = JSON.parse(r.out) as { site: { hostLimitSkipped: { host: string; skipped: number }[] } };
+    // /hub and /p/1 crawled; /p/2 and /p/3 over the limit; /p/4-6 excluded anyway.
+    expect(json.site.hostLimitSkipped).toEqual([{ host: '127.0.0.1', skipped: 2 }]);
+  });
+
   it('keeps counting from the saved pages on --resume', async () => {
     const list = path.join(dir, 'urls.txt');
     fs.writeFileSync(list, [...listOf('127.0.0.1', 6), ...listOf('localhost', 6)].join('\n'));
@@ -152,6 +166,27 @@ describe('--max-per-host (B83)', () => {
     const r = await start(['--list', list, '--max-per-host', '3', '--db', db, '--resume']).done;
     expect(r.code).toBe(0);
     expect(pagesByHost(db)).toEqual({ '127.0.0.1': 3, localhost: 3 });
+  });
+
+  it('counts saved PDFs toward the limit on --resume', async () => {
+    const docs = [1, 2].map((i) => `http://127.0.0.1:${port}/doc/${i}.pdf`);
+    const list = path.join(dir, 'urls.txt');
+    fs.writeFileSync(list, [...docs, ...listOf('127.0.0.1', 4)].join('\n'));
+    const db = path.join(dir, 'docs.seoproject');
+    delayMs = 300;
+    const first = start(['--list', list, '--max-per-host', '3', '--db', db]);
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+      if (fs.existsSync(db) && fetchedCount(db) >= 2) break;
+    }
+    first.child.kill('SIGINT');
+    await first.done;
+    delayMs = 0;
+    const r = await start(['--list', list, '--max-per-host', '3', '--db', db, '--resume']).done;
+    expect(r.code).toBe(0);
+    // Two PDFs and one page, as without the stop.
+    expect(fetchedCount(db)).toBe(3);
   });
 
   // Stops a spider crawl of /hub once two pages are saved, then resumes it.
@@ -224,5 +259,13 @@ describe('--list sources (B83)', () => {
     const r = await start(['--list', `http://127.0.0.1:${port}/missing`, '--db', path.join(dir, 'm.seoproject')]).done;
     expect(r.code).toBe(2);
     expect(r.err).toContain('HTTP 404');
+  });
+
+  it('exits 2 when the link answers a page with no URL in it', async () => {
+    const db = path.join(dir, 'page.seoproject');
+    const r = await start(['--list', `http://127.0.0.1:${port}/hub`, '--db', db]).done;
+    expect(r.code).toBe(2);
+    expect(r.err).toContain('contains no URLs');
+    expect(fs.existsSync(db)).toBe(false);
   });
 });

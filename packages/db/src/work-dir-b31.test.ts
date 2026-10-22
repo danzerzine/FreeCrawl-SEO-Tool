@@ -2,10 +2,10 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, wri
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { isDiskFull } from './work-dir.js';
 import {
   asNoSpaceError,
   checkFreeSpace,
-  isDiskFull,
   openProject,
   packProject,
   ProjectDb,
