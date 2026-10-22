@@ -60,7 +60,7 @@ jobs:
           # The crawl writes a project (--db) and records itself in its history;
           # the gate below judges it. `|| true`: the CLI itself exits 1 on ANY
           # 4xx/5xx, and the rules decide what fails the build.
-          node apps/cli/dist/index.js "$TARGET_URL" \
+          node apps/cli/dist/bin.js "$TARGET_URL" \
             --max "$MAX_URLS" \
             --db "$GITHUB_WORKSPACE/site.seoproject" \
             --out "$GITHUB_WORKSPACE/crawl.json" || true
@@ -70,7 +70,7 @@ jobs:
         run: |
           # freecrawl-rules.json lives in your repo (format: docs/ci/README.md).
           # Exit 1 when a fail rule fired; the log lists every rule's status.
-          node apps/cli/dist/index.js check \
+          node apps/cli/dist/bin.js check \
             --project "$GITHUB_WORKSPACE/site.seoproject" \
             --rules "$GITHUB_WORKSPACE/freecrawl-rules.json"
           # Optional: --notify slack with FREECRAWL_SLACK_WEBHOOK_URL from secrets.
@@ -78,7 +78,7 @@ jobs:
       - name: Validate sitemap (non-blocking)
         working-directory: freecrawl
         continue-on-error: true
-        run: node apps/cli/dist/index.js validate-sitemap "$TARGET_URL/sitemap.xml"
+        run: node apps/cli/dist/bin.js validate-sitemap "$TARGET_URL/sitemap.xml"
 
       - uses: actions/upload-artifact@v4
         if: always()

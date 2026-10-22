@@ -207,19 +207,19 @@ npm run dev
 
 ```bash
 npx tsc -b apps/cli     # builds the CLI + its workspace packages
-node apps/cli/dist/index.js https://example.com --depth 2 --max 500 --out out.csv
-node apps/cli/dist/index.js --list urls.txt --out out.json     # list mode + JSON
-node apps/cli/dist/index.js https://example.com --adaptive-speed --image-variants   # back off on 429 / Retry-After, crawl srcset variants
-node apps/cli/dist/index.js compare before.seoproject after.seoproject              # diff two crawls
+node apps/cli/dist/bin.js https://example.com --depth 2 --max 500 --out out.csv
+node apps/cli/dist/bin.js --list urls.txt --out out.json     # list mode + JSON
+node apps/cli/dist/bin.js https://example.com --adaptive-speed --image-variants   # back off on 429 / Retry-After, crawl srcset variants
+node apps/cli/dist/bin.js compare before.seoproject after.seoproject              # diff two crawls
 
 # Yandex Metrica: pull per-page pageviews / visits / users into a project (YANDEX_METRICA_TOKEN in the env)
-node apps/cli/dist/index.js metrica-counters
-node apps/cli/dist/index.js metrica-fetch --counter 12345678 --days 28 --project crawl.seoproject
+node apps/cli/dist/bin.js metrica-counters
+node apps/cli/dist/bin.js metrica-fetch --counter 12345678 --days 28 --project crawl.seoproject
 
 # Log file analysis: parse an access log into the project for crawl x log reporting
-node apps/cli/dist/index.js analyze-logs samples/apache-access.txt --project crawl.seoproject
-node apps/cli/dist/index.js analyze-logs access.log --format iis-w3c --verify-bots --json
-node apps/cli/dist/index.js analyze-logs access_log-Jul.gz              # gzipped logs work as-is
+node apps/cli/dist/bin.js analyze-logs samples/apache-access.txt --project crawl.seoproject
+node apps/cli/dist/bin.js analyze-logs access.log --format iis-w3c --verify-bots --json
+node apps/cli/dist/bin.js analyze-logs access_log-Jul.gz              # gzipped logs work as-is
 ```
 
 > **Sample logs** ship in [`samples/`](samples/) (`apache-access.txt`, `iis-access.txt`) so you can try the Log File Analyzer immediately. In the desktop app, open **Log Analyzer → Open Log Analyzer Window…** and import one.

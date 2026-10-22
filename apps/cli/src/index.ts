@@ -146,6 +146,8 @@ Options:
                         Per-flag overrides on the command line still win — useful for CI
                         ("scheduled config + per-run --max").
   --db <file>         SQLite project file (default: ./crawl.seoproject)
+  --pid-file <file>   Write the crawler's process id to <file> while it runs (removed at exit). On
+                        Windows with Volta the process you see is a launcher; this is the real one.
   --out <file>        Export results after crawl. Format auto-detected by extension:
                         *.json → full JSON dump (every captured field)
                         any other → CSV (subset of common columns, with the grid's column names)
@@ -288,6 +290,7 @@ function parseCliArgs() {
       'export-dir': { type: 'string' },
       'compare-with': { type: 'string' },
       export: { type: 'string' },
+      'pid-file': { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -537,6 +540,8 @@ async function main(): Promise<void> {
     else console.error(badPattern);
     process.exit(2);
   }
+
+  if (values['pid-file'] !== undefined) writePidFile(resolve(values['pid-file']));
 
   // Opened only after every flag validated, so a bad argument leaves no
   // empty project file behind.
@@ -874,6 +879,15 @@ const pendingCleanups = new Set<() => void>();
 process.on('exit', () => {
   for (const cleanup of pendingCleanups) cleanup();
 });
+
+/** `--pid-file`: this process's id, removed at exit while it is still ours. */
+function writePidFile(path: string): void {
+  const pid = String(process.pid);
+  writeFileSync(path, pid + '\n');
+  pendingCleanups.add(() => {
+    if (readIfExists(path)?.trim() === pid) rmSync(path, { force: true });
+  });
+}
 
 /** Ctrl-C for a command with no cancel of its own: exit through
  *  `process.exit`, so the exit hook still removes working copies.

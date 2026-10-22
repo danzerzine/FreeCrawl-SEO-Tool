@@ -3,13 +3,16 @@
   "version": "1.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.13.0 <23 || >=23.4.0"
+  },
   "bin": {
-    "freecrawl": "./dist/index.js"
+    "freecrawl": "./dist/bin.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "start": "node ./dist/index.js",
+    "start": "node ./dist/bin.js",
     "dev": "tsc -p tsconfig.json --watch",
     "clean": "rimraf dist"
   },

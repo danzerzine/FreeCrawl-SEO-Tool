@@ -23,7 +23,7 @@ imports:
 ```bash
 npm ci --ignore-scripts        # skip the Playwright download — undici crawl needs no Chromium
 npx tsc -b apps/cli            # builds shared-types → db → core → cli via project references
-node apps/cli/dist/index.js <url> [options]
+node apps/cli/dist/bin.js <url> [options]
 ```
 
 > `npm run build:cli` compiles **only** `apps/cli` and does **not** build the
@@ -51,7 +51,7 @@ Every command returns a CI-friendly exit code, so most gates need no scripting:
 any 4xx/5xx fails the build:
 
 ```yaml
-- run: node apps/cli/dist/index.js "$TARGET_URL" --max 5000
+- run: node apps/cli/dist/bin.js "$TARGET_URL" --max 5000
 ```
 
 **Rules (what the templates do).** `crawl` writes the project and records the
@@ -60,8 +60,8 @@ crawl in its history; `check` then judges the newest crawl against a rule file.
 crawl step) unless you want zero tolerance:
 
 ```bash
-node apps/cli/dist/index.js "$TARGET_URL" --max 5000 --db site.seoproject || true
-node apps/cli/dist/index.js check --project site.seoproject --rules freecrawl-rules.json
+node apps/cli/dist/bin.js "$TARGET_URL" --max 5000 --db site.seoproject || true
+node apps/cli/dist/bin.js check --project site.seoproject --rules freecrawl-rules.json
 # exit 0 pass (a warn rule may have fired), 1 a fail rule fired, 2 bad rules or project
 ```
 
@@ -102,8 +102,8 @@ baseline `.seoproject` (from a previous green run, restored from cache or an
 artifact store), crawl the new deploy into a fresh project, then diff:
 
 ```bash
-node apps/cli/dist/index.js "$TARGET_URL" --max 5000 --db new.seoproject
-node apps/cli/dist/index.js compare baseline.seoproject new.seoproject
+node apps/cli/dist/bin.js "$TARGET_URL" --max 5000 --db new.seoproject
+node apps/cli/dist/bin.js compare baseline.seoproject new.seoproject
 # exit 1 → a page changed status / title / meta / h1 / canonical / indexability
 ```
 
@@ -119,8 +119,8 @@ Internal Links reports from a saved project, so a scheduled job can publish the
 whole audit as artifacts:
 
 ```bash
-node apps/cli/dist/index.js "$TARGET_URL" --max 5000 --db site.seoproject
-node apps/cli/dist/index.js export --project site.seoproject --out audit/ \
+node apps/cli/dist/bin.js "$TARGET_URL" --max 5000 --db site.seoproject
+node apps/cli/dist/bin.js export --project site.seoproject --out audit/ \
   --what bulk,seo-audit,html,issues,error-inlinks,dataset:issues-long --json > export.json
 # exit 1 → some files failed (the others are written); 2 → bad arguments
 ```
@@ -136,7 +136,7 @@ commit the JSON, then feed it to every run so CI crawls exactly like your
 desktop audits:
 
 ```bash
-node apps/cli/dist/index.js "$TARGET_URL" --config freecrawl.config.json --max 5000
+node apps/cli/dist/bin.js "$TARGET_URL" --config freecrawl.config.json --max 5000
 ```
 
 Per-flag overrides still win over the file, so `--max` can differ per run while
