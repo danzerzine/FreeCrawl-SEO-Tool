@@ -66,7 +66,7 @@ class Server {
   /** A tool call's JSON result; throws on a tool error. */
   async call(name: string, args: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
     const id = ++this.id;
-    const result = (await new Promise((r) => {
+    const result = (await new Promise<unknown>((r) => {
       this.waiting.set(id, r);
       this.p.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } }) + '\n');
     })) as { isError?: boolean; content: { text: string }[] };
