@@ -615,7 +615,10 @@ function ExcludedRow({
       <div className="w-[80px] shrink-0 text-center tabular-nums text-surface-300">
         {row.badHttpStatus ?? '—'}
       </div>
-      <div className="w-[200px] shrink-0 truncate px-2 text-surface-300" title={row.targetUrl ?? undefined}>
+      <div
+        className="w-[200px] shrink-0 truncate px-2 text-surface-300"
+        title={row.targetUrl ?? undefined}
+      >
         {row.targetUrl ?? '—'}
       </div>
       <div className="w-[96px] shrink-0 text-right tabular-nums text-surface-300">
