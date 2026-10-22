@@ -1,7 +1,8 @@
 /**
  * GA4 pull, shared by the desktop's `ga4:fetch` IPC handler and the bridge's `ga4-fetch` action
- * so the two cannot drift. Electron-free: everything outside (database, Google, clock, settings)
- * comes in through the arguments, which is also what the tests use.
+ * so the two cannot drift. Everything outside (database, Google, clock, settings) comes in through
+ * the arguments, which is also what the tests use. It still loads `electron` indirectly (`./ga4.js` →
+ * `google-oauth.js`, for the default Google deps), so a test mocks `electron`; a Node-only caller cannot load it.
  *
  * The five fixed metrics are one report as before. The custom fields the user chose follow:
  * all chosen metrics in one request, then one request per dimension, each with `sessions`.
@@ -18,8 +19,19 @@ import {
   type Ga4IntegrationSettings,
 } from '@freecrawl/shared-types';
 import type { ProjectDb } from '@freecrawl/db';
-import { Ga4BadRequestError, getMetadata, runCustomReport, runReport, type Ga4Quota } from './ga4.js';
-import { GoogleAuthError, GooglePermissionError, GoogleQuotaError, type GoogleDeps } from './google-retry.js';
+import {
+  Ga4BadRequestError,
+  getMetadata,
+  runCustomReport,
+  runReport,
+  type Ga4Quota,
+} from './ga4.js';
+import {
+  GoogleAuthError,
+  GooglePermissionError,
+  GoogleQuotaError,
+  type GoogleDeps,
+} from './google-retry.js';
 import * as logger from './logger.js';
 
 /** Stop asking when any of Google's token buckets is below this. */
@@ -56,14 +68,20 @@ interface RunRecord {
 }
 
 const lowQuota = (q: Ga4Quota): boolean =>
-  [q.tokensPerDay, q.tokensPerHour, q.tokensPerProjectPerHour].some((v) => typeof v === 'number' && v < LOW_QUOTA);
+  [q.tokensPerDay, q.tokensPerHour, q.tokensPerProjectPerHour].some(
+    (v) => typeof v === 'number' && v < LOW_QUOTA,
+  );
 
 function readRecord(db: ProjectDb, key: string, input: Ga4PullInput): RunRecord | null {
   const raw = db.getMeta(key);
   if (!raw) return null;
   try {
     const r = JSON.parse(raw) as RunRecord;
-    if (r.property === input.property && r.startDate === input.startDate && r.endDate === input.endDate) {
+    if (
+      r.property === input.property &&
+      r.startDate === input.startDate &&
+      r.endDate === input.endDate
+    ) {
       return { ...r, done: Array.isArray(r.done) ? r.done : [], wiped: r.wiped === true };
     }
   } catch {
@@ -72,7 +90,10 @@ function readRecord(db: ProjectDb, key: string, input: Ga4PullInput): RunRecord 
   return null;
 }
 
-export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{ rowCount: number; meta: Ga4FetchMeta }> {
+export async function pullGa4(
+  input: Ga4PullInput,
+  deps: Ga4PullDeps,
+): Promise<{ rowCount: number; meta: Ga4FetchMeta }> {
   const { db, google } = deps;
   const account = input.accountId;
   const metrics = input.customMetrics.slice(0, GA4_MAX_CUSTOM_METRICS);
@@ -100,7 +121,10 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
   let stopKind: 'quota' | 'error' | null = null;
   let fatal: Error | null = null;
 
-  const store = (fieldsOfRequest: string[], list: { url: string; field: string; value: string; sessions: number | null }[]): void => {
+  const store = (
+    fieldsOfRequest: string[],
+    list: { url: string; field: string; value: string; sessions: number | null }[],
+  ): void => {
     db.storeGa4CustomValues({
       accountId: account,
       property: input.property,
@@ -128,14 +152,26 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
     if (!guard()) return false;
     const res = await runCustomReport(
       input.property,
-      { startDate: input.startDate, endDate: input.endDate, dimensions: ['pageLocation'], metrics: list },
+      {
+        startDate: input.startDate,
+        endDate: input.endDate,
+        dimensions: ['pageLocation'],
+        metrics: list,
+      },
       account,
       google,
     );
     quota = res.quota;
     store(
       list,
-      res.rows.flatMap((r) => list.map((field, i) => ({ url: r.dims[0]!, field, value: r.metrics[i] ?? '', sessions: null }))),
+      res.rows.flatMap((r) =>
+        list.map((field, i) => ({
+          url: r.dims[0]!,
+          field,
+          value: r.metrics[i] ?? '',
+          sessions: null,
+        })),
+      ),
     );
     return true;
   };
@@ -161,9 +197,18 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
         // A field may have been removed from the property: ask again, drop what is gone.
         let known: Set<string> | null = null;
         try {
-          known = new Set((await getMetadata(input.property, account, google, { refresh: true })).map((f) => f.apiName));
+          known = new Set(
+            (await getMetadata(input.property, account, google, { refresh: true })).map(
+              (f) => f.apiName,
+            ),
+          );
         } catch (e2) {
-          if (e2 instanceof GoogleAuthError || e2 instanceof GooglePermissionError || e2 instanceof GoogleQuotaError) throw e2;
+          if (
+            e2 instanceof GoogleAuthError ||
+            e2 instanceof GooglePermissionError ||
+            e2 instanceof GoogleQuotaError
+          )
+            throw e2;
         }
         const gone = known ? todoMetrics.filter((m) => !known.has(m)) : [];
         for (const m of gone) failed.set(m, `${m} not found in the property`);
@@ -187,7 +232,12 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
       try {
         const res = await runCustomReport(
           input.property,
-          { startDate: input.startDate, endDate: input.endDate, dimensions: ['pageLocation', d], metrics: ['sessions'] },
+          {
+            startDate: input.startDate,
+            endDate: input.endDate,
+            dimensions: ['pageLocation', d],
+            metrics: ['sessions'],
+          },
           account,
           google,
         );
@@ -196,7 +246,12 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
           [d],
           res.rows
             .filter((r) => r.dims[1])
-            .map((r) => ({ url: r.dims[0]!, field: d, value: r.dims[1]!, sessions: Number(r.metrics[0]) || 0 })),
+            .map((r) => ({
+              url: r.dims[0]!,
+              field: d,
+              value: r.dims[1]!,
+              sessions: Number(r.metrics[0]) || 0,
+            })),
         );
       } catch (err) {
         if (!(err instanceof Ga4BadRequestError)) throw err;
@@ -261,13 +316,17 @@ export async function pullGa4(input: Ga4PullInput, deps: Ga4PullDeps): Promise<{
     customFields,
     customMessage,
     customNotPulled: notPulled,
-    customStop: notPulled.length === 0 ? null : stopKind ?? 'error',
+    customStop: notPulled.length === 0 ? null : (stopKind ?? 'error'),
     customStopDetail: notPulled.length === 0 ? null : errorText,
     unmatchedUrls: db.ga4UnmatchedUrlCount(account),
   };
   db.setMeta(googleMetaKey('ga4FetchMeta', account), JSON.stringify(meta));
   if (fatal) throw fatal;
-  logger.log('info', 'ga4', `GA4 pull stored: ${rows.length} page row(s), ${customFields.filter((f) => f.ok).length}/${chosen.length} custom field(s)`);
+  logger.log(
+    'info',
+    'ga4',
+    `GA4 pull stored: ${rows.length} page row(s), ${customFields.filter((f) => f.ok).length}/${chosen.length} custom field(s)`,
+  );
   return { rowCount: rows.length, meta };
 }
 
@@ -282,7 +341,12 @@ export interface Ga4EntryEnv {
   onChanged: () => void;
 }
 
-async function runEntry(input: Ga4FetchInput, days: number, env: Ga4EntryEnv, save: boolean): Promise<Ga4FetchResult> {
+async function runEntry(
+  input: Ga4FetchInput,
+  days: number,
+  env: Ga4EntryEnv,
+  save: boolean,
+): Promise<Ga4FetchResult> {
   // GA4 data is near-realtime: the range ends at today.
   const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
   const end = env.now();
@@ -313,20 +377,36 @@ async function runEntry(input: Ga4FetchInput, days: number, env: Ga4EntryEnv, sa
     env.onChanged();
     return { ok: true, error: null, rowCount: r.rowCount, meta: r.meta };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err), rowCount: 0, meta: null };
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      rowCount: 0,
+      meta: null,
+    };
   }
 }
 
 /** The desktop's `ga4:fetch` handler. */
-export function ga4FetchFromDesktop(input: Ga4FetchInput, env: Ga4EntryEnv): Promise<Ga4FetchResult> {
+export function ga4FetchFromDesktop(
+  input: Ga4FetchInput,
+  env: Ga4EntryEnv,
+): Promise<Ga4FetchResult> {
   if (!input.property) {
-    return Promise.resolve({ ok: false, error: 'No GA4 property selected.', rowCount: 0, meta: null });
+    return Promise.resolve({
+      ok: false,
+      error: 'No GA4 property selected.',
+      rowCount: 0,
+      meta: null,
+    });
   }
   return runEntry(input, input.days, env, true);
 }
 
 /** The bridge's `ga4-fetch` action: days default to 28, nothing is saved to the settings. */
-export function ga4FetchFromBridge(input: Ga4FetchInput, env: Ga4EntryEnv): Promise<Ga4FetchResult> {
+export function ga4FetchFromBridge(
+  input: Ga4FetchInput,
+  env: Ga4EntryEnv,
+): Promise<Ga4FetchResult> {
   if (!input.property) {
     return Promise.resolve({
       ok: false,

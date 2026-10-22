@@ -6,7 +6,11 @@
  * 24 hours (same account, `ok`, B38 data stored) is skipped unless `force`; a quota,
  * sign-in or access error stops the run instead of writing an error row per remaining URL.
  */
-import type { GscInspectionResult, GscInspectProgress, GscInspectRunResult } from '@freecrawl/shared-types';
+import type {
+  GscInspectionResult,
+  GscInspectProgress,
+  GscInspectRunResult,
+} from '@freecrawl/shared-types';
 import { GoogleAuthError, GooglePermissionError, GoogleQuotaError } from './google-retry.js';
 import type { GscInspectionRaw } from './gsc.js';
 
@@ -41,14 +45,19 @@ export function planInspection(
   const states = db.gscInspectionStates(urls, accountId);
   const toInspect: string[] = [];
   const skipped: string[] = [];
-  for (const url of urls) (isInspectionFresh(states.get(url), nowMs) ? skipped : toInspect).push(url);
+  for (const url of urls)
+    (isInspectionFresh(states.get(url), nowMs) ? skipped : toInspect).push(url);
   return { toInspect, skipped };
 }
 
 /** The distinct non-empty URL strings of an IPC input. */
 export function uniqueInspectUrls(urls: unknown): string[] {
   return Array.from(
-    new Set((Array.isArray(urls) ? urls : []).filter((u): u is string => typeof u === 'string' && u.length > 0)),
+    new Set(
+      (Array.isArray(urls) ? urls : []).filter(
+        (u): u is string => typeof u === 'string' && u.length > 0,
+      ),
+    ),
   );
 }
 
@@ -87,7 +96,11 @@ export async function runGscInspection(
     const fetchedAt = new Date(deps.now()).toISOString();
     try {
       const raw = await deps.inspect(input.property, url, input.accountId);
-      deps.db.upsertGscInspection(url, { ...raw, status: 'ok', error: null, fetchedAt }, input.accountId);
+      deps.db.upsertGscInspection(
+        url,
+        { ...raw, status: 'ok', error: null, fetchedAt },
+        input.accountId,
+      );
       completed++;
     } catch (err) {
       if (err instanceof GoogleQuotaError) {

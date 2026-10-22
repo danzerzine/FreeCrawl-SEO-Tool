@@ -317,7 +317,8 @@ async function fetchPaged<T>(
   let fetched = 0;
   let count = expected ?? 0;
   for (;;) {
-    if (offset >= WEBMASTER_ROW_CAP) return { count, fetched, truncatedAtCap: count > WEBMASTER_ROW_CAP };
+    if (offset >= WEBMASTER_ROW_CAP)
+      return { count, fetched, truncatedAtCap: count > WEBMASTER_ROW_CAP };
     throwIfCancelled(opts.signal);
     const limit = Math.min(PAGE_LIMIT, WEBMASTER_ROW_CAP - offset);
     const json = (await getJson(

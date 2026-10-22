@@ -253,7 +253,10 @@ export async function pullWebmaster(
     }
     // Not an API error (database busy or full, a bug in a mapper): the user text stays generic,
     // the cause goes to the log. The token cannot be in such an error; network errors are wrapped.
-    deps.log?.('warn', `Webmaster pull failed: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`);
+    deps.log?.(
+      'warn',
+      `Webmaster pull failed: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`,
+    );
     return failure('Yandex Webmaster pull failed unexpectedly.', 'api');
   }
 }

@@ -16,7 +16,9 @@ export const webmasterDeps: WebmasterDeps = {
 };
 
 /** The account behind the token and every host it can see. */
-export async function listHosts(token: string): Promise<{ userId: number; hosts: WebmasterHost[] }> {
+export async function listHosts(
+  token: string,
+): Promise<{ userId: number; hosts: WebmasterHost[] }> {
   const userId = await getWebmasterUserId(token, webmasterDeps);
   return { userId, hosts: await listWebmasterHosts(token, userId, webmasterDeps) };
 }
