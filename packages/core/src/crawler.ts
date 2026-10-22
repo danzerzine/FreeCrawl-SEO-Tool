@@ -1626,6 +1626,12 @@ export class Crawler extends EventEmitter {
       // on `sitemap_urls` (Non-Indexable in Sitemap, Non-200 in Sitemap)
       // see the full set, and so the robots checker is settled.
       await Promise.all([robotsPromise, sitemapPromise]);
+      // Sitemap seeds queued after the loop above found the queue empty.
+      while (!this.stopped && this.queue.size + this.queue.pending > 0) {
+        await this.queue.onIdle();
+        await new Promise<void>((r) => setTimeout(r, 50));
+      }
+      await this.externalQueue.onIdle();
       // Drain any internal-link "stubs": URLs discovered on a crawled
       // page but never themselves crawled — typically because they
       // were first found via a depth-N+1 path (rejected by maxDepth)
@@ -3300,17 +3306,24 @@ export class Crawler extends EventEmitter {
         let seedEntries: SitemapEntry[] = [];
         let seedFiles: SitemapFileRow[] = [];
         if (this.config.seedSitemapUrls.length > 0) {
-          const res = await fetchSitemaps(this.config.seedSitemapUrls, fetchOpts);
+          // Each file's seeds are queued as soon as it is read, so a crawl
+          // seeded only by a big index starts fetching pages at once.
+          let seeded = 0;
+          const res = await fetchSitemaps(this.config.seedSitemapUrls, {
+            ...fetchOpts,
+            onEntries: (entries) => {
+              if (this.stopped) return;
+              for (const e of entries) {
+                const norm = normalizeUrl(e.url, undefined, this.urlRewrites);
+                if (!norm) continue;
+                this.enqueue({ url: norm, depth: 0 });
+                seeded++;
+              }
+            },
+          });
           if (this.stopped) return;
           seedEntries = res.entries;
           seedFiles = res.files;
-          let seeded = 0;
-          for (const e of res.entries) {
-            const norm = normalizeUrl(e.url, undefined, this.urlRewrites);
-            if (!norm) continue;
-            this.enqueue({ url: norm, depth: 0 });
-            seeded++;
-          }
           this.emit(
             'info',
             `Sitemap seed: ${seeded} URL(s) from ${res.sitemapsParsed.length}/${res.sitemapsTried.length} sitemap(s) queued as crawl seeds`,

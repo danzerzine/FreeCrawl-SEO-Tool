@@ -209,6 +209,8 @@ interface FetchOpts {
   rewrites?: UrlRewriteOptions;
   /** Awaited before each request; the crawler passes its rate gate. */
   beforeRequest?: () => Promise<void>;
+  /** Called with each file's entries as soon as the file is parsed. */
+  onEntries?: (entries: SitemapEntry[], sitemapUrl: string) => void;
 }
 
 /**
@@ -372,6 +374,7 @@ export async function fetchSitemaps(
           `Sitemap index references ${parsed.childSitemaps.length.toLocaleString('en-US')} sitemaps, over the sitemaps.org 50,000 limit.`,
         );
       }
+      const added = result.entries.length;
       for (const [i, entry] of parsed.entries.entries()) {
         if (result.entries.length >= opts.maxUrls) {
           result.truncated = true;
@@ -381,6 +384,7 @@ export async function fetchSitemaps(
         if (!norm) continue;
         result.entries.push({ ...entry, url: norm });
       }
+      if (result.entries.length > added) opts.onEntries?.(result.entries.slice(added), item.url);
       for (const child of parsed.childSitemaps) {
         queue.push({ url: child, depth: item.depth + 1 });
       }
