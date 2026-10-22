@@ -59,6 +59,8 @@ import {
   MetricaError,
   MetricaCancelledError,
   parseExportWhat,
+  unwrapCrawlConfig,
+  PDF_MAX_RUN_BYTES,
   runExportItems,
   runExportSet,
   listExportSets,
@@ -68,6 +70,7 @@ import {
   invalidUrlPatterns,
   type ExportItem,
   type ExportOutcome,
+  type PdfCrawlConfig,
   type LogAnalysisResult,
   type StartDecision,
 } from '@freecrawl/core';
@@ -249,6 +252,17 @@ export options:
                         html        single-file HTML report (report.html)
                         issues      issues-summary.csv: check key, label, group, severity, URLs, items,
                                     previous crawl's count, change since
+                        screenshots screenshots/ (the PNGs of the project's .screenshots folder, named
+                                    <page>-<fullpage|fold|mobile>.png) and screenshots.csv. Not in bulk. Only
+                                    projects saved by the desktop app have screenshots; none stored: exit 1
+                        pdfs        pdfs/ (the PDF documents of the crawl, downloaded now at 2 requests/s,
+                                    50 MB per file) and pdfs.csv (url, file, bytes, status, title, author,
+                                    pages). Not in bulk. A file already in pdfs/ is not fetched again. Uses
+                                    the user agent and custom headers of --config, else of the project's last
+                                    crawl config; secrets saved by the desktop app cannot be read, so with a
+                                    login (basic, digest, bearer, browser) nothing is requested: every row
+                                    says why and the run exits 1. A saved proxy is not applied.
+                                    PDF text is not extracted.
                         tab:<key> / issues:<key>
                                     one category CSV, e.g. tab:redirects, issues:title-missing
                         dataset:<key>
@@ -280,6 +294,8 @@ export options:
                         pages, columns of the Inlinks / Outlinks tabs). Without --what, only these two
                         files are written; with it, they are added. URLs not in the project are listed
                         in errors and on stderr (exit 1); exit 2 when none is in the project.
+  --config <file>     With --what pdfs: crawl config to take the user agent and headers from
+  --max-bytes <n>     With --what pdfs: stop downloading after n bytes in all (default 2 GB)
   --save-set <name>   Save --what (and --raw-headers) in the project as a named export set, replacing
                         one of the same name; writes no files. The desktop scheduler can run it too.
   --set <name>        Run a saved export set instead of --what (exit 2 if the project has none of that name)
@@ -325,6 +341,7 @@ function parseCliArgs() {
       'memory-limit': { type: 'string' },
       'work-dir': { type: 'string' },
       render: { type: 'boolean' },
+      'max-bytes': { type: 'string' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'night-rps': { type: 'string' },
@@ -523,6 +540,8 @@ async function main(): Promise<void> {
       saveSet: values['save-set'],
       listSets: Boolean(values['list-sets']),
       rawHeaders: Boolean(values['raw-headers']),
+      configPath: values.config,
+      maxBytes: values['max-bytes'],
       json: Boolean(values.json),
     });
     process.exit(exitCode);
@@ -2146,6 +2165,21 @@ function checkExportDir(out: string): void {
 }
 
 /**
+ * What `--what pdfs` builds its requests from: the `--config` file if
+ * given, else the project's `lastCrawlConfig`; the desktop's
+ * `{config, secretsEnc}` envelope or a bare config. A file that cannot be
+ * read is an error of its own; an unreadable stored config means defaults.
+ */
+function pdfCrawlConfig(db: ProjectDb, configPath: string | undefined): PdfCrawlConfig {
+  if (configPath) return unwrapCrawlConfig(JSON.parse(readFileSync(resolve(configPath), 'utf8')));
+  try {
+    return unwrapCrawlConfig(JSON.parse(db.getMeta('lastCrawlConfig') || 'null'));
+  } catch {
+    return unwrapCrawlConfig(null);
+  }
+}
+
+/**
  * `freecrawl export`: write reports and bulk exports of an existing project
  * without the desktop app. Leaves the crawl data as it is (a desktop-saved
  * project is unpacked to a working copy that is never packed back), with
@@ -2164,6 +2198,10 @@ async function runExport(opts: {
   saveSet: string | undefined;
   listSets: boolean;
   rawHeaders: boolean;
+  /** `--config`: where `--what pdfs` reads the user agent, headers and auth from. */
+  configPath: string | undefined;
+  /** `--max-bytes`: whole-run cap of `--what pdfs`. */
+  maxBytes: string | undefined;
   json: boolean;
 }): Promise<number> {
   const print = (outcome: ExportOutcome, error: string | null): void => {
@@ -2208,6 +2246,7 @@ async function runExport(opts: {
   }
   if (!opts.out) return fail('--out <dir> is required.');
   const outDir = resolve(opts.out);
+  const maxBytes = parseNumeric('max-bytes', opts.maxBytes, PDF_MAX_RUN_BYTES);
   let items: ExportItem[];
   let selectedUrls: string[] = [];
   try {
@@ -2274,8 +2313,15 @@ async function runExport(opts: {
       }
       items.push({ kind: 'selected', name: 'selected-links', urls: known });
     }
+    let crawlConfig: PdfCrawlConfig;
+    try {
+      crawlConfig = pdfCrawlConfig(project.db, opts.configPath);
+    } catch (err) {
+      return fail(`Cannot read --config ${opts.configPath}: ${(err as Error).message}`);
+    }
     const runOptions = {
       rawHeaders: opts.rawHeaders,
+      pdfs: { crawlConfig, maxBytes },
       projectFile: resolve(opts.projectPath),
       toolVersion: cliVersion(),
       onProgress: progressLine,

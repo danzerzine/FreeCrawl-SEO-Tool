@@ -156,6 +156,7 @@ export {
   type ParsePoolLog,
 } from './parse-pool.js';
 export { writeExportFile, removePartialExportFiles } from './export-file.js';
+export { unwrapCrawlConfig, PDF_MAX_RUN_BYTES, type PdfCrawlConfig } from './media-export.js';
 export {
   parseExportWhat,
   runExportItems,

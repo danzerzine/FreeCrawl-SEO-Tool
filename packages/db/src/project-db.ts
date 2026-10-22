@@ -9607,6 +9607,71 @@ export class ProjectDb {
     }
   }
 
+  /**
+   * Every screenshot path stored for a page (one row per full-page, fold
+   * and mobile shot with a path set), in URL id order. Whether the file is
+   * still on disk is the caller's to check.
+   */
+  *iterateScreenshotPaths(): IterableIterator<{ url: string; kind: 'fullpage' | 'fold' | 'mobile'; path: string }> {
+    const rows = this.db
+      .prepare(
+        `SELECT u.url AS url, s.screenshot_fullpage_path AS fullpage,
+                s.screenshot_fold_path AS fold, s.screenshot_mobile_path AS mobile
+           FROM url_sources s
+           JOIN urls u ON u.id = s.url_id
+          WHERE COALESCE(s.screenshot_fullpage_path, s.screenshot_fold_path, s.screenshot_mobile_path, '') <> ''
+          ORDER BY s.url_id`,
+      )
+      .iterate() as unknown as Iterable<{
+      url: string;
+      fullpage: string | null;
+      fold: string | null;
+      mobile: string | null;
+    }>;
+    for (const r of rows) {
+      for (const kind of ['fullpage', 'fold', 'mobile'] as const) {
+        const path = r[kind];
+        if (path) yield { url: r.url, kind, path };
+      }
+    }
+  }
+
+  /**
+   * The PDF documents of the crawl: internal URLs classified `pdf` that
+   * answered 2xx, with the stored size and the metadata probe's columns.
+   */
+  *iteratePdfFiles(): IterableIterator<{
+    url: string;
+    contentLength: number | null;
+    title: string | null;
+    author: string | null;
+    pages: number | null;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT url, content_length, pdf_title, pdf_author, pdf_page_count
+           FROM urls
+          WHERE content_kind = 'pdf' AND is_external = 0 AND status_code BETWEEN 200 AND 299
+          ORDER BY id`,
+      )
+      .iterate() as unknown as Iterable<{
+      url: string;
+      content_length: number | null;
+      pdf_title: string | null;
+      pdf_author: string | null;
+      pdf_page_count: number | null;
+    }>;
+    for (const r of rows) {
+      yield {
+        url: r.url,
+        contentLength: r.content_length,
+        title: r.pdf_title,
+        author: r.pdf_author,
+        pages: r.pdf_page_count,
+      };
+    }
+  }
+
   /** Every URL listed in a crawled sitemap, with its lastmod and source sitemap. */
   *iterateSitemapUrls(): IterableIterator<SitemapUrlExportRow> {
     const rows = this.db
