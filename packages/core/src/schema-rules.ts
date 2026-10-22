@@ -324,6 +324,8 @@ export const SCHEMA_RULES: readonly SchemaRule[] = [
   {
     source: `${GOOGLE}merchant-listing`,
     types: ['OfferShippingDetails'],
+    // Pointing to the site-wide shipping policy by hasShippingService is all Google asks then.
+    appliesWhen: (node) => !isTruthyProp(node['hasShippingService']),
     required: [
       'deliveryTime',
       'shippingDestination',

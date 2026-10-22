@@ -797,6 +797,13 @@ describe('parseHtml: structured-data rules, part 2', () => {
       expect(required(list([entry({ url: 'https://example.com/m' }, bare)]))).toEqual([]);
     });
 
+    it('makes a carousel of an ItemList of Courses', () => {
+      const course = { '@type': 'Course', name: 'C', description: 'd', url: 'https://example.com/c' };
+      expect(required(list([entry({ position: undefined }, course)]))).toEqual([
+        req('ListItem', 'position'),
+      ]);
+    });
+
     it('does not make a carousel of an ItemList of Products', () => {
       const product = { '@type': 'Product', name: 'P',
         image: 'https://example.com/p.jpg', offers: { '@type': 'Offer', price: 1, priceCurrency: 'EUR', availability: 'InStock' } };
@@ -996,6 +1003,31 @@ describe('parseHtml: structured-data rules, part 2', () => {
       ).toEqual([]);
       expect(required({ ...shipping, deliveryTime: undefined })).toEqual([
         req('OfferShippingDetails', 'deliveryTime'),
+      ]);
+    });
+
+    it('leaves an OfferShippingDetails that only points to a shipping service alone', () => {
+      const pointer = {
+        '@type': 'OfferShippingDetails',
+        hasShippingService: { '@id': 'https://example.com/#std' },
+      };
+      expect(
+        findings({
+          '@type': 'Product',
+          name: 'P',
+          image: 'https://example.com/p.jpg',
+          offers: { ...offer, shippingDetails: pointer },
+        }),
+      ).toEqual([]);
+      expect(required({ '@type': 'OfferShippingDetails' })).toEqual([
+        req(
+          'OfferShippingDetails',
+          'deliveryTime',
+          'shippingDestination',
+          'shippingRate',
+          'shippingRate.currency',
+          'shippingRate.value | shippingRate.maxValue',
+        ),
       ]);
     });
 
