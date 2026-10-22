@@ -173,6 +173,9 @@ export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
   { label: 'Crawl Queue (Unfetched)', file: 'crawl-queue.csv', dataset: 'crawl-queue' },
 ];
 
+const NO_SITEMAP_REASON =
+  'No sitemap URLs are stored for this crawl: it read no sitemap (sitemap discovery was off or none was found), so no file written.';
+
 /**
  * Subfolder of the per-issue inlinks files (`inlinks-<issue>.csv`). One
  * file per issue would add ~70 files beside the ~80 category files, and
@@ -385,6 +388,9 @@ async function writeBulkExport(
       if (rowsWritten === 0) {
         // Empty because the crawl stored nothing it could have: say why.
         if (why) skipped.push(...why);
+        else if (task.dataset === 'sitemap-urls' || task.dataset === 'sitemap-files') {
+          skipped.push({ label: task.label, reason: NO_SITEMAP_REASON });
+        }
         continue;
       }
       files.push({

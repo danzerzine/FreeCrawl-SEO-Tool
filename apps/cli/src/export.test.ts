@@ -200,7 +200,7 @@ describe('freecrawl export', () => {
       what: string[];
       files: { path: string; label: string; rows: number | null; ms?: number; peakRssMb?: number; sharedPass?: boolean }[];
       errors: unknown[];
-      skipped: { label: string }[];
+      skipped: { label: string; reason: string }[];
     };
     expect(m.what).toEqual(['bulk', 'issues', 'error-inlinks', 'redirects-to-error']);
     expect(m.projectFile).toBe(project);
@@ -217,7 +217,13 @@ describe('freecrawl export', () => {
     expect(listed).toContain('error-inlinks.csv');
     expect(listed).toContain('issues-title-missing.csv');
     // The bulk dump skips the sitemap table of a crawl that read no sitemap (B61).
-    expect(m.skipped.map((s) => s.label)).toEqual(['Sitemap vs Crawl', 'Internal Links — Redirects to Error']);
+    expect(m.skipped.map((s) => s.label)).toEqual([
+      'Sitemap URLs',
+      'Sitemap vs Crawl',
+      'Internal Links — Redirects to Error',
+    ]);
+    // Sitemap URLs is empty and says why; the fixture does hold a sitemap-files row (the failed probe), so that file is written.
+    expect(m.skipped[0]!.reason).toMatch(/no sitemap urls are stored/i);
     expect(m.errors).toEqual([]);
     expect(fs.existsSync(path.join(out, 'manifest.json.part'))).toBe(false);
   });
