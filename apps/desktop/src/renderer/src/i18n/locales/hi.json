@@ -2511,5 +2511,21 @@
     "needTwo": "इस साइट के दो क्रॉल चाहिए। गिनती कैसे बदली, यह देखने के लिए इसे फिर से क्रॉल करें।",
     "notComputed": "गणना नहीं की गई",
     "loadFailed": "क्रॉल इतिहास लोड नहीं हो सका"
+  },
+  "googleExport": {
+    "titleSheets": "Google Sheets में निर्यात करें",
+    "titleBigquery": "BigQuery में निर्यात करें",
+    "tableLabel": "निर्यात की जाने वाली तालिका",
+    "dataset": {
+      "urls": "वर्तमान टैब के पृष्ठ",
+      "issues-long": "समस्याएँ (हर पृष्ठ और समस्या की एक पंक्ति)",
+      "broken-links": "टूटे हुए लिंक",
+      "images": "चित्र",
+      "sitemap-urls": "साइटमैप URL",
+      "response-headers": "प्रतिक्रिया हेडर",
+      "crawl-queue": "क्रॉल कतार"
+    },
+    "truncated": "{{total}} में से {{rows}} पंक्तियाँ निर्यात की गईं (Google Sheets में अधिकतम 1 करोड़ सेल आते हैं)।",
+    "rejected": "BigQuery द्वारा अस्वीकृत पंक्तियाँ: {{rejectedCount}}। पहली त्रुटि: {{error}}"
   }
 }

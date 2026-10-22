@@ -2557,5 +2557,21 @@
     "needTwo": "Servono due scansioni di questo sito. Scansiona di nuovo per vedere come cambiano i conteggi.",
     "notComputed": "non calcolato",
     "loadFailed": "Impossibile caricare la cronologia delle scansioni"
+  },
+  "googleExport": {
+    "titleSheets": "Esporta su Google Sheets",
+    "titleBigquery": "Esporta su BigQuery",
+    "tableLabel": "Tabella da esportare",
+    "dataset": {
+      "urls": "Pagine della scheda corrente",
+      "issues-long": "Problemi (una riga per pagina e problema)",
+      "broken-links": "Link interrotti",
+      "images": "Immagini",
+      "sitemap-urls": "URL della sitemap",
+      "response-headers": "Intestazioni di risposta",
+      "crawl-queue": "Coda di scansione"
+    },
+    "truncated": "Esportate {{rows}} righe su {{total}} (Google Sheets contiene al massimo 10 milioni di celle).",
+    "rejected": "Righe rifiutate da BigQuery: {{rejectedCount}}. Primo errore: {{error}}"
   }
 }

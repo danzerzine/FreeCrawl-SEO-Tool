@@ -2465,5 +2465,21 @@
     "needTwo": "이 사이트를 두 번 크롤해야 합니다. 다시 크롤하면 수치가 어떻게 변하는지 볼 수 있습니다.",
     "notComputed": "계산되지 않음",
     "loadFailed": "크롤 기록을 불러오지 못했습니다"
+  },
+  "googleExport": {
+    "titleSheets": "Google Sheets로 내보내기",
+    "titleBigquery": "BigQuery로 내보내기",
+    "tableLabel": "내보낼 표",
+    "dataset": {
+      "urls": "현재 탭의 페이지",
+      "issues-long": "문제 (페이지와 문제마다 한 행)",
+      "broken-links": "끊어진 링크",
+      "images": "이미지",
+      "sitemap-urls": "사이트맵 URL",
+      "response-headers": "응답 헤더",
+      "crawl-queue": "크롤 큐"
+    },
+    "truncated": "전체 {{total}}행 중 {{rows}}행을 내보냈습니다 (Google Sheets는 셀을 최대 1,000만 개까지 담을 수 있습니다).",
+    "rejected": "BigQuery가 거부한 행: {{rejectedCount}}개. 첫 번째 오류: {{error}}"
   }
 }

@@ -2465,5 +2465,21 @@
     "needTwo": "需要对此站点进行两次抓取。再抓取一次即可查看各项计数的变化。",
     "notComputed": "未计算",
     "loadFailed": "无法加载抓取历史"
+  },
+  "googleExport": {
+    "titleSheets": "导出到 Google Sheets",
+    "titleBigquery": "导出到 BigQuery",
+    "tableLabel": "要导出的表",
+    "dataset": {
+      "urls": "当前标签页的页面",
+      "issues-long": "问题（每个页面和问题一行）",
+      "broken-links": "失效链接",
+      "images": "图片",
+      "sitemap-urls": "站点地图 URL",
+      "response-headers": "响应头",
+      "crawl-queue": "抓取队列"
+    },
+    "truncated": "已导出 {{total}} 行中的 {{rows}} 行（Google Sheets 最多容纳 1000 万个单元格）。",
+    "rejected": "BigQuery 拒绝的行数：{{rejectedCount}}。第一个错误：{{error}}"
   }
 }

@@ -2054,6 +2054,8 @@ export interface ExportSheetsInput {
   /** Optional title for the new spreadsheet. Falls back to the
    *  category label + current date. */
   title?: string;
+  /** Table to export; `urls` (the default) is the `category` rows. */
+  dataset?: 'urls' | ExportDatasetKey;
 }
 
 export interface ExportSheetsResult {
@@ -2062,10 +2064,17 @@ export interface ExportSheetsResult {
   /** Browser URL of the new spreadsheet on success. */
   url: string | null;
   rowsWritten: number;
+  /** Rows the table has; more than `rowsWritten` when `truncated`. */
+  totalRows: number;
+  /** The export stopped at the 10 million cell limit of a spreadsheet. */
+  truncated: boolean;
+  dataset: 'urls' | ExportDatasetKey;
 }
 
 export interface ExportBigqueryInput {
   category: UrlCategory;
+  /** Table to export; `urls` (the default) is the `category` rows. */
+  dataset?: 'urls' | ExportDatasetKey;
 }
 
 export interface ExportBigqueryResult {
@@ -2076,6 +2085,10 @@ export interface ExportBigqueryResult {
   /** Fully-qualified table reference, e.g. `myproj.freecrawl_seo.urls_1716391000`. */
   tableRef: string | null;
   rowsWritten: number;
+  /** Rows BigQuery refused (bad value); the others were stored. */
+  rowsRejected: number;
+  firstRejectionError: string | null;
+  dataset: 'urls' | ExportDatasetKey;
 }
 
 export interface LogEntry {

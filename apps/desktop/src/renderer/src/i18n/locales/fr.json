@@ -2557,5 +2557,21 @@
     "needTwo": "Il faut deux explorations de ce site. Explorez-le à nouveau pour voir l'évolution des totaux.",
     "notComputed": "non calculé",
     "loadFailed": "Impossible de charger l'historique des explorations"
+  },
+  "googleExport": {
+    "titleSheets": "Exporter vers Google Sheets",
+    "titleBigquery": "Exporter vers BigQuery",
+    "tableLabel": "Table à exporter",
+    "dataset": {
+      "urls": "Pages de l'onglet actuel",
+      "issues-long": "Problèmes (une ligne par page et par problème)",
+      "broken-links": "Liens cassés",
+      "images": "Images",
+      "sitemap-urls": "URL du sitemap",
+      "response-headers": "En-têtes de réponse",
+      "crawl-queue": "File d'attente d'exploration"
+    },
+    "truncated": "{{rows}} lignes exportées sur {{total}} (Google Sheets accepte au maximum 10 millions de cellules).",
+    "rejected": "Lignes rejetées par BigQuery : {{rejectedCount}}. Première erreur : {{error}}"
   }
 }

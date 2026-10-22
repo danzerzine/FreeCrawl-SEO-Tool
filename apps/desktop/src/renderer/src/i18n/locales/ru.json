@@ -2614,5 +2614,21 @@
     "needTwo": "Нужно два обхода этого сайта. Обойдите его ещё раз, чтобы увидеть, как меняются числа.",
     "notComputed": "не вычислено",
     "loadFailed": "Не удалось загрузить историю обходов"
+  },
+  "googleExport": {
+    "titleSheets": "Экспорт в Google Sheets",
+    "titleBigquery": "Экспорт в BigQuery",
+    "tableLabel": "Таблица для экспорта",
+    "dataset": {
+      "urls": "Страницы текущей вкладки",
+      "issues-long": "Проблемы (строка на страницу и проблему)",
+      "broken-links": "Битые ссылки",
+      "images": "Изображения",
+      "sitemap-urls": "URL из sitemap",
+      "response-headers": "Заголовки ответа",
+      "crawl-queue": "Очередь обхода"
+    },
+    "truncated": "Выгружено {{rows}} из {{total}} строк (в Google Sheets помещается не больше 10 миллионов ячеек).",
+    "rejected": "Строк, отклонённых BigQuery: {{rejectedCount}}. Первая ошибка: {{error}}"
   }
 }

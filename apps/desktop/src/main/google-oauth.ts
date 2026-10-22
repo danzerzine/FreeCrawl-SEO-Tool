@@ -541,6 +541,8 @@ export async function startAuth(integrationId: string): Promise<GoogleAuthState>
 export async function getAccessToken(
   integrationId: string,
   requestedAccountId?: string,
+  /** Skip the cached token: the API just answered 401 to it. */
+  forceRefresh = false,
 ): Promise<string> {
   const accountId = resolveAccountId(integrationId, requestedAccountId);
   if (!accountId) {
@@ -548,7 +550,7 @@ export async function getAccessToken(
   }
   const key = accountKey(integrationId, accountId);
   const cached = accessTokens.get(key);
-  if (cached && cached.expiresAt - TOKEN_EXPIRY_SKEW_MS > Date.now()) {
+  if (!forceRefresh && cached && cached.expiresAt - TOKEN_EXPIRY_SKEW_MS > Date.now()) {
     return cached.token;
   }
   const record = readRecordByKey(key);

@@ -17,6 +17,7 @@ import { TrendsDialog } from './components/TrendsDialog.js';
 import { ProjectsDialog } from './components/ProjectsDialog.js';
 import { PasswordPromptDialog } from './components/PasswordPromptDialog.js';
 import { ExportDialog } from './components/ExportDialog.js';
+import { GoogleExportDialog, type GoogleExportDataset } from './components/GoogleExportDialog.js';
 import { UrlsTab } from './tabs/UrlsTab.js';
 import { ImagesTab } from './tabs/ImagesTab.js';
 import { BrokenLinksTab } from './tabs/BrokenLinksTab.js';
@@ -67,6 +68,7 @@ export function App() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [exportSetsOpen, setExportSetsOpen] = useState(false);
+  const [googleExportTarget, setGoogleExportTarget] = useState<'sheets' | 'bigquery' | null>(null);
   const [trendsOpen, setTrendsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [dropFlash, setDropFlash] = useState<string | null>(null);
@@ -401,63 +403,12 @@ export function App() {
         case 'open-trends':
           setTrendsOpen(true);
           break;
-        case 'export-sheets': {
-          const cat = useAppStore.getState().activeCategory;
-          void window.freecrawl
-            .exportSheets({ category: cat })
-            .then((res) => {
-              if (res.ok && res.url) {
-                window.alert(
-                  t('app.sheetsExportOk', {
-                    defaultValue:
-                      'Exported {{rows}} row(s) to Google Sheets:\n\n{{url}}\n\nThe link is in your clipboard.',
-                    rows: res.rowsWritten.toLocaleString(),
-                    url: res.url,
-                  }),
-                );
-                void navigator.clipboard.writeText(res.url).catch(() => undefined);
-              } else {
-                window.alert(
-                  t('app.sheetsExportFail', {
-                    defaultValue:
-                      'Google Sheets export failed: {{error}}\n\nMake sure you have connected your Google account in Settings → Integrations (Google Sheets).',
-                    error: res.error ?? 'unknown error',
-                  }),
-                );
-              }
-            });
+        case 'export-sheets':
+          setGoogleExportTarget('sheets');
           break;
-        }
-        case 'export-bigquery': {
-          const cat = useAppStore.getState().activeCategory;
-          void window.freecrawl
-            .exportBigquery({ category: cat })
-            .then((res) => {
-              if (res.ok && res.consoleUrl && res.tableRef) {
-                window.alert(
-                  t('app.bigqueryExportOk', {
-                    defaultValue:
-                      'Exported {{rows}} row(s) to BigQuery:\n\n{{ref}}\n\nOpen in console:\n{{url}}\n\nThe link is in your clipboard.',
-                    rows: res.rowsWritten.toLocaleString(),
-                    ref: res.tableRef,
-                    url: res.consoleUrl,
-                  }),
-                );
-                void navigator.clipboard
-                  .writeText(res.consoleUrl)
-                  .catch(() => undefined);
-              } else {
-                window.alert(
-                  t('app.bigqueryExportFail', {
-                    defaultValue:
-                      'BigQuery export failed: {{error}}\n\nMake sure you have pasted a service-account JSON and GCP project ID in Settings → Integrations (Google BigQuery), and that the service account has BigQuery Data Editor on the project.',
-                    error: res.error ?? 'unknown error',
-                  }),
-                );
-              }
-            });
+        case 'export-bigquery':
+          setGoogleExportTarget('bigquery');
           break;
-        }
         case 'open-reports':
           setReportsOpen(true);
           break;
@@ -540,6 +491,77 @@ export function App() {
     setActiveTab,
     applyProjectConfig,
   ]);
+
+  function runGoogleExport(target: 'sheets' | 'bigquery', dataset: GoogleExportDataset): void {
+    const category = useAppStore.getState().activeCategory;
+    if (target === 'sheets') {
+      void window.freecrawl.exportSheets({ category, dataset }).then((res) => {
+        if (res.ok && res.url) {
+          const lines = [
+            t('app.sheetsExportOk', {
+              defaultValue:
+                'Exported {{rows}} row(s) to Google Sheets:\n\n{{url}}\n\nThe link is in your clipboard.',
+              rows: res.rowsWritten.toLocaleString(),
+              url: res.url,
+            }),
+          ];
+          if (res.truncated) {
+            lines.push(
+              t('googleExport.truncated', {
+                defaultValue:
+                  'Exported {{rows}} of {{total}} rows (Google Sheets holds at most 10 million cells).',
+                rows: res.rowsWritten.toLocaleString(),
+                total: res.totalRows.toLocaleString(),
+              }),
+            );
+          }
+          window.alert(lines.join('\n\n'));
+          void navigator.clipboard.writeText(res.url).catch(() => undefined);
+        } else {
+          window.alert(
+            t('app.sheetsExportFail', {
+              defaultValue:
+                'Google Sheets export failed: {{error}}\n\nMake sure you have connected your Google account in Settings → Integrations (Google Sheets).',
+              error: res.error ?? 'unknown error',
+            }),
+          );
+        }
+      });
+      return;
+    }
+    void window.freecrawl.exportBigquery({ category, dataset }).then((res) => {
+      if (res.ok && res.consoleUrl && res.tableRef) {
+        const lines = [
+          t('app.bigqueryExportOk', {
+            defaultValue:
+              'Exported {{rows}} row(s) to BigQuery:\n\n{{ref}}\n\nOpen in console:\n{{url}}\n\nThe link is in your clipboard.',
+            rows: res.rowsWritten.toLocaleString(),
+            ref: res.tableRef,
+            url: res.consoleUrl,
+          }),
+        ];
+        if (res.rowsRejected > 0) {
+          lines.push(
+            t('googleExport.rejected', {
+              defaultValue: 'Rows rejected by BigQuery: {{rejectedCount}}. First error: {{error}}',
+              rejectedCount: res.rowsRejected.toLocaleString(),
+              error: res.firstRejectionError ?? 'unknown error',
+            }),
+          );
+        }
+        window.alert(lines.join('\n\n'));
+        void navigator.clipboard.writeText(res.consoleUrl).catch(() => undefined);
+      } else {
+        window.alert(
+          t('app.bigqueryExportFail', {
+            defaultValue:
+              'BigQuery export failed: {{error}}\n\nMake sure you have pasted a service-account JSON and GCP project ID in Settings → Integrations (Google BigQuery), and that the service account has BigQuery Data Editor on the project.',
+            error: res.error ?? 'unknown error',
+          }),
+        );
+      }
+    });
+  }
 
   return (
     <div className="flex h-full flex-col bg-surface-950 text-surface-100">
@@ -665,6 +687,15 @@ export function App() {
       <CompareDialog open={compareOpen} onClose={() => setCompareOpen(false)} />
       <ScheduledCrawlDialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} />
       <ExportSetsDialog open={exportSetsOpen} onClose={() => setExportSetsOpen(false)} />
+      <GoogleExportDialog
+        target={googleExportTarget}
+        onConfirm={(dataset) => {
+          const target = googleExportTarget;
+          setGoogleExportTarget(null);
+          if (target) runGoogleExport(target, dataset);
+        }}
+        onCancel={() => setGoogleExportTarget(null)}
+      />
       <TrendsDialog open={trendsOpen} onClose={() => setTrendsOpen(false)} />
       <ProjectsDialog
         open={projectsOpen}

@@ -2522,5 +2522,21 @@
     "needTwo": "Needs two crawls of this site. Crawl it again to see how the counts move.",
     "notComputed": "not computed",
     "loadFailed": "Could not load the crawl history"
+  },
+  "googleExport": {
+    "titleSheets": "Export to Google Sheets",
+    "titleBigquery": "Export to BigQuery",
+    "tableLabel": "Table to export",
+    "dataset": {
+      "urls": "Pages of the current tab",
+      "issues-long": "Issues (one row per page and issue)",
+      "broken-links": "Broken links",
+      "images": "Images",
+      "sitemap-urls": "Sitemap URLs",
+      "response-headers": "Response headers",
+      "crawl-queue": "Crawl queue"
+    },
+    "truncated": "Exported {{rows}} of {{total}} rows (Google Sheets holds at most 10 million cells).",
+    "rejected": "Rows rejected by BigQuery: {{rejectedCount}}. First error: {{error}}"
   }
 }

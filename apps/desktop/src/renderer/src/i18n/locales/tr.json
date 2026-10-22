@@ -2511,5 +2511,21 @@
     "needTwo": "Bu site için iki tarama gerekir. Sayıların nasıl değiştiğini görmek için siteyi yeniden tarayın.",
     "notComputed": "hesaplanmadı",
     "loadFailed": "Tarama geçmişi yüklenemedi"
+  },
+  "googleExport": {
+    "titleSheets": "Google Sheets'e Aktar",
+    "titleBigquery": "BigQuery'ye Aktar",
+    "tableLabel": "Dışa aktarılacak tablo",
+    "dataset": {
+      "urls": "Geçerli sekmedeki sayfalar",
+      "issues-long": "Sorunlar (sayfa ve sorun başına bir satır)",
+      "broken-links": "Kırık bağlantılar",
+      "images": "Görseller",
+      "sitemap-urls": "Sitemap URL’leri",
+      "response-headers": "Yanıt başlıkları",
+      "crawl-queue": "Tarama kuyruğu"
+    },
+    "truncated": "{{total}} satırdan {{rows}} tanesi aktarıldı (Google Sheets en fazla 10 milyon hücre alır).",
+    "rejected": "BigQuery'nin reddettiği satırlar: {{rejectedCount}}. İlk hata: {{error}}"
   }
 }

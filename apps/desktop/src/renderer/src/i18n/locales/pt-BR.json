@@ -2557,5 +2557,21 @@
     "needTwo": "São necessários dois rastreamentos deste site. Rastreie de novo para ver como as contagens mudam.",
     "notComputed": "não calculado",
     "loadFailed": "Não foi possível carregar o histórico de rastreamentos"
+  },
+  "googleExport": {
+    "titleSheets": "Exportar para o Google Sheets",
+    "titleBigquery": "Exportar para o BigQuery",
+    "tableLabel": "Tabela a exportar",
+    "dataset": {
+      "urls": "Páginas da aba atual",
+      "issues-long": "Problemas (uma linha por página e problema)",
+      "broken-links": "Links quebrados",
+      "images": "Imagens",
+      "sitemap-urls": "URLs do sitemap",
+      "response-headers": "Cabeçalhos de resposta",
+      "crawl-queue": "Fila de rastreamento"
+    },
+    "truncated": "Foram exportadas {{rows}} de {{total}} linhas (o Google Sheets comporta no máximo 10 milhões de células).",
+    "rejected": "Linhas rejeitadas pelo BigQuery: {{rejectedCount}}. Primeiro erro: {{error}}"
   }
 }

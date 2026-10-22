@@ -7416,15 +7416,20 @@ function registerIpc(): void {
     IPC.exportSheets,
     async (_e, input: ExportSheetsInput): Promise<ExportSheetsResult> => {
       try {
+        const dataset = input.dataset ?? 'urls';
         const title =
           input.title?.trim() ||
-          `FreeCrawl — ${input.category} — ${new Date().toISOString().slice(0, 10)}`;
-        const result = await exportCategoryToSheets(getDb(), input.category, title);
+          `FreeCrawl — ${dataset === 'urls' ? input.category : dataset} — ${new Date().toISOString().slice(0, 10)}`;
+        const result = await exportCategoryToSheets(getDb(), input.category, title, { dataset });
         return {
-          ok: true,
-          error: null,
-          url: result.spreadsheetUrl,
+          // Nothing to export creates no spreadsheet, so there is no link to show.
+          ok: result.totalRows > 0,
+          error: result.totalRows > 0 ? null : 'No rows to export.',
+          url: result.totalRows > 0 ? result.spreadsheetUrl : null,
           rowsWritten: result.rowsWritten,
+          totalRows: result.totalRows,
+          truncated: result.truncated,
+          dataset,
         };
       } catch (err) {
         return {
@@ -7432,6 +7437,9 @@ function registerIpc(): void {
           error: err instanceof Error ? err.message : String(err),
           url: null,
           rowsWritten: 0,
+          totalRows: 0,
+          truncated: false,
+          dataset: input.dataset ?? 'urls',
         };
       }
     },
@@ -7465,13 +7473,18 @@ function registerIpc(): void {
     IPC.exportBigquery,
     async (_e, input: ExportBigqueryInput): Promise<ExportBigqueryResult> => {
       try {
-        const result = await exportCategoryToBigQuery(getDb(), input.category);
+        const result = await exportCategoryToBigQuery(getDb(), input.category, {
+          dataset: input.dataset,
+        });
         return {
           ok: true,
           error: null,
           consoleUrl: result.consoleUrl,
           tableRef: result.tableRef,
           rowsWritten: result.rowsWritten,
+          rowsRejected: result.rowsRejected,
+          firstRejectionError: result.firstRejectionError,
+          dataset: result.dataset,
         };
       } catch (err) {
         return {
@@ -7480,6 +7493,9 @@ function registerIpc(): void {
           consoleUrl: null,
           tableRef: null,
           rowsWritten: 0,
+          rowsRejected: 0,
+          firstRejectionError: null,
+          dataset: input.dataset ?? 'urls',
         };
       }
     },
@@ -7816,8 +7832,13 @@ function registerIpc(): void {
     if (after.sheets) {
       try {
         const r = await exportCategoryToSheets(db, 'all', `FreeCrawl — ${project} — ${stamp}`);
-        sheetsUrl = r.spreadsheetUrl;
+        sheetsUrl = r.spreadsheetUrl || null;
         logger.log('info', 'main', `Scheduled Sheets export: ${sheetsUrl} (${r.rowsWritten} rows)`, undefined, sess.logTag);
+        if (r.truncated) {
+          const note = `exported ${r.rowsWritten} of ${r.totalRows} rows (Google Sheets holds at most 10 million cells)`;
+          errors.push(`sheets: ${note}`);
+          logger.log('warn', 'main', `Scheduled Sheets export: ${note}`, undefined, sess.logTag);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(`sheets: ${msg}`);
