@@ -7,7 +7,7 @@ import { ProjectDb } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import { Crawler } from './crawler.js';
 import { fakeRender } from './fake-render.test-support.js';
-import type { RenderHook } from './render-config.js';
+import { renderOptionsFromConfig, type RenderHook } from './render-config.js';
 
 // M11 B34 through a Crawler run with the fake render hook: the $script result, the
 // fetch and response-time timers, the failed-render fallback, Stop.
@@ -130,6 +130,24 @@ describe('timers of a render with a page script (R2-1, R2-2)', () => {
     const row = rowOf(db, '/');
     // Aborted by the fetch timer: stored as a network error, not as the rendered page.
     expect(row.title).not.toBe('Rendered');
+  });
+});
+
+describe('whitespace-only page script is no script (B34)', () => {
+  it('renderOptionsFromConfig passes no script', () => {
+    const cfg = { ...DEFAULT_CRAWL_CONFIG, jsRender: { ...DEFAULT_CRAWL_CONFIG.jsRender, pageScript: ' \n ' } };
+    expect(renderOptionsFromConfig(cfg).pageScript).toBeUndefined();
+  });
+
+  it('the fetch timer keeps running and nothing is warned about a script', async () => {
+    const hook: RenderHook = async () => {
+      await new Promise((r) => setTimeout(r, 900));
+      return { ok: true, html: RENDERED, timingMs: 900 };
+    };
+    const { c, db, warns } = makeCrawler(hook, { requestTimeoutMs: 400, maxResponseTimeMs: 0 }, '  \n\t ');
+    await c.start();
+    expect(rowOf(db, '/').title).not.toBe('Rendered');
+    expect(warns.filter((m) => m.includes('page script'))).toHaveLength(0);
   });
 });
 

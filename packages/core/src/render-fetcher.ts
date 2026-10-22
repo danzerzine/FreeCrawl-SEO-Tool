@@ -1,3 +1,4 @@
+import { hasPageScript } from '@freecrawl/shared-types';
 import type { BrowserPool } from './browser-pool.js';
 import {
   PAGE_SCRIPT_PROBE_MS,
@@ -473,7 +474,7 @@ export async function renderUrl(
 
   // The render time limit (B34) starts here, after the wait for a slot, so a
   // queue of renders never eats it. Only a render with a page script has one.
-  const hasScript = !!opts.pageScript && opts.pageScript.trim() !== '';
+  const hasScript = hasPageScript(opts.pageScript);
   let limitHit = false;
   // A page whose script blocked it, or that hit the limit, is closed and replaced.
   let discard = false;

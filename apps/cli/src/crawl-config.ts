@@ -1,5 +1,6 @@
 import {
   DEFAULT_CRAWL_CONFIG,
+  hasPageScript,
   PAGE_SCRIPT_MAX_CHARS,
   type CrawlConfig,
 } from '@freecrawl/shared-types';
@@ -45,10 +46,10 @@ export function mergeCrawlConfig(
   if (script.length > PAGE_SCRIPT_MAX_CHARS) {
     return {
       kind: 'error',
-      message: `The page script is ${script.length} characters; the limit is 20 000.`,
+      message: `The page script is ${script.length} characters; the limit is ${PAGE_SCRIPT_MAX_CHARS.toLocaleString('en-US').replace(/,/g, ' ')}.`,
     };
   }
-  if (script.trim() !== '' && config.renderingMode !== 'js') {
+  if (hasPageScript(script) && config.renderingMode !== 'js') {
     return {
       kind: 'error',
       message: 'A page script needs JavaScript rendering: add --render or set renderingMode "js".',

@@ -171,6 +171,14 @@ describe('renderUrl with a page script (unit, fake page)', () => {
     expect(log).not.toContain('script');
   });
 
+  it('a whitespace-only script is no script: one content(), no limit timer', async () => {
+    const { page, log } = fakePage();
+    const r = await renderUrl('http://x.test/', poolOf(page), { ...base, pageScript: '  \n\t ' });
+    expect(r.scriptRan).toBeUndefined();
+    expect(log.filter((l) => l === 'content')).toHaveLength(1);
+    expect(log).not.toContain('script');
+  });
+
   it('does not run the script on a page the browser got a non-2xx for', async () => {
     const { page, log } = fakePage({ status: 404 });
     const r = await renderUrl('http://x.test/', poolOf(page), base);

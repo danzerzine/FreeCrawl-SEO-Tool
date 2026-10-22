@@ -1637,6 +1637,10 @@ export interface PerformanceBudgetConfig {
 
 /** Longest `jsRender.pageScript` a config accepts (B34). */
 export const PAGE_SCRIPT_MAX_CHARS = 20_000;
+/** The one test of "a page script is set": a text with something besides whitespace (B34). */
+export function hasPageScript(script: string | undefined | null): boolean {
+  return typeof script === 'string' && script.trim() !== '';
+}
 /** Bounds of `jsRender.pageScriptTimeoutMs` (B34). */
 export const PAGE_SCRIPT_TIMEOUT_MIN_MS = 500;
 export const PAGE_SCRIPT_TIMEOUT_MAX_MS = 30_000;

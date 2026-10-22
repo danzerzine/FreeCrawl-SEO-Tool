@@ -15,6 +15,7 @@ import type {
 } from '@freecrawl/shared-types';
 import {
   EXTERNAL_NO_ANSWER_CONFIRMED,
+  hasPageScript,
   makeTemplateSet,
   unpackTemplateSetBase64,
   type ShingleHashes,
@@ -5493,7 +5494,7 @@ export class Crawler extends EventEmitter {
         statusCode < 400
       ) {
         this.setOp(`crawl:render:${item.url}`);
-        if (this.config.jsRender.pageScript) {
+        if (hasPageScript(this.config.jsRender.pageScript)) {
           // The body is read and a render with a page script will run: the fetch
           // and response-time timers must not cut it off. The render has its own
           // limit inside renderUrl; Stop still aborts through the controller.

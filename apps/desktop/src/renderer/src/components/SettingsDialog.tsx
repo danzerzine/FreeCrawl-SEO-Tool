@@ -82,6 +82,7 @@ import {
   AUTO_SAVE_MIN_URLS,
   normalizeAutoSaveEveryUrls,
   PAGE_SCRIPT_MAX_CHARS,
+  hasPageScript,
   PAGE_SCRIPT_TIMEOUT_MAX_MS,
   PAGE_SCRIPT_TIMEOUT_MIN_MS,
 } from '@freecrawl/shared-types';
@@ -729,7 +730,7 @@ function configToForm(c: CrawlConfig): FormState {
     jsA11yAudit: c.jsRender?.a11yAudit ?? false,
     jsConsoleErrors: c.jsRender?.consoleErrors ?? false,
     jsPageScript: c.jsRender?.pageScript ?? '',
-    jsPageScriptTimeoutMs: String(c.jsRender?.pageScriptTimeoutMs ?? 5000),
+    jsPageScriptTimeoutMs: String(c.jsRender?.pageScriptTimeoutMs ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs),
     jsSpaRouting: c.jsRender?.spaRouting ?? false,
     budgetEnabled: c.performanceBudget?.enabled ?? false,
     budgetMaxResponseMs: String(c.performanceBudget?.maxResponseMs ?? 800),
@@ -1127,7 +1128,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         pageScript: form.jsPageScript.slice(0, PAGE_SCRIPT_MAX_CHARS),
         pageScriptTimeoutMs: Math.min(
           PAGE_SCRIPT_TIMEOUT_MAX_MS,
-          Math.max(PAGE_SCRIPT_TIMEOUT_MIN_MS, num(form.jsPageScriptTimeoutMs, 5000)),
+          Math.max(PAGE_SCRIPT_TIMEOUT_MIN_MS, num(form.jsPageScriptTimeoutMs, DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs)),
         ),
         spaRouting: form.jsSpaRouting,
       },
@@ -4974,7 +4975,7 @@ function RenderingPanel({ form, update }: PanelProps) {
             max={PAGE_SCRIPT_TIMEOUT_MAX_MS}
             step={500}
             className="rounded border border-surface-700 bg-surface-950 px-2 py-1 text-[12px] text-surface-100 focus:border-blue-500 focus:outline-none disabled:opacity-50"
-            disabled={!enabled || form.jsPageScript.trim() === ''}
+            disabled={!enabled || !hasPageScript(form.jsPageScript)}
             value={form.jsPageScriptTimeoutMs}
             onChange={(e) => update('jsPageScriptTimeoutMs', e.target.value)}
           />

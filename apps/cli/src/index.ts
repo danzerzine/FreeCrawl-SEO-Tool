@@ -8,6 +8,7 @@ import { readListSource } from './list-source.js';
 import {
   COMPARE_CATEGORIES,
   DEFAULT_CRAWL_CONFIG,
+  hasPageScript,
   type CrawlConfig,
   type CrawlProgress,
   type CrawlSnapshot,
@@ -596,7 +597,7 @@ async function main(): Promise<void> {
       console.error(`Cannot read --page-script file ${values['page-script']}: ${(err as Error).message}`);
       process.exit(2);
     }
-    if (pageScriptText.trim() === '') {
+    if (!hasPageScript(pageScriptText)) {
       console.error(`--page-script file ${values['page-script']} is empty.`);
       process.exit(2);
     }
@@ -811,7 +812,7 @@ async function main(): Promise<void> {
         console.error(reason);
         process.exit(2);
       }
-      if (config.jsRender.pageScript.trim() !== '') {
+      if (hasPageScript(config.jsRender.pageScript)) {
         // Plain HTML would silently skip the script.
         console.error(`${reason}; the page script would not run.`);
         process.exit(2);

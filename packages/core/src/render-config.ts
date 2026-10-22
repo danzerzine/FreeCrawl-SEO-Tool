@@ -1,4 +1,4 @@
-import type { CrawlConfig } from '@freecrawl/shared-types';
+import { hasPageScript, type CrawlConfig } from '@freecrawl/shared-types';
 import type { BrowserPool, BrowserPoolOptions } from './browser-pool.js';
 import { MOBILE_DEVICE_SCALE_FACTOR, MOBILE_USER_AGENT, MOBILE_VIEWPORT } from './http-client.js';
 import type { ConsoleLog } from './render-console.js';
@@ -54,7 +54,7 @@ export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
     discoverSpaRoutes: config.jsRender.spaRouting,
     collectConsole: config.jsRender.consoleErrors || undefined,
     blockedTypes: blockedResourceTypes(config),
-    pageScript: config.jsRender.pageScript || undefined,
+    pageScript: hasPageScript(config.jsRender.pageScript) ? config.jsRender.pageScript : undefined,
     pageScriptTimeoutMs: config.jsRender.pageScriptTimeoutMs,
   };
 }
