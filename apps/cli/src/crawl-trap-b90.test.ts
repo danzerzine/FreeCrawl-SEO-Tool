@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -6,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { killAllChildren, spawnTracked as spawn } from './test-proc.js';
 
 // Drives the built CLI as a process (`npx tsc -b` first).
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/index.js');
@@ -50,6 +50,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  killAllChildren();
   await new Promise((r) => site.close(r));
   fs.rmSync(dir, { recursive: true, force: true });
 });

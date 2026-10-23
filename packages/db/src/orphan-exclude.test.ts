@@ -1,11 +1,28 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { ProjectDb } from './project-db.js';
 
+// Every fixture gets its own folder and handle; both go when the file ends.
+const dirs: string[] = [];
+const dbs: ProjectDb[] = [];
+afterAll(() => {
+  for (const db of dbs) {
+    try {
+      db.close();
+    } catch {
+      /* already closed */
+    }
+  }
+  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+});
+
 function fixture(): ProjectDb {
-  const db = new ProjectDb(join(mkdtempSync(join(tmpdir(), 'orph-')), 'p.db'));
+  const dir = mkdtempSync(join(tmpdir(), 'orph-'));
+  dirs.push(dir);
+  const db = new ProjectDb(join(dir, 'p.db'));
+  dbs.push(db);
   // one crawled internal page so the Metrica host filter lets the host through
   (db as unknown as { db: { exec(s: string): void } }).db.exec(
     `INSERT INTO urls (url, status_code, is_external) VALUES ('https://ex.com/', 200, 0)`,

@@ -1,10 +1,11 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { getIntegration } from '@freecrawl/shared-types';
 
 const dir = mkdtempSync(join(tmpdir(), 'm21-cred-'));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 vi.mock('electron', () => {
   const flip = (s: string) => Buffer.from(s, 'utf8').map((b) => b ^ 0x5a);
   return {

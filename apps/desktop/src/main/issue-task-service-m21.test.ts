@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -14,8 +14,15 @@ import { createIssueTaskService, type IssueTaskDeps } from './issue-task-service
 import { TRACKER_TEST_ENV } from './tracker-constants.js';
 
 const stubs: TrackerStub[] = [];
+const tmpDirs: string[] = [];
+const tmpDir = (prefix: string): string => {
+  const d = mkdtempSync(join(tmpdir(), prefix));
+  tmpDirs.push(d);
+  return d;
+};
 afterEach(async () => {
   await Promise.all(stubs.splice(0).map((s) => s.close()));
+  for (const d of tmpDirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
 const CATEGORY = 'issues:title-missing' as const;
@@ -192,7 +199,7 @@ describe('issue task service: send', () => {
 
 describe('issue task service: save', () => {
   it('writes the markdown where the user picked, with no integration set up', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'm21-save-'));
+    const dir = tmpDir('m21-save-');
     const file = join(dir, 'task.md');
     const svc = createIssueTaskService(deps({ pickSavePath: async () => file }));
     const r = await svc.save({ category: CATEGORY, previewId: await previewId(svc, { category: CATEGORY, note: 'N' }) });
@@ -201,7 +208,7 @@ describe('issue task service: save', () => {
   });
 
   it('saves the previewed task even when the project changed after the preview', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'm21-save2-'));
+    const dir = tmpDir('m21-save2-');
     const file = join(dir, 'task.md');
     let calls = 0;
     const svc = createIssueTaskService(
@@ -224,7 +231,7 @@ describe('issue task service: save', () => {
   });
 
   it('refuses a stale preview id and writes nothing', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'm21-save3-'));
+    const dir = tmpDir('m21-save3-');
     const file = join(dir, 'task.md');
     const svc = createIssueTaskService(deps({ pickSavePath: async () => file }));
     const first = await previewId(svc);
@@ -302,7 +309,7 @@ describe('issue task service: errors come back as results', () => {
 
   it('a failing file write on save is a result, not a rejection', async () => {
     const svc = createIssueTaskService(
-      deps({ pickSavePath: async () => join(mkdtempSync(join(tmpdir(), 'm21-w-')), 'no', 'such', 'dir.md') }),
+      deps({ pickSavePath: async () => join(tmpDir('m21-w-'), 'no', 'such', 'dir.md') }),
     );
     const r = await svc.save({ category: CATEGORY, previewId: await previewId(svc) });
     expect(r.ok).toBe(false);
