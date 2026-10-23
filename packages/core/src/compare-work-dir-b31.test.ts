@@ -46,7 +46,7 @@ it('refuses a comparison that will not fit, before anything is copied (B110)', a
   await packProject(bare, saved);
   const noRoom = () => ({ bavail: 1, bsize: 1024 });
   await expect(openCompareProject(saved, undefined, { statfs: noRoom })).rejects.toThrow(
-    /^Not enough free space in .*freecrawl-compare-.*: .* GB free, .* GB needed\.$/,
+    /^Not enough free space in .*: .* GB free, .* GB needed\.$/,
   );
   // No copy, and no empty folder either.
   expect(readdirSync(tmp)).toEqual([]);

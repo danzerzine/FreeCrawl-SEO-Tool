@@ -39,7 +39,7 @@ import {
 } from 'node:fs';
 import { copyFile, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { totalmem, freemem, cpus, release } from 'node:os';
+import { totalmem, freemem, cpus, release, tmpdir } from 'node:os';
 // Lives under src/main/assets (not resources/) on purpose: electron-vite
 // treats resources/ as the public dir and references it in place, which the
 // packaged app doesn't ship — assets/ files get copied into out/main/chunks.
@@ -305,6 +305,7 @@ import {
   packProject,
   PACKED_PER_UNPACKED,
   saveTempPid,
+  sweepCrashLeftovers,
   sweepWorkingFolder,
   UNPACKED_PER_PACKED,
   unpackProject,
@@ -2479,13 +2480,34 @@ function sweepStaleWorkingCopies(keep: ReadonlySet<string>): void {
     }
     return false;
   };
-  for (const dir of new Set([defaultProjectsDir(), projectsDir()])) {
+  // Working folders the user left behind (B152) are swept too: what was
+  // open in them is `keep`, the rest is a crash leftover.
+  const folders = new Set([
+    defaultProjectsDir(),
+    projectsDir(),
+    ...previousWorkDirs().map((d) => workFolder(d)),
+  ]);
+  for (const dir of folders) {
     try {
       sweepWorkingFolder(dir, isLive);
+      sweepCrashLeftovers(dir);
     } catch (err) {
       logger.log('warn', 'main', `working-copy sweep failed: ${(err as Error).message}`);
     }
   }
+  // A comparison copy lands in the OS temp folder when no working folder is set (B110).
+  try {
+    sweepCrashLeftovers(tmpdir());
+  } catch (err) {
+    logger.log('warn', 'main', `compare-copy sweep failed: ${(err as Error).message}`);
+  }
+}
+
+/** Working folders used before the current one, still to be swept (B152). */
+function previousWorkDirs(): string[] {
+  loadPrefs();
+  const raw = prefsCache['previousWorkDirs'];
+  return Array.isArray(raw) ? raw.filter((d): d is string => typeof d === 'string') : [];
 }
 
 /**
@@ -5809,13 +5831,17 @@ function registerIpc(): void {
     IPC.workDirSet,
     (_e, dir: string | null): { ok: boolean; problem?: WorkDirProblem } => {
       loadPrefs();
-      if (!dir) {
-        delete prefsCache['workDir'];
-      } else {
+      if (dir) {
         const problem = workDirProblem(dir);
         if (problem !== null) return { ok: false, problem };
-        prefsCache['workDir'] = dir;
       }
+      // The folder being left stays on the sweep list: files still open in it are not its to lose.
+      const left = prefsCache['workDir'];
+      const others = previousWorkDirs().filter((d) => d !== left && d !== dir);
+      prefsCache['previousWorkDirs'] =
+        typeof left === 'string' && left !== dir ? [left, ...others].slice(0, 10) : others;
+      if (dir) prefsCache['workDir'] = dir;
+      else delete prefsCache['workDir'];
       schedulePrefsWrite();
       return { ok: true };
     },

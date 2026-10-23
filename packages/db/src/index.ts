@@ -41,6 +41,7 @@ export {
   checkFreeSpace,
   PACKED_PER_UNPACKED,
   saveTempPid,
+  sweepCrashLeftovers,
   sweepWorkingFolder,
   UNPACKED_PER_PACKED,
   workDirProblem,

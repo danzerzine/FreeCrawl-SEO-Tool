@@ -69,8 +69,8 @@ export function workDirProblem(dir: string): WorkDirProblem | null {
   return null;
 }
 
-const DESKTOP_WORKING_COPY = /^work-\d+-\d+\.seoproject(-wal|-shm)?$/;
-const AGENT_SCRATCH = /^agent-\d+-\d+\.seoproject(-wal|-shm)?$/;
+const DESKTOP_WORKING_COPY = /^work-\d+-\d+\.seoproject(-wal|-shm|-journal)?$/;
+const AGENT_SCRATCH = /^agent-\d+-\d+\.seoproject(-wal|-shm|-journal)?$/;
 const CLI_WORKING_COPY = /^freecrawl-cli-[A-Za-z0-9]{6}$/;
 
 /** A desktop working copy (`work-<pid>-<n>.seoproject`) or one of its SQLite sidecars. */
@@ -88,7 +88,7 @@ export function isCliWorkingCopy(name: string): boolean {
   return CLI_WORKING_COPY.test(name);
 }
 
-const SAVE_TEMP = /^freecrawl-save-(\d+)-\d+-\d+\.seoproject(-wal|-shm)?$/;
+const SAVE_TEMP = /^freecrawl-save-(\d+)-\d+-\d+\.seoproject(-wal|-shm|-journal)?$/;
 
 /** The desktop's snapshot before a pack (`freecrawl-save-<pid>-…`): the pid that wrote it, else null. */
 export function saveTempPid(name: string): number | null {
@@ -119,6 +119,71 @@ export function sweepWorkingFolder(dir: string, keep: (path: string) => boolean)
       /* still locked by a second instance — leave it */
     }
   }
+}
+
+/** Older than this, a half-written unpack or a compare copy is a crash leftover, not work in progress. */
+export const LEFTOVER_MIN_AGE_MS = 24 * 60 * 60 * 1000;
+
+const PARTIAL_UNPACK = /^(work|agent)-\d+-\d+\.seoproject\.part$/;
+const COMPARE_COPY = /^freecrawl-compare-[A-Za-z0-9]{6}$/;
+
+/** `work-<pid>-<n>.seoproject.part`: an unpack that crashed before its rename. */
+export function isPartialUnpack(name: string): boolean {
+  return PARTIAL_UNPACK.test(name);
+}
+
+/** `freecrawl-compare-XXXXXX`: the temporary copy of a comparison, as `mkdtemp` names it. */
+export function isCompareCopy(name: string): boolean {
+  return COMPARE_COPY.test(name);
+}
+
+/** Newest modification time of a file, or of a folder and its direct files (a copy being written grows a file, not the folder). */
+function newestMtimeMs(path: string): number {
+  const st = statSync(path);
+  let newest = st.mtimeMs;
+  if (st.isDirectory()) {
+    for (const child of readdirSync(path)) {
+      try {
+        newest = Math.max(newest, statSync(join(path, child)).mtimeMs);
+      } catch {
+        /* vanished meanwhile */
+      }
+    }
+  }
+  return newest;
+}
+
+/**
+ * Delete what a crash leaves in `dir` that no later step cleans: unpack
+ * `.part` files and compare copies. Only entries untouched for `minAgeMs`
+ * (default a day) go, so a project being opened or compared right now,
+ * here or in a second instance, is never hit. Returns the names removed.
+ */
+export function sweepCrashLeftovers(
+  dir: string,
+  opts: { now?: number; minAgeMs?: number } = {},
+): string[] {
+  const now = opts.now ?? Date.now();
+  const minAge = opts.minAgeMs ?? LEFTOVER_MIN_AGE_MS;
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const removed: string[] = [];
+  for (const name of names) {
+    if (!isPartialUnpack(name) && !isCompareCopy(name)) continue;
+    const full = join(dir, name);
+    try {
+      if (now - newestMtimeMs(full) < minAge) continue;
+      rmSync(full, { recursive: true, force: true });
+      removed.push(name);
+    } catch {
+      /* locked or gone — leave it */
+    }
+  }
+  return removed;
 }
 
 type StatFs = (path: string) => { bavail: number | bigint; bsize: number | bigint };

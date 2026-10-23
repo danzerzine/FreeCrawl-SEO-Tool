@@ -258,7 +258,11 @@ export interface CompareProject {
  * goes into `<workDir>/FreeCrawl-work` when a working folder is given (B31),
  * else the OS temp folder.
  */
-export async function openCompareProject(path: string, workDir?: string): Promise<CompareProject> {
+export async function openCompareProject(
+  path: string,
+  workDir?: string,
+  opts: { statfs?: Parameters<typeof checkFreeSpace>[2] } = {},
+): Promise<CompareProject> {
   if (!existsSync(path)) throw new Error(`Project not found: ${path}`);
   const format = detectProjectFormat(path);
   if (format === 'unknown') {
@@ -285,10 +289,11 @@ export async function openCompareProject(path: string, workDir?: string): Promis
   };
   try {
     if (format === 'archive') {
+      const needed = statSync(path).size * UNPACKED_PER_PACKED;
+      // Before the copy folder exists: a full disk is reported, not half-filled.
+      checkFreeSpace(copyBase(), needed, opts.statfs);
       dir = mkdtempSync(join(copyBase(), COMPARE_COPY_PREFIX));
       copy = join(dir, basename(path));
-      const needed = statSync(path).size * UNPACKED_PER_PACKED;
-      checkFreeSpace(dir, needed);
       try {
         await unpackProject(path, copy);
       } catch (err) {
@@ -304,9 +309,9 @@ export async function openCompareProject(path: string, workDir?: string): Promis
         if (rebuiltSaved) {
           db = new ProjectDb(path, { readOnly: true });
         } else {
+          checkFreeSpace(copyBase(), statSync(path).size, opts.statfs);
           dir = mkdtempSync(join(copyBase(), COMPARE_COPY_PREFIX));
           copy = join(dir, basename(path));
-          checkFreeSpace(dir, statSync(path).size);
           const source = new ProjectDb(path, { readOnly: true });
           try {
             // Through SQLite, not a file copy: rows still in the project's log are in the copy too.
