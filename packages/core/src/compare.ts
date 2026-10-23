@@ -133,6 +133,13 @@ function pairUnmatched(
   return pairs;
 }
 
+/** True when the comparison found any URL change or any changed check (B115: an empty one is not mailed). */
+export function compareHasChanges(summary: CompareSummary): boolean {
+  return (
+    Object.values(summary.counts).some((n) => n > 0) || Object.keys(summary.issueChanges).length > 0
+  );
+}
+
 /**
  * One plain line of what changed, for an alert email or a log: the kinds with
  * changes and their counts, then the number of checks that changed (B81).

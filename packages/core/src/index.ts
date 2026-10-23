@@ -151,6 +151,7 @@ export {
 } from './webhook.js';
 export {
   compareChangesText,
+  compareHasChanges,
   compareCrawls,
   compareToFiles,
   compareWithoutMmap,

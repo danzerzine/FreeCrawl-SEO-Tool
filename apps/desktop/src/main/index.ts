@@ -362,6 +362,7 @@ import {
   screenshotDirFor,
   pngInsideRoots,
   compareChangesText,
+  compareHasChanges,
   type CompareSummary,
   type LogAnalysisResult,
   type LogExportTables,
@@ -8017,6 +8018,7 @@ function registerIpc(): void {
       void alertAfterCrawl(db, alertDeps(sess), {
         since,
         footer: changes ? compareChangesText(changes) : undefined,
+        footerChanged: changes ? compareHasChanges(changes) : false,
       });
     }
     if (after.export !== 'none' && exportDir) {

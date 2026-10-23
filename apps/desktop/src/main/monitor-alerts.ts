@@ -160,12 +160,14 @@ export function crawlRunSaved(
  * typed `lastStartUrl`, which can differ (redirect, missing slash).
  * `since` is when the crawl started; a newest row older than it is not
  * this crawl's. `footer` (a scheduled crawl's change report, B81) goes at
- * the end of the email.
+ * the end of the email. When no rule fired, the footer alone is still mailed
+ * (B115), unless `footerChanged` is false (the comparison found nothing) or
+ * email is off / has no SMTP address or recipient.
  */
 export async function alertAfterCrawl(
   db: Pick<ProjectDb, 'getMeta' | 'latestCrawlRunStartUrl' | 'listCrawlRuns'>,
   deps: AlertDeps,
-  opts: { since?: string; footer?: string } = {},
+  opts: { since?: string; footer?: string; footerChanged?: boolean } = {},
 ): Promise<AlertDelivery[]> {
   try {
     const { channels } = readAlertsConfig(db);
@@ -182,7 +184,16 @@ export async function alertAfterCrawl(
     const { startUrl } = latest.current;
     const results = evaluateRules(rules, latest.current.snapshot, latest.previous?.snapshot ?? null);
     const fired = results.filter((r) => r.status === 'fired').length;
-    if (fired === 0) return [];
+    if (fired === 0) {
+      // B115: the change summary of a scheduled crawl does not depend on a rule
+      // firing. It rides the email channel only, to the alert recipient, and only
+      // when email is on and filled in and the comparison found something.
+      const c = deps.credentials('email');
+      const mailable = channels.includes('email') && Boolean(c['smtpUrl']?.trim() && c['to']?.trim());
+      if (!opts.footer || opts.footerChanged === false || !mailable) return [];
+      deps.log('info', `Alerts: no rule fired for ${startUrl}; mailing the change summary`);
+      return await deliver(['email'], results, deps, `FreeCrawl change summary for ${startUrl}`, opts.footer);
+    }
     deps.log('info', `Alerts: ${fired} rule(s) fired for ${startUrl}`);
     return await deliver(channels, results, deps, `FreeCrawl alert for ${startUrl}`, opts.footer);
   } catch (err) {

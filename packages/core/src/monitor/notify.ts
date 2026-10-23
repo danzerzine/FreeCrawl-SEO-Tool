@@ -182,8 +182,15 @@ export async function sendEmail(
       await transport.sendMail({
         from: user.includes('@') ? user : `freecrawl@${u.hostname}`,
         to,
-        subject: `${opts.title ?? 'FreeCrawl alert'}: ${fired} rule(s) fired`,
-        text: formatAlert(results, { title: opts.title }) + (opts.footer ? `\n\n${opts.footer}` : ''),
+        // No rule fired but there is a summary (B115): the mail is the summary alone.
+        subject:
+          fired === 0 && opts.footer
+            ? (opts.title ?? 'FreeCrawl change summary')
+            : `${opts.title ?? 'FreeCrawl alert'}: ${fired} rule(s) fired`,
+        text:
+          fired === 0 && opts.footer
+            ? opts.footer
+            : formatAlert(results, { title: opts.title }) + (opts.footer ? `\n\n${opts.footer}` : ''),
       });
     } finally {
       transport.close();
