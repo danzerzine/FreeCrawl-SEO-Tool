@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OverviewCounts } from '@freecrawl/shared-types';
 import { DEFAULT_SEO_THRESHOLDS } from '@freecrawl/shared-types';
-import { buildIssueTask, toMarkdown, type BuildIssueTaskInput } from './issue-task.js';
+import { buildIssueTask, toBasecampHtml, toMarkdown, type BuildIssueTaskInput } from './issue-task.js';
 
 function counts(issues: Record<string, number>): BuildIssueTaskInput['counts'] {
   return { issues, thresholds: DEFAULT_SEO_THRESHOLDS } as unknown as Pick<
@@ -209,5 +209,56 @@ describe('cap', () => {
     expect(t.moreUrls).toBe(0);
     expect(t.truncated).toBe(false);
     expect(toMarkdown(t)).not.toContain('not listed');
+  });
+});
+
+describe('toBasecampHtml', () => {
+  const evil = 'https://u:p@example.com/<script>alert(1)</script>?a=1&b=2';
+  const html = () =>
+    toBasecampHtml(
+      buildIssueTask(
+        input({
+          category: 'issues:title-outside-head',
+          counts: counts({ titleOutsideHead: 1 }),
+          rows: [{ url: evil, evidence: { statusCode: 200, indexability: 'indexable' } }],
+        }),
+      ),
+    );
+
+  it('sends the URL table as a real table with every crawled value escaped', () => {
+    const h = html();
+    for (const tag of ['<table>', '<thead>', '<tbody>', '<th>', '<td>']) expect(h).toContain(tag);
+    expect(h).not.toContain('<script>');
+    expect(h).toContain('&lt;script&gt;alert(1)&lt;/script&gt;?a=1&amp;b=2');
+    expect(h).not.toContain('u:p@');
+  });
+
+  it('escapes static texts and renders the export name as code', () => {
+    const h = html();
+    expect(h).toContain('Move &lt;title&gt; into &lt;head&gt;');
+    expect(h).not.toMatch(/<head>|<title>/);
+    const long = toBasecampHtml(
+      buildIssueTask(input({ counts: counts({ titleMissing: 900 }), totalUrls: 900 })),
+    );
+    expect(long).toContain('<code>issues:title-missing</code>');
+    expect(long).not.toContain('`');
+  });
+
+  it('includes the user note and the title is not repeated in the body', () => {
+    const t = buildIssueTask(input());
+    t.note = 'Please fix <before> Friday & tell me';
+    expect(toBasecampHtml(t)).toContain('Please fix &lt;before&gt; Friday &amp; tell me');
+  });
+
+  it('is kept within maxBodyChars as well as the Markdown', () => {
+    const rows = Array.from({ length: 300 }, (_, i) => ({
+      url: `https://example.com/a&b/${i}`,
+      evidence: { title: '', titleLength: 0 },
+    }));
+    const t = buildIssueTask(
+      input({ counts: counts({ titleMissing: 300 }), rows, maxBodyChars: 9000 }),
+    );
+    expect(toBasecampHtml(t).length).toBeLessThanOrEqual(9000);
+    expect(toMarkdown(t).length).toBeLessThanOrEqual(9000);
   });
 });

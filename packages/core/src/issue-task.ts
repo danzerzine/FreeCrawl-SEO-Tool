@@ -150,7 +150,10 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
   // Largest row count within maxUrls whose rendered body fits maxBodyChars.
   const maxUrls = input.maxUrls ?? DEFAULT_MAX_URLS;
   const maxChars = input.maxBodyChars ?? DEFAULT_MAX_BODY_CHARS;
-  const fits = (n: number) => toMarkdown(assemble(n)).length <= maxChars;
+  const fits = (n: number) => {
+    const t = assemble(n);
+    return toMarkdown(t).length <= maxChars && toBasecampHtml(t).length <= maxChars;
+  };
   let lo = 0;
   let hi = Math.min(maxUrls, allRows.length);
   while (lo < hi) {
@@ -191,6 +194,31 @@ export function toMarkdown(task: IssueTask): string {
   return out.join('\n').trimEnd() + '\n';
 }
 
-export function toBasecampHtml(_task: IssueTask): string {
-  return '';
+function htmlText(s: string): string {
+  return mdText(s).replace(/"/g, '&quot;');
+}
+
+/** Static text with `code` pairs (the export name) turned into <code>. */
+function htmlWithCode(s: string): string {
+  return htmlText(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+/** Basecamp rich text: the same structure, every text HTML-escaped, the table as a real table. */
+export function toBasecampHtml(task: IssueTask): string {
+  const out: string[] = [];
+  if (task.note) out.push(`<div>${htmlText(task.note)}</div>`);
+  for (const s of task.sections) {
+    out.push(`<div><strong>${htmlText(s.heading)}</strong></div>`, `<div>${htmlText(s.text)}</div>`);
+    if (s.table) {
+      const { header, rows } = s.table;
+      out.push(
+        '<table>',
+        `<thead><tr>${header.map((h) => `<th>${htmlText(h)}</th>`).join('')}</tr></thead>`,
+        `<tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${htmlText(c)}</td>`).join('')}</tr>`).join('')}</tbody>`,
+        '</table>',
+      );
+    }
+    if (s.note) out.push(`<div>${htmlWithCode(s.note)}</div>`);
+  }
+  return out.join('');
 }
