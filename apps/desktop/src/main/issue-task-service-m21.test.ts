@@ -52,6 +52,15 @@ async function github() {
   };
 }
 
+async function previewId(
+  svc: ReturnType<typeof createIssueTaskService>,
+  input: Parameters<ReturnType<typeof createIssueTaskService>['preview']>[0] = { category: CATEGORY },
+) {
+  const p = await svc.preview(input);
+  if (!p.ok) throw new Error(p.message);
+  return p.previewId;
+}
+
 describe('issue task service: preview', () => {
   it('shows the exact text, makes no request and says where each target would go', async () => {
     const { s, creds } = await github();
@@ -89,7 +98,7 @@ describe('issue task service: send', () => {
     const svc = createIssueTaskService(deps({ creds }));
     const p = await svc.preview({ category: CATEGORY });
     if (!p.ok) throw new Error(p.message);
-    const r = await svc.send({ category: CATEGORY, target: 'github' });
+    const r = await svc.send({ category: CATEGORY, target: 'github', previewId: p.previewId });
     expect(r.ok).toBe(true);
     expect(s.requests).toHaveLength(1);
     const sent = JSON.parse(s.requests[0]!.body) as { title: string; body: string };
@@ -103,9 +112,10 @@ describe('issue task service: send', () => {
   it('two clicks at once make one request', async () => {
     const { s, creds } = await github();
     const svc = createIssueTaskService(deps({ creds }));
+    const id = await previewId(svc);
     const [a, b] = await Promise.all([
-      svc.send({ category: CATEGORY, target: 'github' }),
-      svc.send({ category: CATEGORY, target: 'github' }),
+      svc.send({ category: CATEGORY, target: 'github', previewId: id }),
+      svc.send({ category: CATEGORY, target: 'github', previewId: id }),
     ]);
     expect(s.requests).toHaveLength(1);
     expect([a.ok, b.ok].sort()).toEqual([false, true]);
@@ -114,7 +124,8 @@ describe('issue task service: send', () => {
   it('sends the edited title and note', async () => {
     const { s, creds } = await github();
     const svc = createIssueTaskService(deps({ creds }));
-    await svc.send({ category: CATEGORY, target: 'github', title: 'Edited', note: 'Note here' });
+    const id = await previewId(svc, { category: CATEGORY, title: 'Edited', note: 'Note here' });
+    await svc.send({ category: CATEGORY, target: 'github', previewId: id });
     const sent = JSON.parse(s.requests[0]!.body) as { title: string; body: string };
     expect(sent.title).toBe('Edited');
     expect(sent.body).toContain('Note here');
@@ -128,7 +139,7 @@ describe('issue task service: send', () => {
         creds: { 'basecamp-tasks': { accessToken: GOOD_BASECAMP_TOKEN, accountId: '7', todolistId: '9', apiBase: s.base } },
       }),
     );
-    const r = await svc.send({ category: CATEGORY, target: 'basecamp' });
+    const r = await svc.send({ category: CATEGORY, target: 'basecamp', previewId: await previewId(svc) });
     expect(r.ok).toBe(true);
     expect(s.requests).toHaveLength(1);
     expect(s.requests[0]!.path).toBe('/7/todolists/9/todos.json');
@@ -140,14 +151,14 @@ describe('issue task service: send', () => {
     const svc = createIssueTaskService(
       deps({ creds: { 'basecamp-tasks': { accessToken: 'stale', accountId: '7', todolistId: '9', apiBase: s.base } } }),
     );
-    const r = await svc.send({ category: CATEGORY, target: 'basecamp' });
+    const r = await svc.send({ category: CATEGORY, target: 'basecamp', previewId: await previewId(svc) });
     expect(r).toMatchObject({ ok: false });
     if (!r.ok) expect(r.message).toMatch(/expired or revoked/);
   });
 
   it('says plainly when the integration is not set up and sends nothing', async () => {
     const svc = createIssueTaskService(deps());
-    const r = await svc.send({ category: CATEGORY, target: 'github' });
+    const r = await svc.send({ category: CATEGORY, target: 'github', previewId: await previewId(svc) });
     expect(r).toMatchObject({ ok: false });
     if (!r.ok) expect(r.message).toMatch(/not set up/);
   });
@@ -163,7 +174,7 @@ describe('issue task service: send', () => {
         },
       }),
     );
-    const r = await svc.send({ category: CATEGORY, target: 'github' });
+    const r = await svc.send({ category: CATEGORY, target: 'github', previewId: await previewId(svc) });
     expect(r.ok).toBe(false);
     expect(calls).toBe(0);
   });
@@ -172,7 +183,7 @@ describe('issue task service: send', () => {
     const { s, creds } = await github();
     s.force({ status: 422, body: { message: 'Validation Failed' } });
     const svc = createIssueTaskService(deps({ creds }));
-    const r = await svc.send({ category: CATEGORY, target: 'github' });
+    const r = await svc.send({ category: CATEGORY, target: 'github', previewId: await previewId(svc) });
     expect(r.ok).toBe(false);
     const p = await svc.preview({ category: CATEGORY });
     if (p.ok) expect(p.targets.github.alreadySent).toBe(false);
@@ -191,6 +202,108 @@ describe('issue task service: save', () => {
 
   it('writes nothing when the user cancels', async () => {
     const svc = createIssueTaskService(deps());
-    expect(await svc.save({ category: CATEGORY })).toMatchObject({ ok: false });
+    expect(await svc.save({ category: CATEGORY })).toMatchObject({ ok: false, cancelled: true });
+  });
+});
+
+describe('issue task service: what was previewed is what is sent', () => {
+  it('sends the previewed rows even when the project changed after the preview', async () => {
+    const { s, creds } = await github();
+    let calls = 0;
+    const svc = createIssueTaskService(
+      deps({
+        creds,
+        loadSource: async () => {
+          calls++;
+          return (calls === 1
+            ? SOURCE
+            : { ...SOURCE, total: 99, rows: [{ url: 'https://shop.example.test/NEW', statusCode: 200 }] }) as never;
+        },
+      }),
+    );
+    const p = await svc.preview({ category: CATEGORY });
+    if (!p.ok) throw new Error(p.message);
+    await svc.send({ category: CATEGORY, target: 'github', previewId: p.previewId });
+    const sent = JSON.parse(s.requests[0]!.body) as { title: string; body: string };
+    expect(sent.body).toBe(p.markdown);
+    expect(sent.body).not.toContain('/NEW');
+    expect(calls).toBe(1);
+  });
+
+  it('refuses a stale preview id and a send without any preview, and sends nothing', async () => {
+    const { s, creds } = await github();
+    const svc = createIssueTaskService(deps({ creds }));
+    expect((await svc.send({ category: CATEGORY, target: 'github', previewId: 'nope' })).ok).toBe(false);
+    const first = await previewId(svc);
+    await previewId(svc, { category: CATEGORY, title: 'Edited later' });
+    const r = await svc.send({ category: CATEGORY, target: 'github', previewId: first });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.message).toMatch(/changed/);
+    expect(s.requests).toHaveLength(0);
+  });
+});
+
+describe('issue task service: errors come back as results', () => {
+  it('a throwing source gives {ok:false} for preview and save, with the token scrubbed', async () => {
+    const { creds } = await github();
+    const boom = async (): Promise<never> => {
+      throw new Error(`disk full ${GOOD_GITHUB_TOKEN}`);
+    };
+    const svc = createIssueTaskService(deps({ creds, loadSource: boom }));
+    for (const r of [
+      await svc.preview({ category: CATEGORY }),
+      await svc.save({ category: CATEGORY }),
+    ]) {
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.message).toContain('disk full');
+        expect(r.message).not.toContain(GOOD_GITHUB_TOKEN);
+      }
+    }
+  });
+
+  it('a failing file write on save is a result, not a rejection', async () => {
+    const svc = createIssueTaskService(
+      deps({ pickSavePath: async () => join(mkdtempSync(join(tmpdir(), 'm21-w-')), 'no', 'such', 'dir.md') }),
+    );
+    const r = await svc.save({ category: CATEGORY });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.cancelled).toBeUndefined();
+  });
+
+  it('a fetch that throws on send is a result', async () => {
+    const { creds } = await github();
+    const svc = createIssueTaskService(
+      deps({ creds, fetch: async () => { throw new Error('socket'); } }),
+    );
+    const r = await svc.send({ category: CATEGORY, target: 'github', previewId: await previewId(svc) });
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('issue task service: scope and link checks', () => {
+  it('Broken Links (All / External) make no task', async () => {
+    const svc = createIssueTaskService(deps());
+    for (const c of ['issues:broken-links-all', 'issues:broken-links-external'] as const)
+      expect((await svc.preview({ category: c })).ok).toBe(false);
+  });
+
+  it('a link check passes the by-target rows to the task', async () => {
+    const svc = createIssueTaskService(
+      deps({
+        loadSource: async () =>
+          ({
+            ...SOURCE,
+            counts: { issues: { internalLinkToRedirect: 1 }, thresholds: DEFAULT_SEO_THRESHOLDS },
+            targets: {
+              rows: [{ targetUrl: 'https://shop.example.test/old', statusCode: 301, finalUrl: 'https://shop.example.test/new', sourcePages: 5, sampleSourceUrl: null }],
+            },
+          }) as never,
+      }),
+    );
+    const p = await svc.preview({ category: 'issues:internal-link-to-redirect' });
+    if (!p.ok) throw new Error(p.message);
+    expect(p.markdown).toContain('`https://shop.example.test/old`');
+    expect(p.markdown).toContain('Linking pages');
   });
 });

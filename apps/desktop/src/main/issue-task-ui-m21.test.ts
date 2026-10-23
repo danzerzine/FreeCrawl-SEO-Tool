@@ -54,7 +54,7 @@ describe('M21 dialog', () => {
     const d = dialog();
     expect(d.match(/issueTaskSend\(/g)).toHaveLength(1);
     expect(d).toMatch(/const send = async/);
-    expect(d).toMatch(/if \(sending\) return/);
+    expect(d).toMatch(/if \(sending \|\| !ready \|\| !inSync\) return/);
     expect(d).toMatch(/disabled=\{[^}]*sending[^}]*\}/);
   });
 
@@ -63,7 +63,7 @@ describe('M21 dialog', () => {
     expect(d).toMatch(/navigator\.clipboard\.writeText\(/);
     expect(d).toMatch(/issueTaskSave\(/);
     expect(d).toMatch(/ready\?\.targets\[target\]/);
-    expect(d).toMatch(/disabled=\{!ready \|\| !configured \|\| sending\}/);
+    expect(d).toMatch(/disabled=\{!inSync \|\| !configured \|\| sending\}/);
     expect(d).toMatch(/targetRow\('github'\)[\s\S]*targetRow\('basecamp'\)/);
   });
 
@@ -75,11 +75,28 @@ describe('M21 dialog', () => {
     expect(d).toMatch(/mayHaveBeenCreated/);
   });
 
+  it('a rejected preview, save or send shows a message and cancel is a flag, not a string', () => {
+    const d = dialog();
+    expect(d).toMatch(/\.catch\(/);
+    expect((d.match(/catch \(e\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(d).not.toContain("'Cancelled.'");
+    expect(d).toMatch(/r\.cancelled/);
+  });
+
+  it('Send needs the edits to be previewed and quotes the preview id', () => {
+    const d = dialog();
+    expect(d).toMatch(/previewId: ready\.previewId/);
+    expect(d).toMatch(/if \(sending \|\| !ready \|\| !inSync\) return/);
+    expect(d).toMatch(/const inSync = /);
+  });
+
   it('the button sits in the URLs tab and shows for an Issues check only', () => {
     const tab = src('../renderer/src/tabs/UrlsTab.tsx');
     expect(tab).toMatch(/<IssueTaskDialog/);
     expect(tab).toMatch(/activeCategory\.startsWith\('issues:'\)/);
     expect(tab).toMatch(/t\('issueTask\.button'/);
+    expect(tab).toMatch(/!activeCategory\.startsWith\('issues:broken-links-'\)/);
+    expect(src('../renderer/src/tabs/BrokenLinksTab.tsx')).toMatch(/issues:broken-links-internal/);
   });
 });
 

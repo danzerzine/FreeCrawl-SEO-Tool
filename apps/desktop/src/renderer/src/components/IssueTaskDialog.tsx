@@ -30,6 +30,8 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'none' });
   const [reloadKey, setReloadKey] = useState(0);
+  /** The edits the shown preview was built from. */
+  const [previewedKey, setPreviewedKey] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +39,7 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
     setNote('');
     setStatus({ kind: 'none' });
     setPreview(null);
+    setPreviewedKey('');
   }, [open, category]);
 
   // The preview is rebuilt in main from the same inputs the send uses, so the text shown is the text sent.
@@ -47,7 +50,12 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
       void window.freecrawl
         .issueTaskPreview({ category, ...(titleEdit !== null ? { title: titleEdit } : {}), note })
         .then((p) => {
-          if (live) setPreview(p);
+          if (!live) return;
+          setPreview(p);
+          setPreviewedKey(JSON.stringify([category, titleEdit, note]));
+        })
+        .catch((e: unknown) => {
+          if (live) setPreview({ ok: false, message: e instanceof Error ? e.message : String(e) });
         });
     }, 200);
     return () => {
@@ -67,6 +75,8 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
 
   if (!open) return null;
   const ready = preview?.ok ? preview : null;
+  /** The shown text is the text of the current edits (the debounced preview has caught up). */
+  const inSync = ready !== null && previewedKey === JSON.stringify([category, titleEdit, note]);
   const edits = { category, ...(titleEdit !== null ? { title: titleEdit } : {}), note };
 
   const copy = async () => {
@@ -76,29 +86,39 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
   };
 
   const save = async () => {
-    const r = await window.freecrawl.issueTaskSave(edits);
-    if (r.ok) {
-      setStatus({
-        kind: 'info',
-        text: t('issueTask.saved', { defaultValue: 'Saved to {{path}}', path: r.filePath }),
-      });
-    } else if (r.message !== 'Cancelled.') {
-      setStatus({ kind: 'error', text: r.message, mayHaveBeenCreated: false });
+    try {
+      const r = await window.freecrawl.issueTaskSave(edits);
+      if (r.ok) {
+        setStatus({
+          kind: 'info',
+          text: t('issueTask.saved', { defaultValue: 'Saved to {{path}}', path: r.filePath }),
+        });
+      } else if (!r.cancelled) {
+        setStatus({ kind: 'error', text: r.message, mayHaveBeenCreated: false });
+      }
+    } catch (e) {
+      setStatus({ kind: 'error', text: e instanceof Error ? e.message : String(e), mayHaveBeenCreated: false });
     }
   };
 
   const send = async (target: IssueTaskTarget) => {
-    if (sending) return;
+    if (sending || !ready || !inSync) return;
     setSending(true);
     setStatus({ kind: 'none' });
     try {
-      const r = await window.freecrawl.issueTaskSend({ ...edits, target });
+      const r = await window.freecrawl.issueTaskSend({ category, target, previewId: ready.previewId });
       setStatus(
         r.ok
           ? { kind: 'sent', url: r.url }
           : { kind: 'error', text: r.message, mayHaveBeenCreated: r.mayHaveBeenCreated === true },
       );
       setReloadKey((k) => k + 1);
+    } catch (e) {
+      setStatus({
+        kind: 'error',
+        text: e instanceof Error ? e.message : String(e),
+        mayHaveBeenCreated: false,
+      });
     } finally {
       setSending(false);
     }
@@ -117,10 +137,10 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
           type="button"
           data-testid={`issue-task-send-${target}`}
           onClick={() => void send(target)}
-          disabled={!ready || !configured || sending}
+          disabled={!inSync || !configured || sending}
           className={clsx(
             'inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-[11px] transition',
-            !ready || !configured || sending
+            !inSync || !configured || sending
               ? 'cursor-not-allowed border-surface-800 text-surface-600'
               : 'border-accent-500/60 text-accent-300 hover:bg-accent-500/10',
           )}

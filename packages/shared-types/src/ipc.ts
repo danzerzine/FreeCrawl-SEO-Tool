@@ -730,19 +730,27 @@ export type IssueTaskPreviewResult =
       /** The exact Basecamp description that would be sent. */
       basecampHtml: string;
       totalUrls: number;
+      /** Identifies this exact text; Send must quote it. */
+      previewId: string;
       targets: Record<IssueTaskTarget, IssueTaskTargetState>;
     }
   | { ok: false; message: string };
 
-export interface IssueTaskSendInput extends IssueTaskPreviewInput {
+/** Sends the task of the last preview, not a rebuilt one. */
+export interface IssueTaskSendInput {
+  category: UrlCategory;
   target: IssueTaskTarget;
+  /** `previewId` of the preview the user read. */
+  previewId: string;
 }
 
 export type IssueTaskSendResult =
   | { ok: true; url: string }
   | { ok: false; message: string; mayHaveBeenCreated?: boolean };
 
-export type IssueTaskSaveResult = { ok: true; filePath: string } | { ok: false; message: string };
+export type IssueTaskSaveResult =
+  | { ok: true; filePath: string }
+  | { ok: false; message: string; cancelled?: true };
 
 export interface ExportCsvInput {
   filePath: string;

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { BrokenLinkRow } from '@freecrawl/shared-types';
 import { useAppStore } from '../store.js';
 import { InfoTip } from '../components/InfoTip.js';
+import { IssueTaskDialog } from '../components/IssueTaskDialog.js';
 import { translateLabel } from '../i18n/labels.js';
 import {
   copySelection,
@@ -139,6 +140,7 @@ export function BrokenLinksTab() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [issueTaskOpen, setIssueTaskOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // ---- Cell selection -----------------------------------------------------
@@ -431,6 +433,25 @@ export function BrokenLinksTab() {
           <Download className="h-3.5 w-3.5" />
           <span>{t('urlsTab.export', { defaultValue: 'Export' })}</span>
         </button>
+        {internal === 'internal' && (
+          <button
+            type="button"
+            data-testid="issue-task-open"
+            onClick={() => setIssueTaskOpen(true)}
+            disabled={total === 0}
+            className="rounded border border-surface-700 px-2 py-1 text-[11px] text-surface-300 hover:bg-surface-800 disabled:cursor-not-allowed disabled:border-surface-800 disabled:text-surface-600"
+            title={t('issueTask.buttonTitle', { defaultValue: 'Turn this issue into a task for GitHub or Basecamp' })}
+          >
+            {t('issueTask.button', { defaultValue: 'Create task…' })}
+          </button>
+        )}
+        {issueTaskOpen && internal === 'internal' && (
+          <IssueTaskDialog
+            open={issueTaskOpen}
+            category="issues:broken-links-internal"
+            onClose={() => setIssueTaskOpen(false)}
+          />
+        )}
       </div>
 
       <div

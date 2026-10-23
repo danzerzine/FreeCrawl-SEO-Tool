@@ -360,7 +360,7 @@ import {
 } from '@freecrawl/core';
 import { fetch as undiciFetch } from 'undici';
 import { apiFetch } from './api-fetch.js';
-import { createIssueTaskService } from './issue-task-service.js';
+import { createIssueTaskService, targetReportOf, toTargetRow } from './issue-task-service.js';
 import { ProjectDb, EXPENSIVE_ISSUE_DEFINITIONS, type SavedQueueItem } from '@freecrawl/db';
 import { buildAppMenu } from './menu.js';
 import {
@@ -10334,16 +10334,18 @@ function registerIpc(): void {
     env: process.env,
     loadSource: async (category) => {
       const db = getDb();
-      const [counts, page] = await Promise.all([
-        overviewCountsFor(currentSession()),
-        Promise.resolve(db.queryUrls({ category, limit: 200, offset: 0 })),
-      ]);
+      const counts = await overviewCountsFor(currentSession());
+      const page = db.queryUrls({ category, limit: 200, offset: 0 });
+      // Link checks counted by target: the by-target report names the bad targets.
+      const report = targetReportOf(category);
+      const targetRows = report ? db.linkTargetReport({ report, limit: 200 }) : null;
       return {
         counts,
         rows: page.rows,
+        ...(targetRows ? { targets: { rows: targetRows.map(toTargetRow) } } : {}),
         total: page.total,
         siteUrl: db.getMeta('lastStartUrl') ?? db.getMeta('startUrl') ?? '',
-        crawledAt: new Date().toISOString(),
+        crawledAt: db.latestCrawlTime() ?? new Date().toISOString(),
       };
     },
     pickSavePath: async (defaultName) => {

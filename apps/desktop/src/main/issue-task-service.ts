@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import {
   buildIssueTask,
@@ -7,6 +8,7 @@ import {
   toBasecampHtml,
   toMarkdown,
   type IssueTask,
+  type IssueTaskTargetRow,
   type TrackerFetch,
 } from '@freecrawl/core';
 import {
@@ -18,6 +20,8 @@ import {
   type IssueTaskSendInput,
   type IssueTaskSendResult,
   type IssueTaskTarget,
+  type LinkTargetReportKind,
+  type LinkTargetRow,
   type IssueTaskTargetState,
   type OverviewCounts,
 } from '@freecrawl/shared-types';
@@ -33,6 +37,8 @@ const INTEGRATION_ID: Record<IssueTaskTarget, string> = {
 export interface IssueTaskSource {
   counts: Pick<OverviewCounts, 'issues' | 'thresholds'>;
   rows: CrawlUrlRow[];
+  /** By-target report rows of a link check that has one; absent when not computed. */
+  targets?: { rows: IssueTaskTargetRow[] };
   /** Flagged URLs in total. */
   total: number;
   siteUrl: string;
@@ -49,9 +55,37 @@ export interface IssueTaskDeps {
   pickSavePath(defaultName: string): Promise<string | null>;
 }
 
+/** Broken Links (All / External) have no by-target report: no task for them. */
+const OUT_OF_SCOPE = new Set<string>(['issues:broken-links-all', 'issues:broken-links-external']);
 const ISSUE_CATEGORIES = new Set<string>(
-  ISSUE_GROUPS.flatMap((g) => g.items.map((i) => i.category)),
+  ISSUE_GROUPS.flatMap((g) => g.items.map((i) => i.category)).filter((c) => !OUT_OF_SCOPE.has(c)),
 );
+
+/** The by-target report of a link check, when it has one. */
+export function targetReportOf(category: string): LinkTargetReportKind | undefined {
+  return ISSUE_GROUPS.flatMap((g) => g.items).find((i) => i.category === category)?.byTarget
+    ?.report;
+}
+
+export function toTargetRow(r: LinkTargetRow): IssueTaskTargetRow {
+  return {
+    targetUrl: r.targetUrl,
+    statusCode: r.statusCode,
+    finalUrl: r.finalUrl,
+    sourcePages: r.sourcePages,
+    sampleSourceUrl: r.sampleSourceUrl,
+  };
+}
+
+/** Error text without any token of the two integrations. */
+function scrubbed(e: unknown, secrets: string[]): string {
+  let out = e instanceof Error ? e.message : String(e);
+  for (const s of secrets) {
+    if (s.length < 6) continue;
+    for (const form of new Set([s, encodeURIComponent(s)])) out = out.split(form).join('***');
+  }
+  return out;
+}
 
 function whereOf(target: IssueTaskTarget, creds: Record<string, string>): string {
   return target === 'github'
@@ -67,6 +101,14 @@ function whereOf(target: IssueTaskTarget, creds: Record<string, string>): string
 export function createIssueTaskService(deps: IssueTaskDeps) {
   const sent = new Set<string>();
   const inFlight = new Set<string>();
+  /** The task of the newest preview: what Send sends. */
+  let last: { id: string; category: string; task: IssueTask } | null = null;
+  const secrets = () =>
+    (['github', 'basecamp'] as const).flatMap((t) => {
+      const c = deps.credentials(INTEGRATION_ID[t]);
+      return [c['token'] ?? '', c['accessToken'] ?? ''];
+    });
+  const fail = (e: unknown) => ({ ok: false as const, message: scrubbed(e, secrets()) });
   const key = (target: IssueTaskTarget, category: string) => `${target}|${category}`;
 
   async function build(
@@ -78,6 +120,9 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
     const cols = evidenceColumnsFor(input.category);
     const task = buildIssueTask({
       category: input.category,
+      ...(input.title?.trim() ? { title: input.title } : {}),
+      ...(input.note?.trim() ? { note: input.note } : {}),
+      ...(src.targets ? { targets: src.targets } : {}),
       counts: src.counts,
       totalUrls: src.total,
       siteUrl: src.siteUrl,
@@ -92,12 +137,7 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
         ),
       })),
     });
-    const title = input.title?.trim();
-    const note = input.note?.trim();
-    return {
-      task: { ...task, ...(title ? { title } : {}), ...(note ? { note } : {}) },
-      total: src.total,
-    };
+    return { task, total: src.total };
   }
 
   function targetState(target: IssueTaskTarget, category: string): IssueTaskTargetState {
@@ -112,19 +152,31 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
 
   return {
     async preview(input: IssueTaskPreviewInput): Promise<IssueTaskPreviewResult> {
-      const built = await build(input);
-      if (typeof built === 'string') return { ok: false, message: built };
-      return {
-        ok: true,
-        title: built.task.title,
-        markdown: toMarkdown(built.task),
-        basecampHtml: toBasecampHtml(built.task),
-        totalUrls: built.total,
-        targets: {
-          github: targetState('github', input.category),
-          basecamp: targetState('basecamp', input.category),
-        },
-      };
+      try {
+        const built = await build(input);
+        if (typeof built === 'string') return { ok: false, message: built };
+        const markdown = toMarkdown(built.task);
+        const basecampHtml = toBasecampHtml(built.task);
+        const previewId = createHash('sha256')
+          .update(JSON.stringify([built.task.title, markdown, basecampHtml]))
+          .digest('hex')
+          .slice(0, 16);
+        last = { id: previewId, category: input.category, task: built.task };
+        return {
+          ok: true,
+          title: built.task.title,
+          markdown,
+          basecampHtml,
+          totalUrls: built.total,
+          previewId,
+          targets: {
+            github: targetState('github', input.category),
+            basecamp: targetState('basecamp', input.category),
+          },
+        };
+      } catch (e) {
+        return fail(e);
+      }
     },
 
     async send(input: IssueTaskSendInput): Promise<IssueTaskSendResult> {
@@ -132,19 +184,21 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
       if (inFlight.has(k)) return { ok: false, message: 'This task is already being sent.' };
       inFlight.add(k);
       try {
+        if (!last || last.id !== input.previewId || last.category !== input.category) {
+          return { ok: false, message: 'The text changed since you read it. Review the new preview, then send.' };
+        }
         const creds = deps.credentials(INTEGRATION_ID[input.target]);
-        const built = await build(input);
-        if (typeof built === 'string') return { ok: false, message: built };
+        const task = last.task;
         const sendDeps = { fetch: deps.fetch };
         let res;
         if (input.target === 'github') {
           const cfg = resolveTrackerConfig('github', creds, deps.env);
           if (!cfg.ok) return cfg;
-          res = await sendGithubIssue(cfg.cfg, built.task, sendDeps);
+          res = await sendGithubIssue(cfg.cfg, task, sendDeps);
         } else {
           const cfg = resolveTrackerConfig('basecamp', creds, deps.env);
           if (!cfg.ok) return cfg;
-          res = await sendBasecampTodo(cfg.cfg, built.task, sendDeps);
+          res = await sendBasecampTodo(cfg.cfg, task, sendDeps);
         }
         if (res.ok) {
           sent.add(k);
@@ -155,18 +209,24 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
           message: res.message,
           ...(res.mayHaveBeenCreated ? { mayHaveBeenCreated: true } : {}),
         };
+      } catch (e) {
+        return fail(e);
       } finally {
         inFlight.delete(k);
       }
     },
 
     async save(input: IssueTaskPreviewInput): Promise<IssueTaskSaveResult> {
-      const built = await build(input);
-      if (typeof built === 'string') return { ok: false, message: built };
-      const file = await deps.pickSavePath(`${input.category.replace(/[^a-z0-9-]+/gi, '-')}.md`);
-      if (!file) return { ok: false, message: 'Cancelled.' };
-      await writeFile(file, toMarkdown(built.task), 'utf8');
-      return { ok: true, filePath: file };
+      try {
+        const built = await build(input);
+        if (typeof built === 'string') return { ok: false, message: built };
+        const file = await deps.pickSavePath(`${input.category.replace(/[^a-z0-9-]+/gi, '-')}.md`);
+        if (!file) return { ok: false, message: 'Cancelled.', cancelled: true };
+        await writeFile(file, toMarkdown(built.task), 'utf8');
+        return { ok: true, filePath: file };
+      } catch (e) {
+        return fail(e);
+      }
     },
   };
 }
