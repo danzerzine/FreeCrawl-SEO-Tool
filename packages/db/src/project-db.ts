@@ -6629,6 +6629,63 @@ export class ProjectDb {
   }
 
   /**
+   * B91 — merge one pulled part of the BigQuery export into an account's rows and write the given meta
+   * keys, all in ONE transaction (no half-merged state). An existing URL gets clicks and impressions
+   * added; position is the impression-weighted mean of the one-based positions (`(p-1)*i` is the
+   * export's own `sum_position`, so the merge is exact to float precision); ctr is recomputed.
+   * `meta` receives the account's row count after the merge. Returns that count.
+   */
+  mergeGscResultsPart(
+    accountId: string,
+    rows: { url: string; clicks: number; impressions: number; ctr: number; position: number }[],
+    fetchedAt: string,
+    meta: (rowCount: number) => Record<string, string>,
+  ): number {
+    return this.runInTransaction(() => {
+      const CHUNK = 400;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const slice = rows.slice(i, i + CHUNK);
+        const placeholders = slice.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(',');
+        const args: (string | number)[] = [];
+        for (const r of slice) {
+          args.push(r.url, accountId, r.clicks, r.impressions, r.ctr, r.position, fetchedAt);
+        }
+        this.db
+          .prepare(
+            `INSERT INTO gsc_results (url, account_id, clicks, impressions, ctr, position, fetched_at)
+             VALUES ${placeholders}
+             ON CONFLICT(url, account_id) DO UPDATE SET
+               clicks = gsc_results.clicks + excluded.clicks,
+               impressions = gsc_results.impressions + excluded.impressions,
+               position = CASE WHEN gsc_results.impressions + excluded.impressions > 0 THEN
+                   ((CASE WHEN gsc_results.impressions > 0 THEN (gsc_results.position - 1) * gsc_results.impressions ELSE 0 END)
+                  + (CASE WHEN excluded.impressions > 0 THEN (excluded.position - 1) * excluded.impressions ELSE 0 END))
+                   / (gsc_results.impressions + excluded.impressions) + 1
+                 ELSE 0 END,
+               ctr = CASE WHEN gsc_results.impressions + excluded.impressions > 0
+                 THEN (gsc_results.clicks + excluded.clicks) * 1.0 / (gsc_results.impressions + excluded.impressions)
+                 ELSE 0 END,
+               fetched_at = excluded.fetched_at`,
+          )
+          .run(...args);
+      }
+      const count = Number(
+        (this.db.prepare('SELECT COUNT(*) AS n FROM gsc_results WHERE account_id = ?').get(accountId) as { n: number }).n,
+      );
+      for (const [key, value] of Object.entries(meta(count))) this.setMeta(key, value);
+      return count;
+    });
+  }
+
+  /** B91 — drop one account's `gsc_results` rows and the named meta keys (the BigQuery reset); other accounts stay. */
+  deleteGscResults(accountId: string, metaKeys: string[]): void {
+    this.runInTransaction(() => {
+      this.db.prepare('DELETE FROM gsc_results WHERE account_id = ?').run(accountId);
+      for (const key of metaKeys) this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(key);
+    });
+  }
+
+  /**
    * Adopt rows left by a pre-multi-account version (`account_id = ''`)
    * into a real account id, so an upgraded project keeps the data it
    * already pulled instead of showing an empty table until the next

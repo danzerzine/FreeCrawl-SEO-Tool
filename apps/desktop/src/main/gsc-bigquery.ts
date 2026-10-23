@@ -342,6 +342,11 @@ export class GscBqClient {
     return { location };
   }
 
+  /** The dataset location from an earlier preflight (a restart or a plan held by the app). */
+  setLocation(location: string): void {
+    this.location = location;
+  }
+
   private loc(location?: string): string {
     const l = location ?? this.location;
     if (!l) throw new BqError('other', 'Run the preflight first: the dataset location is not known yet.');
