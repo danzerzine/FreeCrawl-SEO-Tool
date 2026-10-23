@@ -1316,9 +1316,9 @@ export function buildTools(): Tool[] {
       description:
         'Internal-link suggestions: for each weakly linked page (few effective inlinks, orphans first) up to perTarget indexable pages ' +
         'that are about the same thing (closeness 0-100 from title, H1 and meta description words) and do not link to it yet. ' +
-        'Effective inlinks = distinct indexable pages linking it, redirects folded, menu/footer links and self-links left out. ' +
+        'Effective inlinks = distinct indexable pages linking it (nofollow only if the crawl counted it), redirects folded, self-links left out; menu and footer links DO count, only a page linked from 80% of the site (a template URL) is never listed as a target. ' +
         'A target with no good source is listed with rank 0. Returns {rows, targets, withoutSuggestion, truncated, degraded, redirectsFolded, missingColumns}; ' +
-        'truncated = more weak pages than maxTargets or the time budget ran out; redirectsFolded "one-hop" = redirect chains were not computed. ' +
+        'truncated = the time budget ran out (a cut at maxTargets is not truncation: targets says how many were looked at); redirectsFolded "one-hop" = redirect chains were not computed. ' +
         'Returns notComputed instead of rows until the crawl has computed inlinks. suggestedAnchor is a hint taken from the target, not text found in the source page. ' +
         'Runs in the desktop app (a worker thread), so the app must be open on the project; a big site takes minutes.',
       inputSchema: {
@@ -1337,8 +1337,11 @@ export function buildTools(): Tool[] {
           maxSourceOutlinks: { type: 'integer', minimum: 0, description: 'Default 150.' },
         },
       },
+      // The bridge sends JSON null when it has nothing to say; the tool always answers notComputed.
       handler: async (args) =>
-        bridgeRequest<unknown>('POST', '/v1/action/report-link-suggestions', args),
+        (await bridgeRequest<unknown>('POST', '/v1/action/report-link-suggestions', args)) ?? {
+          notComputed: true,
+        },
     },
     ...LINK_TARGET_REPORTS.map(
       ([name, report, what]): Tool => ({

@@ -36,6 +36,17 @@ describe('B93 MCP report_link_suggestions', () => {
     expect(out).toMatchObject({ rows: [{ rank: 1 }] });
   });
 
+  it('turns the bridge\'s JSON null into notComputed', async () => {
+    sent.mockResolvedValueOnce(null);
+    expect(await tool().handler({}, undefined as never)).toEqual({ notComputed: true });
+  });
+
+  it('says what the code counts: menu and footer links are not excluded', () => {
+    const d = tool().description;
+    expect(d).not.toMatch(/menu\/footer links and self-links left out/);
+    expect(d).toMatch(/menu and footer links DO count/);
+  });
+
   it('passes notComputed through unchanged', async () => {
     sent.mockResolvedValueOnce({ notComputed: true });
     expect(await tool().handler({}, undefined as never)).toEqual({ notComputed: true });
