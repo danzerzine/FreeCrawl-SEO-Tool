@@ -114,6 +114,7 @@ describe('B84 section index page', () => {
     { id: 2, url: 'https://ex.test/news?p=2', title: 'Кофе вторая' },
     { id: 3, url: 'https://ex.test/news/a', title: 'Кофе статья' },
     { id: 4, url: 'https://ex.test/newsletter', title: 'Чай рассылка' },
+    { id: 5, url: 'https://ex.test/news#/a', title: 'Кофе маршрут' },
   ];
 
   it('a single section includes the folder page without a trailing slash, with or without a query', () => {
@@ -121,6 +122,7 @@ describe('B84 section index page', () => {
     db = new ProjectDb(file);
     expect([...db.seoTextCorpus({ section: 'news' })].map((r) => r.url).sort()).toEqual([
       'https://ex.test/news',
+      'https://ex.test/news#/a',
       'https://ex.test/news/a',
       'https://ex.test/news?p=2',
     ]);
@@ -136,7 +138,7 @@ describe('B84 section index page', () => {
     const one = topWordsBlocks(db, { locale: 'ru', section: 'news' });
     expect(one).toHaveLength(1);
     expect(one[0]!.rows).toEqual(by.rows);
-    expect(by.rows.find((r) => r.word === 'кофе')).toEqual({ word: 'кофе', count: 3, pages: 3 });
+    expect(by.rows.find((r) => r.word === 'кофе')).toEqual({ word: 'кофе', count: 4, pages: 4 });
   });
 });
 
