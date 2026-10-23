@@ -2744,6 +2744,7 @@
     "result": "{{done}} parts pulled, {{skipped}} already there. Billed: {{billed}} GiB.",
     "stop": "Stop",
     "recordEmpty": "Record empty months and continue",
+    "stoppedCancelled": "Cancelled; the finished parts stay saved.",
     "pull": "Pull",
     "rebuild": "Rebuild",
     "failed": "Failed"

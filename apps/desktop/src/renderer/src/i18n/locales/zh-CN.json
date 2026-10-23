@@ -2532,6 +2532,7 @@
     "result": "已拉取 {{done}} 段，{{skipped}} 段已存在。已计费：{{billed}} GiB。",
     "stop": "停止",
     "recordEmpty": "记录空月份并继续",
+    "stoppedCancelled": "已取消；已完成的部分仍保留。",
     "pull": "拉取",
     "rebuild": "重建",
     "failed": "失败"

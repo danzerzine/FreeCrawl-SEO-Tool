@@ -2532,6 +2532,7 @@
     "result": "{{done}}개 구간을 가져왔고 {{skipped}}개는 이미 있었습니다. 청구: {{billed}} GiB.",
     "stop": "중지",
     "recordEmpty": "빈 달을 기록하고 계속",
+    "stoppedCancelled": "취소되었습니다. 완료된 부분은 저장된 상태로 유지됩니다.",
     "pull": "가져오기",
     "rebuild": "다시 만들기",
     "failed": "실패"

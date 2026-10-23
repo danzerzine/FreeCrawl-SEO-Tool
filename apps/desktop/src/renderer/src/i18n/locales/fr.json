@@ -2624,6 +2624,7 @@
     "result": "{{done}} parties récupérées, {{skipped}} déjà présentes. Facturé : {{billed}} Gio.",
     "stop": "Arrêter",
     "recordEmpty": "Noter les mois vides et continuer",
+    "stoppedCancelled": "Annulé ; les parties terminées restent enregistrées.",
     "pull": "Récupérer",
     "rebuild": "Reconstruire",
     "failed": "Échec"

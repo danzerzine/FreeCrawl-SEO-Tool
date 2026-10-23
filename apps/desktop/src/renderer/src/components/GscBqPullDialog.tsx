@@ -256,7 +256,13 @@ export function GscBqPullDialog({
             })}
           </div>
           {result.stopped && (
-            <div className="break-words text-amber-300">{result.stopped.message}</div>
+            <div className="break-words text-amber-300">
+              {result.stopped.reason === 'cancelled'
+                ? t('gscBq.stoppedCancelled', {
+                    defaultValue: 'Cancelled; the finished parts stay saved.',
+                  })
+                : result.stopped.message}
+            </div>
           )}
           {result.error && <div className="break-words text-red-400">{result.error}</div>}
         </div>

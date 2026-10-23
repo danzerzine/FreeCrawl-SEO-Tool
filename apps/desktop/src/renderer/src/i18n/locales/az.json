@@ -2578,6 +2578,7 @@
     "result": "{{done}} hissə yükləndi, {{skipped}} artıq var idi. Ödənilən: {{billed}} GiB.",
     "stop": "Dayandır",
     "recordEmpty": "Boş ayları qeyd et və davam et",
+    "stoppedCancelled": "Ləğv edildi; tamamlanan hissələr saxlanıldı.",
     "pull": "Yüklə",
     "rebuild": "Yenidən qur",
     "failed": "Alınmadı"

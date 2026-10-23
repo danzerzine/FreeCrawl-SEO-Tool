@@ -126,3 +126,20 @@ describe('the progress line names the part being pulled (review r1)', () => {
     expect(src).not.toMatch(/done:\s*progress\?\.done/);
   });
 });
+
+describe('the cancel line is translated, not the raw main-process English', () => {
+  const root = path.resolve(__dirname, '../renderer/src');
+  const LOCALES = ['az', 'en', 'es', 'fr', 'hi', 'it', 'ko', 'pt-BR', 'ru', 'tr', 'zh-CN'];
+  const text = (l: string): string | undefined =>
+    JSON.parse(fs.readFileSync(path.join(root, `i18n/locales/${l}.json`), 'utf8')).gscBq?.stoppedCancelled;
+  it('the dialog picks gscBq.stoppedCancelled for a cancelled stop', () => {
+    const src = fs.readFileSync(path.join(root, 'components/GscBqPullDialog.tsx'), 'utf8');
+    expect(src).toContain("t('gscBq.stoppedCancelled'");
+    expect(src).toMatch(/reason === 'cancelled'/);
+  });
+  it('all 11 locales have it; en is the main-process wording, ru is Russian', () => {
+    for (const l of LOCALES) expect(typeof text(l), l).toBe('string');
+    expect(text('en')).toBe('Cancelled; the finished parts stay saved.');
+    expect(text('ru')).toMatch(/[а-я]/i);
+  });
+});

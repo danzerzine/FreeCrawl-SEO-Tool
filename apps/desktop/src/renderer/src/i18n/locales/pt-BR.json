@@ -2624,6 +2624,7 @@
     "result": "{{done}} partes importadas, {{skipped}} já estavam. Cobrado: {{billed}} GiB.",
     "stop": "Parar",
     "recordEmpty": "Registrar os meses vazios e continuar",
+    "stoppedCancelled": "Cancelado; as partes concluídas continuam salvas.",
     "pull": "Importar",
     "rebuild": "Reconstruir",
     "failed": "Falhou"

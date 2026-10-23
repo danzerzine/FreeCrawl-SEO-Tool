@@ -2624,6 +2624,7 @@
     "result": "{{done}} partes descargadas, {{skipped}} ya estaban. Facturado: {{billed}} GiB.",
     "stop": "Detener",
     "recordEmpty": "Registrar meses vacíos y continuar",
+    "stoppedCancelled": "Cancelado; las partes terminadas quedan guardadas.",
     "pull": "Descargar",
     "rebuild": "Reconstruir",
     "failed": "Error"

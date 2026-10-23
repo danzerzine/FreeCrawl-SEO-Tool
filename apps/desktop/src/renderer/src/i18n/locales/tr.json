@@ -2578,6 +2578,7 @@
     "result": "{{done}} parça çekildi, {{skipped}} zaten vardı. Faturalanan: {{billed}} GiB.",
     "stop": "Durdur",
     "recordEmpty": "Boş ayları kaydet ve devam et",
+    "stoppedCancelled": "İptal edildi; tamamlanan bölümler kayıtlı kalır.",
     "pull": "Çek",
     "rebuild": "Yeniden oluştur",
     "failed": "Başarısız"

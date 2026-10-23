@@ -2624,6 +2624,7 @@
     "result": "{{done}} parti scaricate, {{skipped}} già presenti. Fatturato: {{billed}} GiB.",
     "stop": "Ferma",
     "recordEmpty": "Registra i mesi vuoti e continua",
+    "stoppedCancelled": "Annullato; le parti completate restano salvate.",
     "pull": "Scarica",
     "rebuild": "Ricostruisci",
     "failed": "Non riuscito"
