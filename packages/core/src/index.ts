@@ -327,3 +327,10 @@ export {
   type IssueTaskRow,
   type BuildIssueTaskInput,
 } from './issue-task.js';
+export {
+  sendGithubIssue,
+  type GithubTaskConfig,
+  type TaskSendResult,
+  type TrackerDeps,
+  type TrackerFetch,
+} from './issue-task-send.js';
