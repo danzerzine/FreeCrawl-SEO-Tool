@@ -1,7 +1,7 @@
 import * as v8 from 'node:v8';
 import * as vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { CrawlTrapWatch, isCleanSitemapRead, trapSectionKey } from './crawl-trap-watch.js';
+import { CrawlTrapWatch, describeTrap, isCleanSitemapRead, trapSectionKey, type TrapFinding } from './crawl-trap-watch.js';
 
 const H = 'https://a.test';
 
@@ -278,5 +278,38 @@ describe('which sitemap read counts as a baseline', () => {
     ['nothing parsed', { truncated: false, sitemapsParsed: [], files: [file('u', 404, 'HTTP 404')] }, false],
   ])('%s is not', (_n, res, aborted) => {
     expect(isCleanSitemapRead(res, aborted)).toBe(false);
+  });
+});
+
+describe('R3 warning text for a query-only trap at the site root', () => {
+  const root = (samples: string[]): TrapFinding => ({
+    rule: 'R3',
+    key: 'a.test/(root)',
+    count: 5258,
+    expected: 1,
+    share: 0.8,
+    samples,
+    atCount: 6500,
+    host: 'a.test',
+  });
+  it('names the root readably and suggests an exclude built from the parameter names', () => {
+    const text = describeTrap(
+      root(['https://a.test/?color=red&page=3', 'https://a.test/?color=blue&page=9']),
+      6500,
+      1200,
+    );
+    expect(text).not.toContain('(root)');
+    expect(text).toContain('site root');
+    expect(text).toContain('(e.g. "color=")');
+  });
+  it('gives no exclude suggestion when the root URLs carry no query', () => {
+    const text = describeTrap(root(['https://a.test/x1', 'https://a.test/x2']), 6500, 1200);
+    expect(text).not.toContain('(root)');
+    expect(text).not.toContain('e.g.');
+    expect(text).toContain('lower the page limit');
+  });
+  it('keeps a path section as it was', () => {
+    const f = { ...root(['https://a.test/blog/a']), key: 'a.test/blog' };
+    expect(describeTrap(f, 6500, 1200)).toContain('(e.g. "/blog/")');
   });
 });
