@@ -95,6 +95,7 @@ export {
   createTopWordsAggregator,
   type TopWordsAggregator,
   tokenizeForTopWords,
+  isTopWordStopword,
   type TopWordsRow,
   type TopWordsOptions,
   type TopWordsLocale,
@@ -338,3 +339,13 @@ export {
   type TrackerDeps,
   type TrackerFetch,
 } from './issue-task-send.js';
+export {
+  linkSuggestions,
+  LINK_SUGGESTION_DEFAULTS,
+  type LinkSuggestionInternals,
+} from './link-suggestions.js';
+export {
+  runLinkSuggestionsInWorker,
+  LINK_SUGGESTIONS_WORKER_PATH,
+  type RunLinkSuggestionsOptions,
+} from './link-suggestions-run.js';

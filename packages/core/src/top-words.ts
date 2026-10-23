@@ -116,7 +116,7 @@ function isStopword(stopwords: Set<string>, tok: string): boolean {
 
 /** Is the lowercase token a stopword of the locale (default: all bundled locales)? */
 export function isTopWordStopword(token: string, locale: TopWordsLocale = 'all'): boolean {
-  return false;
+  return isStopword(STOPWORDS_BY_LOCALE[locale], token);
 }
 
 export interface TopWordsRow {

@@ -797,6 +797,30 @@ export interface SeoTextScope {
   url?: string;
 }
 
+/** Which of the optional columns the link-suggestions report reads this project file has (B93). */
+export interface LinkSuggestionColumns {
+  linkScore: boolean;
+  linkPosition: boolean;
+  clusterId: boolean;
+  contentHash: boolean;
+  canonicalResolved: boolean;
+  redirectFinalUrl: boolean;
+  redirectTarget: boolean;
+}
+
+/** An eligible page (indexable internal HTML, 2xx) as the link-suggestions report reads it. */
+export interface LinkSuggestionPage {
+  id: number;
+  url: string;
+  title: string | null;
+  h1: string | null;
+  metaDescription: string | null;
+  outlinks: number;
+  linkScore: number | null;
+  clusterId: number;
+  contentHash: string | null;
+}
+
 /** A saved queue entry; `resourceRow` is set for images, CSS, JS and media. */
 export interface SavedQueueItem {
   url: string;
@@ -10664,6 +10688,133 @@ export class ProjectDb {
       )
       .all() as { id: number; n: number }[];
     return new Map(rows.map((r) => [r.id, r.n]));
+  }
+
+  // ---- Link suggestions (B93): plain reads for `linkSuggestions()` in core ----
+
+  /** Gates and optional columns of this file; reads only, so it works on an old read-only project. */
+  linkSuggestionSetup(): {
+    inlinksComputed: boolean;
+    redirectChainsComputed: boolean;
+    columns: LinkSuggestionColumns;
+  } {
+    const have = new Set(
+      (this.db.prepare('PRAGMA table_info(urls)').all() as unknown as { name: string }[]).map(
+        (c) => c.name,
+      ),
+    );
+    const linkCols = new Set(
+      (this.db.prepare('PRAGMA table_info(links)').all() as unknown as { name: string }[]).map(
+        (c) => c.name,
+      ),
+    );
+    return {
+      inlinksComputed: this.getMeta(INLINKS_COMPUTED_META_KEY) !== null,
+      redirectChainsComputed: this.getMeta(REDIRECT_CHAINS_COMPUTED_META_KEY) !== null,
+      columns: {
+        linkScore: have.has('link_score'),
+        linkPosition: linkCols.has('link_position'),
+        clusterId: have.has('cluster_id'),
+        contentHash: have.has('content_hash'),
+        canonicalResolved: have.has('canonical_resolved'),
+        redirectFinalUrl: have.has('redirect_final_url'),
+        redirectTarget: have.has('redirect_target'),
+      },
+    };
+  }
+
+  /**
+   * The next block of eligible pages (internal, HTML, 2xx, `indexability = 'indexable'`) after
+   * `afterId`, in id order. Call again with the last id until fewer than `limit` come back.
+   */
+  linkSuggestionPages(
+    columns: LinkSuggestionColumns,
+    afterId: number,
+    limit: number,
+  ): LinkSuggestionPage[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, url, title, h1, meta_description AS metaDescription, outlinks,
+                ${columns.linkScore ? 'link_score' : 'NULL'} AS linkScore,
+                ${columns.clusterId ? 'cluster_id' : '0'} AS clusterId,
+                ${columns.contentHash ? 'content_hash' : 'NULL'} AS contentHash
+           FROM urls
+          WHERE id > ? AND ${INDEXABLE_HTML_SCOPE} AND indexability = 'indexable'
+          ORDER BY id
+          LIMIT ?`,
+      )
+      .all(afterId, limit) as unknown as LinkSuggestionPage[];
+    return rows;
+  }
+
+  /** Redirect rows: where each 3xx URL goes (one hop) and, when chains were walked, where it ends. */
+  linkSuggestionRedirects(
+    columns: LinkSuggestionColumns,
+  ): { url: string; target: string | null; finalUrl: string | null }[] {
+    if (!columns.redirectTarget) return [];
+    return this.db
+      .prepare(
+        `SELECT url, redirect_target AS target,
+                ${columns.redirectFinalUrl ? 'redirect_final_url' : 'NULL'} AS finalUrl
+           FROM urls
+          WHERE status_code >= 300 AND status_code < 400 AND redirect_target IS NOT NULL`,
+      )
+      .all() as unknown as { url: string; target: string | null; finalUrl: string | null }[];
+  }
+
+  /**
+   * Counted internal links (followed, or all when the crawl counted nofollow) in source-page order,
+   * so a caller can drop repeats per source with a small set.
+   */
+  linkSuggestionLinks(
+    columns: LinkSuggestionColumns,
+  ): Iterable<{ fromId: number; toUrl: string; position: string | null }> {
+    return this.db
+      .prepare(
+        `SELECT from_url_id AS fromId, to_url AS toUrl,
+                ${columns.linkPosition ? 'link_position' : 'NULL'} AS position
+           FROM links
+          WHERE is_internal = 1 AND ${this.countedLinkSql()}
+          ORDER BY from_url_id`,
+      )
+      .iterate() as unknown as Iterable<{
+      fromId: number;
+      toUrl: string;
+      position: string | null;
+    }>;
+  }
+
+  /** Every stored link (any rel, type or position) to one of `urls`: `{ source page id, target URL }`. */
+  linkSuggestionLinkers(urls: readonly string[]): { fromId: number; toUrl: string }[] {
+    const out: { fromId: number; toUrl: string }[] = [];
+    const BLOCK = 500;
+    for (let i = 0; i < urls.length; i += BLOCK) {
+      const part = urls.slice(i, i + BLOCK);
+      const rows = this.db
+        .prepare(
+          `SELECT from_url_id AS fromId, to_url AS toUrl FROM links
+            WHERE to_url IN (${part.map(() => '?').join(',')})`,
+        )
+        .all(...part) as unknown as { fromId: number; toUrl: string }[];
+      for (const r of rows) out.push(r);
+    }
+    return out;
+  }
+
+  /** Title and H1 of the given pages, for the rows a report keeps. */
+  linkSuggestionTexts(ids: readonly number[]): Map<number, { title: string | null; h1: string | null }> {
+    const out = new Map<number, { title: string | null; h1: string | null }>();
+    const BLOCK = 500;
+    for (let i = 0; i < ids.length; i += BLOCK) {
+      const part = ids.slice(i, i + BLOCK);
+      const rows = this.db
+        .prepare(
+          `SELECT id, title, h1 FROM urls WHERE id IN (${part.map(() => '?').join(',')})`,
+        )
+        .all(...part) as unknown as { id: number; title: string | null; h1: string | null }[];
+      for (const r of rows) out.set(r.id, { title: r.title, h1: r.h1 });
+    }
+    return out;
   }
 
   /**

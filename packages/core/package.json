@@ -10,7 +10,8 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./parse-worker": "./dist/parse-worker.js"
+    "./parse-worker": "./dist/parse-worker.js",
+    "./link-suggestions-worker": "./dist/link-suggestions-worker.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -16,7 +16,14 @@ export {
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
 } from './project-db.js';
-export type { SeoTextScope, UpsertUrlInput, ProbeWrite, SavedQueueItem } from './project-db.js';
+export type {
+  SeoTextScope,
+  UpsertUrlInput,
+  ProbeWrite,
+  SavedQueueItem,
+  LinkSuggestionColumns,
+  LinkSuggestionPage,
+} from './project-db.js';
 export { sectionOf } from './section-of.js';
 export { runMigrations } from './migrations.js';
 export { unsafePatternReason, type UnsafePatternReason } from './safe-pattern.js';
