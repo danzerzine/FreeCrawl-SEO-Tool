@@ -299,7 +299,9 @@ export options:
                         tab:<key> / issues:<key>
                                     one category CSV, e.g. tab:redirects, issues:title-missing
                         dataset:<key>
-                                    one table as a file named after the key: issues-long, sitemap-urls,
+                                    one table as a file named after the key: issues-long, page-signals (one row per page and
+                                    module-5 signal: tags outside <head>, UTM links, noindex for other engines, ...),
+                                    sitemap-urls,
                                     sitemap-files, sitemap-reconciliation (every sitemap URL and every
                                     crawled HTML page with a verdict: ok, not fetched, redirect,
                                     lastmod differs, ...; needs a crawl that read a sitemap), crawl-queue, broken-links, broken-links-by-target,

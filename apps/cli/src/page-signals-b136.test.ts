@@ -37,7 +37,7 @@ it('--what dataset:page-signals writes page-signals.csv with URL,Signal,Detail',
   await run(process.execPath, [cli, 'export', '--project', project, '--out', out, '--what', 'dataset:page-signals'], {
     timeout: 60_000,
   });
-  const csv = readFileSync(join(out, 'page-signals.csv'), 'utf8').replace(/^﻿/, '').split('\n');
+  const csv = readFileSync(join(out, 'page-signals.csv'), 'utf8').replace(/^\uFEFF/, '').split('\n');
   expect(csv[0]).toBe('URL,Signal,Detail');
   expect(csv).toContain('https://ex.com/a,issues:title-outside-head,2');
 }, 90_000);

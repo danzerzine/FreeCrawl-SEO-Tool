@@ -30,7 +30,7 @@ beforeEach(() => {
       title: `Title ${u}`,
       h2Count: 1,
       h2First: u,
-      ...over,
+      ...(over as Record<string, unknown>),
     });
   }
   first.close();
