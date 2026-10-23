@@ -111,8 +111,13 @@ export async function runPrompt(
 
 export type OpenAiLikeProvider = 'openai' | 'gemini' | 'openai-compatible';
 
+/** The label at the start of a sentence (`the OpenAI-compatible service` becomes `The …`). */
+function upperFirst(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export interface OpenAiTarget {
-  /** Human name used in error texts. */
+  /** Human name used in error texts, in the middle of a sentence (lowercase `the` where it has one). */
   label: string;
   /** Base URL without a trailing slash; the request goes to `<baseUrl>/chat/completions`. */
   baseUrl: string;
@@ -209,7 +214,7 @@ export function openAiTarget(provider: OpenAiLikeProvider): OpenAiTarget {
         );
       }
       return {
-        label: 'The OpenAI-compatible service',
+        label: 'the OpenAI-compatible service',
         baseUrl: checkBaseUrl(custom),
         apiKey,
         keyRequired: false,
@@ -250,14 +255,14 @@ export async function postChatCompletions(
     throw new AiTargetError(scrubKey(`Couldn't reach ${target.label} at ${new URL(target.baseUrl).origin}: ${msg}`, target.apiKey));
   }
   if (res.status >= 300 && res.status < 400) {
-    throw new AiTargetError(`${target.label}: the service redirected to another address; set the final address as the Base URL.`);
+    throw new AiTargetError(`${upperFirst(target.label)}: the service redirected to another address; set the final address as the Base URL.`);
   }
   const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok || !json) {
     const err = (json?.['error'] as { message?: string } | undefined)?.message;
     throw new AiTargetError(
       scrubKey(
-        err ?? `${target.label} API error (HTTP ${res.status}${json ? '' : ', the reply was not JSON'})`,
+        err ?? `${upperFirst(target.label)} API error (HTTP ${res.status}${json ? '' : ', the reply was not JSON'})`,
         target.apiKey,
       ),
     );

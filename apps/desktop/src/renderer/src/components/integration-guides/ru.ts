@@ -285,7 +285,7 @@ export const GUIDES_RU: Record<string, Guide> = {
     ],
     troubleshooting: [
       {
-        problem: '"Couldn\'t reach The OpenAI-compatible service"',
+        problem: '"Couldn\'t reach the OpenAI-compatible service"',
         solution: 'Сервер не запущен, неверный порт или его блокирует файрвол. Откройте в браузере базовый адрес + /models и проверьте.',
       },
       {
