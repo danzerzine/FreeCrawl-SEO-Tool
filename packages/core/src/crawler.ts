@@ -3456,10 +3456,10 @@ export class Crawler extends EventEmitter {
       } finally {
         deadline.clear();
         this.sitemapAbort = null;
-        this.trapWatch.markSettled();
+        this.settleTrapWatch();
       }
     } catch (err) {
-      this.trapWatch.markSettled();
+      this.settleTrapWatch();
       // Aborts during stop() are expected and not user-visible noise.
       if (this.stopped) return;
       this.emit('error', `Sitemap discovery skipped: ${formatFetchError(err)}`);
@@ -3526,7 +3526,10 @@ export class Crawler extends EventEmitter {
     // queue below re-admits them through `requeueKnown`, which skips them.
     if (this.config.mode === 'spider') {
       for (const url of this.db.getPageUrlsForTrapWatch()) this.trapWatch.observe(url);
-      this.runTrapCheck();
+      // With the sitemap still to be re-read, the stored counts are judged once it is in
+      // (`settleTrapWatch`): a check now would run without a baseline and call a pattern the
+      // sitemap lists in full a trap.
+      if (this.trapWatch.isSettled) this.runTrapCheck();
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));
     // Before the saved queue is re-admitted, which counts its own pages.
@@ -4221,6 +4224,12 @@ export class Crawler extends EventEmitter {
     if (SUBRESOURCE_PATH.test(item.url)) return false;
     // With external crawling on, external pages pass `enqueue` as well.
     return !this.crawlsExternalPages || isInScope(this.config.startUrl, item.url, this.config.scope);
+  }
+
+  /** The sitemap read is over (read, failed or timed out): counts that waited for it are judged now. */
+  private settleTrapWatch(): void {
+    this.trapWatch.markSettled();
+    if (!this.stopped && this.config.mode === 'spider') this.runTrapCheck();
   }
 
   /** Evaluates the trap rules; a finding goes out as a `warn`, R1 as an `info`. */

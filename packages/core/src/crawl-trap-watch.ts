@@ -257,6 +257,11 @@ export class CrawlTrapWatch {
     return this.sitemapTotal !== null;
   }
 
+  /** Whether the sitemap read is over (or there is none): no-baseline findings need the full floor from then on. */
+  get isSettled(): boolean {
+    return this.settled;
+  }
+
   /** The sitemap read has finished, failed or timed out (or there is none). */
   markSettled(): void {
     this.settled = true;

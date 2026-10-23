@@ -72,11 +72,12 @@ describe('counts are the same for fresh, refresh, resume and re-spider', () => {
       if (path === '/s.css') return void res.writeHead(200, { 'content-type': 'text/css' }).end('@font-face{font-family:x;src:url(/f.woff2)} body{color:#222}');
       if (path === '/a.js') return void res.writeHead(200, { 'content-type': 'application/javascript' }).end('var a=1;');
       if (path === '/f.woff2') return void res.writeHead(200, { 'content-type': 'font/woff2' }).end(Buffer.alloc(64));
-      if (path === '/i.png') return void res.writeHead(200, { 'content-type': 'image/png' }).end(PNG);
+      if (path === '/i.png' || path === '/pic.png') return void res.writeHead(200, { 'content-type': 'image/png' }).end(PNG);
       if (path === '/doc.pdf') return void res.writeHead(200, { 'content-type': 'application/pdf' }).end('%PDF-1.4 tiny');
       if (path === '/r') return void res.writeHead(301, { location: '/s1/p1' }).end();
       if (path === '/') {
-        const links: string[] = ['/doc.pdf', '/r', '/blocked/x'];
+        // '/pic.png' is linked with <a href>: an image is not a page, fresh and hydrate must agree (SUBRESOURCE_PATH)
+        const links: string[] = ['/doc.pdf', '/r', '/blocked/x', '/pic.png'];
         for (let s = 1; s <= 3; s++) for (let p = 1; p <= 12; p++) links.push(`/s${s}/p${p}`);
         for (let i = 0; i < 30; i++) links.push(`/shop?color=c${i % 6}&size=s${i % 5}&n=${i}`);
         return html(links.map((l) => `<a href="${l}">${l}</a>`).join(' '));
@@ -267,6 +268,72 @@ describe('a faceted shop trap on a local server', () => {
     const c3 = quiet(new Crawler({ ...baseConfig(`${base}/tiny`), discoverSitemaps: false }, db));
     await c3.start();
     expect(traps(db)).toEqual([]);
+    db.close();
+  }, 120_000);
+});
+
+describe('a resume does not warn before the re-read sitemap is in (review r1)', () => {
+  let server: Server;
+  let base: string;
+  let sitemapDelayMs = 0;
+  const floors = { r2Count: 300, r3Count: 600, r1Count: 600, checkEvery: 100 };
+  /** 14 colors x 10 sizes x 5 pages = 700 faceted pages, every one of them listed in the sitemap. */
+  const facets: string[] = [];
+  for (let c = 0; c < 14; c++) for (let z = 0; z < 10; z++) for (let p = 1; p <= 5; p++) facets.push(`/shop/list?color=c${c}&size=s${z}&page=${p}`);
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const u = new URL(req.url ?? '/', 'http://x');
+      const html = (b: string): void =>
+        void res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>${u.pathname} page title long enough</title></head><body>${b}</body></html>`);
+      if (u.pathname === '/robots.txt' || u.pathname === '/sitemap_index.xml') return void res.writeHead(404).end();
+      if (u.pathname === '/sitemap.xml') {
+        const loc = facets.map((f) => `<url><loc>http://${req.headers.host}${f.replace(/&/g, '&amp;')}</loc></url>`).join('');
+        const body = `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${loc}</urlset>`;
+        return void setTimeout(() => res.writeHead(200, { 'content-type': 'application/xml' }).end(body), sitemapDelayMs);
+      }
+      const link = (i: number): string => `<a href="${facets[i % facets.length]!.replace(/&/g, '&amp;')}">x</a>`;
+      if (u.pathname === '/') return html(link(0));
+      // A chain, answered slowly: the crawl grows page by page, so the sitemap read (no delay in the
+      // fresh run) is in long before the count nears the no-baseline threshold.
+      const i = facets.indexOf(u.pathname + u.search);
+      setTimeout(() => html(`<p>${'facet '.repeat(40)}${u.search}</p>${[1, 7, 53, 211].map((d) => link(i + d)).join(' ')}`), 20);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+  afterAll(() => void server.close());
+
+  const crawler = (db: ProjectDb, opts: ConstructorParameters<typeof Crawler>[2] = {}) =>
+    quiet(
+      new Crawler(
+        { ...baseConfig(`${base}/`), maxConcurrency: 8, maxDepth: 5, maxUrls: 2000, discoverSitemaps: true },
+        db,
+        { trapWatch: { floors }, ...opts },
+      ),
+    );
+  const warns = (c: Crawler): string[] => {
+    const out: string[] = [];
+    c.on('warn', (m: string) => /Possible crawl trap/.test(m) && out.push(m));
+    return out;
+  };
+
+  it('a sitemap that lists every facet: fresh gives 0 warnings, stop + resume with a slow sitemap gives 0 too', async () => {
+    const db = new ProjectDb(join(dir, 'r1.seoproject'));
+    sitemapDelayMs = 0;
+    const c1 = crawler(db);
+    const w1 = warns(c1);
+    await c1.start();
+    expect(c1.trapWatch.hasBaseline).toBe(true);
+    expect(w1).toEqual([]);
+    expect(c1.trapWatch.discovered).toBe(701);
+
+    sitemapDelayMs = 700; // the resume's hydrate runs well before the sitemap is read again
+    const c2 = crawler(db, { resumeOnly: true });
+    const w2 = warns(c2);
+    await c2.start();
+    expect(w2).toEqual([]);
+    expect(db.getOverviewCounts().site?.crawlTraps ?? []).toEqual([]);
     db.close();
   }, 120_000);
 });
