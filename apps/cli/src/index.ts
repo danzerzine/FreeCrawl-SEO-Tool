@@ -1041,6 +1041,7 @@ async function main(): Promise<void> {
   const siteWide = overview.site?.siteWide ?? null;
   const sitemapFindings = overview.site?.sitemapFindings ?? null;
   const crawlStoppedAtLimit = overview.site?.crawlStoppedAtLimit ?? null;
+  const crawlTraps = overview.site?.crawlTraps ?? [];
   // Not complete: stopped, ended early for a reason the crawler names, or
   // not a single page answered (everything filtered or unreachable).
   const incomplete = crawler.incomplete;
@@ -1071,6 +1072,7 @@ async function main(): Promise<void> {
             botBlocked,
             siteWide,
             crawlStoppedAtLimit,
+            crawlTraps,
             hostLimitSkipped: crawler.hostLimitSkipped,
           },
           sitemapFindings,
@@ -1125,6 +1127,13 @@ async function main(): Promise<void> {
       );
     }
     if (crawlStoppedAtLimit) console.log(`Stopped at the page limit (${crawlStoppedAtLimit}).`);
+    for (const f of crawlTraps) {
+      console.log(
+        `Warning: possible crawl trap: ${f.count} URLs ${f.rule === 'R2' ? 'share the pattern' : 'sit in the section'} ${f.key}` +
+          (f.expected !== null ? ` (the sitemap lists ${f.expected})` : '') +
+          (f.samples[0] ? ` — e.g. ${f.samples[0]}` : ''),
+      );
+    }
     for (const f of sitemapFindings?.overUrls ?? []) {
       console.log(`Warning: sitemap over 50,000 URLs — ${f.url}`);
     }
