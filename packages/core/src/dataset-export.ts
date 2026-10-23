@@ -2,6 +2,7 @@ import type { ProjectDb } from '@freecrawl/db';
 import type { AiProvider, ExportDatasetKey, GscRow } from '@freecrawl/shared-types';
 import { extractVisibleText } from './html-parser.js';
 import { sitemapReconciliationRows } from './sitemap-reconciliation.js';
+import { topWordsBlocks, type TopWordsBlocksOptions } from './top-words-db.js';
 
 /**
  * Row sources for the non-URL-row export tables (see `ExportDatasetKey`).
@@ -33,6 +34,8 @@ export interface DatasetExportContext {
   urls?: string[];
   /** The same pages by id; resolved to URLs and added to `urls`. */
   urlIds?: number[];
+  /** Options of the `top-words` dataset (CLI `--ngram`, `--word-locale`, `--by-section`, ...). */
+  topWords?: TopWordsBlocksOptions;
 }
 
 const PAGE_SIZE = 2000;
@@ -69,6 +72,27 @@ function* pageTexts(db: ProjectDb): Generator<Record<string, unknown>> {
   for (const page of db.iteratePageSources()) {
     const text = extractVisibleText(page.renderedHtml ?? page.html);
     if (text.length > 0) yield { url: page.url, text };
+  }
+}
+
+/** One row per word or phrase of each block; blocks and rows come ordered (section, count desc, gram). */
+function* topWordsDatasetRows(
+  db: ProjectDb,
+  opts: TopWordsBlocksOptions,
+): Generator<Record<string, unknown>> {
+  // 1000 rows per block is the aggregator's hard cap; the CLI asks for all of them.
+  for (const block of topWordsBlocks(db, { limit: 1000, ...opts })) {
+    for (const r of block.rows) {
+      yield {
+        scope: block.scope,
+        section: block.section,
+        n: block.n,
+        gram: r.word,
+        count: r.count,
+        pages: r.pages,
+        capped: block.capped ? 'true' : 'false',
+      };
+    }
   }
 }
 
@@ -178,6 +202,8 @@ export function datasetRows(
             };
         })(),
       );
+    case 'top-words':
+      return topWordsDatasetRows(db, ctx.topWords ?? {});
     case 'crux':
       return asRecords(paged((limit, offset) => db.queryCrux({ limit, offset })));
     case 'spelling':

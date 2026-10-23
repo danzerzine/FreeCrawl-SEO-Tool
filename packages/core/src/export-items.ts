@@ -31,6 +31,7 @@ import { exportIssuesSummary, exportLinkTargetReport, LINK_TARGET_EXPORTS } from
 import { runSeoAuditExport } from './seo-audit-export.js';
 import { exportPdfs, exportScreenshots, type PdfCrawlConfig } from './media-export.js';
 import { exportTabular } from './tabular-export.js';
+import type { TopWordsBlocksOptions } from './top-words-db.js';
 
 /** One `--what` entry of `freecrawl export`. */
 export type ExportItem =
@@ -170,6 +171,8 @@ export interface RunExportItemsOptions {
    * Ctrl-C can still report the files written so far.
    */
   outcome?: ExportOutcome;
+  /** Options of `dataset:top-words` (CLI `--ngram`, `--word-locale`, `--by-section`, `--section-depth`, `--with-bodies`). */
+  topWords?: TopWordsBlocksOptions;
 }
 
 /**
@@ -274,6 +277,7 @@ export async function runExportItems(
                 sections: [{ label, dataset: item.dataset }],
                 columns: EXPORT_DATASET_COLUMNS[item.dataset].map((c) => c.key),
                 headers,
+                ...(options.topWords ? { datasetContext: { topWords: options.topWords } } : {}),
               }),
             (r) => r.rowsWritten > 0,
           );
