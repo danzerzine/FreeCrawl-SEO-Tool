@@ -495,7 +495,7 @@ export function validateRobotsTxt(text: string): RobotsValidationIssue[] {
             message: '`User-agent:` value is empty.',
             directive,
           });
-        } else if (/[*$].*[^*$]/.test(value) && value !== '*') {
+        } else if (hasMidTokenWildcard(value) && value !== '*') {
           // Wildcards mid-token (e.g. `foo*bar`) are non-portable.
           issues.push({
             line: lineNo,
@@ -579,6 +579,21 @@ export function validateRobotsTxt(text: string): RobotsValidationIssue[] {
     }
   }
   return issues;
+}
+
+/**
+ * True when `s` has a `*` or `$` followed later by a character that is
+ * neither. A single forward scan: the equivalent regex `/[*$].*[^*$]/`
+ * backtracks quadratically on long runs of wildcards (B178).
+ */
+function hasMidTokenWildcard(s: string): boolean {
+  let seenWildcard = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 0x2a || c === 0x24) seenWildcard = true;
+    else if (seenWildcard) return true;
+  }
+  return false;
 }
 
 /**
