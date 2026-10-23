@@ -56,18 +56,25 @@ describe('B43 urls CSV columns', () => {
     await exportUrlsToCsv(db, f);
     const lines = fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '').split('\n').filter(Boolean);
     const head = lines[0]!.split(',');
-    expect(head.slice(-9)).toEqual([
+    // B136: the ten page-signal columns sit between Unused JS Bytes and Crawl Timestamp.
+    expect(head.slice(-19)).toEqual([
       'Markup Error Codes', 'Cookies', 'Cookies Truncated', 'Cookies JSON',
-      'CSS Bytes', 'Unused CSS Bytes', 'JS Bytes', 'Unused JS Bytes', 'Crawl Timestamp',
+      'CSS Bytes', 'Unused CSS Bytes', 'JS Bytes', 'Unused JS Bytes',
+      'Hreflang Outside <head>', 'Title Outside <head>', 'Description Outside <head>',
+      'Meta Robots Outside <head>', 'OG Tag Uses name=', 'Internal Link with UTM',
+      'Noindex for Other Engines', 'Pagination Loop', 'Hreflang on Non-Canonical Page',
+      'Noindex Alternate', 'Crawl Timestamp',
     ]);
     expect(lines[1]).toContain('https://www.ex.com/zzz');
     expect(lines[1]).toContain(',4,1,"[{""n"":""sid""');
     expect(lines[2]).toContain('https://www.ex.com/none');
     expect(lines[2]).toContain(',0,0,[],,,,,');
     expect(lines[3]).toContain('https://www.ex.com/aaa');
-    // Never recorded: empty cells, not zeros.
+    // Never recorded: empty cells, not zeros. B136: the row now ends with the ten
+    // page-signal cells before the timestamp. This project has no `checksFilled`, so nine
+    // of them are blank; hreflang outside head predates that mechanism and reads `No`.
     expect(lines[4]).toContain('https://www.ex.com/unrecorded');
-    expect(lines[4]).toMatch(/,{7}[^,]*$/);
+    expect(lines[4]).toMatch(/,{7},No,{10}[^,]*$/);
   });
 });
 

@@ -71,6 +71,17 @@ it('URL CSV: Markup Errors and Markup Error Codes sit right before Crawled At; r
     'Unused CSS Bytes',
     'JS Bytes',
     'Unused JS Bytes',
+    // B136: the ten module-5 page signals, right before Crawl Timestamp.
+    'Hreflang Outside <head>',
+    'Title Outside <head>',
+    'Description Outside <head>',
+    'Meta Robots Outside <head>',
+    'OG Tag Uses name=',
+    'Internal Link with UTM',
+    'Noindex for Other Engines',
+    'Pagination Loop',
+    'Hreflang on Non-Canonical Page',
+    'Noindex Alternate',
     'Crawl Timestamp',
   ]);
   expect(lines[1]).toContain('https://ex.com/zzz');
