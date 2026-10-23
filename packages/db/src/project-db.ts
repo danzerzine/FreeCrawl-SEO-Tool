@@ -2076,6 +2076,20 @@ export class ProjectDb {
   }
 
   /**
+   * When the project was last crawled: the newest history row's finish time,
+   * else the newest URL fetch time (a first crawl still running). Null for an
+   * empty project.
+   */
+  latestCrawlTime(): string | null {
+    const run = this.db.prepare('SELECT finished_at FROM crawl_runs ORDER BY id DESC LIMIT 1').get() as
+      | { finished_at: string }
+      | undefined;
+    if (run?.finished_at) return run.finished_at;
+    const row = this.db.prepare('SELECT MAX(crawled_at) AS t FROM urls').get() as { t: string | null };
+    return row.t;
+  }
+
+  /**
    * The latest `limit` runs of one start URL (all when omitted), oldest
    * first — so the last element is the newest crawl and the one before
    * it is "the previous crawl".
