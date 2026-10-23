@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
 import { buildCrawlSnapshot } from '@freecrawl/core';
+import { killAllChildren, spawnTracked } from './test-proc.js';
 
 // Drives the built CLI as a process (`npx tsc -b && npm run build:cli` first).
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/index.js');
@@ -60,7 +61,16 @@ beforeAll(() => {
   ]);
   warnRules = rulesFile('warn.json', [{ name: 'drop', metric: 'indexable', vs: 'previous', op: '<', value: 0, level: 'warn' }]);
 });
-afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+// Webhook servers of the SIGINT test, closed here too: a test that times out never reaches its finally.
+const servers: http.Server[] = [];
+afterAll(() => {
+  killAllChildren();
+  for (const s of servers.splice(0)) {
+    s.closeAllConnections();
+    s.close();
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 
 describe('check', () => {
   it('all pass: exit 0', () => {
@@ -217,9 +227,10 @@ describe('check', () => {
     let gotRequest!: () => void;
     const requested = new Promise<void>((r) => (gotRequest = r));
     const server = http.createServer(() => gotRequest());
+    servers.push(server);
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/h`;
-    const p = spawn(process.execPath, [CLI, 'check', '--project', project, '--rules', failRules, '--notify', 'webhook'], {
+    const p = spawnTracked(process.execPath, [CLI, 'check', '--project', project, '--rules', failRules, '--notify', 'webhook'], {
       env: { ...process.env, FREECRAWL_WEBHOOK_URL: url },
     });
     try {

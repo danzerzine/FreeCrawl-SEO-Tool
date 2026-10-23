@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, describe, it, expect } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,6 +16,13 @@ function listen(hits: string[], body: (port: number) => string): Promise<{ s: Se
   });
 }
 
+// Servers and temp dirs of a run, closed in afterAll too: a test that times out never reaches run()'s finally.
+const open: Array<() => void> = [];
+afterAll(() => {
+  killAllChildren();
+  for (const f of open.splice(0)) f();
+});
+
 async function run(extra: string[]): Promise<string[]> {
   const extHits: string[] = [];
   const ext = await listen(extHits, () => '<html><body>ext</body></html>');
@@ -23,6 +30,7 @@ async function run(extra: string[]): Promise<string[]> {
     `<html><head><title>t</title><meta property="og:image" content="http://localhost:${ext.port}/og.png"></head><body><a href="http://localhost:${ext.port}/x">ext</a>` +
     `<img src="http://localhost:${ext.port}/i.png" alt="i"></body></html>`);
   const dir = mkdtempSync(join(tmpdir(), 'b11-'));
+  open.push(() => { site.s.close(); ext.s.close(); rmSync(dir, { recursive: true, force: true }); });
   try {
     await new Promise<void>((resolve) => {
       const p = spawnTracked(process.execPath, [join(__dirname, '../dist/index.js'), `http://127.0.0.1:${site.port}/`,

@@ -79,8 +79,13 @@ function cli(args: string[], file?: object): Promise<{ code: number | null; err:
 const hour = new Date().getHours();
 const now = `${hour}-${(hour + 2) % 24}`;
 const later = `${(hour + 2) % 24}-${(hour + 3) % 24}`;
-const median = (a: number[]): number => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]!;
 const gaps = () => pageHits.slice(1).map((t, i) => t - pageHits[i]!);
+// Day rate: pages are not held to 450 ms apart. One gap at or above it is a stall; two are a night rate.
+const expectDayRate = (): void => {
+  const g = gaps();
+  expect(g.length).toBeGreaterThanOrEqual(5);
+  expect(g.filter((x) => x >= 450).length).toBeLessThanOrEqual(1);
+};
 
 describe('--night-rps / --night (B30)', () => {
   it('inside the window pages come at the night rate', async () => {
@@ -93,8 +98,8 @@ describe('--night-rps / --night (B30)', () => {
   it('outside it at --rps', async () => {
     const { code } = await cli(['--night-rps', '2', '--night', later]);
     expect(code).toBe(0);
-    // Median, not max: one stall under load is no night rate, but a night rate has no gap below 450.
-    expect(median(gaps())).toBeLessThan(400);
+    // A night rate never has a gap under 450 ms; the day side tolerates one stall under load, no more.
+    expectDayRate();
   }, 120_000);
 
   it('a night rate from the file takes a --night window', async () => {
@@ -107,8 +112,8 @@ describe('--night-rps / --night (B30)', () => {
     const { code, err } = await cli(['--night-rps', '2', '--night', `${hour}-${hour}`]);
     expect(code).toBe(0);
     expect(err).toMatch(/\[warn\].*night/i);
-    // Median, not max: one stall under load is no night rate, but a night rate has no gap below 450.
-    expect(median(gaps())).toBeLessThan(400);
+    // A night rate never has a gap under 450 ms; the day side tolerates one stall under load, no more.
+    expectDayRate();
   }, 120_000);
 
   it.each([['25-3'], ['3'], ['a-b'], ['-1-4'], ['3-24']])('--night %s exits 2', async (value) => {

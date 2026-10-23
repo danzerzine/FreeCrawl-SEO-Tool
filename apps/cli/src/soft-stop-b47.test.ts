@@ -1,4 +1,4 @@
-import type { ChildProcess } from 'node:child_process';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -45,12 +45,12 @@ afterEach(async () => {
 
 type Exit = { code: number | null; signal: NodeJS.Signals | null; out: string; err: string };
 
-function start(args: string[]): { child: ChildProcess; done: Promise<Exit> } {
+function start(args: string[]): { child: ChildProcessWithoutNullStreams; done: Promise<Exit> } {
   const child = spawn(process.execPath, [CLI, base, '--concurrency', '2', '--no-robots', ...args]);
   let out = '';
   let err = '';
-  child.stdout!.on('data', (d) => (out += d));
-  child.stderr!.on('data', (d) => (err += d));
+  child.stdout.on('data', (d) => (out += d));
+  child.stderr.on('data', (d) => (err += d));
   const done = new Promise<Exit>((r) =>
     child.on('exit', (code, signal) => r({ code, signal, out, err })),
   );
@@ -157,7 +157,7 @@ describe('soft stop (B47)', () => {
     expect((await start(['--max', '5', '--db', db]).done).code).toBe(0);
     // The same site again without --resume: every known page is fetched again.
     const { child, done } = start(['--db', db]);
-    child.stderr!.on('data', (d) => {
+    child.stderr.on('data', (d) => {
       if (String(d).includes('fetched again')) setTimeout(() => child.kill('SIGINT'), 500);
     });
     const r = await done;

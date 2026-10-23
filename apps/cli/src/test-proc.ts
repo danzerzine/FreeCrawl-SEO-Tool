@@ -1,13 +1,16 @@
-import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams, type SpawnOptions } from 'node:child_process';
 
-// Test helper: every CLI child a test spawns is killed, with its whole process
-// group, when the test file ends or a test fails, so no `freecrawl` process
-// outlives the run. Children lead their own group (detached) so that worker
-// processes they start go with them.
+// Test helper: every CLI child a test spawns is killed when the test file ends or
+// a test fails, so no `freecrawl` process outlives the run. The CLI starts no
+// subprocesses of its own, so the child pid is killed directly. Children are not
+// detached: a detached child would stop receiving the abort signal on Ctrl-C.
 const live = new Set<ChildProcess>();
 
+// Default stdio is three pipes, so the streams are typed non-null as with node's own spawn.
+export function spawnTracked(cmd: string, args: string[]): ChildProcessWithoutNullStreams;
+export function spawnTracked(cmd: string, args: string[], opts: SpawnOptions): ChildProcess;
 export function spawnTracked(cmd: string, args: string[], opts: SpawnOptions = {}): ChildProcess {
-  const child = spawn(cmd, args, { ...opts, detached: true });
+  const child = spawn(cmd, args, opts);
   live.add(child);
   child.on('exit', () => live.delete(child));
   return child;
@@ -16,13 +19,9 @@ export function spawnTracked(cmd: string, args: string[], opts: SpawnOptions = {
 export function killChild(child: ChildProcess): void {
   if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) return;
   try {
-    process.kill(-child.pid, 'SIGKILL');
+    child.kill('SIGKILL');
   } catch {
-    try {
-      child.kill('SIGKILL');
-    } catch {
-      /* already gone */
-    }
+    /* already gone */
   }
 }
 
