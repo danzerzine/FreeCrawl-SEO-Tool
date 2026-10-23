@@ -1744,17 +1744,30 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'report_top_words',
       description:
-        'Most-used words across every indexable page\'s title + meta description + H1. Locale tunes the stopword list — `en` strips English stopwords, `tr` Turkish, `all` strips both. Use for "what does the site talk about" content audits.',
+        'Most-used words across every indexable page\'s title + meta description + H1. Locale tunes the stopword list: `en` strips English stopwords, `ru` Russian, `tr` Turkish, `all` strips all three. Use for "what does the site talk about" content audits. Optional: `n` 2 or 3 for phrases of that many words, `bySection` for one block per folder (`sectionDepth` 1 or 2), `section` for one folder, `url` for one page, `includeBody` to add stored page bodies. With any of n, bySection, section or url the answer is a list of blocks {scope, section, n, rows, capped}; capped means rare phrases were dropped. Without them: the plain list of words.',
       inputSchema: {
         type: 'object',
         properties: {
           limit: { type: 'integer', minimum: 1, maximum: 2000 },
           minLength: { type: 'integer', minimum: 1, maximum: 20 },
-          locale: { type: 'string', enum: ['en', 'tr', 'all'] },
+          locale: { type: 'string', enum: ['en', 'ru', 'tr', 'all'] },
+          n: { type: 'integer', enum: [1, 2, 3] },
+          bySection: { type: 'boolean' },
+          section: { type: 'string' },
+          sectionDepth: { type: 'integer', enum: [1, 2] },
+          url: { type: 'string' },
+          includeBody: { type: 'boolean' },
         },
       },
-      handler: async (args) =>
-        bridgeRequest<unknown>('POST', '/v1/action/report-top-words', args),
+      handler: async (args) => {
+        const a = (args ?? {}) as Record<string, unknown>;
+        const blocks = a.n !== undefined || a.bySection === true || a.section !== undefined || a.url !== undefined;
+        return bridgeRequest<unknown>(
+          'POST',
+          blocks ? '/v1/action/report-top-words-blocks' : '/v1/action/report-top-words',
+          args,
+        );
+      },
     },
 
     // ---- Faz 0.5 Increment 3 — URL mutation + remaining exports + config + previews ----

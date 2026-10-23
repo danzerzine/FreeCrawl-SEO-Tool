@@ -11,6 +11,8 @@ import {
 export interface TopWordsBlocksOptions extends TopWordsOptions {
   /** One block per folder of the site instead of one for the whole site. */
   bySection?: boolean;
+  /** One page only (title, description, H1 and its stored body); one block with scope `page`, `section` holding the URL. */
+  url?: string;
   /** Only the pages of this folder (as `sectionOf` names it); one block with scope `section`. */
   section?: string;
   /** Folder depth for `bySection` and `section`, 1 (default) or 2. */
@@ -22,7 +24,7 @@ export interface TopWordsBlocksOptions extends TopWordsOptions {
 }
 
 export interface TopWordsBlock {
-  scope: 'site' | 'section';
+  scope: 'site' | 'section' | 'page';
   /** The folder (`news`, `news/a`, `/` for the root, `(other)`); empty for the site block. */
   section: string;
   n: 1 | 2 | 3;
@@ -88,11 +90,17 @@ function openBlocksRun(db: ProjectDb, opts: TopWordsBlocksOptions): BlocksRun {
   };
 }
 
+function pageBlock(db: ProjectDb, url: string, opts: TopWordsBlocksOptions): TopWordsBlock {
+  const n = opts.n === 2 || opts.n === 3 ? opts.n : 1;
+  return { scope: 'page', section: url, n, rows: topWordsForUrl(db, url, opts), capped: false };
+}
+
 /**
  * Top words or phrases of a stored project: the whole site, one folder, or one block per folder.
  * Reads title, description and H1 of the indexable pages; stored bodies only with `withBodies`.
  */
 export function topWordsBlocks(db: ProjectDb, opts: TopWordsBlocksOptions = {}): TopWordsBlock[] {
+  if (opts.url !== undefined) return [pageBlock(db, opts.url, opts)];
   const run = openBlocksRun(db, opts);
   run.addCorpus();
   if (opts.withBodies) {
@@ -112,6 +120,7 @@ export async function topWordsBlocksAsync(
   db: ProjectDb,
   opts: TopWordsBlocksOptions & { prose: (body: string) => Promise<string> },
 ): Promise<TopWordsBlock[]> {
+  if (opts.url !== undefined) return [pageBlock(db, opts.url, opts)];
   const run = openBlocksRun(db, opts);
   run.addCorpus();
   if (opts.withBodies) {

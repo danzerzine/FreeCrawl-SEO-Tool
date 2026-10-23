@@ -323,6 +323,7 @@ export const IPC = {
   reportsSitemapOrphans: 'reports:sitemap-orphans',
   reportsServerHeaders: 'reports:server-headers',
   reportsTopWords: 'reports:top-words',
+  reportsTopWordsBlocks: 'reports:top-words-blocks',
   /**
    * Renderer → main heartbeat carrying the live input-lag estimate (ms).
    * The crawler subscribes to this so it can adaptively shrink its
@@ -1540,13 +1541,34 @@ export interface TopWordsRow {
   pages: number;
 }
 
+/** One block of the Top Words report (B84). */
+export interface TopWordsBlock {
+  scope: 'site' | 'section' | 'page';
+  /** The folder (`news`, `news/a`, `/`, `(other)`) or the page URL; empty for the site. */
+  section: string;
+  n: 1 | 2 | 3;
+  rows: TopWordsRow[];
+  /** Rare phrases were dropped to stay in the memory limit: the counts are approximate. */
+  capped: boolean;
+}
+
 export interface TopWordsInput {
   /** Max rows to return. Default 100, hard cap 1000. */
   limit?: number;
   /** Minimum word length. Default 3. */
   minLength?: number;
-  /** Stopword set: `en`, `tr`, or `all` (union). Default `all`. */
-  locale?: 'en' | 'tr' | 'all';
+  /** Stopword set: `en`, `ru`, `tr`, or `all` (union). Default `all`. */
+  locale?: 'en' | 'ru' | 'tr' | 'all';
+  /** Words (1, default) or phrases of 2 or 3 words. */
+  n?: 1 | 2 | 3;
+  /** One block per folder of the site (at most 50 and `(other)`). */
+  bySection?: boolean;
+  /** Only the pages of this folder (as the Section list names it). */
+  section?: string;
+  /** Folder depth for `bySection` and `section`: 1 (default) or 2. */
+  sectionDepth?: number;
+  /** One page only: its title, description, H1 and stored body. */
+  url?: string;
   /**
    * Also count the stored page bodies (main-content prose, boilerplate
    * stripped) alongside title / meta / H1. Slower — every stored body is
@@ -2510,6 +2532,8 @@ export interface FreeCrawlApi {
   reportsOrphanExcludeSet(patterns: string[]): Promise<{ error: string | null }>;
   reportsServerHeaders(): Promise<ServerHeaderRow[]>;
   reportsTopWords(input: TopWordsInput): Promise<TopWordsRow[]>;
+  /** B84: words or phrases for the site, one folder, every folder or one page; each block says whether it is approximate. */
+  reportsTopWordsBlocks(input: TopWordsInput): Promise<TopWordsBlock[]>;
   /** Heartbeat: renderer reports its latest input-lag sample (ms). */
   reportRendererLag(lagMs: number): void;
   prefsExportSettings(input: SettingsExportInput): Promise<SettingsExportResult>;

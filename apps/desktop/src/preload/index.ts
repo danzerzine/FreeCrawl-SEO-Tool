@@ -91,6 +91,7 @@ import {
   type ImageWeightRow,
   type BucketHistogramRow,
   type ServerHeaderRow,
+  type TopWordsBlock,
   type TopWordsInput,
   type TopWordsRow,
   type WordCountPerDirectoryInput,
@@ -470,6 +471,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.reportsServerHeaders),
   reportsTopWords: (input: TopWordsInput): Promise<TopWordsRow[]> =>
     ipcRenderer.invoke(IPC.reportsTopWords, input),
+  reportsTopWordsBlocks: (input: TopWordsInput): Promise<TopWordsBlock[]> =>
+    ipcRenderer.invoke(IPC.reportsTopWordsBlocks, input),
   prefsExportSettings: (input: SettingsExportInput): Promise<SettingsExportResult> =>
     ipcRenderer.invoke(IPC.prefsExportSettings, input),
   prefsImportSettings: (): Promise<SettingsImportResult> =>

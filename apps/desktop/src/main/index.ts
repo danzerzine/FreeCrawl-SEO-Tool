@@ -115,6 +115,7 @@ import {
   type ImageWeightRow,
   type BucketHistogramRow,
   type ServerHeaderRow,
+  type TopWordsBlock,
   type TopWordsInput,
   type TopWordsRow,
   type WordCountPerDirectoryInput,
@@ -329,8 +330,7 @@ import {
   ensureHeapHeadroom,
   testUrlAgainstRobots,
   validateRobotsTxt,
-  aggregateTopWords,
-  createTopWordsAggregator,
+  topWordsBlocksAsync,
   fetchSitemaps,
   validateFetchedSitemaps,
   normalizeUrl,
@@ -5557,6 +5557,10 @@ function registerIpc(): void {
     IPC.reportsTopWords,
     (_e, input: TopWordsInput): Promise<TopWordsRow[]> => computeTopWords(input),
   );
+  registerHandle(
+    IPC.reportsTopWordsBlocks,
+    (_e, input: TopWordsInput): Promise<TopWordsBlock[]> => computeTopWordsBlocks(input),
+  );
 
   registerHandle(
     IPC.reportsMobileParity,
@@ -8023,32 +8027,31 @@ function registerIpc(): void {
   }
 
   /**
-   * Top Words over title + meta + H1, optionally over the stored page
-   * bodies too. Bodies are reduced to main-content prose on the parser
-   * workers, four at a time, so a 60k-page corpus never stalls the UI;
-   * the aggregator keeps one page of text alive at a time.
+   * Top Words (words or 2-3 word phrases) over title + meta + H1, optionally over the stored page
+   * bodies too, for the site, one folder, every folder or one page. Bodies are reduced to
+   * main-content prose on the parser workers, four at a time, so a 60k-page corpus never stalls the
+   * UI; the aggregators keep one page of text alive at a time.
    */
-  async function computeTopWords(input: TopWordsInput): Promise<TopWordsRow[]> {
-    const db = getDb();
-    const opts = { limit: input.limit, minLength: input.minLength, locale: input.locale };
-    if (!input.includeBody) return aggregateTopWords(db.seoTextCorpus(), opts);
-    const agg = createTopWordsAggregator(opts);
-    for (const text of db.seoTextCorpus()) agg.add(text);
+  async function computeTopWordsBlocks(input: TopWordsInput): Promise<TopWordsBlock[]> {
     const selector = currentSession().lastCrawlConfig?.contentAreaSelector || undefined;
-    const BATCH = 4;
-    let batch: Promise<string>[] = [];
-    const drain = async (): Promise<void> => {
-      for (const text of await Promise.all(batch)) if (text) agg.add(text);
-      batch = [];
-    };
-    for (const { body } of db.iterateStoredBodies()) {
-      batch.push(
-        parserPool.prose(body, selector).catch(() => extractProseText(body, selector)),
-      );
-      if (batch.length >= BATCH) await drain();
-    }
-    if (batch.length > 0) await drain();
-    return agg.result();
+    return topWordsBlocksAsync(getDb(), {
+      limit: input.limit,
+      minLength: input.minLength,
+      locale: input.locale,
+      n: input.n,
+      bySection: input.bySection,
+      section: input.section,
+      sectionDepth: input.sectionDepth,
+      url: input.url,
+      withBodies: input.includeBody === true,
+      contentAreaSelector: selector,
+      prose: (body) => parserPool.prose(body, selector),
+    });
+  }
+
+  /** The rows of the first block: what the report returned before blocks (site words). */
+  async function computeTopWords(input: TopWordsInput): Promise<TopWordsRow[]> {
+    return (await computeTopWordsBlocks(input))[0]?.rows ?? [];
   }
 
   async function launchCrawl(
@@ -8741,6 +8744,18 @@ function registerIpc(): void {
     'report-top-words': async (input) => {
       const i = (input ?? {}) as TopWordsInput;
       return computeTopWords({
+        limit: i.limit ?? 100,
+        minLength: i.minLength ?? 3,
+        locale: i.locale ?? 'all',
+        includeBody: i.includeBody === true,
+      });
+    },
+
+    // B84: blocks (site, one folder, every folder, one page); the old action keeps returning rows.
+    'report-top-words-blocks': async (input) => {
+      const i = (input ?? {}) as TopWordsInput;
+      return computeTopWordsBlocks({
+        ...i,
         limit: i.limit ?? 100,
         minLength: i.minLength ?? 3,
         locale: i.locale ?? 'all',
