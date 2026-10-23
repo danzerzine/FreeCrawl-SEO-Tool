@@ -370,6 +370,40 @@ describe('a resume does not warn before the re-read sitemap is in (review r1)', 
     db.close();
   }, 120_000);
 
+  // A project saved before module 18 has no trap meta; a module-18 file may lack the clean flag.
+  const oldFile = (name: string, edit: (db: ProjectDb) => void) =>
+    async () => {
+      const db = new ProjectDb(join(dir, `${name}.seoproject`));
+      sitemapMode = 'all';
+      sitemapDelayMs = 0;
+      const c1 = crawler(db);
+      const w1 = warns(c1);
+      await c1.start();
+      expect(w1).toEqual([]);
+      edit(db);
+
+      const c2 = crawler(db, { respiderSeeds: [`${base}/`] });
+      const w2 = warns(c2);
+      await c2.start();
+      expect(w2).toEqual([]);
+      expect(db.getOverviewCounts().site?.crawlTraps ?? []).toEqual([]);
+      db.close();
+    };
+  it(
+    'a Re-Spider of an old file without trap meta gives 0 warnings for the stored counts',
+    oldFile('respider-nometa', (db) => db.setMeta('crawlTrapWatch', '')),
+    120_000,
+  );
+  it(
+    'a Re-Spider of a file whose trap meta lacks the sitemapClean flag gives 0 warnings',
+    oldFile('respider-noflag', (db) => {
+      const m = JSON.parse(db.getMeta('crawlTrapWatch') ?? '{}') as Record<string, unknown>;
+      delete m.sitemapClean;
+      db.setMeta('crawlTrapWatch', JSON.stringify(m));
+    }),
+    120_000,
+  );
+
   it('a Re-Spider over a real trap keeps the stored finding and does not warn for it again', async () => {
     const db = new ProjectDb(join(dir, 'respider-few.seoproject'));
     sitemapMode = 'few';

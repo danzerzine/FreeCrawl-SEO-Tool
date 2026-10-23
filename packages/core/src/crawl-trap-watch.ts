@@ -233,6 +233,12 @@ export class CrawlTrapWatch {
   private cleanSitemap = false;
   /** Stored counts were loaded and the sitemap is still to be re-read: no no-baseline R2 until it is in. */
   private awaitingBaseline = false;
+  /**
+   * Counts loaded from an old file (no trap meta, or no clean-sitemap flag) with no sitemap
+   * read to follow: per table key, the count at that moment. Without a baseline those counts
+   * are not judged; only what grows past them by the floor is.
+   */
+  private storedHeld: Map<string, number> | null = null;
 
   private findings: TrapFinding[] = [];
   private fired = new Set<string>();
@@ -291,6 +297,24 @@ export class CrawlTrapWatch {
    */
   awaitBaseline(): void {
     if (!this.settled) this.awaitingBaseline = true;
+  }
+
+  /**
+   * Call after loading stored counts that no baseline can judge (no sitemap read follows and the
+   * earlier read is not known to be clean): they were never judged by this build, and a pattern
+   * the sitemap lists in full would read as a trap. New URLs are still counted and checked.
+   */
+  holdStoredCounts(): void {
+    const held = new Map<string, number>();
+    for (const [tag, table] of [
+      ['H', this.byHost],
+      ['S', this.bySection],
+    ] as const) {
+      for (const [key, e] of table.map) {
+        if (e.count >= this.floors.r2Count) held.set(`${tag}|${key}`, e.count);
+      }
+    }
+    this.storedHeld = held;
   }
 
   /**
@@ -576,6 +600,10 @@ export class CrawlTrapWatch {
         const expected = S === null ? null : (this.sPattern.get(key) ?? 0);
         if (e.count < fl.r2Ratio * Math.max(1, expected ?? 0)) continue;
         if (S === null && this.awaitingBaseline) continue;
+        if (S === null && this.storedHeld !== null) {
+          const was = this.storedHeld.get(`${host ? 'H' : 'S'}|${key}`) ?? 0;
+          if (e.count - was < fl.r2Count) continue;
+        }
         if (S === null && !this.settled && e.count < 2 * fl.r2Count) continue;
         cands.push({ key, e, host });
       }

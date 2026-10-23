@@ -3550,6 +3550,11 @@ export class Crawler extends EventEmitter {
         }
         if (listed.length > 0) this.trapWatch.setBaseline(new URL(this.config.startUrl).host, listed);
       }
+      // Still no baseline and none coming (file from before module 18, or an unclean read): the
+      // stored counts stay unjudged; URLs found from here on are counted and checked as usual.
+      if (stored > 0 && this.trapWatch.isSettled && !this.trapWatch.hasBaseline && !this.trapWatch.sitemapClean) {
+        this.trapWatch.holdStoredCounts();
+      }
       if (this.trapWatch.isSettled) this.runTrapCheck();
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));
