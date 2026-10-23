@@ -3,7 +3,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store.js';
-import { cloudSizes } from '../utils/topWordsCloud.js';
 import type {
   PagesPerDirectoryRow,
   StatusCodeHistogramRow,
@@ -27,6 +26,7 @@ import type {
   LinkTargetRow,
   TemplateLinkFilter,
 } from '@freecrawl/shared-types';
+import { cloudSizes } from '@freecrawl/shared-types';
 
 interface Props {
   open: boolean;

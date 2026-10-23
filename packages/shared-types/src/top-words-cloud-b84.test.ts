@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLOUD_MAX_PX, CLOUD_MIN_PX, cloudSizes } from '../renderer/src/utils/topWordsCloud';
+import { CLOUD_MAX_PX, CLOUD_MIN_PX, cloudSizes } from './top-words-cloud.js';
 
 describe('B84 word cloud sizes', () => {
   it('font size follows the log of the count between the smallest and the largest', () => {
