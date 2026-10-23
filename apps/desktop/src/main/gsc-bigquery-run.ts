@@ -69,7 +69,7 @@ export interface PullPlan {
   /** Share of the free 1 TB a month per project that the estimate uses. */
   freeTierShare: number;
   capBytes: number;
-  /** Bytes billed by earlier runs (the ledger's total). */
+  /** Bytes billed since the last reset (the ledger's total): shown, never compared with the cap. */
   billedSoFar: number;
   overCap: boolean;
   /** The saved data came from another property, dataset or search type: reset before pulling. */
@@ -124,7 +124,8 @@ export async function buildBqPlan(args: {
   const totalEstimate = parts.reduce((a, p) => a + p.estimate, 0);
   const capBytes = capBytesOf(settings);
   const billedSoFar = ledger?.totalBilled ?? 0;
-  const overCap = billedSoFar + totalEstimate > capBytes;
+  // The cap is for one pull (the setting says so): earlier pulls' bytes do not count against it.
+  const overCap = totalEstimate > capBytes;
   return {
     sourceKey,
     location,
@@ -182,16 +183,21 @@ export async function runGscBigQuery(deps: RunDeps, plan: PullPlan, opts: { reco
   client.setLocation(plan.location);
   let ledger = readLedger(db) ?? emptyLedger(plan.sourceKey, plan.location);
   const result: RunResult = { partsDone: 0, partsSkipped: 0, stopped: null, totalBilled: ledger.totalBilled };
+  /** Bytes billed by THIS run: what the cap is compared with (the ledger total is for display). */
+  let runBilled = 0;
   const stop = (reason: StopReason, message: string): RunResult => {
     result.stopped = { reason, message };
     result.totalBilled = ledger.totalBilled;
     return result;
   };
 
+  /** The ledger held no data under the old key: the new key is taken over, but a job in flight belongs to the old one. */
+  let adopting = false;
   if (ledger.sourceKey !== plan.sourceKey) {
     if (ledger.doneRanges.length > 0) {
       return stop('source-changed', 'The saved BigQuery data is for another property, dataset or search type: reset it before pulling.');
     }
+    adopting = true;
     ledger = { ...ledger, sourceKey: plan.sourceKey, location: plan.location };
   }
   ledger = { ...ledger, location: plan.location };
@@ -211,6 +217,11 @@ export async function runGscBigQuery(deps: RunDeps, plan: PullPlan, opts: { reco
       epochs: daysOf(part.start, part.end).map((d) => plan.coverage.get(d) ?? 0),
       at,
     };
+    const have = new Set(ledger.doneRanges.flatMap((r) => daysOf(r.start, r.end)));
+    if (daysOf(part.start, part.end).some((d) => have.has(d))) {
+      throw new BqError('other', `The range ${part.start}..${part.end} overlaps days already in the ledger: not merged twice.`);
+    }
+    runBilled += billed;
     const next: GscBqLedger = { ...ledger, doneRanges: [...ledger.doneRanges, range], totalBilled: ledger.totalBilled + billed, inFlight: null };
     db.mergeGscResultsPart(GSC_BQ_ACCOUNT, rows, at, (count) => ({
       [BQ_LEDGER_META_KEY]: JSON.stringify(next),
@@ -222,15 +233,17 @@ export async function runGscBigQuery(deps: RunDeps, plan: PullPlan, opts: { reco
   };
 
   /** An empty answer for days the export lists: stop and say what the export holds, unless the user ticked it. */
-  const emptyStop = async (part: PlannedPart, billed: number): Promise<RunResult | null> => {
+  const emptyStop = async (part: PlannedPart, billed: number): Promise<RunResult> => {
+    runBilled += billed;
     ledger = { ...ledger, totalBilled: ledger.totalBilled + billed, inFlight: null };
     save(ledger);
     const jobId = `fcgsc-${plan.sourceKey.slice(0, 8)}-diag-${part.start}-${part.end}-${ids(random)}`;
-    const max = bytesCeiling(part.estimate, plan.capBytes, ledger.totalBilled);
+    const max = bytesCeiling(part.estimate, plan.capBytes, runBilled);
     let what = '';
     if (max !== null) {
       try {
         const d = await client.diagnose(part, { jobId, maxBytesBilled: max });
+        runBilled += d.bytesBilled;
         save({ ...ledger, totalBilled: ledger.totalBilled + d.bytesBilled });
         what = ` the export has: ${d.siteUrls.join(', ') || '(nothing)'} / ${d.searchTypes.join(', ') || '(nothing)'}.`;
       } catch (err) {
@@ -251,16 +264,18 @@ export async function runGscBigQuery(deps: RunDeps, plan: PullPlan, opts: { reco
       if (st.state === 'gone') {
         save({ ...ledger, inFlight: null });
       } else if (st.state === 'failed') {
+        runBilled += st.billed;
         save({ ...ledger, totalBilled: ledger.totalBilled + st.billed, inFlight: null });
       } else {
         const out = await client.finishPart(fl.jobId);
         const part: PlannedPart = { start: fl.start, end: fl.end, days: daysOf(fl.start, fl.end).length, estimate: 0 };
         const covered = new Set(ledger.doneRanges.flatMap((r) => daysOf(r.start, r.end)));
-        if (daysOf(fl.start, fl.end).some((d) => covered.has(d))) {
+        if (adopting || daysOf(fl.start, fl.end).some((d) => covered.has(d))) {
+          // Billed either way; the rows are not stored (another source's data, or days already merged).
+          runBilled += out.bytesBilled;
           save({ ...ledger, totalBilled: ledger.totalBilled + out.bytesBilled, inFlight: null });
         } else if (out.rows.length === 0 && !opts.recordEmpty) {
-          const stopped = await emptyStop(part, out.bytesBilled);
-          if (stopped) return stopped;
+          return await emptyStop(part, out.bytesBilled);
         } else {
           record(part, out.rows, out.bytesBilled);
         }
@@ -270,15 +285,36 @@ export async function runGscBigQuery(deps: RunDeps, plan: PullPlan, opts: { reco
     }
   }
 
-  // 2. The planned parts, in order.
+  // 2. The planned parts, in order, each cut to the days not in the ledger (the in-flight job above, or an
+  //    earlier run, may have taken some) and re-estimated when it shrank.
   const done = new Set(ledger.doneRanges.flatMap((r) => daysOf(r.start, r.end)));
-  for (const part of plan.parts) {
-    if (daysOf(part.start, part.end).every((d) => done.has(d))) {
-      result.partsSkipped++;
-      continue;
+  const todo: PlannedPart[] = [];
+  try {
+    for (const part of plan.parts) {
+      const left = daysOf(part.start, part.end).filter((d) => !done.has(d));
+      if (left.length === 0) {
+        result.partsSkipped++;
+        continue;
+      }
+      if (left.length === part.days) {
+        todo.push(part);
+        continue;
+      }
+      let from = 0;
+      for (let i = 1; i <= left.length; i++) {
+        const contiguous = i < left.length && Date.parse(left[i]!) - Date.parse(left[i - 1]!) === 86_400_000;
+        if (contiguous) continue;
+        const piece = { start: left[from]!, end: left[i - 1]!, days: i - from };
+        todo.push({ ...piece, estimate: await client.estimate(piece) });
+        from = i;
+      }
     }
+  } catch (err) {
+    return stop('error', describeBqError(err));
+  }
+  for (const part of todo) {
     if (deps.isCancelled()) return stop('cancelled', 'Cancelled; the finished parts stay saved.');
-    const max = bytesCeiling(part.estimate, plan.capBytes, ledger.totalBilled);
+    const max = bytesCeiling(part.estimate, plan.capBytes, runBilled);
     if (max === null) {
       return stop('cap', 'Stopped before the next part: it would pass the byte cap. Raise the cap or shorten the range.');
     }
@@ -294,11 +330,9 @@ export async function runGscBigQuery(deps: RunDeps, plan: PullPlan, opts: { reco
       return stop('error', describeBqError(err));
     }
     if (out.rows.length === 0 && !opts.recordEmpty) {
-      const stopped = await emptyStop(part, out.bytesBilled);
-      if (stopped) return stopped;
+      return await emptyStop(part, out.bytesBilled);
     }
     record(part, out.rows, out.bytesBilled);
-    for (const d of daysOf(part.start, part.end)) done.add(d);
   }
   result.totalBilled = ledger.totalBilled;
   return result;

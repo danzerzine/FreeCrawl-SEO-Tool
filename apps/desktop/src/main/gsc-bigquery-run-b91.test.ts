@@ -137,16 +137,14 @@ describe('runner: parts, ledger, restart', () => {
     expect(f.mainJobs()[0]!.maximumBytesBilled).toBe(Math.ceil(63 * MIB));
   });
 
-  it('the job ceiling is the remaining cap when that is less than 1.05 x the estimate', async () => {
-    const f = await start({ ...fourMonths(), bytesPerDay: 90 * MIB });
+  it('the job ceiling is the cap left in THIS run when that is less than 1.05 x the estimate', async () => {
+    const f = await start({ ...fourMonths(), bytesPerDay: (d) => (d === '2026-06-01' ? 10 * MIB : 90 * MIB) });
     const p = await plan(f, { bqMaxGiB: 0.1 });
-    // pretend 8 MiB were billed already
-    const ledger = { v: 1 as const, sourceKey: p.sourceKey, location: 'EU', doneRanges: [], totalBilled: 8 * MIB, inFlight: null };
-    db.setMeta('gscBqRun', JSON.stringify(ledger));
-    await runGscBigQuery(runDeps(f), { ...p, parts: p.parts.slice(0, 1) }, {});
+    // the first part bills 10 MiB, so 92.4 MiB are left for the second (estimate 90 MiB, 1.05 x = 94.5)
+    await runGscBigQuery(runDeps(f), { ...p, parts: p.parts.slice(0, 2) }, {});
     const cap = Math.floor(0.1 * 1024 ** 3);
-    expect(f.mainJobs()[0]!.maximumBytesBilled).toBe(cap - 8 * MIB);
-    expect(cap - 8 * MIB).toBeLessThan(1.05 * 90 * MIB);
+    expect(f.mainJobs()[1]!.maximumBytesBilled).toBe(cap - 10 * MIB);
+    expect(cap - 10 * MIB).toBeLessThan(1.05 * 90 * MIB);
   });
 
   it('cancel between parts keeps the finished ones', async () => {
@@ -226,6 +224,97 @@ describe('runner: parts, ledger, restart', () => {
     expect(f.mainJobs()).toHaveLength(1);
     expect(readLedger(db)!.totalBilled).toBe(20 * MIB);
     expect(readLedger(db)!.doneRanges).toHaveLength(1);
+  });
+});
+
+describe('runner: review r1 fixes (S-High resume double count, adoption, per-run cap, poll failure)', () => {
+  const threeDays = (): Parameters<typeof startFakeBigQuery>[0] => {
+    const dates = ['2026-10-01', '2026-10-02', '2026-10-03'];
+    return {
+      rows: dates.map((d) => row(d, 'https://ex.test/a', 1, 10, 0)),
+      exportLog: dates.map((d) => logRow(d)),
+      bytesPerDay: 20 * MIB,
+    };
+  };
+  const crashAfterInsert = (deps: ReturnType<typeof runDeps>) => {
+    const orig = deps.client.runPart.bind(deps.client);
+    deps.client.runPart = async (...a: Parameters<typeof orig>) => {
+      await orig(...a);
+      throw new Error('process killed');
+    };
+    return deps;
+  };
+
+  it('resume after the export grew a day: the in-flight range is recorded once, the plan part is trimmed to the day left (S-High)', async () => {
+    const f = await start(threeDays());
+    const first = await plan(f, { dateRange: 'custom', startDate: '2026-10-01', endDate: '2026-10-02' });
+    await runGscBigQuery(crashAfterInsert(runDeps(f)), first, {});
+    expect(readLedger(db)!.inFlight).toMatchObject({ start: '2026-10-01', end: '2026-10-02' });
+    const second = await plan(f);
+    expect(second.parts.map((x) => [x.start, x.end])).toEqual([['2026-10-01', '2026-10-03']]);
+    const res = await runGscBigQuery(runDeps(f), second, {});
+    expect(res.stopped).toBeNull();
+    const l = readLedger(db)!;
+    expect(l.doneRanges.map((r) => [r.start, r.end])).toEqual([['2026-10-01', '2026-10-02'], ['2026-10-03', '2026-10-03']]);
+    expect(stored('https://ex.test/a')!.clicks).toBe(3);
+    expect(f.mainJobs()).toHaveLength(2);
+  });
+
+  it('adopting a new source key drops the old key in-flight job: billed counted, rows not stored under the new key (S-Med)', async () => {
+    const f = await start({
+      rows: [row('2026-10-01', 'https://ex.test/web', 5, 50, 0), row('2026-10-01', 'https://ex.test/img', 2, 20, 0, { type: 'IMAGE' })],
+      exportLog: [logRow('2026-10-01')],
+      bytesPerDay: 20 * MIB,
+    });
+    const webPlan = await plan(f);
+    await runGscBigQuery(crashAfterInsert(runDeps(f)), webPlan, {});
+    expect(readLedger(db)!.inFlight).not.toBeNull();
+    const imgPlan = await plan(f, { searchType: 'image' });
+    const res = await runGscBigQuery(runDeps(f, { client: clientFor(f, { searchType: 'image' }) }), imgPlan, {});
+    expect(res.stopped).toBeNull();
+    expect(res.partsDone).toBe(1);
+    expect(res.partsSkipped).toBe(0);
+    expect(stored('https://ex.test/web')).toBeUndefined();
+    expect(stored('https://ex.test/img')).toBeDefined();
+    const l = readLedger(db)!;
+    expect(l.sourceKey).toBe(imgPlan.sourceKey);
+    expect(l.totalBilled).toBe(40 * MIB); // the old job and the new one
+    expect(l.doneRanges).toHaveLength(1);
+  });
+
+  it('the cap is per run: bytes billed by earlier pulls do not make a later plan over the cap (S-Med)', async () => {
+    const f = await start({ ...fourMonths(), bytesPerDay: 60 * MIB });
+    const june = await plan(f, { bqMaxGiB: 0.1, dateRange: 'custom', startDate: '2026-06-01', endDate: '2026-06-30' });
+    expect((await runGscBigQuery(runDeps(f), june, {})).partsDone).toBe(1);
+    const july = await plan(f, { bqMaxGiB: 0.1, dateRange: 'custom', startDate: '2026-07-01', endDate: '2026-07-31' });
+    expect(july.billedSoFar).toBe(60 * MIB); // shown, not compared
+    expect(july.overCap).toBe(false);
+    expect(july.canRun).toBe(true);
+    const res = await runGscBigQuery(runDeps(f), july, {});
+    expect(res.stopped).toBeNull();
+    expect(res.partsDone).toBe(1);
+    expect(res.totalBilled).toBe(120 * MIB);
+  });
+
+  it('a poll that fails after jobs.insert keeps inFlight; the next start asks jobs.get and inserts no second job (S-Med)', async () => {
+    const f = await start(fourMonths());
+    const p = await plan(f);
+    const one = { ...p, parts: p.parts.slice(0, 1) };
+    f.faults.push({ when: (r) => r.kind === 'jobs.getQueryResults', action: { drop: true }, times: 50 });
+    const first = await runGscBigQuery(runDeps(f), one, {});
+    expect(first.stopped?.reason).toBe('error');
+    expect(f.mainJobs()).toHaveLength(1);
+    const left = readLedger(db)!.inFlight;
+    expect(left).not.toBeNull();
+    f.faults.length = 0;
+    const mark = f.requests.length;
+    const second = await runGscBigQuery(runDeps(f), one, {});
+    expect(second.partsDone).toBe(1);
+    expect(f.mainJobs()).toHaveLength(1);
+    const after = f.requests.slice(mark).filter((r) => r.kind.startsWith('jobs.'));
+    expect(after[0]!.kind).toBe('jobs.get');
+    expect(after.some((r) => r.kind === 'jobs.insert')).toBe(false);
+    expect(readLedger(db)!.totalBilled).toBe(20 * MIB);
   });
 });
 
