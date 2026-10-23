@@ -212,18 +212,25 @@ describe('check', () => {
     expect(run(['check', '--project', project, '--rules', passRules, '--notify', 'carrier-pigeon']).status).toBe(2);
   });
   it('SIGINT: exit 130', async () => {
-    // A hung webhook keeps the process alive long enough to interrupt it.
-    const server = http.createServer(() => {});
+    // A hung webhook keeps the process alive; its request arriving is the signal that the CLI is
+    // in the notify step, however slow the machine starts it.
+    let gotRequest!: () => void;
+    const requested = new Promise<void>((r) => (gotRequest = r));
+    const server = http.createServer(() => gotRequest());
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/h`;
     const p = spawn(process.execPath, [CLI, 'check', '--project', project, '--rules', failRules, '--notify', 'webhook'], {
       env: { ...process.env, FREECRAWL_WEBHOOK_URL: url },
     });
-    const code = new Promise<number | null>((r) => p.on('close', r));
-    await new Promise((r) => setTimeout(r, 1500));
-    p.kill('SIGINT');
-    expect(await code).toBe(130);
-    server.closeAllConnections();
-    server.close();
-  });
+    try {
+      const code = new Promise<number | null>((r) => p.on('close', r));
+      await requested;
+      p.kill('SIGINT');
+      expect(await code).toBe(130);
+    } finally {
+      if (p.exitCode === null && p.signalCode === null) p.kill('SIGKILL');
+      server.closeAllConnections();
+      server.close();
+    }
+  }, 120_000);
 });

@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProjectDb, detectProjectFormat, packProject } from '@freecrawl/db';
+import { killAllChildren, killChild, spawnTracked, waitFor } from './test-proc.js';
 
 // Drives the built CLI as a process (`npx tsc -b && npm run build:cli` first).
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/index.js');
@@ -37,8 +38,28 @@ function run(args: string[], timeout = 30000) {
 }
 
 function runAsync(args: string[]): Promise<number | null> {
-  const child = spawn(process.execPath, [CLI, ...args], { stdio: 'ignore' });
+  const child = spawnTracked(process.execPath, [CLI, ...args], { stdio: 'ignore' });
   return new Promise((r) => child.on('exit', (c) => r(c)));
+}
+
+// The fixture project plus BIG_ROWS copies of one page, built on first use so a
+// lone `-t` run of either Ctrl-C test works.
+let bigPath: string | undefined;
+function bigProject(): string {
+  if (bigPath) return bigPath;
+  const big = path.join(dir, 'big.seoproject');
+  fs.copyFileSync(project, big);
+  const raw = new DatabaseSync(big);
+  const cols = (raw.prepare('PRAGMA table_info(urls)').all() as { name: string }[])
+    .map((c) => c.name)
+    .filter((c) => c !== 'id' && c !== 'url');
+  raw.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${BIG_ROWS})
+    INSERT INTO urls (url, ${cols.join(', ')})
+    SELECT u.url || '?copy=' || n.i, ${cols.map((c) => `u.${c}`).join(', ')}
+      FROM n JOIN (SELECT * FROM urls WHERE content_kind = 'html' LIMIT 1) u`);
+  raw.close();
+  bigPath = big;
+  return big;
 }
 
 function csvRows(file: string): number {
@@ -80,6 +101,7 @@ beforeAll(async () => {
 }, 90000);
 
 afterAll(async () => {
+  killAllChildren();
   await new Promise((r) => server.close(r));
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -306,55 +328,47 @@ describe('freecrawl export', () => {
   });
 
   it('Ctrl-C mid-export exits 130 and leaves no .part file', async () => {
-    const big = path.join(dir, 'big.seoproject');
-    fs.copyFileSync(project, big);
-    const raw = new DatabaseSync(big);
-    const cols = (raw.prepare('PRAGMA table_info(urls)').all() as { name: string }[])
-      .map((c) => c.name)
-      .filter((c) => c !== 'id' && c !== 'url');
-    raw.exec(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${BIG_ROWS})
-      INSERT INTO urls (url, ${cols.join(', ')})
-      SELECT u.url || '?copy=' || n.i, ${cols.map((c) => `u.${c}`).join(', ')}
-        FROM n JOIN (SELECT * FROM urls WHERE content_kind = 'html' LIMIT 1) u`);
-    raw.close();
+    const big = bigProject();
     const out = path.join(dir, 'sigint-out');
-    const child = spawn(process.execPath, [CLI, 'export', '--project', big, '--out', out], { stdio: 'ignore' });
+    const child = spawnTracked(process.execPath, [CLI, 'export', '--project', big, '--out', out], { stdio: 'ignore' });
     const exited = new Promise<number | null>((r) => child.on('exit', (c) => r(c)));
-    // Interrupt once the first file is being written.
-    for (let t = 0; t < 400 && !(fs.existsSync(out) && fs.readdirSync(out).some((f) => f.endsWith('.part'))); t++) {
-      await new Promise((r) => setTimeout(r, 25));
+    try {
+      // Interrupt once the first file is being written; wait for that event, not for a fixed time.
+      const started = await waitFor(() => fs.existsSync(out) && fs.readdirSync(out).some((f) => f.endsWith('.part')));
+      expect(started).toBe(true);
+      child.kill('SIGINT');
+      expect(await exited).toBe(130);
+      expect(walk(out).filter((f) => f.endsWith('.part'))).toEqual([]);
+    } finally {
+      killChild(child);
     }
-    expect(fs.readdirSync(out).some((f) => f.endsWith('.part'))).toBe(true);
-    child.kill('SIGINT');
-    expect(await exited).toBe(130);
-    expect(walk(out).filter((f) => f.endsWith('.part'))).toEqual([]);
-  }, 60000);
+  }, 180000);
 
   it('Ctrl-C under --json prints ok:false, error interrupted and the files done so far', async () => {
-    const big = path.join(dir, 'big.seoproject'); // filled by the Ctrl-C test above
-    expect(fs.existsSync(big)).toBe(true);
+    const big = bigProject(); // same copy as the test above; built here when run alone (-t)
     const out = path.join(dir, 'sigint-json-out');
-    const child = spawn(process.execPath, [CLI, 'export', '--project', big, '--out', out, '--what', 'issues,bulk', '--json'],
+    const child = spawnTracked(process.execPath, [CLI, 'export', '--project', big, '--out', out, '--what', 'issues,bulk', '--json'],
       { stdio: ['ignore', 'pipe', 'ignore'] });
     let stdout = '';
     child.stdout!.on('data', (b: Buffer) => (stdout += b.toString()));
-    const exited = new Promise<number | null>((r) => child.on('exit', (c) => r(c)));
+    // 'close' fires once stdout is drained too, so no fixed pause before parsing it.
+    const exited = new Promise<number | null>((r) => child.on('close', (c) => r(c)));
     const inBulk = () =>
       fs.existsSync(path.join(out, 'issues-summary.csv')) && fs.readdirSync(out).some((f) => f.endsWith('.part'));
-    for (let t = 0; t < 400 && !(fs.existsSync(out) && inBulk()); t++) {
-      await new Promise((r) => setTimeout(r, 25));
+    try {
+      expect(await waitFor(() => fs.existsSync(out) && inBulk())).toBe(true);
+      child.kill('SIGINT');
+      expect(await exited).toBe(130);
+      const j = JSON.parse(stdout) as { ok: boolean; error: string; files: { path: string }[] };
+      expect(j.ok).toBe(false);
+      expect(j.error).toBe('interrupted');
+      expect(j.files.map((f) => path.basename(f.path))).toEqual(['issues-summary.csv']);
+      expect(walk(out).filter((f) => f.endsWith('.part'))).toEqual([]);
+      expect(fs.existsSync(path.join(out, 'manifest.json'))).toBe(false);
+    } finally {
+      killChild(child);
     }
-    expect(inBulk()).toBe(true);
-    child.kill('SIGINT');
-    expect(await exited).toBe(130);
-    await new Promise((r) => setTimeout(r, 50));
-    const j = JSON.parse(stdout) as { ok: boolean; error: string; files: { path: string }[] };
-    expect(j.ok).toBe(false);
-    expect(j.error).toBe('interrupted');
-    expect(j.files.map((f) => path.basename(f.path))).toEqual(['issues-summary.csv']);
-    expect(walk(out).filter((f) => f.endsWith('.part'))).toEqual([]);
-    expect(fs.existsSync(path.join(out, 'manifest.json'))).toBe(false);
-  }, 60000);
+  }, 180000);
 
   it('a desktop-saved project exports the same files; a locked one is refused with exit 2 and the pid', async () => {
     const container = path.join(dir, 'desktop.seoproject');
