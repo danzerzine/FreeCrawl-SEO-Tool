@@ -872,4 +872,9 @@ export const RU_LABELS: Record<string, string> = {
   'Renders every page in Chromium and runs the in-page WCAG audit (contrast, focus outline, tap targets, font size) plus the mobile-usability checks. Slow by design — low concurrency.': 'Рендерит каждую страницу в Chromium и запускает встроенный аудит WCAG (контраст, обводка фокуса, области нажатия, размер шрифта) плюс проверки мобильного удобства. Медленно намеренно — низкая параллельность.',
   'Create a service account in Google Cloud Console with BigQuery Data Editor role, generate a JSON key, and paste it here along with the project ID. To read your Search Console bulk export from BigQuery (Settings → Search Console → source BigQuery), also give that service account "BigQuery Data Viewer" on the Search Console dataset and "BigQuery Job User" on the billing project. FreeCrawl only reads that dataset.':
     'Создайте сервисный аккаунт в Google Cloud Console с ролью BigQuery Data Editor, сгенерируйте JSON-ключ и вставьте его сюда вместе с ID проекта. Чтобы читать массовую выгрузку Search Console из BigQuery (Настройки → Search Console → источник BigQuery), выдайте этому сервисному аккаунту ещё роль «BigQuery Data Viewer» на набор данных Search Console и «BigQuery Job User» на расчётный проект. FreeCrawl только читает этот набор данных.',
+  // B45: markup check
+  'HTML Markup Errors': 'Ошибки HTML-разметки',
+  'Duplicate id Attributes': 'Повторяющиеся атрибуты id',
+  'Markup Errors': 'Ошибки разметки',
+  'Markup Error Codes': 'Коды ошибок разметки',
 };

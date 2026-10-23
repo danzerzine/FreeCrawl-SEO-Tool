@@ -737,6 +737,8 @@
       "checkJs": "Check JavaScript",
       "storeNofollow": "Count / Probe Nofollow Links",
       "storeNofollowHint": "Default off — Screaming Frog 'Respect Nofollow' behaviour",
+      "markupValidation": "Check HTML markup",
+      "markupValidationHint": "Default off — parses every page twice more",
       "discoverSitemaps": "Auto-Discover XML Sitemaps",
       "discoverSitemapsHint": "Reads sitemap.xml from robots.txt + default paths at crawl start",
       "renderingMode": "Rendering Mode",

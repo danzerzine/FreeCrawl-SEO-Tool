@@ -1009,6 +1009,8 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
   // table; the 'analytics' tab is the GA4 traffic grid, which ignores the
   // category entirely and would show unrelated data (or a connect screen).
   if (cat.startsWith('issues:analytics-')) return 'internal';
+  // B45: the markup columns live in the Internal grid.
+  if (cat === 'issues:markup-errors' || cat === 'issues:duplicate-ids') return 'internal';
   if (
     cat === 'issues:anchor-text-too-long' ||
     cat === 'issues:anchor-text-generic' ||

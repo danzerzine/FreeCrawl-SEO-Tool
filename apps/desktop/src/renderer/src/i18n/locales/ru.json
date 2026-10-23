@@ -779,6 +779,8 @@
       "checkJs": "Проверять JavaScript",
       "storeNofollow": "Учитывать / проверять ссылки nofollow",
       "storeNofollowHint": "По умолчанию отключено — поведение «Respect Nofollow» из Screaming Frog",
+      "markupValidation": "Проверять HTML-разметку",
+      "markupValidationHint": "По умолчанию отключено — каждая страница разбирается ещё дважды",
       "discoverSitemaps": "Автоматически находить XML-sitemap",
       "discoverSitemapsHint": "Читает sitemap.xml из robots.txt и стандартных путей при запуске обхода",
       "renderingMode": "Режим рендеринга",

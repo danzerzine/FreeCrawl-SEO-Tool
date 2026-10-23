@@ -131,6 +131,7 @@ interface FormState {
   checkCss: boolean;
   checkJs: boolean;
   storeNofollowLinks: boolean;
+  markupValidation: boolean;
   discoverSitemaps: boolean;
   // spider → crawl matrix
   scope: CrawlScope;
@@ -600,6 +601,7 @@ function configToForm(c: CrawlConfig): FormState {
     checkCss: c.checkCss,
     checkJs: c.checkJs,
     storeNofollowLinks: c.storeNofollowLinks,
+    markupValidation: c.markupValidation ?? false,
     discoverSitemaps: c.discoverSitemaps,
     scope: c.scope,
     storeImages: c.storeImages ?? true,
@@ -933,6 +935,7 @@ export function SettingsDialog({ open, onClose }: Props) {
       checkCss: form.checkCss,
       checkJs: form.checkJs,
       storeNofollowLinks: form.storeNofollowLinks,
+      markupValidation: form.markupValidation,
       discoverSitemaps: form.discoverSitemaps,
       scope: form.scope,
       storeImages: form.storeImages,
@@ -1985,6 +1988,14 @@ function CrawlerPanel({ form, update }: PanelProps) {
           hint={t('settingsPanels.crawler.storeNofollowHint', { defaultValue: "Default off — Screaming Frog 'Respect Nofollow' behaviour" })}
           info='Nofollow links are always recorded in the link graph, so Inlinks and Outlinks show them. When on, they also count toward inlinks, outlinks and link score, and external ones are probed. When off (default), they are shown but not counted or probed, so a page linked only with nofollow is an orphan and is also listed under Inlinks Nofollow Only, which tells why. Whether internal nofollow links are crawled is a separate setting.'
           example="Leave off to respect nofollow; on to count and probe them like any other link."
+        />
+        <Bool
+          label={t('settingsPanels.crawler.markupValidation', { defaultValue: 'Check HTML markup' })}
+          checked={form.markupValidation}
+          onChange={(v) => update('markupValidation', v)}
+          hint={t('settingsPanels.crawler.markupValidationHint', { defaultValue: 'Default off — parses every page twice more' })}
+          info='Counts HTML markup errors per page with a fixed small rule set: missing doctype, duplicate attributes and ids, broken tags, unexpected end of file, bad character references, obsolete elements and unclosed elements. Fills the HTML Markup Errors and Duplicate id Attributes issues and two columns. It is not a full validator: stray end tags and wrong nesting are not reported. Off by default because it parses every HTML page twice more.'
+          example="Leave off for speed; on to find broken markup and repeated ids."
         />
         <Bool
           label={t('settingsPanels.crawler.discoverSitemaps', { defaultValue: 'Auto-Discover XML Sitemaps' })}

@@ -94,7 +94,8 @@ function loadHiddenColumns(tab: TabKey): Set<string> {
   if (Array.isArray(value)) {
     return new Set(value.filter((v): v is string => typeof v === 'string'));
   }
-  return new Set();
+  // Nothing stored yet: only the columns that ask to start hidden.
+  return new Set(COLUMN_SPECS[tab].filter((c) => c.hiddenByDefault).map(columnId));
 }
 
 function saveHiddenColumns(tab: TabKey, hidden: Set<string>): void {

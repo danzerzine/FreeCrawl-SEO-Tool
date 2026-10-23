@@ -1541,6 +1541,19 @@ function RenderDiffList({ row }: { row: CrawlUrlRow }) {
   );
 }
 
+/** The row's `markupCodes` JSON as `code ×count, …` for URL Details (B45); null when empty or unreadable. */
+function markupCodesText(json: string | null | undefined): string | null {
+  if (!json) return null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (parsed === null || typeof parsed !== 'object') return null;
+    const parts = Object.entries(parsed as Record<string, unknown>).map(([code, n]) => `${code} ×${String(n)}`);
+    return parts.length > 0 ? parts.join(', ') : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Console errors and failed resources of the render (B35), from the row's `consoleLog`; nothing when it is empty. */
 function ConsoleLogList({ row }: { row: CrawlUrlRow }) {
   const { t } = useTranslation();
@@ -2603,6 +2616,8 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
     ['Axe violations', row.axeViolations ?? null],
     ['Axe critical/serious', row.axeSerious ?? null],
     ['Console Errors', row.consoleErrors ?? null],
+    ['Markup Errors', row.markupErrors ?? null],
+    ['Markup Error Codes', markupCodesText(row.markupCodes)],
     ['Failed Resources', row.failedResources ?? null],
     [
       'Focus Outline Suppressed',

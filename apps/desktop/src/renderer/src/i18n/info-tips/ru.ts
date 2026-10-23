@@ -711,4 +711,13 @@ export const RU_INFO_TIPS: Record<string, string> = {
     "Сколько скрипт страницы может работать на одной странице, от 500 до 30 000 мс. Когда время выходит, страница продолжает с тем DOM, который есть, а результат — {error: timeout}. Лимит рендеринга растёт вместе с этим значением.",
   ["5000 for a click and a short wait, 15000 for scrolling a long list."]:
     "5000 — для клика и короткого ожидания, 15000 — для прокрутки длинного списка.",
+  // B45: markup check tooltips
+  ["HTML markup errors found by the fixed rule set (missing doctype, duplicate attribute or id, broken tags, obsolete elements, unclosed elements): 0 clean, empty when not checked. Needs Settings → Crawling → Check HTML markup."]:
+    "Ошибки HTML-разметки по фиксированному набору правил (нет doctype, повтор атрибута или id, сломанные теги, устаревшие элементы, незакрытые элементы): 0 — чисто, пусто — не проверялось. Нужна настройка «Настройки → Обход → Проверять HTML-разметку».",
+  ["The error codes behind Markup Errors with their counts, as JSON. Empty when there are none or the page was not checked."]:
+    "Коды ошибок, из которых складывается «Ошибки разметки», с количеством, в виде JSON. Пусто, если ошибок нет или страницу не проверяли.",
+  ["Counts HTML markup errors per page with a fixed small rule set: missing doctype, duplicate attributes and ids, broken tags, unexpected end of file, bad character references, obsolete elements and unclosed elements. Fills the HTML Markup Errors and Duplicate id Attributes issues and two columns. It is not a full validator: stray end tags and wrong nesting are not reported. Off by default because it parses every HTML page twice more."]:
+    "Считает ошибки HTML-разметки на каждой странице по небольшому фиксированному набору правил: нет doctype, повторяющиеся атрибуты и id, сломанные теги, неожиданный конец файла, неверные символьные ссылки, устаревшие и незакрытые элементы. Заполняет проблемы «Ошибки HTML-разметки» и «Повторяющиеся атрибуты id» и две колонки. Это не полный валидатор: лишние закрывающие теги и неверная вложенность не определяются. По умолчанию выключено: каждая HTML-страница разбирается ещё дважды.",
+  ["Leave off for speed; on to find broken markup and repeated ids."]:
+    "Оставьте выключенным ради скорости; включите, чтобы найти сломанную разметку и повторяющиеся id.",
 };

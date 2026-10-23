@@ -23,6 +23,8 @@ export interface ColumnSpec {
    * of the page's `extractionResults` JSON instead of the combined blob.
    */
   extractionRule?: string;
+  /** Not shown until the user adds it from the Columns picker (a stored choice wins). */
+  hiddenByDefault?: boolean;
 }
 
 export function columnId(c: ColumnSpec): string {
@@ -411,6 +413,24 @@ const COL = {
     info: "The entries behind Console Errors and Failed Resources (at most 50 per page), as JSON. Empty when both are 0 or not recorded.",
     example: '[{"kind":"http","url":"https://example.com/a.js","type":"script","status":404}]',
   } as ColumnSpec,
+  markupErrors: {
+    key: 'markupErrors',
+    header: "Markup Errors",
+    size: 110,
+    kind: 'number',
+    info: "HTML markup errors found by the fixed rule set (missing doctype, duplicate attribute or id, broken tags, obsolete elements, unclosed elements): 0 clean, empty when not checked. Needs Settings → Crawling → Check HTML markup.",
+    example: "3",
+    hiddenByDefault: true,
+  } as ColumnSpec,
+  markupCodes: {
+    key: 'markupCodes',
+    header: "Markup Error Codes",
+    size: 260,
+    kind: 'text',
+    info: "The error codes behind Markup Errors with their counts, as JSON. Empty when there are none or the page was not checked.",
+    example: '{"duplicate-id":2,"missing-doctype":1}',
+    hiddenByDefault: true,
+  } as ColumnSpec,
   renderDiff: {
     key: 'renderDiff',
     header: "Render Diff",
@@ -719,6 +739,8 @@ export const COLUMN_SPECS: Record<TabKey, ColumnSpec[]> = {
     COL.linkScore,
     COL.imagesCount,
     COL.imagesMissingAlt,
+    COL.markupErrors,
+    COL.markupCodes,
   ],
   external: [
     COL.url,
