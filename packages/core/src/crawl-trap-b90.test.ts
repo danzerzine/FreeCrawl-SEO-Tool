@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
@@ -268,4 +269,148 @@ describe('a faceted shop trap on a local server', () => {
     expect(traps(db)).toEqual([]);
     db.close();
   }, 120_000);
+});
+
+describe('normal sites stay quiet on a real crawl', () => {
+  let server: Server;
+  let base: string;
+  const floors = { r2Count: 300, r3Count: 600, r1Count: 600, checkEvery: 100 };
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const u = new URL(req.url ?? '/', 'http://x');
+      const html = (b: string): void =>
+        void res
+          .writeHead(200, { 'content-type': 'text/html' })
+          .end(`<html><head><title>${u.pathname}${u.search} title long enough</title></head><body>${b}</body></html>`);
+      const words = (seed: string): string => Array.from({ length: 30 }, (_, k) => `${seed}${k * 7}`).join(' ');
+      if (u.pathname === '/robots.txt' || u.pathname === '/sitemap.xml') return void res.writeHead(404).end();
+      if (u.pathname === '/') {
+        const links = [
+          ...Array.from({ length: 400 }, (_, i) => `/blog/post-${i}`),
+          ...Array.from({ length: 40 }, (_, i) => `/archive?page=${i + 1}`),
+          ...Array.from({ length: 20 }, (_, i) => `/tag/t${i}`),
+          '/forum/viewforum.php?f=1',
+        ];
+        return html(links.map((l) => `<a href="${l}">x</a>`).join(' '));
+      }
+      if (u.pathname === '/forum/viewforum.php') {
+        return html(Array.from({ length: 1200 }, (_, i) => `<a href="/forum/viewtopic.php?t=${i + 1}">t</a>`).join(' '));
+      }
+      html(`<p>${words(u.pathname + u.search)}</p>`);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+  afterAll(() => void server.close());
+
+  it('a blog with archive pages and tags, and a forum with viewtopic.php?t=N, give no finding', async () => {
+    const db = new ProjectDb(join(dir, 'n.seoproject'));
+    const c = quiet(
+      new Crawler({ ...baseConfig(`${base}/`), maxConcurrency: 8, maxRps: 0, maxDepth: 100 }, db, {
+        trapWatch: { floors },
+      }),
+    );
+    const warns: string[] = [];
+    c.on('warn', (m: string) => /Possible crawl trap/.test(m) && warns.push(m));
+    await c.start();
+    expect(c.trapWatch.discovered).toBeGreaterThan(1600);
+    expect(warns).toEqual([]);
+    expect(db.getOverviewCounts().site?.crawlTraps).toEqual([]);
+    db.close();
+  }, 120_000);
+});
+
+describe('what is not a page of the site is not counted', () => {
+  let server: Server;
+  let base: string;
+  let ext: string;
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const u = new URL(req.url ?? '/', 'http://x');
+      const html = (b: string): void =>
+        void res
+          .writeHead(200, { 'content-type': 'text/html' })
+          .end(`<html><head><title>${u.pathname} title long enough</title></head><body>${b}</body></html>`);
+      if (u.pathname === '/robots.txt' || u.pathname === '/sitemap.xml') return void res.writeHead(404).end();
+      if (u.pathname === '/') {
+        const links = [
+          ...Array.from({ length: 20 }, (_, i) => `<a href="/p/${i}">p</a>`),
+          ...Array.from({ length: 300 }, (_, i) => `<a href="${ext}/x/${i}">x</a>`),
+        ];
+        return html(links.join(' '));
+      }
+      html(`<p>${u.pathname} text</p>`);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const port = (server.address() as { port: number }).port;
+    base = `http://127.0.0.1:${port}`;
+    ext = `http://localhost:${port}`; // another host name for the same server
+  });
+  afterAll(() => void server.close());
+
+  it('with crawlExternal on, pages of another host are crawled but not counted', async () => {
+    const db = new ProjectDb(join(dir, 'x.seoproject'));
+    const c = quiet(
+      new Crawler(
+        { ...baseConfig(`${base}/`), maxRps: 0, crawlExternal: true, checkExternalLinks: true },
+        db,
+      ),
+    );
+    await c.start();
+    expect(c.trapWatch.discovered).toBe(21);
+    db.close();
+  }, 60_000);
+});
+
+describe('a refresh of a stored project does not count what is not a page', () => {
+  let server: Server;
+  let base: string;
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const u = new URL(req.url ?? '/', 'http://x');
+      if (u.pathname === '/sitemap.xml') {
+        const loc = Array.from({ length: 600 }, (_, i) => `<url><loc>http://${req.headers.host}/p/${i}</loc></url>`).join('');
+        return void res
+          .writeHead(200, { 'content-type': 'application/xml' })
+          .end(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${loc}</urlset>`);
+      }
+      if (u.pathname.startsWith('/wp-content/')) return void res.writeHead(200, { 'content-type': 'image/png' }).end(PNG);
+      if (u.pathname === '/robots.txt' || u.pathname === '/sitemap_index.xml') return void res.writeHead(404).end();
+      res
+        .writeHead(200, { 'content-type': 'text/html' })
+        .end(`<html><head><title>${u.pathname} title long enough</title></head><body><p>${u.pathname} text</p></body></html>`);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+  afterAll(() => void server.close());
+
+  it('3 000 pages, a 600-URL sitemap and 6 000 stored images: no R2, no R3, no image counted', async () => {
+    const file = join(dir, 'w.seoproject');
+    new ProjectDb(file).close();
+    const raw = new DatabaseSync(file);
+    raw.exec('BEGIN');
+    const ins = raw.prepare(
+      'INSERT INTO urls (url, is_external, content_kind, status_code, depth) VALUES (?, 0, ?, 200, 1)',
+    );
+    ins.run(`${base}/`, 'html');
+    for (let i = 0; i < 3000; i++) ins.run(`${base}/p/${i}`, 'html');
+    for (let i = 0; i < 6000; i++) ins.run(`${base}/wp-content/uploads/i${i}.png`, 'image');
+    raw.exec('COMMIT');
+    raw.close();
+    const db = new ProjectDb(file);
+    db.setMeta('startUrl', `${base}/`);
+    const c = quiet(new Crawler({ ...baseConfig(`${base}/`), maxConcurrency: 8, maxRps: 0, discoverSitemaps: true }, db));
+    const warns: string[] = [];
+    c.on('warn', (m: string) => /Possible crawl trap/.test(m) && warns.push(m));
+    await c.start();
+    expect(c.trapWatch.sitemapUrls).toBe(600);
+    expect(c.trapWatch.discovered).toBe(3001);
+    expect(warns).toEqual([]);
+    expect(db.getOverviewCounts().site?.crawlTraps).toEqual([]);
+    db.close();
+  }, 180_000);
 });
