@@ -342,6 +342,16 @@ const HARD_TRANSPORT_ERROR_RE =
 /** Pause before the one retry of an external URL that got no answer at network level. */
 const NO_ANSWER_RETRY_PAUSE_MS = 1_500;
 
+/** Reserve the next slot of a rate clock: when it fires and where the clock moves to. */
+function reserveSlot(
+  nextAt: number,
+  intervalMs: number,
+  now: number,
+): { scheduled: number; next: number } {
+  const scheduled = Math.max(now, nextAt);
+  return { scheduled, next: scheduled + intervalMs };
+}
+
 /** Thrown inside a request chain when Stop cuts a rate wait short (B150). */
 class GateStopped extends Error {}
 
@@ -521,7 +531,7 @@ export class Crawler extends EventEmitter {
   /** Monotonic dispatch clock for the maxRps gate (see acquireRateSlot). */
   private nextDispatchAt = 0;
   /** Next free request slot (epoch ms) per foreign hostname, for external-link checks (B150). */
-  private extNextAt = new Map<string, number>();
+  private foreignNextAt = new Map<string, number>();
   private progressTimer: NodeJS.Timeout | null = null;
   private memoryWatchdogTimer: NodeJS.Timeout | null = null;
   /** Periodic post-crawl-style recompute of expensive issue counters
@@ -3719,7 +3729,10 @@ export class Crawler extends EventEmitter {
     return this.config.crawlExternal && this.config.checkExternalLinks;
   }
 
-  /** Who answers for the rate of a request to `url`: a foreign host, an out-of-scope page of the start host, or the crawl's own scope. */
+  /**
+   * Who answers for the rate of a request to `url`: a foreign host, an
+   * out-of-scope page of the start host, or the crawl's own scope.
+   */
   private externalGateKind(url: string): 'foreign' | 'stub' | 'scope' {
     const same = isSameHost(this.config.startUrl, url, {
       includeSubdomains: this.config.scope === 'all-subdomains',
@@ -3733,7 +3746,7 @@ export class Crawler extends EventEmitter {
   private peekExternalWait(host: string): number {
     const maxRps = nightAwareMaxRps(this.config, new Date());
     if (maxRps <= 0) return 0;
-    return Math.max(0, (this.extNextAt.get(host) ?? 0) - Date.now());
+    return Math.max(0, (this.foreignNextAt.get(host) ?? 0) - Date.now());
   }
 
   /**
@@ -3745,17 +3758,18 @@ export class Crawler extends EventEmitter {
     const maxRps = nightAwareMaxRps(this.config, new Date());
     if (maxRps <= 0) return 0;
     const now = Date.now();
-    if (this.extNextAt.size > 1024) {
-      for (const [h, at] of this.extNextAt) if (at <= now) this.extNextAt.delete(h);
+    if (this.foreignNextAt.size > 1024) {
+      for (const [h, at] of this.foreignNextAt) if (at <= now) this.foreignNextAt.delete(h);
     }
-    const scheduled = Math.max(now, this.extNextAt.get(host) ?? 0);
-    this.extNextAt.set(host, scheduled + 1000 / maxRps);
-    return scheduled - now;
+    const slot = reserveSlot(this.foreignNextAt.get(host) ?? 0, 1000 / maxRps, now);
+    this.foreignNextAt.set(host, slot.next);
+    return slot.scheduled - now;
   }
 
   private requeueExternal(url: string): void {
     this.externalQueue.add(() => this.probeExternal(url)).catch((err: unknown) => {
-      this.emit('error', `External probe error: ${err instanceof Error ? err.message : String(err)}`);
+      const why = err instanceof Error ? err.message : String(err);
+      this.emit('error', `External probe error: ${why}`);
     });
   }
 
@@ -3767,13 +3781,16 @@ export class Crawler extends EventEmitter {
 
   /**
    * Entry gate of an external probe (B150). 'booked': the first request holds
-   * a slot of its foreign host. 'free': not a foreign host, the chain gates
+   * a slot of its foreign host. 'none': not a foreign host, the chain gates
    * itself. 'done': stopped, or the probe went back to the queue.
    */
-  private async enterExternalGate(url: string, requeue: () => void): Promise<'booked' | 'free' | 'done'> {
-    if (this.externalGateKind(url) !== 'foreign') return 'free';
+  private async enterExternalGate(
+    url: string,
+    requeue: () => void,
+  ): Promise<'booked' | 'none' | 'done'> {
+    if (this.externalGateKind(url) !== 'foreign') return 'none';
     const host = hostKey(url);
-    if (!host) return 'free';
+    if (!host) return 'none';
     // Starvation guard: a probe whose host line is more than 1 s away steps
     // back when other work waits, so the workers do not all sit in one host's
     // line while other hosts starve. The condition is `externalQueue.size > 0`
@@ -3867,7 +3884,9 @@ export class Crawler extends EventEmitter {
     try {
       return await this.requestStatusChain(url, opts.prebooked === true);
     } catch (e) {
-      if (e instanceof GateStopped) return { confirmedNoAnswer: false, responseTimeMs: 0, aborted: true };
+      if (e instanceof GateStopped) {
+        return { confirmedNoAnswer: false, responseTimeMs: 0, aborted: true };
+      }
       throw e;
     }
   }
@@ -4089,7 +4108,9 @@ export class Crawler extends EventEmitter {
       await this.acquireRateSlot();
       if (this.stopped) return;
     }
-    const { res, err, confirmedNoAnswer, aborted } = await this.requestStatus(url, { prebooked: true });
+    const { res, err, confirmedNoAnswer, aborted } = await this.requestStatus(url, {
+      prebooked: true,
+    });
     if (aborted) return;
     await this.dbCall<void>('setAmpTarget', [
       {
@@ -4994,9 +5015,9 @@ export class Crawler extends EventEmitter {
     }
     if (minInterval <= 0) return;
     const now = Date.now();
-    const scheduled = Math.max(now, this.nextDispatchAt);
-    this.nextDispatchAt = scheduled + minInterval;
-    const waitMs = scheduled - now;
+    const slot = reserveSlot(this.nextDispatchAt, minInterval, now);
+    this.nextDispatchAt = slot.next;
+    const waitMs = slot.scheduled - now;
     if (waitMs > 0 && !this.stopped) await sleep(waitMs);
   }
 
