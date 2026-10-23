@@ -18,7 +18,14 @@ const NOT_FOUND = '<html><body><p id="y">a</p><p id="y">b</p></body></html>';
 let server: Server;
 let dir: string;
 let base: string;
+const realFetch = globalThis.fetch;
 beforeAll(async () => {
+  // Network guard: nothing but the local fixture host is reachable from this file.
+  globalThis.fetch = ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const host = new URL(typeof input === 'string' || input instanceof URL ? input : input.url).hostname;
+    if (host !== '127.0.0.1') return Promise.reject(new Error(`blocked fetch to ${host}`));
+    return realFetch(input, init);
+  }) as typeof fetch;
   dir = mkdtempSync(join(tmpdir(), 'fc-b45-'));
   server = createServer((req, res) => {
     const body = PAGES[req.url ?? '/'];
@@ -28,6 +35,7 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
 });
 afterAll(() => {
+  globalThis.fetch = realFetch;
   server.close();
   rmSync(dir, { recursive: true, force: true });
 });
