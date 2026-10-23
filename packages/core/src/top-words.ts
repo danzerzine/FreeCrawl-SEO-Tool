@@ -3,8 +3,7 @@
  * data-only — the DB layer feeds raw text strings (titles, descriptions,
  * H1s, optionally body text) and gets back a deduped frequency map.
  *
- * Stopwords are bundled English + Turkish (the two languages the user
- * crawls most). Adding more locales is a matter of dropping another set
+ * Stopwords are bundled English, Turkish and Russian. Adding more locales is a matter of dropping another set
  * into `STOPWORDS_BY_LOCALE`. Detection is intentionally absent: if the
  * site mixes languages we just union all enabled stopword sets.
  *
@@ -61,16 +60,57 @@ const STOPWORDS_TR = new Set<string>([
   'var', 'yok', 'mı', 'mi', 'mu', 'mü', 'da', 'de', 'ki',
 ]);
 
-export type TopWordsLocale = 'en' | 'tr' | 'all';
+/** Each word with `ё` is listed with `е` too, so a text typed without the dots still matches. */
+function withYoForms(words: string[]): Set<string> {
+  return new Set(words.flatMap((w) => (w.includes('ё') ? [w, w.replace(/ё/g, 'е')] : [w])));
+}
+
+const STOPWORDS_RU = withYoForms([
+  // предлоги, союзы, частицы
+  'для', 'без', 'над', 'под', 'при', 'про', 'через', 'между', 'перед', 'после',
+  'около', 'возле', 'вокруг', 'против', 'среди', 'кроме', 'вместо', 'ради',
+  'из-за', 'как', 'так', 'что', 'чтобы', 'или', 'либо', 'тоже', 'также', 'если',
+  'когда', 'пока', 'потому', 'поэтому', 'чем', 'хотя', 'будто', 'словно', 'даже',
+  'лишь', 'только', 'ещё', 'уже', 'вот', 'вон', 'ведь', 'бы', 'нет', 'нею',
+  'пусть', 'разве', 'неужели', 'именно', 'почти', 'очень', 'можно', 'нужно',
+  // местоимения
+  'это', 'эта', 'эти', 'этот', 'этих', 'этим', 'этом', 'этой', 'этого', 'этому',
+  'эту', 'тот', 'того', 'той', 'том', 'тем', 'те', 'тех', 'там', 'тут', 'здесь',
+  'где', 'куда', 'откуда', 'кто', 'кого', 'кому', 'кем', 'чей', 'чья', 'чьё',
+  'чьи', 'какой', 'какая', 'какое', 'какие', 'каких', 'каким', 'каком',
+  'который', 'которая', 'которое', 'которые', 'которых', 'которым', 'которой',
+  'какого', 'сам', 'сама', 'само', 'сами', 'свой', 'своя', 'своё', 'свои',
+  'своих', 'своей', 'своего', 'всё', 'все', 'всех', 'всем', 'всей', 'весь',
+  'вся', 'его', 'её', 'их', 'ему', 'ней', 'ним', 'них', 'нему', 'они', 'она',
+  'оно', 'мы', 'вы', 'ты', 'меня', 'мне', 'мной', 'тебя', 'тебе', 'нас', 'нам',
+  'вас', 'вам', 'нами', 'вами', 'наш', 'наша', 'наше', 'наши', 'ваш', 'ваша',
+  'ваше', 'ваши', 'мой', 'моя', 'моё', 'мои', 'твой', 'твоя', 'твои',
+  // частые глаголы и слова-связки
+  'быть', 'был', 'была', 'было', 'были', 'будет', 'будут', 'есть', 'суть',
+  'является', 'являются', 'может', 'могут', 'можете', 'должен', 'должна',
+  'должны', 'стал', 'стала', 'стало', 'стали', 'стать', 'иметь', 'имеет',
+  'один', 'одна', 'одно', 'одни', 'два', 'две', 'три', 'более', 'менее',
+  'других', 'другие', 'другой', 'другая', 'другое', 'каждый', 'каждая',
+  'каждое', 'любой', 'любая', 'любое', 'многие', 'многих', 'такой', 'такая',
+  'такое', 'такие', 'таких', 'нибудь', 'либо', 'чего', 'чему', 'чём',
+]);
+
+export type TopWordsLocale = 'en' | 'tr' | 'ru' | 'all';
 
 const STOPWORDS_BY_LOCALE: Record<TopWordsLocale, Set<string>> = {
   en: STOPWORDS_EN,
   tr: STOPWORDS_TR,
+  ru: STOPWORDS_RU,
   // Default — most crawls hit either English or Turkish text, often
   // mixed (Turkish e-commerce sites sprinkle English brand names). The
   // union catches the most common stopwords regardless of language.
-  all: new Set<string>([...STOPWORDS_EN, ...STOPWORDS_TR]),
+  all: new Set<string>([...STOPWORDS_EN, ...STOPWORDS_TR, ...STOPWORDS_RU]),
 };
+
+/** `ё` and `е` are one letter for the lookup only; the counted word keeps its spelling. */
+function isStopword(stopwords: Set<string>, tok: string): boolean {
+  return stopwords.has(tok) || (tok.includes('ё') && stopwords.has(tok.replace(/ё/g, 'е')));
+}
 
 export interface TopWordsRow {
   word: string;
@@ -87,6 +127,13 @@ export interface TopWordsOptions {
   minLength?: number;
   /** Stopword set to apply (default `all`). */
   locale?: TopWordsLocale;
+  /**
+   * Words (1, default) or phrases of 2-3 consecutive tokens (B84). A phrase
+   * neither starts nor ends with a stopword; stopwords inside it stay.
+   */
+  n?: 1 | 2 | 3;
+  /** Rows with fewer occurrences are left out of `result()`. Default 1 for words, 2 for phrases. */
+  minCount?: number;
 }
 
 /**
@@ -136,6 +183,9 @@ export function createTopWordsAggregator(opts: TopWordsOptions = {}): TopWordsAg
   const minLength = Math.max(1, Math.min(10, opts.minLength ?? 3));
   const stopwords = STOPWORDS_BY_LOCALE[opts.locale ?? 'all'];
 
+  const n = opts.n === 2 || opts.n === 3 ? opts.n : 1;
+  const minCount = Math.max(1, opts.minCount ?? (n === 1 ? 1 : 2));
+
   // Two parallel maps: total frequency, and per-page frequency
   // (incremented at most once per source string). Keeping them
   // separate avoids re-tokenising or threading a Set through the
@@ -144,24 +194,36 @@ export function createTopWordsAggregator(opts: TopWordsOptions = {}): TopWordsAg
   const pages = new Map<string, number>();
   const seenInThisPage = new Set<string>();
 
+  const count = (key: string): void => {
+    total.set(key, (total.get(key) ?? 0) + 1);
+    if (!seenInThisPage.has(key)) {
+      pages.set(key, (pages.get(key) ?? 0) + 1);
+      seenInThisPage.add(key);
+    }
+  };
+
   return {
     add(text: string): void {
       const tokens = tokenizeForTopWords(text, minLength);
       seenInThisPage.clear();
-      for (const tok of tokens) {
-        if (stopwords.has(tok)) continue;
-        total.set(tok, (total.get(tok) ?? 0) + 1);
-        if (!seenInThisPage.has(tok)) {
-          pages.set(tok, (pages.get(tok) ?? 0) + 1);
-          seenInThisPage.add(tok);
+      if (n === 1) {
+        for (const tok of tokens) {
+          if (isStopword(stopwords, tok)) continue;
+          count(tok);
         }
+        return;
+      }
+      for (let i = 0; i + n <= tokens.length; i++) {
+        if (isStopword(stopwords, tokens[i]!) || isStopword(stopwords, tokens[i + n - 1]!)) continue;
+        count(tokens.slice(i, i + n).join(' '));
       }
     },
     result(): TopWordsRow[] {
       return [...total.entries()]
-        .map(([word, count]) => ({
+        .filter(([, c]) => c >= minCount)
+        .map(([word, c]) => ({
           word,
-          count,
+          count: c,
           pages: pages.get(word) ?? 0,
         }))
         .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word))
