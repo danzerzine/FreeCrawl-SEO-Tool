@@ -566,7 +566,8 @@ export function compareCrawls(
     cols.filter((c) => !colsA.has(c) || !colsB.has(c));
   const notComparable: Record<string, CompareNotComparable> = {};
   const noDepth = lacking('depth').length > 0;
-  const noSchema = lacking('schema_types').length > 0;
+  const noSchema =
+    lacking('schema_types').length > 0 || !a.schemaTypesStored() || !b.schemaTypesStored();
   const noContent = lacking('content_hash', 'content_source').length > 0;
   let contentSkipped = 0;
   const usable = keys.map((_, i) => !flagsA.failed.has(i) && !flagsB.failed.has(i));
@@ -724,7 +725,14 @@ export function compareCrawls(
     };
   };
   if (noDepth) missing('depth', lacking('depth'));
-  if (noSchema) missing('structured_data', lacking('schema_types'));
+  if (noSchema) {
+    notComparable.structured_data = {
+      reason: lacking('schema_types').length
+        ? `column schema_types missing in an older project`
+        : 'a project from before structured data was stored (empty schema_types)',
+      urls: compared,
+    };
+  }
   if (noContent) missing('content', lacking('content_hash', 'content_source'));
   if (!hasLinkType) missing('outlinks', ['links.type']);
   if (contentSkipped > 0) {

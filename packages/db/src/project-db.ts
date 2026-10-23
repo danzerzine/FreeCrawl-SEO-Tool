@@ -224,6 +224,12 @@ const LARGE_DUPLICATE_CLUSTER = 50;
  */
 export const CHECKS_FILLED_META_KEY = 'checksFilled';
 /**
+ * `project_meta` key: '1' once a crawl has stored the structured-data types
+ * (B108). A NULL `schema_types` then means "no markup on the page"; without
+ * the key (a crawl before 25.04.2026) it may just mean "never stored".
+ */
+export const SCHEMA_TYPES_STORED_META_KEY = 'schemaTypesStored';
+/**
  * `project_meta` key: JSON of the `SeoThresholds` this project is counted
  * with (B77). Written at crawl start and when the desktop saves a config;
  * absent on older projects, which then use the defaults.
@@ -10844,6 +10850,20 @@ export class ProjectDb {
 
   /** Running `withoutMmap` calls; the map comes back when it drops to 0. */
   private mmapOffCalls = 0;
+
+  /**
+   * Whether this project's crawls stored the structured-data types (B108).
+   * The crawl's meta key says so; a project from before the key counts too
+   * when any page carries markup, since only a crawl that stored it can have written one.
+   */
+  schemaTypesStored(): boolean {
+    if (this.getMeta(SCHEMA_TYPES_STORED_META_KEY) === '1') return true;
+    return (
+      this.db
+        .prepare('SELECT 1 FROM urls WHERE schema_types IS NOT NULL OR schema_block_count > 0 LIMIT 1')
+        .get() !== undefined
+    );
+  }
 
   /** The `LATER_CHECKS` this project's crawls filled; empty for a project made before them. */
   checksFilled(): Set<string> {

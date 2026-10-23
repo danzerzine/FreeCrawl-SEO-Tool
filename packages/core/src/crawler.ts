@@ -39,6 +39,7 @@ import {
   COUNT_NOFOLLOW_META_KEY,
   CHECK_EXTERNAL_META_KEY,
   CHECKS_FILLED_META_KEY,
+  SCHEMA_TYPES_STORED_META_KEY,
   LATER_CHECKS,
   RENDER_CHECKS,
   CONSOLE_CHECKS,
@@ -1540,6 +1541,10 @@ export class Crawler extends EventEmitter {
     );
     const filled = continued ? fillable.filter((k) => before.has(k)) : fillable;
     this.db.setMeta(CHECKS_FILLED_META_KEY, JSON.stringify(filled));
+    // Pages of a project older than the column keep it empty; a crawl that
+    // continues such a project must not claim the whole project stored it (B108).
+    if (!continued || this.db.schemaTypesStored())
+      this.db.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
     // A continued crawl keeps the AMP answers its earlier part got and
     // does not ask again; any other crawl probes afresh (B24).
     if (continued) for (const t of this.db.listAmpTargets()) this.ampSeen.add(t.url);
