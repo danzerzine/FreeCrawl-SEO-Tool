@@ -1,7 +1,7 @@
 import * as v8 from 'node:v8';
 import * as vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { CrawlTrapWatch, trapSectionKey } from './crawl-trap-watch.js';
+import { CrawlTrapWatch, isCleanSitemapRead, trapSectionKey } from './crawl-trap-watch.js';
 
 const H = 'https://a.test';
 
@@ -237,5 +237,32 @@ describe('memory and CPU bound', () => {
     expect(w.evictScans - scans0).toBeLessThanOrEqual(6);
     expect(w.evictIterations).toBeLessThanOrEqual(6 * 100);
     expect(w.tableSizes().byHost).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('which sitemap read counts as a baseline', () => {
+  const file = (url: string, status: number | null, error: string | null = null, reason: string | null = null) => ({
+    url,
+    status,
+    error,
+    reason,
+  });
+  const ok = (url: string) => file(url, 200);
+  const base = { truncated: false, sitemapsParsed: [1] };
+  it('a clean read is a baseline, also with a guessed location that does not exist', () => {
+    expect(isCleanSitemapRead({ ...base, files: [ok('https://a.test/sitemap.xml')] }, false)).toBe(true);
+    const guessed = new Set(['https://a.test/sitemap_index.xml']);
+    const files = [ok('https://a.test/sitemap.xml'), file('https://a.test/sitemap_index.xml', 404, 'HTTP 404')];
+    expect(isCleanSitemapRead({ ...base, files }, false, guessed)).toBe(true);
+  });
+  it.each([
+    ['a truncated read', { ...base, truncated: true, files: [ok('u')] }, false],
+    ['an abort', { ...base, files: [ok('u')] }, true],
+    ['a failed declared file', { ...base, files: [ok('u'), file('v', 500, 'HTTP 500')] }, false],
+    ['a declared file that is not found', { ...base, files: [ok('u'), file('v', 404, 'HTTP 404')] }, false],
+    ['a file left unread', { ...base, files: [ok('u'), file('v', null, null, 'too-deep')] }, false],
+    ['nothing parsed', { truncated: false, sitemapsParsed: [], files: [file('u', 404, 'HTTP 404')] }, false],
+  ])('%s is not', (_n, res, aborted) => {
+    expect(isCleanSitemapRead(res, aborted)).toBe(false);
   });
 });

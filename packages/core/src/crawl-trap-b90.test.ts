@@ -22,6 +22,7 @@ const baseConfig = (startUrl: string): CrawlConfig => ({
   ...DEFAULT_CRAWL_CONFIG,
   startUrl,
   maxConcurrency: 2,
+  maxRps: 0,
   discoverSitemaps: false,
   checkExternalLinks: false,
   probeTlsCerts: false,
@@ -138,4 +139,133 @@ describe('counts are the same for fresh, refresh, resume and re-spider', () => {
     expect(resumed.shop).toBe(30);
     db.close();
   }, 60_000);
+});
+
+describe('a faceted shop trap on a local server', () => {
+  let server: Server;
+  let base: string;
+  const POOL = 15_000;
+  const floors = { r2Count: 300, r3Count: 600, r1Count: 600, checkEvery: 100 };
+
+  const SORTS = ['asc', 'desc', 'new'];
+  /** i -> color (10) x size (10) x sort (3) x page (50) = 15 000 distinct pages. */
+  const facetUrl = (i: number): string => {
+    const page = (i % 50) + 1;
+    const rest = Math.floor(i / 50);
+    const o = rest % 3;
+    const cs = Math.floor(rest / 3);
+    return `/shop/list?color=c${Math.floor(cs / 10)}&size=s${cs % 10}&sort=${SORTS[o]}&page=${page}`;
+  };
+  const indexOf = (u: URL): number => {
+    const c = Number(u.searchParams.get('color')!.slice(1));
+    const s = Number(u.searchParams.get('size')!.slice(1));
+    const o = SORTS.indexOf(u.searchParams.get('sort')!);
+    return ((c * 10 + s) * 3 + o) * 50 + (Number(u.searchParams.get('page')) - 1);
+  };
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const u = new URL(req.url ?? '/', 'http://x');
+      const html = (b: string, t = u.pathname): void =>
+        void res
+          .writeHead(200, { 'content-type': 'text/html' })
+          .end(`<html><head><title>${t} page title long enough</title></head><body>${b}</body></html>`);
+      if (u.pathname === '/robots.txt') return void res.writeHead(404).end();
+      if (u.pathname === '/sitemap.xml') {
+        const loc = Array.from({ length: 40 }, (_, i) => `<url><loc>http://${req.headers.host}/p/${i}</loc></url>`).join('');
+        return void res
+          .writeHead(200, { 'content-type': 'application/xml' })
+          .end(`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${loc}</urlset>`);
+      }
+      if (u.pathname === '/') {
+        const links = ['/shop/list?color=c0&size=s0&sort=asc&page=1', ...Array.from({ length: 40 }, (_, i) => `/p/${i}`)];
+        return html(links.map((l) => `<a href="${l}">x</a>`).join(' '));
+      }
+      if (u.pathname.startsWith('/p/')) return html(`<p>${'article '.repeat(40)}${u.pathname}</p>`);
+      if (u.pathname === '/shop/list') {
+        const i = indexOf(u);
+        const next = [1, 7, 53, 211, 997].map((d) => (i + d) % POOL);
+        const text = Array.from({ length: 30 }, (_, k) => `w${(i * 31 + k * 17) % 9973}`).join(' ');
+        return html(`<p>${text}</p>` + next.map((n) => `<a href="${facetUrl(n)}">f</a>`).join(' '), `shop ${i}`);
+      }
+      if (u.pathname.startsWith('/tiny')) return html('<p>tiny site for a fresh crawl</p>');
+      res.writeHead(404).end();
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+  afterAll(() => void server.close());
+
+  const crawler = (db: ProjectDb, over: Partial<CrawlConfig> = {}, opts: ConstructorParameters<typeof Crawler>[2] = {}) =>
+    quiet(
+      new Crawler(
+        { ...baseConfig(`${base}/`), maxConcurrency: 8, maxRps: 0, maxDepth: 100, maxUrls: 3000, discoverSitemaps: true, ...over },
+        db,
+        { trapWatch: { floors }, ...opts },
+      ),
+    );
+  const traps = (db: ProjectDb) => db.getOverviewCounts().site?.crawlTraps ?? [];
+  const trapWarns = (c: Crawler): string[] => {
+    const out: string[] = [];
+    c.on('warn', (m: string) => /Possible crawl trap/.test(m) && out.push(m));
+    return out;
+  };
+
+  it('warns once for the faceted pattern, the crawl ends only at maxUrls, project and overview hold the finding', async () => {
+    const db = new ProjectDb(join(dir, 't1.seoproject'));
+    const c = crawler(db);
+    const warns = trapWarns(c);
+    const infos: string[] = [];
+    c.on('info', (m: string) => infos.push(m));
+    await c.start();
+    const pattern = warns.filter((m) => m.includes('share the pattern'));
+    expect(pattern).toHaveLength(1);
+    expect(pattern[0]!).toMatch(/Possible crawl trap: \d+ URLs share the pattern .*\?color&page&size&sort \(\d+ % of the [\d,]+ found so far\); the sitemap lists 0 of them and 40 pages in total\. The crawl goes on\./);
+    expect(db.getOverviewCounts().site?.crawlStoppedAtLimit).toBe(3000);
+    const found = traps(db);
+    expect(found.map((f) => f.rule).sort()).toEqual(expect.arrayContaining(['R2']));
+    const r2 = found.find((f) => f.rule === 'R2')!;
+    expect(r2).toMatchObject({ expected: 0 });
+    expect(r2.samples).toHaveLength(3);
+    for (const u of r2.samples) expect(u.startsWith(base)).toBe(true);
+    expect(r2.count).toBeGreaterThan(2000);
+    expect(JSON.parse(db.getMeta('crawlTrapWatch')!)).toMatchObject({ v: 1, sitemapUrls: 40 });
+    // R1 is an info line only: 3000 pages against 40 sitemap URLs
+    expect(infos.some((m) => /the sitemap lists 40;/.test(m))).toBe(true);
+    expect(found.every((f) => f.rule !== ('R1' as string))).toBe(true);
+    db.close();
+  }, 120_000);
+
+  it('keeps the finding through a stop and resume without warning again for it, and a fresh crawl clears it', async () => {
+    const db = new ProjectDb(join(dir, 't2.seoproject'));
+    const c1 = crawler(db);
+    let stopped = false;
+    const first: string[] = [];
+    c1.on('warn', (m: string) => {
+      if (!/Possible crawl trap/.test(m)) return;
+      first.push(m);
+      if (!stopped) {
+        stopped = true;
+        void c1.saveQueueCheckpoint().then(() => c1.stop());
+      }
+    });
+    await c1.start();
+    const atStop = traps(db);
+    expect(first.length).toBeGreaterThanOrEqual(1);
+    expect(atStop.length).toBeGreaterThanOrEqual(1);
+
+    const c2 = crawler(db, {}, { resumeOnly: true });
+    const again = trapWarns(c2);
+    c2.enqueueCheckpointed(db.loadUnfetchedQueueCheckpoint());
+    await c2.start();
+    expect(again.filter((m) => m.includes('share the pattern'))).toEqual([]);
+    const after = traps(db);
+    for (const f of atStop) expect(after.map((x) => x.key)).toContain(f.key);
+    expect(after.find((f) => f.rule === 'R2')!.count).toBeGreaterThan(atStop.find((f) => f.rule === 'R2')!.count);
+
+    const c3 = quiet(new Crawler({ ...baseConfig(`${base}/tiny`), discoverSitemaps: false }, db));
+    await c3.start();
+    expect(traps(db)).toEqual([]);
+    db.close();
+  }, 120_000);
 });
