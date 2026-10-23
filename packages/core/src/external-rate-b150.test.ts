@@ -183,7 +183,7 @@ it('checks of 12 links to one foreign host arrive no faster than maxRps and the 
     expect(rows.get(`http://localhost:${f1.port}${h.path}`)?.status).toBe(200);
   const last = [...f1.hits].sort((a, b) => a.at - b.at).at(-1)!;
   // The last link waited about 2.75 s for its slot; the stored time is the request only.
-  expect(rows.get(`http://localhost:${f1.port}${last.path}`)?.ms).toBeLessThan(2_000);
+  expect(rows.get(`http://localhost:${f1.port}${last.path}`)?.ms).toBeLessThan(1_000);
 }, 60_000);
 
 // T2
@@ -322,9 +322,9 @@ it('stop during rate waits ends the crawl fast and stores no false rows', async 
   let stoppedAt = 0;
   let hitsAtStop = 0;
   const t0 = Date.now();
-  const { rows } = await crawl(start, { maxRps: 0.5 }, async (c) => {
+  // At 1 rps the second probe books its slot a second away and sleeps in the entry wait.
+  const { rows } = await crawl(start, { maxRps: 1 }, async (c) => {
     await until(() => f1.hits.length >= 1);
-    // Let the other probes reach their waits.
     await realSleep(500);
     hitsAtStop = f1.hits.length;
     stoppedAt = Date.now();
@@ -333,7 +333,9 @@ it('stop during rate waits ends the crawl fast and stores no false rows', async 
   // Unpaced, all 10 probes would be through by now: the waits really existed.
   expect(hitsAtStop).toBeLessThan(10);
   expect(stoppedAt).toBeGreaterThan(t0);
-  expect(Date.now() - stoppedAt).toBeLessThan(4_000);
+  expect(Date.now() - stoppedAt).toBeLessThan(1_500);
+  // A probe woken by Stop in its entry wait must not send its request after all.
+  expect(f1.hits.filter((h) => h.at >= stoppedAt)).toHaveLength(0);
   for (const [url, r] of rows) {
     if (url.startsWith(`http://localhost:${f1.port}/`))
       expect(r.status === null && r.text !== null).toBe(false);
