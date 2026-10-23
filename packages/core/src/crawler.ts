@@ -3535,6 +3535,16 @@ export class Crawler extends EventEmitter {
       // sitemap lists in full a trap.
       // A fresh crawl has none stored: its own count grows from zero and the 2x escape must work.
       if (stored > 0) this.trapWatch.awaitBaseline();
+      // No sitemap read follows (a Re-Spider, or a start with sitemaps off): the sitemap stored
+      // by the earlier crawl is the baseline, else the no-baseline rule would judge the stored
+      // counts alone and call a pattern the sitemap lists in full a trap.
+      if (stored > 0 && this.trapWatch.isSettled && !this.trapWatch.hasBaseline) {
+        const listed: string[] = [];
+        for (const r of this.db.iterateSitemapUrls()) {
+          listed.push(normalizeUrl(r.url, undefined, this.urlRewrites) ?? r.url);
+        }
+        if (listed.length > 0) this.trapWatch.setBaseline(new URL(this.config.startUrl).host, listed);
+      }
       if (this.trapWatch.isSettled) this.runTrapCheck();
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));

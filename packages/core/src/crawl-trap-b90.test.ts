@@ -352,6 +352,42 @@ describe('a resume does not warn before the re-read sitemap is in (review r1)', 
     expect(db.getOverviewCounts().site?.crawlTraps ?? []).toEqual([]);
     db.close();
   }, 120_000);
+  it('a Re-Spider of one URL, which reads no sitemap, takes the baseline from the stored one and gives 0 warnings', async () => {
+    const db = new ProjectDb(join(dir, 'respider-all.seoproject'));
+    sitemapMode = 'all';
+    sitemapDelayMs = 0;
+    const c1 = crawler(db);
+    const w1 = warns(c1);
+    await c1.start();
+    expect(w1).toEqual([]);
+
+    const c2 = crawler(db, { respiderSeeds: [`${base}/`] });
+    const w2 = warns(c2);
+    await c2.start();
+    expect(w2).toEqual([]);
+    expect(c2.trapWatch.hasBaseline).toBe(true);
+    expect(db.getOverviewCounts().site?.crawlTraps ?? []).toEqual([]);
+    db.close();
+  }, 120_000);
+
+  it('a Re-Spider over a real trap keeps the stored finding and does not warn for it again', async () => {
+    const db = new ProjectDb(join(dir, 'respider-few.seoproject'));
+    sitemapMode = 'few';
+    sitemapDelayMs = 0;
+    const c1 = crawler(db);
+    const w1 = warns(c1);
+    await c1.start();
+    expect(w1.length).toBeGreaterThan(0);
+
+    const c2 = crawler(db, { respiderSeeds: [`${base}/`] });
+    const w2 = warns(c2);
+    await c2.start();
+    expect(w2).toEqual([]);
+    expect(db.getOverviewCounts().site?.crawlTraps ?? []).toHaveLength(w1.length);
+    sitemapMode = 'all';
+    db.close();
+  }, 120_000);
+
   /** Stops a crawl with pages still queued once `at` facet pages were asked for. */
   const stopWithQueue = (db: ProjectDb, c: Crawler, at: number): void => {
     facetHits = 0;
