@@ -738,6 +738,16 @@ export interface CrawlUrlRow {
   /** Compact JSON `{code: count}` behind `markupErrors`; null when none or not checked. */
   markupCodes: string | null;
   /**
+   * Cookies the page set or tried to set while it loaded (B43), from `Set-Cookie` headers and script
+   * writes, as a compact JSON array without values (`{n, d, p, s, h, ss, e, by}`, at most 100 cookies /
+   * 32 KB). Null = not recorded (option off, text mode, failed render); `[]` = recorded and none.
+   */
+  cookiesJson: string | null;
+  /** True number of distinct cookies (B43), also those dropped from the list; null = not recorded. */
+  cookiesTotal: number | null;
+  /** 1 when the list is cut (B43), 0 when complete, null = not recorded. */
+  cookiesTruncated: number | null;
+  /**
    * V2 Faz 15 — performance budget verdict, a bitmask: 1=response time,
    * 2=transfer size, 4=LCP, 8=CLS. 0 = evaluated and within budget,
    * >0 = one or more ceilings exceeded. NULL when the budget pass didn't
@@ -1745,6 +1755,13 @@ export interface JsRenderConfig {
    * every existing JavaScript-rendering workflow's report.
    */
   consoleErrors: boolean;
+  /**
+   * List the cookies each rendered page sets or tries to set while it loads (B43): name, domain, path,
+   * flags and whether a `Set-Cookie` header or a script set it, up to 100 per page. Values are never
+   * stored. A cookie the browser refused is listed too (what the page tried to set). Separate from
+   * `cookiePolicy`, which only governs the HTTP cookie counters. JS mode only. Off by default.
+   */
+  cookieList: boolean;
   /**
    * A script that runs once on every rendered page that answered 2xx, after
    * the wait and before the DOM is read (B34): click "Load more", scroll,
@@ -3187,6 +3204,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
     a11yAudit: false,
     axeAudit: false,
     consoleErrors: false,
+    cookieList: false,
     pageScript: '',
     pageScriptTimeoutMs: PAGE_SCRIPT_TIMEOUT_DEFAULT_MS,
     spaRouting: false,

@@ -27,5 +27,6 @@ export * from './url-columns.js';
 export * from './monitor.js';
 export * from './seo-thresholds.js';
 export * from './axe.js';
+export * from './cookie-list.js';
 export * from './top-words-cloud.js';
 export * from './serp.js';

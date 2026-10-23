@@ -9,6 +9,8 @@ import {
 import type { AxeAudit } from './axe-reduce.js';
 import { AXE_PROBE_MS, AXE_RUN_MS, axeRunExpression, isDeadPageError, loadAxeSource } from './axe-run.js';
 import { attachConsoleCollector, type ConsoleLog } from './render-console.js';
+import type { CookieListResult } from './cookie-list.js';
+import { attachCookieCollector, type CookieCollector } from './render-cookies.js';
 
 export interface RenderOptions {
   /** Hard cap on navigation + post-load wait. */
@@ -48,6 +50,11 @@ export interface RenderOptions {
    * subresource responses >= 400 of this render (B35). Off: no listener.
    */
   collectConsole?: boolean;
+  /**
+   * List the cookies this page set or tried to set while loading (B43): header lines of its own
+   * responses plus the recorder's script writes (the pool needs `cookieRecorder` for those). Never the jar.
+   */
+  collectCookies?: boolean;
   /** Resource types the pool blocks on purpose; their failures are not the site's. */
   blockedTypes?: readonly string[];
   /**
@@ -167,6 +174,8 @@ export interface RenderResult {
   servedHtml?: string;
   /** Console errors and failed resources of this render; set only with `collectConsole`, on a successful render. */
   consoleLog?: ConsoleLog;
+  /** Cookies of this render (B43); set only with `collectCookies`, on a successful render. */
+  cookies?: CookieListResult;
   /** A page script ran for this page (B34). */
   scriptRan?: boolean;
   /** JSON the script produced (the value, or `{"error": ...}`); unset when it returned nothing. */
@@ -534,6 +543,7 @@ export async function renderUrl(
   const previousViewport = opts.viewport ? page.viewportSize() : null;
 
   let collector: ReturnType<typeof attachConsoleCollector> | null = null;
+  let cookieCollector: CookieCollector | null = null;
   try {
     if (opts.viewport) {
       await page.setViewportSize(opts.viewport);
@@ -552,6 +562,7 @@ export async function renderUrl(
         blockedTypes: opts.blockedTypes ? new Set(opts.blockedTypes) : undefined,
       });
     }
+    if (opts.collectCookies) cookieCollector = attachCookieCollector(page);
     const response = await page.goto(url, {
       waitUntil: opts.waitUntil,
       timeout: opts.timeoutMs,
@@ -576,6 +587,16 @@ export async function renderUrl(
 
     if (aborted || signal?.aborted) {
       throw new Error('aborted');
+    }
+
+    // Cookies are read before the page script (B34), so a script's clicks do not add to the page's own.
+    let cookies: CookieListResult | undefined;
+    if (cookieCollector) {
+      try {
+        cookies = await cookieCollector.collect(response);
+      } catch {
+        cookies = undefined;
+      }
     }
 
     let scriptRan: boolean | undefined;
@@ -799,6 +820,7 @@ export async function renderUrl(
       navigatedTo,
       servedHtml,
       consoleLog: collector?.finish(),
+      cookies,
       scriptRan,
       scriptResult,
       renderedHtmlPreScript,
@@ -818,6 +840,7 @@ export async function renderUrl(
     if (limitTimer) clearTimeout(limitTimer);
     // Pages are reused: a listener must never outlive its render.
     collector?.finish();
+    cookieCollector?.finish();
     signal?.removeEventListener('abort', abortHandler);
     if (!aborted && !discard) {
       // Best-effort cookie wipe between URLs so cross-URL state

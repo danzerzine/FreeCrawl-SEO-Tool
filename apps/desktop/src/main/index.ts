@@ -2340,6 +2340,7 @@ function mergeCrawlConfig(parsed: Partial<CrawlConfig>): CrawlConfig {
       axeAudit: parsed.jsRender?.axeAudit ?? DEFAULT_CRAWL_CONFIG.jsRender.axeAudit,
       consoleErrors:
         parsed.jsRender?.consoleErrors ?? DEFAULT_CRAWL_CONFIG.jsRender.consoleErrors,
+      cookieList: parsed.jsRender?.cookieList ?? DEFAULT_CRAWL_CONFIG.jsRender.cookieList,
       pageScript: parsed.jsRender?.pageScript ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScript,
       pageScriptTimeoutMs:
         parsed.jsRender?.pageScriptTimeoutMs ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs,

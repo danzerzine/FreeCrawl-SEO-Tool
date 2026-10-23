@@ -2,6 +2,7 @@ import { hasPageScript, type CrawlConfig } from '@freecrawl/shared-types';
 import type { BrowserPool, BrowserPoolOptions } from './browser-pool.js';
 import { MOBILE_DEVICE_SCALE_FACTOR, MOBILE_USER_AGENT, MOBILE_VIEWPORT } from './http-client.js';
 import type { ConsoleLog } from './render-console.js';
+import type { CookieListResult } from './cookie-list.js';
 import type { AxeAudit } from './axe-reduce.js';
 import { renderUrl, type RenderOptions, type RenderResult } from './render-fetcher.js';
 
@@ -35,6 +36,8 @@ export function browserPoolOptionsFromConfig(config: CrawlConfig): BrowserPoolOp
     // Registered once at context level: set on each page it accumulated
     // across reused slots and ran N times per navigation.
     prerenderJs: js.prerenderJs || undefined,
+    // The cookie list (B43): the recorder wraps the cookie setters of every frame, before page scripts run.
+    cookieRecorder: js.cookieList || undefined,
   };
 }
 
@@ -54,6 +57,7 @@ export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
     waitUntil: config.jsRender.waitUntil,
     discoverSpaRoutes: config.jsRender.spaRouting,
     collectConsole: config.jsRender.consoleErrors || undefined,
+    collectCookies: config.jsRender.cookieList || undefined,
     blockedTypes: blockedResourceTypes(config),
     pageScript: hasPageScript(config.jsRender.pageScript) ? config.jsRender.pageScript : undefined,
     pageScriptTimeoutMs: config.jsRender.pageScriptTimeoutMs,
@@ -110,6 +114,8 @@ export interface RenderHookResult {
   renderedHtmlPreScript?: string;
   /** Console errors and failed resources of the render (B35); set only with `jsRender.consoleErrors`. */
   consoleLog?: ConsoleLog;
+  /** Cookies the page set or tried to set during its load (B43); set only with `jsRender.cookieList`. */
+  cookies?: CookieListResult;
   /** axe-core result of the page (B40); null/unset when axe was off, skipped or did not finish. */
   axe?: AxeAudit | null;
   /** How long the axe-core run took (ms); set whenever axe was attempted, also when it failed. */
@@ -137,6 +143,7 @@ export function renderHookFields(res: RenderResult): RenderHookResult {
     navigatedTo: res.navigatedTo ?? null,
     servedHtml: res.servedHtml,
     consoleLog: res.consoleLog,
+    cookies: res.cookies,
     scriptRan: res.scriptRan,
     scriptResult: res.scriptResult,
     renderedHtmlPreScript: res.renderedHtmlPreScript,

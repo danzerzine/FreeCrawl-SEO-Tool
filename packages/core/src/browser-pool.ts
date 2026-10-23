@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import type { Browser, BrowserContext, LaunchOptions, Page } from 'playwright';
+import { COOKIE_RECORDER_SCRIPT } from './cookie-list.js';
 
 /**
  * Playwright is imported lazily, never at module scope.
@@ -147,6 +148,12 @@ export interface BrowserPoolOptions {
    * how `CrawlConfig.jsRender.prerenderJs` is read (once at launch).
    */
   prerenderJs?: string;
+  /**
+   * Install the cookie recorder (B43) as a context-level init script: it wraps the cookie setters in every
+   * frame and keeps the writes of that frame, without values, for `renderUrl` to read. Context level for
+   * the same reason as `prerenderJs`: it must not accumulate on reused pages.
+   */
+  cookieRecorder?: boolean;
 }
 
 /** Cap on automatic Chromium relaunches after a `disconnected` event.
@@ -284,6 +291,10 @@ export class BrowserPool {
     // created so they inherit it.
     if (this.opts.prerenderJs && this.opts.prerenderJs.length > 0) {
       await this.context.addInitScript({ content: this.opts.prerenderJs });
+    }
+
+    if (this.opts.cookieRecorder) {
+      await this.context.addInitScript({ content: COOKIE_RECORDER_SCRIPT });
     }
 
     if (this.opts.blockResourceTypes && this.opts.blockResourceTypes.size > 0) {

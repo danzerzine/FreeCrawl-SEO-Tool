@@ -720,4 +720,9 @@ export const RU_INFO_TIPS: Record<string, string> = {
     "Считает ошибки HTML-разметки на каждой странице по небольшому фиксированному набору правил: нет doctype, повторяющиеся атрибуты и id, сломанные теги, неожиданный конец файла, неверные символьные ссылки, устаревшие и незакрытые элементы. Заполняет проблемы «Ошибки HTML-разметки» и «Повторяющиеся атрибуты id» и две колонки. Это не полный валидатор: лишние закрывающие теги и неверная вложенность не определяются. По умолчанию выключено: каждая HTML-страница разбирается ещё дважды.",
   ["Leave off for speed; on to find broken markup and repeated ids."]:
     "Оставьте выключенным ради скорости; включите, чтобы найти сломанную разметку и повторяющиеся id.",
+  // B43: cookie list
+  ["Lists the cookies each page sets or tries to set while it loads, from Set-Cookie headers and from scripts (the browser may have refused some), up to 100 per page; separate from the header counts. Values are never stored. A script cannot set HttpOnly, so HttpOnly cookies appear only when they came in a header. Cookies written by workers are not seen. Needs JavaScript rendering."]:
+    "Перечисляет cookie, которые каждая страница ставит или пытается поставить при загрузке: из заголовков Set-Cookie и из скриптов (браузер мог часть отклонить), до 100 на страницу; отдельно от подсчёта по заголовкам. Значения не сохраняются. Скрипт не может поставить HttpOnly, поэтому HttpOnly-cookie видны только из заголовков. Cookie из воркеров не видны. Нужен режим JavaScript.",
+  ["On to find third-party and tracking cookies per page; off for plain crawls."]:
+    "Включите, чтобы найти сторонние и трекинговые cookie по страницам; для обычных обходов оставьте выключенным.",
 };

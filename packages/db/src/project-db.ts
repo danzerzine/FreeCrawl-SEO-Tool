@@ -47,6 +47,7 @@ import type {
   AxeAudit,
   AxeResultRow,
   AxeSample,
+  CookieExportRow,
   PagespeedAudits,
   PagespeedAuditsQueryParams,
   PagespeedMetrics,
@@ -575,6 +576,12 @@ interface UrlRowDb {
   markup_errors: number | null;
   /** Compact JSON {code: count} behind markup_errors; NULL when 0 or not checked. */
   markup_codes: string | null;
+  /** Cookie list of the render (B43), JSON without values; NULL = not recorded, '[]' = recorded and none. */
+  cookies_json: string | null;
+  /** True number of distinct cookies the page set or tried to set (B43); NULL = not recorded. */
+  cookies_total: number | null;
+  /** 1 when `cookies_json` is cut at 100 cookies / 32 KB, 0 complete, NULL not recorded. */
+  cookies_truncated: number | null;
   /** 128-byte MinHash signature of the main content (near-duplicate similarity). */
   minhash: Uint8Array | null;
   /** Best estimated similarity (%) to a near-duplicate cluster mate. */
@@ -904,6 +911,10 @@ export interface UpsertUrlInput {
   /** B45: NULL / undefined = not checked, 0 = checked and clean. */
   markupErrors?: number | null;
   markupCodes?: string | null;
+  /** B43: NULL / undefined = not recorded (option off, text mode, failed render). */
+  cookiesJson?: string | null;
+  cookiesTotal?: number | null;
+  cookiesTruncated?: number | null;
   minhash?: Uint8Array | null;
   /** Template set the near-duplicate fingerprint was made with (B98); null = none. */
   templateSetId?: number | null;
@@ -1093,7 +1104,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, markup_errors, markup_codes, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
+    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, markup_errors, markup_codes, cookies_json, cookies_total, cookies_truncated, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
     template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
@@ -1139,7 +1150,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :markup_errors, :markup_codes, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :markup_errors, :markup_codes, :cookies_json, :cookies_total, :cookies_truncated, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
     :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
@@ -1312,6 +1323,9 @@ const UPSERT_URL_SQL = `
     console_log = excluded.console_log,
     markup_errors = excluded.markup_errors,
     markup_codes = excluded.markup_codes,
+    cookies_json = excluded.cookies_json,
+    cookies_total = excluded.cookies_total,
+    cookies_truncated = excluded.cookies_truncated,
     minhash = excluded.minhash,
     template_set_id = excluded.template_set_id,
     content_source = excluded.content_source,
@@ -3307,6 +3321,9 @@ export class ProjectDb {
       console_log: input.consoleLog ?? null,
       markup_errors: input.markupErrors ?? null,
       markup_codes: input.markupCodes ?? null,
+      cookies_json: input.cookiesJson ?? null,
+      cookies_total: input.cookiesTotal ?? null,
+      cookies_truncated: input.cookiesTruncated ?? null,
       minhash: input.minhash ?? null,
       template_set_id: input.templateSetId ?? null,
       content_source: input.contentSource ?? null,
@@ -10107,6 +10124,43 @@ export class ProjectDb {
   }
 
   /**
+   * Every cookie of every page that has a recorded list (B43), one row per cookie: pages in url_id
+   * order, cookies in the order of the stored list. Keyed on url_id (a batch of pages is one index range
+   * read), never OFFSET; the list is read with `json_each`. A page whose JSON is unreadable is skipped.
+   */
+  *iterateCookies(batch = 500): IterableIterator<CookieExportRow> {
+    const cols = this.db.prepare('PRAGMA table_info(urls)').all() as { name: string }[];
+    if (!cols.some((c) => c.name === 'cookies_json')) return;
+    const stmt = this.db.prepare(COOKIE_EXPORT_PAGE_SQL);
+    const pageSize = Math.max(1, batch);
+    let lastId = 0;
+    for (;;) {
+      const rows = stmt.all(lastId, pageSize) as unknown as CookieExportDbRow[];
+      let pages = 0;
+      for (const r of rows) {
+        if (r.url_id !== lastId) pages++;
+        lastId = r.url_id;
+        if (typeof r.n !== 'string') continue;
+        yield {
+          urlId: r.url_id,
+          url: r.url,
+          name: r.n,
+          domain: r.d ?? '',
+          path: r.p ?? '/',
+          secure: r.s === null || r.s === undefined ? null : r.s === 1,
+          httpOnly: r.h === 1,
+          sameSite: r.ss ?? null,
+          expires: r.e ?? null,
+          setBy: r.by === 'script' ? 'script' : 'header',
+          pageCookiesTotal: r.cookies_total ?? 0,
+          pageCookiesTruncated: r.cookies_truncated === 1,
+        };
+      }
+      if (pages < pageSize) return;
+    }
+  }
+
+  /**
    * Persist (or overwrite) the post-JS rendered HTML for a URL.
    * Called when `renderingMode === 'js'` after Playwright finishes
    * navigating the page. The pre-JS body (if captured) stays in
@@ -13413,6 +13467,9 @@ export class ProjectDb {
     consoleLog: r.console_log ?? null,
     markupErrors: r.markup_errors ?? null,
     markupCodes: r.markup_codes ?? null,
+    cookiesJson: r.cookies_json ?? null,
+    cookiesTotal: r.cookies_total ?? null,
+    cookiesTruncated: r.cookies_truncated ?? null,
     nearDupSimilarity: r.near_dup_similarity ?? null,
     contentSource: (r.content_source as ContentSource | null) ?? null,
     ampPage: r.amp_page === 1,
@@ -15759,6 +15816,35 @@ export const AXE_EXPORT_PAGE_SQL = `SELECT a.url_id, u.url AS url, a.rule_id, a.
    WHERE (a.url_id, a.rule_id, a.kind) > (?, ?, ?)
    ORDER BY a.url_id, a.rule_id, a.kind
    LIMIT ?`;
+
+/**
+ * One export page of cookies: `pageSize` pages (keyed on urls.id) with a readable non-empty list, each cookie
+ * of the list in list order. The inner SELECT is the keyset; json_valid keeps one bad cell from failing the page.
+ */
+export const COOKIE_EXPORT_PAGE_SQL = `SELECT u.id AS url_id, u.url AS url, u.cookies_total AS cookies_total, u.cookies_truncated AS cookies_truncated,
+         json_extract(j.value, '$.n') AS n, json_extract(j.value, '$.d') AS d, json_extract(j.value, '$.p') AS p,
+         json_extract(j.value, '$.s') AS s, json_extract(j.value, '$.h') AS h, json_extract(j.value, '$.ss') AS ss,
+         json_extract(j.value, '$.e') AS e, json_extract(j.value, '$.by') AS by
+    FROM (SELECT id, url, cookies_json, cookies_total, cookies_truncated FROM urls
+           WHERE id > ? AND cookies_json IS NOT NULL AND json_valid(cookies_json)
+             AND json_type(cookies_json) = 'array' AND json_array_length(cookies_json) > 0
+           ORDER BY id LIMIT ?) u, json_each(u.cookies_json) j
+   ORDER BY u.id, j.key`;
+
+interface CookieExportDbRow {
+  url_id: number;
+  url: string;
+  cookies_total: number | null;
+  cookies_truncated: number | null;
+  n: string | null;
+  d: string | null;
+  p: string | null;
+  s: number | null;
+  h: number | null;
+  ss: string | null;
+  e: number | null;
+  by: string | null;
+}
 
 interface AxeExportDbRow {
   url_id: number;

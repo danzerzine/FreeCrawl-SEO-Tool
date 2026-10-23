@@ -92,6 +92,9 @@ export const URL_COLUMN_HEADERS = {
   consoleLog: 'Console Log',
   markupErrors: 'Markup Errors',
   markupCodes: 'Markup Error Codes',
+  cookiesTotal: 'Cookies',
+  cookiesTruncated: 'Cookies Truncated',
+  cookiesJson: 'Cookies JSON',
 } as const;
 
 /** Header for a `CrawlUrlRow` key: the grid label, else the key split into Title Case words. */

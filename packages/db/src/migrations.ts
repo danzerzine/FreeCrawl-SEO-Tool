@@ -2954,6 +2954,26 @@ const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    // B43 + B44: the cookie list and the CSS/JS coverage numbers of a rendered page, all NULL = not
+    // recorded (option off, text mode, failed render, project from before), 0 / '[]' = recorded and none.
+    // cookies_json is a compact JSON array without values (at most 100 cookies / 32 KB), cookies_total the
+    // true count, cookies_truncated 1 when the list is cut. The four coverage columns are aggregate
+    // UTF-16 code units per page. No backfill: a re-crawl with the options on fills them.
+    version: 129,
+    name: 'add_render_cookies_coverage',
+    up: (db) => {
+      addColumnsIfMissing(db, 'urls', [
+        ['cookies_json', 'TEXT'],
+        ['cookies_total', 'INTEGER'],
+        ['cookies_truncated', 'INTEGER'],
+        ['css_bytes', 'INTEGER'],
+        ['css_unused_bytes', 'INTEGER'],
+        ['js_bytes', 'INTEGER'],
+        ['js_unused_bytes', 'INTEGER'],
+      ]);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

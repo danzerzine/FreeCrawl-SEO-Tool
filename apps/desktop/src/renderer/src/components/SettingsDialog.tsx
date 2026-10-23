@@ -264,6 +264,7 @@ interface FormState {
   jsA11yAudit: boolean;
   jsAxeAudit: boolean;
   jsConsoleErrors: boolean;
+  jsCookieList: boolean;
   jsPageScript: string;
   jsPageScriptTimeoutMs: string;
   jsSpaRouting: boolean;
@@ -733,6 +734,7 @@ function configToForm(c: CrawlConfig): FormState {
     jsA11yAudit: c.jsRender?.a11yAudit ?? false,
     jsAxeAudit: c.jsRender?.axeAudit ?? false,
     jsConsoleErrors: c.jsRender?.consoleErrors ?? false,
+    jsCookieList: c.jsRender?.cookieList ?? false,
     jsPageScript: c.jsRender?.pageScript ?? '',
     jsPageScriptTimeoutMs: String(c.jsRender?.pageScriptTimeoutMs ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs),
     jsSpaRouting: c.jsRender?.spaRouting ?? false,
@@ -1131,6 +1133,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         a11yAudit: form.jsA11yAudit,
         axeAudit: form.jsAxeAudit,
         consoleErrors: form.jsConsoleErrors,
+        cookieList: form.jsCookieList,
         pageScript: form.jsPageScript.slice(0, PAGE_SCRIPT_MAX_CHARS),
         pageScriptTimeoutMs: Math.min(
           PAGE_SCRIPT_TIMEOUT_MAX_MS,
@@ -5086,6 +5089,14 @@ function RenderingPanel({ form, update }: PanelProps) {
             hint=""
             info="Records the browser's console errors, uncaught page errors, and resources that failed to load (network failures and 4xx/5xx answers) while each page renders. Surfaces the Console Errors and Failed Resources issue filters. Requests the crawl blocks on purpose are not counted. At most 50 entries are kept per page."
             example="On to find broken scripts, images and API calls the HTML check does not see."
+          />
+          <Bool
+            label={t('settingsPanels.rendering.cookieList', { defaultValue: 'List the cookies each page sets' })}
+            checked={form.jsCookieList}
+            onChange={(v) => update('jsCookieList', v)}
+            hint=""
+            info="Lists the cookies each page sets or tries to set while it loads, from Set-Cookie headers and from scripts (the browser may have refused some), up to 100 per page; separate from the header counts. Values are never stored. A script cannot set HttpOnly, so HttpOnly cookies appear only when they came in a header. Cookies written by workers are not seen. Needs JavaScript rendering."
+            example="On to find third-party and tracking cookies per page; off for plain crawls."
           />
           <Bool
             label={t('settingsPanels.rendering.spaRouting', { defaultValue: 'SPA route discovery' })}

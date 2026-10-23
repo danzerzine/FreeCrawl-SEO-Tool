@@ -5596,6 +5596,10 @@ export class Crawler extends EventEmitter {
       let consoleErrors: number | null = null;
       let failedResources: number | null = null;
       let consoleLog: string | null = null;
+      // Cookies the page set or tried to set during the render (B43); null = not recorded.
+      let cookiesJson: string | null = null;
+      let cookiesTotal: number | null = null;
+      let cookiesTruncated: number | null = null;
       let renderScriptRan = false;
       let renderScriptResult: string | undefined;
       let renderPreScriptHtml: string | undefined;
@@ -5677,6 +5681,11 @@ export class Crawler extends EventEmitter {
               failedResources = renderRes.consoleLog.failed;
               consoleLog =
                 consoleErrors + failedResources > 0 ? JSON.stringify(renderRes.consoleLog.entries) : null;
+            }
+            if (this.config.jsRender.cookieList && renderRes.cookies) {
+              cookiesJson = JSON.stringify(renderRes.cookies.list);
+              cookiesTotal = renderRes.cookies.total;
+              cookiesTruncated = renderRes.cookies.truncated ? 1 : 0;
             }
             renderScriptRan = renderRes.scriptRan === true;
             renderScriptResult = renderRes.scriptResult;
@@ -6044,6 +6053,9 @@ export class Crawler extends EventEmitter {
           consoleErrors,
           failedResources,
           consoleLog,
+          cookiesJson,
+          cookiesTotal,
+          cookiesTruncated,
           markupErrors: parsed.markupErrors,
           markupCodes: parsed.markupCodes,
           // A page the configured content area missed is fingerprinted on
