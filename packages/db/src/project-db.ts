@@ -39,6 +39,11 @@ import type {
   OverviewCounts,
   Soft404ProbeResult,
   PerformanceBudgetConfig,
+  PagespeedAuditItem,
+  PagespeedAuditKind,
+  PagespeedAuditRow,
+  PagespeedAudits,
+  PagespeedAuditsQueryParams,
   PagespeedMetrics,
   PagespeedRow,
   PagespeedStrategy,
@@ -124,6 +129,17 @@ import {
 import { buildCrawlSnapshot } from './crawl-snapshot.js';
 import { runMigrations } from './migrations.js';
 import { unsafePatternReason } from './safe-pattern.js';
+
+/** The stored resources of one audit; a damaged or missing value reads as no resources. */
+function parsePagespeedItems(json: string | null): PagespeedAuditItem[] {
+  if (!json) return [];
+  try {
+    const v: unknown = JSON.parse(json);
+    return Array.isArray(v) ? (v as PagespeedAuditItem[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 /** `meta` key holding the JSON list of silenced issue categories. */
 export const DISABLED_ISSUES_META_KEY = 'disabledIssues';
@@ -1894,6 +1910,7 @@ export class ProjectDb {
          DELETE FROM crawl_queue;
          DELETE FROM host_certs;
          DELETE FROM pagespeed_results;
+         DELETE FROM pagespeed_audits;
          DELETE FROM crux_results;
          DELETE FROM spelling_results;
          DELETE FROM gsc_results;
@@ -2720,6 +2737,7 @@ export class ProjectDb {
    *  `deleteByDomain`, which clears the same set. */
   private static readonly URL_KEYED_AUDIT_TABLES = [
     'pagespeed_results',
+    'pagespeed_audits',
     'crux_results',
     'spelling_results',
     'gsc_results',
@@ -5930,7 +5948,138 @@ export class ProjectDb {
     url: string,
     strategy: PagespeedStrategy,
     m: PagespeedMetrics,
+    /**
+     * The audits of a successful run (B41). Replaces the stored ones for this url + strategy,
+     * an empty list included (the page is clean now). Omitted, or on an `error` result, the
+     * stored audits stay: a failed re-run must not wipe good data.
+     */
+    audits?: PagespeedAudits,
   ): void {
+    this.runInTransaction(() => {
+      this.writePagespeedMetrics(url, strategy, m);
+      if (audits && m.status === 'ok') this.replacePagespeedAudits(url, strategy, m.fetchedAt, audits);
+    });
+  }
+
+  private replacePagespeedAudits(
+    url: string,
+    strategy: PagespeedStrategy,
+    fetchedAt: string,
+    audits: PagespeedAudits,
+  ): void {
+    this.db.prepare('DELETE FROM pagespeed_audits WHERE url = ? AND strategy = ?').run(url, strategy);
+    const insert = this.db.prepare(
+      `INSERT INTO pagespeed_audits
+         (url, strategy, audit_id, kind, title, score, display_value, savings_ms, savings_bytes,
+          items_json, items_truncated, lighthouse_version, fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(url, strategy, audit_id) DO NOTHING`,
+    );
+    for (const a of audits.audits) {
+      insert.run(
+        url,
+        strategy,
+        a.auditId,
+        a.kind,
+        a.title,
+        a.score,
+        a.displayValue,
+        a.savingsMs,
+        a.savingsBytes,
+        a.items.length > 0 ? JSON.stringify(a.items) : null,
+        a.itemsTruncated ? 1 : 0,
+        audits.lighthouseVersion,
+        fetchedAt,
+      );
+    }
+  }
+
+  /**
+   * B41 — the stored Lighthouse audits, biggest estimated saving first (NULLs last, then bytes).
+   * A file from before migration 126 (the MCP server opens files read-only and never migrates
+   * them) has no table: reads as empty.
+   */
+  queryPagespeedAudits(params: PagespeedAuditsQueryParams): {
+    rows: PagespeedAuditRow[];
+    total: number;
+  } {
+    if (!this.hasPagespeedAudits()) return { rows: [], total: 0 };
+    const where: string[] = [];
+    const args: (string | number)[] = [];
+    if (params.url) {
+      where.push('url = ?');
+      args.push(params.url);
+    }
+    if (params.strategy) {
+      where.push('strategy = ?');
+      args.push(params.strategy);
+    }
+    if (params.kind) {
+      where.push('kind = ?');
+      args.push(params.kind);
+    }
+    if (params.auditId) {
+      where.push('audit_id = ?');
+      args.push(params.auditId);
+    }
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const total = (
+      this.db.prepare(`SELECT COUNT(*) AS c FROM pagespeed_audits ${whereSql}`).get(...args) as {
+        c: number;
+      }
+    ).c;
+    const rows = this.db
+      .prepare(
+        `SELECT url, strategy, audit_id, kind, title, score, display_value, savings_ms, savings_bytes,
+                items_json, items_truncated, lighthouse_version, fetched_at
+           FROM pagespeed_audits ${whereSql}
+          ORDER BY savings_ms IS NULL, savings_ms DESC, savings_bytes IS NULL, savings_bytes DESC,
+                   url, strategy, audit_id
+          LIMIT ? OFFSET ?`,
+      )
+      .all(...args, params.limit, params.offset) as unknown as {
+      url: string;
+      strategy: string;
+      audit_id: string;
+      kind: string;
+      title: string;
+      score: number | null;
+      display_value: string | null;
+      savings_ms: number | null;
+      savings_bytes: number | null;
+      items_json: string | null;
+      items_truncated: number;
+      lighthouse_version: string | null;
+      fetched_at: string;
+    }[];
+    return {
+      total,
+      rows: rows.map((r) => ({
+        url: r.url,
+        strategy: r.strategy === 'desktop' ? 'desktop' : 'mobile',
+        auditId: r.audit_id,
+        kind: r.kind as PagespeedAuditKind,
+        title: r.title,
+        score: r.score,
+        displayValue: r.display_value,
+        savingsMs: r.savings_ms,
+        savingsBytes: r.savings_bytes,
+        items: parsePagespeedItems(r.items_json),
+        itemsTruncated: r.items_truncated === 1,
+        lighthouseVersion: r.lighthouse_version,
+        fetchedAt: r.fetched_at,
+      })),
+    };
+  }
+
+  /** Looked up once per connection: the table is missing in files older than migration 126. */
+  private pagespeedAuditsTable: boolean | null = null;
+  private hasPagespeedAudits(): boolean {
+    this.pagespeedAuditsTable ??= this.hasTable('pagespeed_audits');
+    return this.pagespeedAuditsTable;
+  }
+
+  private writePagespeedMetrics(url: string, strategy: PagespeedStrategy, m: PagespeedMetrics): void {
     this.db
       .prepare(
         `INSERT INTO pagespeed_results
@@ -5997,10 +6146,25 @@ export class ProjectDb {
       where.push('pm.url IS NULL AND pd.url IS NULL');
     }
     const whereSql = `WHERE ${where.join(' AND ')}`;
+    // B41: per strategy, how many insights/opportunities Lighthouse listed and the largest saving.
+    // A file from before migration 126 has no audits table: the counts read 0 / NULL there.
+    const withAudits = this.hasPagespeedAudits();
+    const auditAgg = `(SELECT url, strategy, COUNT(*) AS n, MAX(savings_ms) AS top_ms
+                         FROM pagespeed_audits WHERE kind IN ('insight', 'opportunity')
+                        GROUP BY url, strategy)`;
     const joinSql = `
       FROM urls u
       LEFT JOIN pagespeed_results pm ON pm.url = u.url AND pm.strategy = 'mobile'
-      LEFT JOIN pagespeed_results pd ON pd.url = u.url AND pd.strategy = 'desktop'`;
+      LEFT JOIN pagespeed_results pd ON pd.url = u.url AND pd.strategy = 'desktop'${
+        withAudits
+          ? `
+      LEFT JOIN ${auditAgg} am ON am.url = u.url AND am.strategy = 'mobile'
+      LEFT JOIN ${auditAgg} ad ON ad.url = u.url AND ad.strategy = 'desktop'`
+          : ''
+      }`;
+    const auditCols = withAudits
+      ? `am.n AS m_opps, am.top_ms AS m_top, ad.n AS d_opps, ad.top_ms AS d_top`
+      : `NULL AS m_opps, NULL AS m_top, NULL AS d_opps, NULL AS d_top`;
 
     const totalRow = this.db
       .prepare(`SELECT COUNT(*) AS c ${joinSql} ${whereSql}`)
@@ -6016,7 +6180,8 @@ export class ProjectDb {
                 pd.performance AS d_perf, pd.lcp AS d_lcp, pd.cls AS d_cls,
                 pd.fcp AS d_fcp, pd.tbt AS d_tbt, pd.speed_index AS d_si,
                 pd.tti AS d_tti, pd.max_potential_fid AS d_mpfid, pd.inp AS d_inp,
-                pd.status AS d_status, pd.error AS d_error, pd.fetched_at AS d_fetched
+                pd.status AS d_status, pd.error AS d_error, pd.fetched_at AS d_fetched,
+                ${auditCols}
          ${joinSql}
          ${whereSql}
          ORDER BY u.inlinks DESC, u.url ASC
@@ -6057,6 +6222,10 @@ export class ProjectDb {
         statusCode: (r['status_code'] as number | null) ?? null,
         mobile: metrics(r, 'm'),
         desktop: metrics(r, 'd'),
+        mobileOpportunityCount: (r['m_opps'] as number | null) ?? 0,
+        mobileTopSavingsMs: (r['m_top'] as number | null) ?? null,
+        desktopOpportunityCount: (r['d_opps'] as number | null) ?? 0,
+        desktopTopSavingsMs: (r['d_top'] as number | null) ?? null,
       })),
     };
   }

@@ -71,6 +71,12 @@ export interface PagespeedRow {
   statusCode: number | null;
   mobile: PagespeedMetrics | null;
   desktop: PagespeedMetrics | null;
+  /** B41: insights and opportunities Lighthouse listed per strategy (0 when none stored). */
+  mobileOpportunityCount: number;
+  /** B41: largest estimated saving (ms) among them; an estimate, savings overlap. */
+  mobileTopSavingsMs: number | null;
+  desktopOpportunityCount: number;
+  desktopTopSavingsMs: number | null;
 }
 
 /** Which Lighthouse group an audit came from: new `insights`, legacy `load-opportunities`, or `diagnostics`. */

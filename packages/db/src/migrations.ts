@@ -2880,6 +2880,36 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    // B41: the Lighthouse insights, opportunities and diagnostics a PageSpeed Insights run returns
+    // (until now only the seven lab metrics were kept). Url-keyed with no FK, like pagespeed_results,
+    // so the delete paths clear it through URL_KEYED_AUDIT_TABLES. Rows carry their own fetched_at and
+    // Lighthouse version: a failed re-run overwrites pagespeed_results but keeps these rows.
+    version: 126,
+    name: 'add_pagespeed_audits',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pagespeed_audits (
+          url TEXT NOT NULL,
+          strategy TEXT NOT NULL,
+          audit_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          title TEXT NOT NULL,
+          score REAL,
+          display_value TEXT,
+          savings_ms REAL,
+          savings_bytes REAL,
+          items_json TEXT,
+          items_truncated INTEGER NOT NULL DEFAULT 0,
+          lighthouse_version TEXT,
+          fetched_at TEXT NOT NULL,
+          PRIMARY KEY (url, strategy, audit_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pagespeed_audits_audit
+          ON pagespeed_audits(audit_id, strategy);
+      `);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */
