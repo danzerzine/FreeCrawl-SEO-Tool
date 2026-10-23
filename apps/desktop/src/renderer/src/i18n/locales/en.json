@@ -515,6 +515,7 @@
     "wholeSite": "Whole site",
     "bySection": "By section",
     "allSections": "All sections",
+    "sectionLimits": "At most 50 sections (the rest are summed into (other)); each keeps up to max(20 000, 200 000 / sections) distinct phrases.",
     "viewList": "List",
     "viewCloud": "Cloud",
     "serp": {
@@ -1231,8 +1232,7 @@
     "recordedShowing": "Showing {{shown}} of {{total}} cookies",
     "setByHeader": "header",
     "setByScript": "script",
-    "session": "session",
-    "thirdParty": "third party"
+    "session": "session"
   },
   "duplicates": {
     "notInCluster": "This URL is not part of a near-duplicate cluster. Clusters are grouped around a representative page by a crawl with duplicate analysis on; to widen what counts as a near-duplicate, adjust the thresholds in Settings → Duplicates and crawl again.",

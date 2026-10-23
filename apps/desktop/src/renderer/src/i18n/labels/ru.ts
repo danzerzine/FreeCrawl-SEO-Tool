@@ -624,6 +624,8 @@ export const RU_LABELS: Record<string, string> = {
   Value: 'Значение',
   Domain: 'Домен',
   Expires: 'Истекает',
+  Path: 'Путь',
+  'Set by': 'Кем задана',
   Scope: 'Область',
   Hints: 'Подсказки',
   Rule: 'Правило',

@@ -827,6 +827,14 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
                   </button>
                 ))}
               </span>
+              {topBySection && topSection === '' && (
+                <span className="text-surface-500">
+                  {t('reports.sectionLimits', {
+                    defaultValue:
+                      'At most 50 sections (the rest are summed into (other)); each keeps up to max(20 000, 200 000 / sections) distinct phrases.',
+                  })}
+                </span>
+              )}
               {topCapped && (
                 <span className="text-amber-400">
                   {t('reports.topWordsCapped', { defaultValue: 'Approximate: rare phrases were dropped to stay within memory.' })}

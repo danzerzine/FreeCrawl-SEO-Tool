@@ -1569,7 +1569,7 @@ function markupCodesText(json: string | null | undefined): string | null {
 
 /** Cookies a rendered page set or tried to set (B43), from the row's `cookiesJson`; no values are stored, so there is no value column. Nothing when the list was not collected. */
 function RenderedCookieList({ row }: { row: CrawlUrlRow }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const cookies = parseCookiesJson(row.cookiesJson);
   if (row.cookiesJson == null || cookies.length === 0) return null;
   const total = row.cookiesTotal ?? cookies.length;
@@ -1588,14 +1588,14 @@ function RenderedCookieList({ row }: { row: CrawlUrlRow }) {
       <table className="w-full text-left">
         <thead className="text-surface-500">
           <tr>
-            <th className="pr-3 font-normal">Name</th>
-            <th className="pr-3 font-normal">Domain</th>
-            <th className="pr-3 font-normal">Path</th>
-            <th className="pr-3 font-normal">Secure</th>
-            <th className="pr-3 font-normal">HttpOnly</th>
-            <th className="pr-3 font-normal">SameSite</th>
-            <th className="pr-3 font-normal">Expires</th>
-            <th className="font-normal">Set by</th>
+            <th className="pr-3 font-normal">{translateLabel('Name', i18n.language)}</th>
+            <th className="pr-3 font-normal">{translateLabel('Domain', i18n.language)}</th>
+            <th className="pr-3 font-normal">{translateLabel('Path', i18n.language)}</th>
+            <th className="pr-3 font-normal">{translateLabel('Secure', i18n.language)}</th>
+            <th className="pr-3 font-normal">{translateLabel('HttpOnly', i18n.language)}</th>
+            <th className="pr-3 font-normal">{translateLabel('SameSite', i18n.language)}</th>
+            <th className="pr-3 font-normal">{translateLabel('Expires', i18n.language)}</th>
+            <th className="font-normal">{translateLabel('Set by', i18n.language)}</th>
           </tr>
         </thead>
         <tbody className="font-mono">
