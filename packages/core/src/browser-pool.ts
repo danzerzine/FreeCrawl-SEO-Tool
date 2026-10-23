@@ -286,15 +286,16 @@ export class BrowserPool {
       ignoreHTTPSErrors: true,
     });
 
+    // The cookie recorder goes first (B43): a cookie the prerender script writes must be seen too.
+    if (this.opts.cookieRecorder) {
+      await this.context.addInitScript({ content: COOKIE_RECORDER_SCRIPT });
+    }
+
     // Context-level prerender script — runs once per navigation on every
     // page, without per-page accumulation. Must be set BEFORE pages are
     // created so they inherit it.
     if (this.opts.prerenderJs && this.opts.prerenderJs.length > 0) {
       await this.context.addInitScript({ content: this.opts.prerenderJs });
-    }
-
-    if (this.opts.cookieRecorder) {
-      await this.context.addInitScript({ content: COOKIE_RECORDER_SCRIPT });
     }
 
     if (this.opts.blockResourceTypes && this.opts.blockResourceTypes.size > 0) {

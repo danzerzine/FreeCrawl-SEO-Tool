@@ -119,6 +119,14 @@ describe('B43 real Chromium', () => {
     });
   }, 60_000);
 
+  it('a cookie written by the pre-render script (jsRender.prerenderJs) is listed too', async () => {
+    const config = { ...cfg(1), jsRender: { ...cfg(1).jsRender, prerenderJs: 'document.cookie = "pre=1; path=/";' } };
+    await withPool(config, async (pool) => {
+      const r = await renderUrl(here('/other'), pool, renderOptionsFromConfig(config), new AbortController().signal);
+      expect(r.cookies!.list).toEqual([expect.objectContaining({ n: 'pre', d: '127.0.0.1', by: 'script' })]);
+    });
+  }, 60_000);
+
   it('collectCookies off: no list at all, and no listener is left on the page', async () => {
     const config = cfg(1);
     await withPool(config, async (pool) => {
