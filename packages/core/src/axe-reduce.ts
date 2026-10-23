@@ -30,6 +30,7 @@ export function reduceAxeResults(raw: {
     incomplete: [],
     violationsTotal: 0,
     seriousTotal: 0,
+    incompleteTotal: 0,
   };
   const lists: Array<[unknown[], AxeRuleResult[], boolean]> = [
     [raw && Array.isArray(raw.violations) ? raw.violations : [], out.violations, true],
@@ -52,6 +53,9 @@ export function reduceAxeResults(raw: {
       if (isViolation) {
         out.violationsTotal++;
         if (impact === 'critical' || impact === 'serious') out.seriousTotal++;
+      } else {
+        // Counted here, before the rule cap and the byte trim below can drop the rule.
+        out.incompleteTotal = (out.incompleteTotal || 0) + 1;
       }
       if (stored >= MAX_RULES) {
         truncated = true;

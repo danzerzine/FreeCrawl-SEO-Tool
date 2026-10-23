@@ -163,7 +163,7 @@ export function datasetRows(
     case 'axe-violations':
       return asRecords(
         (function* () {
-          for (const row of paged((limit, offset) => db.queryAxe({ limit, offset })))
+          for (const row of db.iterateAxeResults())
             yield {
               url: row.url,
               ruleId: row.ruleId,

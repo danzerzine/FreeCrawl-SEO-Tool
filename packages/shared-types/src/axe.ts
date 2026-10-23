@@ -34,6 +34,8 @@ export interface AxeAudit {
   violationsTotal: number;
   /** Of those, rules with impact critical or serious. */
   seriousTotal: number;
+  /** Needs-review rules axe found, counted before any cap or byte trim; defaults to `incomplete.length`. */
+  incompleteTotal?: number;
   /** Rules or samples were dropped to stay inside the caps. */
   truncated?: boolean;
 }

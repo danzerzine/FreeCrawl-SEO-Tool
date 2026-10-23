@@ -176,6 +176,16 @@ describe('B40 R9, R11: issue categories count only audited pages, never needs-re
     expect(counts.axeNeedsReview).toBe(2);
   });
 
+  it('stores incompleteTotal, not the trimmed list length, so a trimmed page still reads needs-review', () => {
+    db.setUrlAxe(1, audit([rule('image-alt', 'critical')], [], { incompleteTotal: 4 }));
+    expect(urlRow(1).axe_incomplete).toBe(4);
+    const list = [...db.iterateUrlsByCategory('issues:axe-needs-review' as never)].map((r) => (r as { url: string }).url);
+    expect(list).toEqual([A]);
+    expect([...db.iterateUrlsByCategory('all')].find((r) => r.url === A)).toMatchObject({ axeIncomplete: 4 });
+    db.setUrlAxe(1, audit([], [rule('x', null)]));
+    expect(urlRow(1).axe_incomplete).toBe(1);
+  });
+
   it('a never-audited page (NULL) and a clean one (0) are in no axe filter', () => {
     db.setUrlAxe(2, audit([]));
     const counts = db.getOverviewCounts().issues as unknown as Record<string, number>;
@@ -233,5 +243,72 @@ describe('B40 H4: axe_results holds page HTML and is deleted explicitly, not lef
   it('reset (foreign keys are switched off inside it)', () => {
     db.reset();
     expect(left()).toBe(0);
+  });
+});
+
+describe('B40 export reader: iterateAxeResults pages by key, not by OFFSET', () => {
+  const seed = (urls: number, rulesPer: number) => {
+    const raw = new DatabaseSync(file);
+    raw.exec('BEGIN');
+    const u = raw.prepare(`INSERT INTO urls (id, url, is_external, content_kind, status_code) VALUES (?, ?, 0, 'html', 200)`);
+    const r = raw.prepare(
+      `INSERT INTO axe_results (url_id, rule_id, kind, impact, help, help_url, tags, nodes, samples_json) VALUES (?, ?, ?, ?, 'h', NULL, 'wcag2a', ?, '[]')`,
+    );
+    for (let i = 10; i < 10 + urls; i++) {
+      u.run(i, `https://big.test/${i}`);
+      for (let k = 0; k < rulesPer; k++) r.run(i, `rule-${k}`, k % 3 === 0 ? 'incomplete' : 'violation', ['critical', 'serious', 'minor', null][k % 4]!, k);
+    }
+    raw.exec('COMMIT');
+    raw.close();
+  };
+
+  it('one page is an index range: no temp b-tree, no scan of axe_results', async () => {
+    const { AXE_EXPORT_PAGE_SQL } = await import('./project-db.js');
+    const r = new DatabaseSync(file, { readOnly: true });
+    const plan = (r.prepare(`EXPLAIN QUERY PLAN ${AXE_EXPORT_PAGE_SQL}`).all(0, '', '', 2000) as { detail: string }[])
+      .map((p) => p.detail)
+      .join('\n');
+    r.close();
+    expect(plan).not.toMatch(/TEMP B-TREE/i);
+    expect(plan).not.toMatch(/SCAN a\b|SCAN axe_results/i);
+    expect(plan).toMatch(/SEARCH a USING (COVERING )?INDEX sqlite_autoindex_axe_results_1|SEARCH axe_results/i);
+  });
+
+  it('20k+ rows: the same rows as the UI reader, each once, and the last page costs about what the first does', () => {
+    seed(3000, 8);
+    const t: number[] = [];
+    const got: string[] = [];
+    let n = 0;
+    let t0 = performance.now();
+    for (const r of db.iterateAxeResults(1000)) {
+      got.push(`${r.url}|${r.ruleId}|${r.kind}`);
+      if (++n % 1000 === 0) {
+        t.push(performance.now() - t0);
+        t0 = performance.now();
+      }
+    }
+    expect(got).toHaveLength(24000);
+    expect(new Set(got).size).toBe(24000);
+    const old: string[] = [];
+    for (let off = 0; ; off += 5000) {
+      const { rows } = db.queryAxe({ limit: 5000, offset: off });
+      for (const r of rows) old.push(`${r.url}|${r.ruleId}|${r.kind}`);
+      if (rows.length < 5000) break;
+    }
+    expect(got.slice().sort()).toEqual(old.sort());
+    // Relative, with room for noise: OFFSET paging made late pages many times slower than early ones.
+    const early = Math.min(...t.slice(0, 4));
+    const late = Math.max(...t.slice(-4));
+    expect(late).toBeLessThan(Math.max(early * 8, 50));
+  });
+
+  it('a file from before migration 127 exports no rows', () => {
+    db.close();
+    const f = path.join(dir, 'old2.seoproject');
+    const o = new DatabaseSync(f);
+    runMigrations(o, 126);
+    o.close();
+    db = new ProjectDb(f);
+    expect([...db.iterateAxeResults()]).toEqual([]);
   });
 });

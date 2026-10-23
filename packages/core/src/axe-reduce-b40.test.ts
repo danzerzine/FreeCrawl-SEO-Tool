@@ -106,6 +106,24 @@ describe('reduceAxeResults (B40 R5, R10)', () => {
     expect(out.truncated).toBe(true);
   });
 
+  it('counts needs-review rules before the byte trim drops them (incompleteTotal)', () => {
+    const big = (id: string) => rule(id, { nodes: Array.from({ length: 3 }, (_, i) => node(i, 'x'.repeat(400))) });
+    const v = Array.from({ length: 80 }, (_, i) => big(`v${i}`));
+    const inc = Array.from({ length: 7 }, (_, i) => big(`i${i}`));
+    inc.push(light('frame-tested') as never);
+    const out = reduceAxeResults(raw(v, inc));
+    expect(out.incomplete).toHaveLength(0);
+    expect(out.incompleteTotal).toBe(7);
+  });
+
+  it('counts needs-review rules the 100-rule cap did not store', () => {
+    const v = Array.from({ length: 100 }, (_, i) => light(`v${i}`));
+    const inc = Array.from({ length: 12 }, (_, i) => light(`i${i}`));
+    const out = reduceAxeResults(raw(v, inc));
+    expect(out.incomplete).toHaveLength(0);
+    expect(out.incompleteTotal).toBe(12);
+  });
+
   it('survives a missing violations list (hostile or partial result)', () => {
     const out = reduceAxeResults({} as never);
     expect(out.violations).toEqual([]);

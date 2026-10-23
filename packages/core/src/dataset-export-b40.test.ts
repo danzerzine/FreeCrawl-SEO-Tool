@@ -47,13 +47,15 @@ afterEach(() => {
 });
 
 describe('B40 R14: dataset axe-violations', () => {
-  it('has the columns of the spec, one row per page x rule, violations before needs-review', () => {
+  it('has the columns of the spec, one row per page x rule', () => {
     expect(EXPORT_DATASET_COLUMNS['axe-violations'].map((c) => c.header)).toEqual([
       'URL', 'Rule', 'Kind', 'Impact', 'Help', 'Help URL', 'WCAG Tags', 'Elements', 'First Selector', 'First HTML',
     ]);
     const rows = [...datasetRows(db, 'axe-violations', {})].map((r) =>
       EXPORT_DATASET_COLUMNS['axe-violations'].map((c) => readCell(r, c.key)),
     );
+    // Read in key order (page, rule); worst-first is the UI reader's order. Compare as a set.
+    rows.sort((x, y) => String(x[2]).localeCompare(String(y[2])) * -1);
     expect(rows).toEqual([
       [A, 'image-alt', 'violation', 'critical', 'Images must have alternative text',
         'https://dequeuniversity.com/rules/axe/4.14/image-alt', 'wcag2a,wcag111', 3, 'img.hero', '<img class="hero" src="a.png">'],

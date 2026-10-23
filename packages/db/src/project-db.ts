@@ -9853,7 +9853,13 @@ export class ProjectDb {
         .prepare(
           `UPDATE urls SET axe_violations = ?, axe_serious = ?, axe_incomplete = ?, axe_version = ? WHERE id = ?`,
         )
-        .run(audit.violationsTotal, audit.seriousTotal, audit.incomplete.length, audit.version || null, urlId);
+        .run(
+          audit.violationsTotal,
+          audit.seriousTotal,
+          audit.incompleteTotal ?? audit.incomplete.length,
+          audit.version || null,
+          urlId,
+        );
     });
   }
 
@@ -9933,6 +9939,36 @@ export class ProjectDb {
         samples: parseAxeSamples(r.samples_json),
       })),
     };
+  }
+
+  /**
+   * Every stored axe rule result for the export, keyset-paged on the primary key
+   * (url_id, rule_id, kind): each page is one index range read, no COUNT and no sort, so page 400
+   * of 400 costs what page 1 does. `queryAxe` (worst impact first, OFFSET) stays the UI's reader.
+   */
+  *iterateAxeResults(batch = 2000): IterableIterator<AxeResultRow> {
+    this.axeResultsTable ??= this.hasTable('axe_results');
+    if (!this.axeResultsTable) return;
+    const stmt = this.db.prepare(AXE_EXPORT_PAGE_SQL);
+    let last: [number, string, string] = [0, '', ''];
+    for (;;) {
+      const rows = stmt.all(...last, Math.max(1, batch)) as unknown as AxeExportDbRow[];
+      for (const r of rows) {
+        last = [r.url_id, r.rule_id, r.kind];
+        yield {
+          url: r.url,
+          ruleId: r.rule_id,
+          kind: r.kind,
+          impact: r.impact,
+          help: r.help,
+          helpUrl: r.help_url,
+          tags: r.tags ? r.tags.split(',') : [],
+          nodes: r.nodes,
+          samples: parseAxeSamples(r.samples_json),
+        };
+      }
+      if (rows.length < batch) return;
+    }
   }
 
   /**
@@ -15553,6 +15589,29 @@ function computeQueryParamCount(rawUrl: string): number {
   } catch {
     return 0;
   }
+}
+
+/**
+ * One export page of axe results: row-value keyset on the primary key, served by its index.
+ * CROSS JOIN pins axe_results as the outer loop: left to itself the planner walks `urls` and sorts.
+ */
+export const AXE_EXPORT_PAGE_SQL = `SELECT a.url_id, u.url AS url, a.rule_id, a.kind, a.impact, a.help, a.help_url, a.tags, a.nodes, a.samples_json
+    FROM axe_results a CROSS JOIN urls u ON u.id = a.url_id
+   WHERE (a.url_id, a.rule_id, a.kind) > (?, ?, ?)
+   ORDER BY a.url_id, a.rule_id, a.kind
+   LIMIT ?`;
+
+interface AxeExportDbRow {
+  url_id: number;
+  url: string;
+  rule_id: string;
+  kind: 'violation' | 'incomplete';
+  impact: string | null;
+  help: string;
+  help_url: string | null;
+  tags: string | null;
+  nodes: number;
+  samples_json: string | null;
 }
 
 function parseAxeSamples(json: string | null): AxeSample[] {
