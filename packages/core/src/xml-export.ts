@@ -2,8 +2,15 @@ import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
-import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
+import {
+  urlSignalCell,
+  YES_NO_URL_COLUMNS,
+  type CrawlUrlRow,
+  type UrlCategory,
+  type YesNoUrlColumn,
+} from '@freecrawl/shared-types';
 import { writeExportFile } from './export-file.js';
+import { m5ColumnsNotChecked } from './url-signals.js';
 
 /**
  * Streaming XML export of the URL table. Schema is intentionally close
@@ -174,7 +181,11 @@ const XML_COLUMNS: (keyof CrawlUrlRow)[] = [
   'contentHash',
   'clusterId',
   'clusterSize',
+  // B136: module-5 page signals, raw counts; null (self-closing tag) outside the check's scope.
+  ...YES_NO_URL_COLUMNS,
 ];
+
+const YES_NO = new Set<string>(YES_NO_URL_COLUMNS);
 
 /** Drop the C0 control characters XML 1.0 forbids outright — everything
  *  below 0x20 except tab (0x09), LF (0x0A) and CR (0x0D). Escaping does
@@ -232,6 +243,7 @@ export async function exportUrlsToXml(
   options: { selectedIds?: number[]; category?: UrlCategory } = {},
 ): Promise<{ rowsWritten: number }> {
   let rowsWritten = 0;
+  const notChecked = m5ColumnsNotChecked(db);
 
   const source: Iterable<CrawlUrlRow> =
     options.selectedIds && options.selectedIds.length > 0
@@ -247,7 +259,12 @@ export async function exportUrlsToXml(
     yield `<crawl exportedAt="${new Date().toISOString()}">\n`;
     for (const row of source) {
       const fields = XML_COLUMNS.map((col) =>
-        renderField(col, (row as unknown as Record<string, unknown>)[col]),
+        renderField(
+          col,
+          YES_NO.has(col)
+            ? urlSignalCell(row, col as YesNoUrlColumn, 'machine', notChecked)
+            : (row as unknown as Record<string, unknown>)[col],
+        ),
       ).join('');
       yield `  <url>${fields}</url>\n`;
       rowsWritten++;

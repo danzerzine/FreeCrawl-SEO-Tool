@@ -35,6 +35,7 @@ import { runSeoAuditExport } from './seo-audit-export.js';
 import { exportPdfs, exportScreenshots, type PdfCrawlConfig, type PdfFetched } from './media-export.js';
 import { exportPdfText } from './pdf-text-export.js';
 import { exportTabular } from './tabular-export.js';
+import { pageSignalsEmptyReason, pageSignalsWarnings } from './url-signals.js';
 import type { TopWordsBlocksOptions } from './top-words-db.js';
 import { linkSuggestions } from './link-suggestions.js';
 import {
@@ -250,6 +251,7 @@ export async function runExportItems(
         ms: f.ms,
         peakRssMb: f.peakRssMb,
         sharedPass: f.sharedPass,
+        ...(f.warnings ? { warnings: f.warnings } : {}),
       })),
     );
     outcome.errors.push(...r.errors);
@@ -342,17 +344,20 @@ export async function runExportItems(
           }
           const jsonl = JSONL_DATASETS.includes(item.dataset);
           const path = join(outDir, `${item.dataset.replace(':', '-')}.${jsonl ? 'jsonl' : 'csv'}`);
+          // Page signals read through the page cache, like bulk (see `withoutMmap`).
+          const read = <T>(f: () => Promise<T>): Promise<T> =>
+            item.dataset === 'page-signals' ? db.withoutMmap(f) : f();
           const { rowsWritten, skipped } = await writeExportFile(
             path,
             (partPath) =>
-              exportTabular(db, partPath, {
+              read(() => exportTabular(db, partPath, {
                 format: jsonl ? 'jsonl' : 'csv',
                 sections: [{ label, dataset: item.dataset }],
                 columns: EXPORT_DATASET_COLUMNS[item.dataset].map((c) => c.key),
                 headers,
                 ...(options.topWords ? { datasetContext: { topWords: options.topWords } } : {}),
                 ...(suggestions ? { datasetContext: { linkSuggestions: suggestions.rows } } : {}),
-              }),
+              })),
             (r) => r.rowsWritten > 0,
           );
           if (skipped) {
@@ -363,9 +368,19 @@ export async function runExportItems(
               outcome.errors.push({ label: sk.label, error: sk.reason });
             }
           } else if (rowsWritten === 0) {
-            outcome.skipped.push({ label, reason: 'No rows in this crawl: no file written.' });
+            outcome.skipped.push({
+              label,
+              reason:
+                item.dataset === 'page-signals'
+                  ? pageSignalsEmptyReason(db)
+                  : 'No rows in this crawl: no file written.',
+            });
           } else {
-            const warnings = suggestions ? linkSuggestionWarnings(suggestions) : [];
+            const warnings = suggestions
+              ? linkSuggestionWarnings(suggestions)
+              : item.dataset === 'page-signals'
+                ? pageSignalsWarnings(db)
+                : [];
             outcome.files.push({
               path,
               label,

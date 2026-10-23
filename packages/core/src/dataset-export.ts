@@ -187,6 +187,8 @@ export function datasetRows(
       return asRecords(db.iterateBrokenLinksByTarget());
     case 'issues-long':
       return asRecords(db.iterateIssuesLong());
+    case 'page-signals':
+      return asRecords(db.iteratePageSignals());
     case 'issue-inlinks':
       return asRecords(db.iterateIssueInlinks(ctx.issueKey));
     case 'selected-inlinks':

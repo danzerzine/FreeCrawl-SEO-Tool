@@ -13,6 +13,7 @@ import type {
 } from '@freecrawl/shared-types';
 import { EXPORT_DATASET_COLUMNS, urlColumnHeader } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
+import { m5ColumnsNotChecked, withSignalCells } from './url-signals.js';
 import { datasetRows, readCell, type DatasetExportContext } from './dataset-export.js';
 import { inBlocks, writeExportFile } from './export-file.js';
 
@@ -702,12 +703,22 @@ export async function exportTabular(
     const known = new Map(EXPORT_DATASET_COLUMNS[section.dataset].map((c) => [c.key, c.header]));
     return keys.map((k) => known.get(k) ?? urlColumnHeader(k));
   };
+  // The yes/no page-signal columns: Yes/No in the CSV / XLSX labels mode, the raw count
+  // elsewhere, blank where the check is out of scope or the project never filled it (B136).
+  // Computed once here, from the db, so no caller passes it.
+  const signalMode = (format === 'csv' || format === 'xlsx') && options.headers !== 'keys' ? 'labels' : 'machine';
+  const notChecked = m5ColumnsNotChecked(db);
   const sourceFor = (section: TabularSection): Iterable<Record<string, unknown>> => {
     if (section.dataset) return datasetRows(db, section.dataset, options.datasetContext);
     if (!section.category) {
       throw new Error(`exportTabular: section '${section.label}' needs a category or a dataset`);
     }
-    return rowSource(db, queryFor(section.category)) as Iterable<Record<string, unknown>>;
+    return withSignalCells(
+      rowSource(db, queryFor(section.category)),
+      columnsFor(section),
+      signalMode,
+      notChecked,
+    ) as unknown as Iterable<Record<string, unknown>>;
   };
   for (const section of sections) {
     if (columnsFor(section).length === 0) {

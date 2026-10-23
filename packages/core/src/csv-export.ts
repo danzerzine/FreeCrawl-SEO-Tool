@@ -2,9 +2,17 @@ import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import type { ProjectDb } from '@freecrawl/db';
-import { urlColumnHeader, type CrawlUrlRow, type UrlCategory } from '@freecrawl/shared-types';
+import {
+  urlColumnHeader,
+  urlSignalCell,
+  YES_NO_URL_COLUMNS,
+  type CrawlUrlRow,
+  type UrlCategory,
+  type YesNoUrlColumn,
+} from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import { inBlocks, writeExportFile } from './export-file.js';
+import { m5ColumnsNotChecked } from './url-signals.js';
 
 const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'url',
@@ -49,8 +57,12 @@ const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'cssUnusedBytes',
   'jsBytes',
   'jsUnusedBytes',
+  // B136: module-5 page signals, Yes/No (see urlSignalCell).
+  ...YES_NO_URL_COLUMNS,
   'crawledAt',
 ];
+
+const YES_NO = new Set<string>(YES_NO_URL_COLUMNS);
 
 // Deliberately the shared implementation, not a local copy. This file had
 // its own `escapeCsv` with no formula guard, so a crawled `<title>` or
@@ -69,14 +81,26 @@ const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
 export function urlCsvFormat(options: {
   columns?: (keyof CrawlUrlRow)[];
   headers?: 'labels' | 'keys';
+  /**
+   * Yes/No signal columns to write blank because the project never filled their
+   * check ({@link m5ColumnsNotChecked}); computed once per export by the caller,
+   * not per row.
+   */
+  notChecked?: ReadonlySet<string>;
 }): { head: string; line: (row: CrawlUrlRow) => string } {
   const cols = options.columns && options.columns.length > 0 ? options.columns : CSV_COLUMNS;
   const cell = { formulaGuard: options.headers !== 'keys' };
+  const mode = options.headers === 'keys' ? 'machine' : 'labels';
+  const readers = cols.map((col): ((row: CrawlUrlRow) => unknown) =>
+    YES_NO.has(col)
+      ? (row) => urlSignalCell(row, col as YesNoUrlColumn, mode, options.notChecked)
+      : (row) => row[col],
+  );
   const header =
     cols.map((c) => escapeCsv(options.headers === 'keys' ? c : urlColumnHeader(c), cell)).join(',') + '\n';
   return {
     head: '\ufeff' + header,
-    line: (row) => cols.map((col) => escapeCsv(row[col], cell)).join(',') + '\n',
+    line: (row) => readers.map((read) => escapeCsv(read(row), cell)).join(',') + '\n',
   };
 }
 
@@ -98,7 +122,7 @@ export async function exportUrlsToCsv(
   } = {},
 ): Promise<{ rowsWritten: number }> {
   let rowsWritten = 0;
-  const { head, line } = urlCsvFormat(options);
+  const { head, line } = urlCsvFormat({ ...options, notChecked: m5ColumnsNotChecked(db) });
 
   const source: Iterable<CrawlUrlRow> =
     options.selectedIds && options.selectedIds.length > 0

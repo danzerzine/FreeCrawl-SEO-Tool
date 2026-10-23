@@ -23,6 +23,7 @@ import { exportLinksToCsv, urlCsvFormat } from './csv-export.js';
 import { writeUrlFilesInOnePass } from './url-files-pass.js';
 import { exportDatasetFile } from './tabular-export.js';
 import { writeExportFile } from './export-file.js';
+import { m5ColumnsNotChecked, pageSignalsEmptyReason, pageSignalsWarnings } from './url-signals.js';
 
 export interface BulkExportTask {
   label: string;
@@ -179,6 +180,7 @@ export const BULK_EXPORT_DATASET_TASKS: BulkExportDatasetTask[] = [
   { label: 'Broken Links', file: 'broken-links.csv', dataset: 'broken-links' },
   { label: 'Broken Links — By Target', file: 'broken-links-by-target.csv', dataset: 'broken-links-by-target' },
   { label: 'Issues — One Row Per URL and Issue', file: 'issues-long.csv', dataset: 'issues-long' },
+  { label: 'Page Signals — One Row Per URL and Signal', file: 'page-signals.csv', dataset: 'page-signals' },
   { label: 'Response Headers — One Row Per URL and Header', file: 'response-headers.csv', dataset: 'response-headers' },
   { label: 'Sitemap URLs', file: 'sitemap-urls.csv', dataset: 'sitemap-urls' },
   { label: 'Sitemap Files', file: 'sitemap-files.csv', dataset: 'sitemap-files' },
@@ -335,12 +337,14 @@ async function writeBulkExport(
   // Every category file in one pass over the urls table.
   const tasks = (options.tasks ?? BULK_EXPORT_TASKS).filter((t) => !disabled.has(t.category));
   const t0 = performance.now();
+  // Once for the whole pass, never per row: the signal columns whose check the project never filled.
+  const notChecked = m5ColumnsNotChecked(db);
   const settled = await writeUrlFilesInOnePass(
     db,
     tasks.map((task) => ({
       filePath: join(outputDir, task.file),
       category: task.category,
-      ...urlCsvFormat({ columns: task.columns, headers: options.headers }),
+      ...urlCsvFormat({ columns: task.columns, headers: options.headers, notChecked }),
       keep: (rows: number) => rows > 0,
     })),
   );
@@ -403,9 +407,12 @@ async function writeBulkExport(
         if (why) skipped.push(...why);
         else if (task.dataset === 'sitemap-urls' || task.dataset === 'sitemap-files') {
           skipped.push({ label: task.label, reason: NO_SITEMAP_REASON });
+        } else if (task.dataset === 'page-signals') {
+          skipped.push({ label: task.label, reason: pageSignalsEmptyReason(db) });
         }
         continue;
       }
+      const warnings = task.dataset === 'page-signals' ? pageSignalsWarnings(db) : [];
       files.push({
         filePath,
         label: task.label,
@@ -413,6 +420,7 @@ async function writeBulkExport(
         rowsWritten,
         ms: since(t0),
         peakRssMb: peakRssMb(),
+        ...(warnings.length > 0 ? { warnings } : {}),
       });
     } catch (err) {
       errors.push({ label: task.label, error: (err as Error).message });
@@ -448,6 +456,7 @@ async function writeBulkManifest(
         ms: f.ms,
         peakRssMb: f.peakRssMb,
         sharedPass: f.sharedPass,
+        warnings: f.warnings,
       })),
       errors: result.errors,
       skipped: result.skipped ?? [],

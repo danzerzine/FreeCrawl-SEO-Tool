@@ -25,6 +25,10 @@ export interface JsonExportOptions {
  *
  * Memory profile is bounded — rows are written as we iterate from
  * SQLite, never held in a JS array. Safe for 1M-row exports.
+ *
+ * The page-signal keys (`titleOutsideHead`, `paginationLoop`, …) are the stored
+ * values, 0 included where the check never ran: this dump is not blanked like the
+ * CSV / XML / XLSX columns (B136).
  */
 export async function exportUrlsToJson(
   db: ProjectDb,
