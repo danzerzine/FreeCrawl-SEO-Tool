@@ -14,6 +14,7 @@ export * from './pagespeed-view.js';
 export * from './crux.js';
 export * from './spelling.js';
 export * from './google.js';
+export * from './gsc-bq-dialog.js';
 export * from './metrica.js';
 export * from './webmaster.js';
 export * from './ai.js';

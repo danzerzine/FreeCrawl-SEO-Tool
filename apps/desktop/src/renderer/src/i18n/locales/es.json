@@ -2614,16 +2614,18 @@
     "contextLine": "Datos de tu exportación de BigQuery",
     "planning": "Comprobando la exportación (simulación, sin coste)…",
     "range": "Periodo: {{start}} a {{end}}",
-    "coverage": "{{covered}} días ya descargados, {{missing}} días por descargar en {{parts}} partes.",
+    "coverage": "La exportación tiene {{covered}} días en este rango ({{missing}} sin exportar). Por descargar: {{pull}} días en {{parts}} partes.",
     "revised": "Google revisó {{n}} días ya descargados. Reconstruye para incluirlos.",
     "estimate": "Lectura estimada: {{gib}} GiB ({{share}}% del 1 TB gratuito al mes). Límite: {{cap}} GiB; facturado hasta ahora: {{billed}} GiB.",
-    "overCap": "La estimación supera el límite; la descarga se detendrá en el límite y podrá continuar tras subirlo en Ajustes.",
+    "overCap": "La estimación supera el límite. Sube el límite en Ajustes o acorta el rango; una descarga por encima del límite no se inicia.",
     "needsReset": "Los ajustes cambiaron desde que se descargaron los datos guardados. Borra los datos guardados de BigQuery y descarga de nuevo.",
     "upToDate": "No hay nada nuevo que descargar.",
     "running": "Descargando parte {{done}} de {{total}}…",
     "result": "{{done}} partes descargadas, {{skipped}} ya estaban. Facturado: {{billed}} GiB.",
     "stop": "Detener",
     "recordEmpty": "Registrar meses vacíos y continuar",
-    "pull": "Descargar"
+    "pull": "Descargar",
+    "rebuild": "Reconstruir",
+    "failed": "Error"
   }
 }

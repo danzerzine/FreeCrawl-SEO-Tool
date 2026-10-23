@@ -2614,16 +2614,18 @@
     "contextLine": "Dados da sua exportação do BigQuery",
     "planning": "Verificando a exportação (simulação, sem custo)…",
     "range": "Período: {{start}} a {{end}}",
-    "coverage": "{{covered}} dias já importados, {{missing}} dias a importar em {{parts}} partes.",
+    "coverage": "A exportação tem {{covered}} dias neste intervalo ({{missing}} não exportados). A importar: {{pull}} dias em {{parts}} partes.",
     "revised": "O Google revisou {{n}} dias já importados. Reconstrua para incluí-los.",
     "estimate": "Leitura estimada: {{gib}} GiB ({{share}}% do 1 TB gratuito por mês). Limite: {{cap}} GiB; cobrado até agora: {{billed}} GiB.",
-    "overCap": "A estimativa passa do limite; a importação vai parar no limite e pode continuar depois de aumentá-lo nas Configurações.",
+    "overCap": "A estimativa passa do limite. Aumente o limite nas Configurações ou reduza o intervalo; uma importação acima do limite não começa.",
     "needsReset": "As configurações mudaram desde que os dados salvos foram importados. Apague os dados salvos do BigQuery e importe de novo.",
     "upToDate": "Nada novo para importar.",
     "running": "Importando a parte {{done}} de {{total}}…",
     "result": "{{done}} partes importadas, {{skipped}} já estavam. Cobrado: {{billed}} GiB.",
     "stop": "Parar",
     "recordEmpty": "Registrar os meses vazios e continuar",
-    "pull": "Importar"
+    "pull": "Importar",
+    "rebuild": "Reconstruir",
+    "failed": "Falhou"
   }
 }

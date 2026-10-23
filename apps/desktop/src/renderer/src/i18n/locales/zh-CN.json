@@ -2522,16 +2522,18 @@
     "contextLine": "数据来自你的 BigQuery 导出",
     "planning": "正在检查导出（试运行，不收费）…",
     "range": "范围：{{start}} 至 {{end}}",
-    "coverage": "已拉取 {{covered}} 天，还需分 {{parts}} 段拉取 {{missing}} 天。",
+    "coverage": "导出数据在此范围内有 {{covered}} 天（{{missing}} 天尚未导出）。需拉取：{{pull}} 天，分 {{parts}} 段。",
     "revised": "Google 之后修订了已拉取的 {{n}} 天。重建即可包含。",
     "estimate": "预计读取：{{gib}} GiB（占每月免费 1 TB 的 {{share}}%）。上限：{{cap}} GiB；目前已计费：{{billed}} GiB。",
-    "overCap": "预计值超过上限；拉取会在上限处停止，在设置中提高上限后可继续。",
+    "overCap": "预计值超过上限。请在设置中提高上限或缩短范围；超过上限的拉取不会开始。",
     "needsReset": "保存的数据拉取之后设置已改变。请删除已保存的 BigQuery 数据后重新拉取。",
     "upToDate": "没有需要拉取的新数据。",
     "running": "正在拉取第 {{done}} / {{total}} 段…",
     "result": "已拉取 {{done}} 段，{{skipped}} 段已存在。已计费：{{billed}} GiB。",
     "stop": "停止",
     "recordEmpty": "记录空月份并继续",
-    "pull": "拉取"
+    "pull": "拉取",
+    "rebuild": "重建",
+    "failed": "失败"
   }
 }

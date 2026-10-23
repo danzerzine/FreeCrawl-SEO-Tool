@@ -2522,16 +2522,18 @@
     "contextLine": "BigQuery 내보내기의 데이터",
     "planning": "내보내기 확인 중(시험 실행, 무료)…",
     "range": "기간: {{start}} ~ {{end}}",
-    "coverage": "{{covered}}일은 이미 가져왔고, {{missing}}일을 {{parts}}개 구간으로 가져옵니다.",
+    "coverage": "이 기간에 내보내기 데이터가 {{covered}}일 있습니다({{missing}}일은 아직 내보내지 않음). 가져올 분량: {{pull}}일, {{parts}}개 구간.",
     "revised": "Google이 이미 가져온 {{n}}일을 이후에 수정했습니다. 포함하려면 다시 빌드하세요.",
     "estimate": "예상 읽기량: {{gib}} GiB(월 무료 1TB의 {{share}}%). 한도: {{cap}} GiB, 지금까지 청구: {{billed}} GiB.",
-    "overCap": "예상치가 한도를 넘습니다. 한도에서 멈추며, 설정에서 한도를 올린 뒤 이어서 가져올 수 있습니다.",
+    "overCap": "예상치가 한도를 넘습니다. 설정에서 한도를 올리거나 기간을 줄이세요. 한도를 넘는 가져오기는 시작되지 않습니다.",
     "needsReset": "저장된 데이터를 가져온 뒤 설정이 바뀌었습니다. 저장된 BigQuery 데이터를 지우고 다시 가져오세요.",
     "upToDate": "새로 가져올 것이 없습니다.",
     "running": "{{total}}개 중 {{done}}번째 구간 가져오는 중…",
     "result": "{{done}}개 구간을 가져왔고 {{skipped}}개는 이미 있었습니다. 청구: {{billed}} GiB.",
     "stop": "중지",
     "recordEmpty": "빈 달을 기록하고 계속",
-    "pull": "가져오기"
+    "pull": "가져오기",
+    "rebuild": "다시 만들기",
+    "failed": "실패"
   }
 }

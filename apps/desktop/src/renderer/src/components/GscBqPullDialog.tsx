@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
-import type { GscBqPlanView, GscBqProgress, GscBqRunResult } from '@freecrawl/shared-types';
+import {
+  daysToPull,
+  needsFreshPlan,
+  pullGate,
+  type GscBqPlanView,
+  type GscBqProgress,
+  type GscBqRunResult,
+} from '@freecrawl/shared-types';
 
 const GIB = 1024 ** 3;
 
@@ -30,21 +37,25 @@ export function GscBqPullDialog({
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<GscBqProgress | null>(null);
   const [result, setResult] = useState<GscBqRunResult | null>(null);
+  const failed = t('gscBq.failed', { defaultValue: 'Failed' });
 
-  const load = useCallback(async (withReset: boolean) => {
-    setLoading(true);
-    setError(null);
-    setPlan(null);
-    try {
-      const res = await window.freecrawl.gscBqPlan({ reset: withReset || undefined });
-      setPlan(res.plan);
-      setError(res.ok ? null : (res.error ?? 'Failed'));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (withReset: boolean) => {
+      setLoading(true);
+      setError(null);
+      setPlan(null);
+      try {
+        const res = await window.freecrawl.gscBqPlan({ reset: withReset || undefined });
+        setPlan(res.plan);
+        setError(res.ok ? null : (res.error ?? failed));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [failed],
+  );
 
   useEffect(() => {
     void load(false);
@@ -53,22 +64,27 @@ export function GscBqPullDialog({
   useEffect(() => window.freecrawl.onGscBqProgress((p) => setProgress(p)), []);
 
   const run = useCallback(
-    async (recordEmpty: boolean) => {
+    async (recordEmpty: boolean, rebuild = false) => {
       if (!plan || running) return;
       setRunning(true);
       setResult(null);
       setProgress(null);
       try {
         let planId = plan.planId;
-        if (plan.needsReset) {
-          // The saved data is dropped only now, on the explicit Pull after the box was ticked.
-          const fresh = await window.freecrawl.gscBqPlan({ reset: true });
+        if (needsFreshPlan(plan, { recordEmpty, rebuild })) {
+          // A plan is single-use. The saved data is dropped only now, on the explicit Pull (box
+          // ticked) or Rebuild; «record empty months» re-plans without dropping anything.
+          const drop = plan.needsReset || rebuild;
+          const fresh = await window.freecrawl.gscBqPlan(drop ? { reset: true } : {});
           if (!fresh.ok || !fresh.plan) {
-            setError(fresh.error ?? 'Failed');
+            setError(fresh.error ?? failed);
             return;
           }
           setPlan(fresh.plan);
           planId = fresh.plan.planId;
+          // A rebuilt plan is shown first when it cannot start (over the cap): raising the cap and
+          // pulling again continues from the empty ledger.
+          if (fresh.plan.overCap || fresh.plan.parts.length === 0) return;
         }
         const res = await window.freecrawl.gscBqRun({ planId, recordEmpty });
         setResult(res);
@@ -79,9 +95,10 @@ export function GscBqPullDialog({
         setRunning(false);
       }
     },
-    [plan, running, onDone],
+    [plan, running, onDone, failed],
   );
 
+  const gate = pullGate(plan, reset);
   const title = t('gscBq.title', { defaultValue: 'Pull from BigQuery' });
   const btn =
     'h-6 rounded border border-surface-700 bg-surface-800 px-2.5 text-[11px] hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50';
@@ -123,9 +140,10 @@ export function GscBqPullDialog({
             <div>
               {t('gscBq.coverage', {
                 defaultValue:
-                  '{{covered}} days already pulled, {{missing}} days to pull in {{parts}} parts.',
+                  'The export holds {{covered}} days in this range ({{missing}} not exported). To pull: {{pull}} days in {{parts}} parts.',
                 covered: plan.coveredDays,
                 missing: plan.missingDays,
+                pull: daysToPull(plan),
                 parts: plan.parts.length,
               })}
             </div>
@@ -152,7 +170,7 @@ export function GscBqPullDialog({
               <div className="text-amber-300">
                 {t('gscBq.overCap', {
                   defaultValue:
-                    'The estimate is above the cap; the pull will stop at the cap and can be continued after raising it in Settings.',
+                    'The estimate is above the cap. Raise the cap in Settings or shorten the range; a pull above the cap does not start.',
                 })}
               </div>
             )}
@@ -169,7 +187,7 @@ export function GscBqPullDialog({
                 })}
               </label>
             )}
-            {plan.missingDays === 0 && !plan.needsReset && (
+            {gate.upToDate && (
               <div>{t('gscBq.upToDate', { defaultValue: 'Nothing new to pull.' })}</div>
             )}
           </div>
@@ -225,13 +243,16 @@ export function GscBqPullDialog({
                   ? t('common.close', { defaultValue: 'Close' })
                   : t('common.cancel', { defaultValue: 'Cancel' })}
               </button>
+              {!result && gate.canRebuild && (
+                <button type="button" className={btn} onClick={() => void run(false, true)}>
+                  {t('gscBq.rebuild', { defaultValue: 'Rebuild' })}
+                </button>
+              )}
               {!result && (
                 <button
                   type="button"
                   className={primary}
-                  disabled={
-                    !plan || !plan.canRun || (plan.needsReset && !reset) || plan.missingDays === 0
-                  }
+                  disabled={!gate.canPull}
                   onClick={() => void run(false)}
                 >
                   {t('gscBq.pull', { defaultValue: 'Pull' })}

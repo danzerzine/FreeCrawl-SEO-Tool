@@ -2614,16 +2614,18 @@
     "contextLine": "Données de votre export BigQuery",
     "planning": "Vérification de l’export (simulation, sans coût)…",
     "range": "Période : {{start}} à {{end}}",
-    "coverage": "{{covered}} jours déjà récupérés, {{missing}} jours à récupérer en {{parts}} parties.",
+    "coverage": "L’export contient {{covered}} jours dans cette plage ({{missing}} non exportés). À récupérer : {{pull}} jours en {{parts}} parties.",
     "revised": "Google a révisé {{n}} jours déjà récupérés. Reconstruisez pour les inclure.",
     "estimate": "Lecture estimée : {{gib}} Gio ({{share}} % du 1 To gratuit par mois). Plafond : {{cap}} Gio ; facturé jusqu’ici : {{billed}} Gio.",
-    "overCap": "L’estimation dépasse le plafond ; la récupération s’arrêtera au plafond et pourra reprendre après l’avoir relevé dans les réglages.",
+    "overCap": "L’estimation dépasse le plafond. Relevez-le dans les réglages ou raccourcissez la plage ; une récupération au-dessus du plafond ne démarre pas.",
     "needsReset": "Les réglages ont changé depuis la récupération des données enregistrées. Supprimez les données BigQuery enregistrées et récupérez à nouveau.",
     "upToDate": "Rien de nouveau à récupérer.",
     "running": "Récupération de la partie {{done}} sur {{total}}…",
     "result": "{{done}} parties récupérées, {{skipped}} déjà présentes. Facturé : {{billed}} Gio.",
     "stop": "Arrêter",
     "recordEmpty": "Noter les mois vides et continuer",
-    "pull": "Récupérer"
+    "pull": "Récupérer",
+    "rebuild": "Reconstruire",
+    "failed": "Échec"
   }
 }

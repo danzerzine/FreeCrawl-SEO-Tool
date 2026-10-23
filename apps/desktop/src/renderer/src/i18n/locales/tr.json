@@ -2568,16 +2568,18 @@
     "contextLine": "BigQuery dışa aktarmanızdan veri",
     "planning": "Dışa aktarma kontrol ediliyor (deneme, ücretsiz)…",
     "range": "Aralık: {{start}} – {{end}}",
-    "coverage": "{{covered}} gün zaten çekildi, {{missing}} gün {{parts}} parçada çekilecek.",
+    "coverage": "Dışa aktarımda bu aralıkta {{covered}} gün var ({{missing}} gün henüz aktarılmadı). Çekilecek: {{pull}} gün, {{parts}} parça.",
     "revised": "Google, çekilmiş {{n}} günü sonradan düzeltti. Dahil etmek için yeniden oluşturun.",
     "estimate": "Tahmini okuma: {{gib}} GiB (aylık ücretsiz 1 TB’ın %{{share}}’i). Sınır: {{cap}} GiB; şimdiye kadar faturalanan: {{billed}} GiB.",
-    "overCap": "Tahmin sınırın üstünde; çekme sınırda duracak ve Ayarlar’da sınır yükseltildikten sonra sürdürülebilir.",
+    "overCap": "Tahmin sınırın üstünde. Ayarlar’da sınırı yükseltin veya aralığı kısaltın; sınırı aşan çekme başlamaz.",
     "needsReset": "Kayıtlı veriler çekildikten sonra ayarlar değişti. Kayıtlı BigQuery verilerini silip yeniden çekin.",
     "upToDate": "Çekilecek yeni bir şey yok.",
     "running": "{{total}} parçadan {{done}}. çekiliyor…",
     "result": "{{done}} parça çekildi, {{skipped}} zaten vardı. Faturalanan: {{billed}} GiB.",
     "stop": "Durdur",
     "recordEmpty": "Boş ayları kaydet ve devam et",
-    "pull": "Çek"
+    "pull": "Çek",
+    "rebuild": "Yeniden oluştur",
+    "failed": "Başarısız"
   }
 }

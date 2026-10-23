@@ -2568,16 +2568,18 @@
     "contextLine": "BigQuery ixracınızdan məlumat",
     "planning": "İxrac yoxlanılır (sınaq, pulsuz)…",
     "range": "Dövr: {{start}} – {{end}}",
-    "coverage": "{{covered}} gün artıq yüklənib, {{missing}} gün {{parts}} hissədə yüklənəcək.",
+    "coverage": "İxracda bu aralıqda {{covered}} gün var ({{missing}} gün ixrac olunmayıb). Yüklənəcək: {{pull}} gün, {{parts}} hissə.",
     "revised": "Google yüklənmiş {{n}} günü sonradan yenilədi. Daxil etmək üçün yenidən qurun.",
     "estimate": "Təxmini oxuma: {{gib}} GiB (aylıq pulsuz 1 TB-ın {{share}}%-i). Limit: {{cap}} GiB; indiyədək ödənilən: {{billed}} GiB.",
-    "overCap": "Təxmin limitdən yuxarıdır; yükləmə limitdə dayanacaq və limiti Ayarlarda artırdıqdan sonra davam etdirilə bilər.",
+    "overCap": "Təxmin limitdən yuxarıdır. Ayarlarda limiti artırın və ya aralığı qısaldın; limitdən yuxarı yükləmə başlamır.",
     "needsReset": "Saxlanmış məlumatlar yüklənəndən sonra ayarlar dəyişib. Saxlanmış BigQuery məlumatlarını silib yenidən yükləyin.",
     "upToDate": "Yüklənəcək yeni heç nə yoxdur.",
     "running": "Hissə {{done}} / {{total}} yüklənir…",
     "result": "{{done}} hissə yükləndi, {{skipped}} artıq var idi. Ödənilən: {{billed}} GiB.",
     "stop": "Dayandır",
     "recordEmpty": "Boş ayları qeyd et və davam et",
-    "pull": "Yüklə"
+    "pull": "Yüklə",
+    "rebuild": "Yenidən qur",
+    "failed": "Alınmadı"
   }
 }

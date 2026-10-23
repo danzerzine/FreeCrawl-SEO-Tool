@@ -2734,16 +2734,18 @@
     "contextLine": "Data from your BigQuery export",
     "planning": "Checking the export (dry run, no cost)…",
     "range": "Range: {{start}} to {{end}}",
-    "coverage": "{{covered}} days already pulled, {{missing}} days to pull in {{parts}} parts.",
+    "coverage": "The export holds {{covered}} days in this range ({{missing}} not exported). To pull: {{pull}} days in {{parts}} parts.",
     "revised": "{{n}} pulled days were revised by Google since. Rebuild to include them.",
     "estimate": "Estimated read: {{gib}} GiB ({{share}}% of the free 1 TB a month). Cap: {{cap}} GiB; billed so far: {{billed}} GiB.",
-    "overCap": "The estimate is above the cap; the pull will stop at the cap and can be continued after raising it in Settings.",
+    "overCap": "The estimate is above the cap. Raise the cap in Settings or shorten the range; a pull above the cap does not start.",
     "needsReset": "The settings changed since the saved data was pulled. Drop the saved BigQuery data and pull again.",
     "upToDate": "Nothing new to pull.",
     "running": "Pulling part {{done}} of {{total}}…",
     "result": "{{done}} parts pulled, {{skipped}} already there. Billed: {{billed}} GiB.",
     "stop": "Stop",
     "recordEmpty": "Record empty months and continue",
-    "pull": "Pull"
+    "pull": "Pull",
+    "rebuild": "Rebuild",
+    "failed": "Failed"
   }
 }
