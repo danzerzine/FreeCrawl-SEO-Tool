@@ -14,6 +14,7 @@ import {
   type CrawlProgress,
   type CrawlSnapshot,
   type ExportSet,
+  type LinkSuggestionInput,
   type LogIngestInput,
   type MetricaFetchMeta,
 } from '@freecrawl/shared-types';
@@ -340,6 +341,12 @@ export options:
   --section-depth <n> With --by-section: folder depth, 1 or 2 (default 1)
   --with-bodies       With dataset:top-words: also read stored page bodies (slower; needs bodies saved
                         by the crawl)
+  --max-inlinks <n>   With dataset:link-suggestions: pages with at most n effective inlinks need links (default 3, 0-50)
+  --per-target <n>    With dataset:link-suggestions: sources suggested per page (default 5, 1-20)
+  --per-source <n>    With dataset:link-suggestions: one source is offered to at most n pages (default 10, 1-100)
+  --min-closeness <n> With dataset:link-suggestions: lowest closeness % of a suggestion (default 20, 0-100)
+  --max-targets <n>   With dataset:link-suggestions: weakest pages to look at, worst first (default 1000, 1-20000)
+  --max-source-outlinks <n> With dataset:link-suggestions: skip sources with more outlinks (default 150)
   --save-set <name>   Save --what (and --raw-headers) in the project as a named export set, replacing
                         one of the same name; writes no files. The desktop scheduler can run it too.
   --set <name>        Run a saved export set instead of --what (exit 2 if the project has none of that name)
@@ -391,6 +398,12 @@ function parseCliArgs() {
       'by-section': { type: 'boolean' },
       'section-depth': { type: 'string' },
       'with-bodies': { type: 'boolean' },
+      'max-inlinks': { type: 'string' },
+      'per-target': { type: 'string' },
+      'per-source': { type: 'string' },
+      'min-closeness': { type: 'string' },
+      'max-targets': { type: 'string' },
+      'max-source-outlinks': { type: 'string' },
       'page-script': { type: 'string' },
       axe: { type: 'boolean' },
       'cookie-list': { type: 'boolean' },
@@ -613,6 +626,14 @@ async function main(): Promise<void> {
         bySection: Boolean(values['by-section']),
         sectionDepth: values['section-depth'],
         withBodies: Boolean(values['with-bodies']),
+      },
+      linkSuggestions: {
+        'max-inlinks': values['max-inlinks'],
+        'per-target': values['per-target'],
+        'per-source': values['per-source'],
+        'min-closeness': values['min-closeness'],
+        'max-targets': values['max-targets'],
+        'max-source-outlinks': values['max-source-outlinks'],
       },
       json: Boolean(values.json),
     });
@@ -2320,6 +2341,8 @@ async function runExport(opts: {
   maxBytes: string | undefined;
   /** B84: flags of `--what dataset:top-words`, as typed. */
   topWords: TopWordsFlags;
+  /** B93: flags of `--what dataset:link-suggestions`, as typed. */
+  linkSuggestions: Record<string, string | undefined>;
   json: boolean;
 }): Promise<number> {
   const print = (outcome: ExportOutcome, error: string | null): void => {
@@ -2343,6 +2366,9 @@ async function runExport(opts: {
     if (error !== null) console.error(error);
     for (const f of outcome.files) {
       console.log(`${f.rows === null ? '' : `${f.rows} rows  `}${f.path}`);
+    }
+    for (const f of outcome.files) {
+      for (const w of f.warnings ?? []) console.error(`Warning: ${f.label}: ${w}`);
     }
     for (const e of outcome.errors) console.error(`Failed: ${e.label}: ${e.error}`);
     for (const k of outcome.skipped) console.error(`Skipped: ${k.label}: ${k.reason}`);
@@ -2368,8 +2394,10 @@ async function runExport(opts: {
   let items: ExportItem[];
   let selectedUrls: string[] = [];
   let topWords: TopWordsBlocksOptions;
+  let linkSuggestionInput: LinkSuggestionInput;
   try {
     topWords = parseTopWordsFlags(opts.topWords);
+    linkSuggestionInput = parseLinkSuggestionFlags(opts.linkSuggestions);
     // `--urls` alone means just the selected links; `--what` adds to them.
     // A `--set` is looked up once the project is open.
     items =
@@ -2447,6 +2475,7 @@ async function runExport(opts: {
       onProgress: progressLine,
       outcome,
       topWords,
+      linkSuggestions: linkSuggestionInput,
     };
     // Before the run, so the folder's manifest.json lists it too.
     if (missing.length > 0) {
@@ -2505,6 +2534,29 @@ function parseTopWordsFlags(f: TopWordsFlags): TopWordsBlocksOptions {
   }
   if (f.bySection) out.bySection = true;
   if (f.withBodies) out.withBodies = true;
+  return out;
+}
+
+/** Validate the B93 flags (`--max-inlinks`, `--per-target`, ...); throws the exit-2 message. */
+function parseLinkSuggestionFlags(f: Record<string, string | undefined>): LinkSuggestionInput {
+  const ranges: [flag: string, key: keyof LinkSuggestionInput, min: number, max: number][] = [
+    ['max-inlinks', 'maxInlinks', 0, 50],
+    ['per-target', 'perTarget', 1, 20],
+    ['per-source', 'perSource', 1, 100],
+    ['min-closeness', 'minCloseness', 0, 100],
+    ['max-targets', 'maxTargets', 1, 20000],
+    ['max-source-outlinks', 'maxSourceOutlinks', 0, 1_000_000],
+  ];
+  const out: LinkSuggestionInput = {};
+  for (const [flag, key, min, max] of ranges) {
+    const raw = f[flag];
+    if (raw === undefined) continue;
+    const n = Number(raw.trim());
+    if (raw.trim() === '' || !Number.isInteger(n) || n < min || n > max) {
+      throw new Error(`--${flag} must be a whole number from ${min} to ${max} (got "${raw}").`);
+    }
+    out[key] = n;
+  }
   return out;
 }
 

@@ -15,6 +15,8 @@ import {
   type BulkExportResult,
   type ExportDatasetKey,
   type ExportSet,
+  type LinkSuggestionInput,
+  type LinkSuggestionResult,
   type LinkTargetReportKind,
 } from '@freecrawl/shared-types';
 import {
@@ -33,6 +35,7 @@ import { exportPdfs, exportScreenshots, type PdfCrawlConfig, type PdfFetched } f
 import { exportPdfText } from './pdf-text-export.js';
 import { exportTabular } from './tabular-export.js';
 import type { TopWordsBlocksOptions } from './top-words-db.js';
+import { linkSuggestions } from './link-suggestions.js';
 
 /** One `--what` entry of `freecrawl export`. */
 export type ExportItem =
@@ -64,10 +67,25 @@ export interface ExportOutcome {
     path: string;
     label: string;
     rows: number | null;
+    /** The file is usable but incomplete or approximate (`truncated`, `degraded`, `redirectsFolded: one-hop`). */
+    warnings?: string[];
   })[];
   errors: { label: string; error: string }[];
   /** Outputs that held no rows, so no file was written; not a failure. */
   skipped: { label: string; reason: string }[];
+}
+
+/** Said when the project has no inlink pass behind it (not the redirect-chain message of the link reports). */
+export const LINK_SUGGESTIONS_NOT_COMPUTED =
+  'Link suggestions: the crawl did not compute inlinks (run a crawl with link analysis on)';
+
+/** What a person must know about a link-suggestions file: it is cut, thinned or approximate. */
+function linkSuggestionWarnings(r: LinkSuggestionResult): string[] {
+  const out: string[] = [];
+  if (r.truncated) out.push('truncated');
+  if (r.degraded) out.push('degraded');
+  if (r.redirectsFolded === 'one-hop') out.push('redirectsFolded: one-hop');
+  return out;
 }
 
 export const EXPORT_WHAT_HELP =
@@ -176,6 +194,8 @@ export interface RunExportItemsOptions {
   outcome?: ExportOutcome;
   /** Options of `dataset:top-words` (CLI `--ngram`, `--word-locale`, `--by-section`, `--section-depth`, `--with-bodies`). */
   topWords?: TopWordsBlocksOptions;
+  /** Thresholds of `dataset:link-suggestions` (CLI `--max-inlinks`, `--per-target`, ...). */
+  linkSuggestions?: LinkSuggestionInput;
 }
 
 /**
@@ -290,6 +310,19 @@ export async function runExportItems(
           addBulk(await exportIssueInlinks(db, outDir, { headers }));
         } else {
           const label = item.name;
+          // B93: the report runs once, here; the writer only reads its rows.
+          let suggestions: LinkSuggestionResult | null = null;
+          if (item.dataset === 'link-suggestions') {
+            suggestions = await db.withoutMmap(async () =>
+              linkSuggestions(db, options.linkSuggestions ?? {}),
+            );
+            if (suggestions === null) {
+              const error = LINK_SUGGESTIONS_NOT_COMPUTED;
+              progress(`${label}: ${error}`);
+              outcome.errors.push({ label, error });
+              continue;
+            }
+          }
           const jsonl = JSONL_DATASETS.includes(item.dataset);
           const path = join(outDir, `${item.dataset.replace(':', '-')}.${jsonl ? 'jsonl' : 'csv'}`);
           const { rowsWritten, skipped } = await writeExportFile(
@@ -301,6 +334,7 @@ export async function runExportItems(
                 columns: EXPORT_DATASET_COLUMNS[item.dataset].map((c) => c.key),
                 headers,
                 ...(options.topWords ? { datasetContext: { topWords: options.topWords } } : {}),
+                ...(suggestions ? { datasetContext: { linkSuggestions: suggestions.rows } } : {}),
               }),
             (r) => r.rowsWritten > 0,
           );
@@ -314,7 +348,13 @@ export async function runExportItems(
           } else if (rowsWritten === 0) {
             outcome.skipped.push({ label, reason: 'No rows in this crawl: no file written.' });
           } else {
-            outcome.files.push({ path, label, rows: rowsWritten });
+            const warnings = suggestions ? linkSuggestionWarnings(suggestions) : [];
+            outcome.files.push({
+              path,
+              label,
+              rows: rowsWritten,
+              ...(warnings.length > 0 ? { warnings } : {}),
+            });
           }
         }
       } else if (item.kind === 'issue-inlinks') {
@@ -397,6 +437,7 @@ async function writeRunManifest(
         ms: f.ms,
         peakRssMb: f.peakRssMb,
         sharedPass: f.sharedPass,
+        warnings: f.warnings,
       })),
       errors: outcome.errors,
       skipped: outcome.skipped,

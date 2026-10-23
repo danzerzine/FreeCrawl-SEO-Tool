@@ -45,6 +45,7 @@ export type ExportDatasetKey =
   | 'webmaster'
   | 'webmaster-broken-links'
   | 'top-words'
+  | 'link-suggestions'
   | `ai:${AiProvider}`
   | `seo:${SeoProvider}`;
 
@@ -380,6 +381,22 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'count', header: 'Count' },
     { key: 'pages', header: 'Pages' },
     { key: 'capped', header: 'Capped' },
+  ],
+  // B93: pages that lack links and the pages to add them from; one row per suggestion.
+  'link-suggestions': [
+    { key: 'targetUrl', header: 'Target URL' },
+    { key: 'targetTitle', header: 'Target Title' },
+    { key: 'targetInlinks', header: 'Target Inlinks' },
+    { key: 'targetContentInlinks', header: 'Target Content Inlinks' },
+    { key: 'targetLinkScore', header: 'Target Link Score' },
+    { key: 'rank', header: 'Rank' },
+    { key: 'sourceUrl', header: 'Source URL' },
+    { key: 'sourceTitle', header: 'Source Title' },
+    { key: 'closeness', header: 'Closeness %' },
+    { key: 'sourceLinkScore', header: 'Source Link Score' },
+    { key: 'sourceOutlinks', header: 'Source Outlinks' },
+    { key: 'sameSection', header: 'Same Section' },
+    { key: 'suggestedAnchor', header: 'Suggested Anchor' },
   ],
   'ai:openai': AI,
   'ai:anthropic': AI,

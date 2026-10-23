@@ -1,5 +1,10 @@
 import type { ProjectDb } from '@freecrawl/db';
-import type { AiProvider, ExportDatasetKey, GscRow } from '@freecrawl/shared-types';
+import type {
+  AiProvider,
+  ExportDatasetKey,
+  GscRow,
+  LinkSuggestionRow,
+} from '@freecrawl/shared-types';
 import { extractVisibleText } from './html-parser.js';
 import { registrableDomain } from './url-utils.js';
 import { sitemapReconciliationRows } from './sitemap-reconciliation.js';
@@ -37,6 +42,8 @@ export interface DatasetExportContext {
   urlIds?: number[];
   /** Options of the `top-words` dataset (CLI `--ngram`, `--word-locale`, `--by-section`, ...). */
   topWords?: TopWordsBlocksOptions;
+  /** The `link-suggestions` dataset's rows, computed once by the caller (it also needs the flags of the run). */
+  linkSuggestions?: LinkSuggestionRow[];
 }
 
 const PAGE_SIZE = 2000;
@@ -238,6 +245,12 @@ export function datasetRows(
             };
         })(),
       );
+    case 'link-suggestions':
+      return (function* () {
+        for (const r of ctx.linkSuggestions ?? []) {
+          yield { ...r, sameSection: r.sameSection === null ? null : r.sameSection ? 'yes' : 'no' };
+        }
+      })();
     case 'top-words':
       return topWordsDatasetRows(db, ctx.topWords ?? {});
     case 'crux':
