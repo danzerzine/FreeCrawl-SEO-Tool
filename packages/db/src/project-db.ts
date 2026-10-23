@@ -1881,89 +1881,98 @@ export class ProjectDb {
     this.db = readOnly
       ? new DatabaseSync(filePath, { readOnly: true })
       : new DatabaseSync(filePath);
-    this.bodies = new BodyCodec(this.db);
-    // Per-connection (reader workers open ProjectDb too): lets SQL filter by
-    // user regex so LIMIT still applies after the exclusion. Patterns reach
-    // here only via compileOrphanExcludePatterns.
-    const regexCache = new Map<string, RegExp>();
-    this.db.function('fc_regexp', { deterministic: true }, (pattern, value) => {
-      // A NULL url or a non-text pattern matches nothing.
-      if (typeof pattern !== 'string' || typeof value !== 'string') return 0;
-      let re = regexCache.get(pattern);
-      if (!re) {
-        re = new RegExp(pattern);
-        regexCache.set(pattern, re);
+    // A setup step that throws (a reader opening a file the crawl has not
+    // migrated yet: "no such table") must not leave the connection open:
+    // nothing could close it, and an open connection, even idle, keeps the
+    // writer's last close from folding and removing the WAL.
+    try {
+      this.bodies = new BodyCodec(this.db);
+      // Per-connection (reader workers open ProjectDb too): lets SQL filter by
+      // user regex so LIMIT still applies after the exclusion. Patterns reach
+      // here only via compileOrphanExcludePatterns.
+      const regexCache = new Map<string, RegExp>();
+      this.db.function('fc_regexp', { deterministic: true }, (pattern, value) => {
+        // A NULL url or a non-text pattern matches nothing.
+        if (typeof pattern !== 'string' || typeof value !== 'string') return 0;
+        let re = regexCache.get(pattern);
+        if (!re) {
+          re = new RegExp(pattern);
+          regexCache.set(pattern, re);
+        }
+        return re.test(value) ? 1 : 0;
+      });
+      // The Duplicate URL comparison key (see `urlDedupeKey`); NULL stays NULL.
+      this.db.function('fc_url_dedupe_key', { deterministic: true }, (url) =>
+        typeof url === 'string' ? urlDedupeKey(url) : null,
+      );
+      if (!readOnly) {
+        this.db.exec('PRAGMA journal_mode = WAL');
+        this.db.exec('PRAGMA synchronous = NORMAL');
+        this.db.exec('PRAGMA foreign_keys = ON');
       }
-      return re.test(value) ? 1 : 0;
-    });
-    // The Duplicate URL comparison key (see `urlDedupeKey`); NULL stays NULL.
-    this.db.function('fc_url_dedupe_key', { deterministic: true }, (url) =>
-      typeof url === 'string' ? urlDedupeKey(url) : null,
-    );
-    if (!readOnly) {
-      this.db.exec('PRAGMA journal_mode = WAL');
-      this.db.exec('PRAGMA synchronous = NORMAL');
-      this.db.exec('PRAGMA foreign_keys = ON');
-    }
-    // Two writer connections coexist on the same DB file in the desktop
-    // app: the main-process ProjectDb (used for sitemap ingest, post-
-    // crawl recomputes, the user-initiated mutations like deleteUrl)
-    // AND the db-writer worker thread (used for the per-URL hot path).
-    // SQLite serialises writes at the file level, so without
-    // `busy_timeout` whichever connection is "second" through the door
-    // gets SQLITE_BUSY thrown the instant the other one is mid-
-    // transaction — we saw this when the user clicked Start twice in
-    // quick succession ("Sitemap discovery skipped: database is
-    // locked"). 10 s is well over the worst-case writer hold time
-    // (post-crawl materialise-issues yielding transactions are <500 ms
-    // each) and adds zero overhead when there is no contention.
-    if (!readOnly) {
-      this.db.exec('PRAGMA busy_timeout = 10000');
-    } else {
-      // Even read-only connections benefit during a checkpoint storm.
-      this.db.exec('PRAGMA busy_timeout = 5000');
-    }
-    this.db.exec('PRAGMA temp_store = MEMORY');
-    this.db.exec(`PRAGMA cache_size = ${readOnly ? -32768 : -131072}`);
-    // 30GB virtual address window for mmap-backed reads; OS only pages in
-    // what's touched, so there's no actual memory commit here.
-    this.db.exec(`PRAGMA mmap_size = ${MMAP_SIZE}`);
-    if (!readOnly) {
-      this.db.exec('PRAGMA page_size = 4096');
-      this.db.exec('PRAGMA wal_autocheckpoint = 2000');
-      runMigrations(this.db);
-      // Projects written before this existed carry no `sqlite_stat1` at
-      // all, and a crawl that starts on an empty DB would otherwise plan
-      // every query as if the tables were still empty. See `optimize()`
-      // for what that costs.
-      this.optimize();
-    }
+      // Two writer connections coexist on the same DB file in the desktop
+      // app: the main-process ProjectDb (used for sitemap ingest, post-
+      // crawl recomputes, the user-initiated mutations like deleteUrl)
+      // AND the db-writer worker thread (used for the per-URL hot path).
+      // SQLite serialises writes at the file level, so without
+      // `busy_timeout` whichever connection is "second" through the door
+      // gets SQLITE_BUSY thrown the instant the other one is mid-
+      // transaction — we saw this when the user clicked Start twice in
+      // quick succession ("Sitemap discovery skipped: database is
+      // locked"). 10 s is well over the worst-case writer hold time
+      // (post-crawl materialise-issues yielding transactions are <500 ms
+      // each) and adds zero overhead when there is no contention.
+      if (!readOnly) {
+        this.db.exec('PRAGMA busy_timeout = 10000');
+      } else {
+        // Even read-only connections benefit during a checkpoint storm.
+        this.db.exec('PRAGMA busy_timeout = 5000');
+      }
+      this.db.exec('PRAGMA temp_store = MEMORY');
+      this.db.exec(`PRAGMA cache_size = ${readOnly ? -32768 : -131072}`);
+      // 30GB virtual address window for mmap-backed reads; OS only pages in
+      // what's touched, so there's no actual memory commit here.
+      this.db.exec(`PRAGMA mmap_size = ${MMAP_SIZE}`);
+      if (!readOnly) {
+        this.db.exec('PRAGMA page_size = 4096');
+        this.db.exec('PRAGMA wal_autocheckpoint = 2000');
+        runMigrations(this.db);
+        // Projects written before this existed carry no `sqlite_stat1` at
+        // all, and a crawl that starts on an empty DB would otherwise plan
+        // every query as if the tables were still empty. See `optimize()`
+        // for what that costs.
+        this.optimize();
+      }
 
-    if (readOnly) {
-      // Read-only mode: the prepare-statement-on-construct pattern below
-      // would fail because the SQL contains writes (UPSERT/INSERT). They
-      // are not used on a read-only connection; assign placeholder casts
-      // so the typings are satisfied. Any accidental write call would
-      // throw at run time with a clear "attempt to write a readonly
-      // database" message — easier to debug than a silent no-op.
-      const noopStmt = this.db.prepare('SELECT 1') as unknown as StatementSync;
-      this.stmtUpsertUrl = noopStmt;
+      if (readOnly) {
+        // Read-only mode: the prepare-statement-on-construct pattern below
+        // would fail because the SQL contains writes (UPSERT/INSERT). They
+        // are not used on a read-only connection; assign placeholder casts
+        // so the typings are satisfied. Any accidental write call would
+        // throw at run time with a clear "attempt to write a readonly
+        // database" message — easier to debug than a silent no-op.
+        const noopStmt = this.db.prepare('SELECT 1') as unknown as StatementSync;
+        this.stmtUpsertUrl = noopStmt;
+        this.stmtGetUrlId = this.db.prepare('SELECT id FROM urls WHERE url = ?');
+        this.stmtInsertLink = noopStmt;
+        this.stmtInsertExternalStub = noopStmt;
+        return;
+      }
+
+      this.stmtUpsertUrl = this.db.prepare(UPSERT_URL_SQL);
       this.stmtGetUrlId = this.db.prepare('SELECT id FROM urls WHERE url = ?');
-      this.stmtInsertLink = noopStmt;
-      this.stmtInsertExternalStub = noopStmt;
-      return;
+      this.stmtInsertLink = this.db.prepare(
+        'INSERT INTO links (from_url_id, to_url, anchor, rel, is_internal) VALUES (?, ?, ?, ?, ?)',
+      );
+      this.stmtInsertExternalStub = this.db.prepare(
+        `INSERT INTO urls (url, content_kind, depth, is_external, indexability)
+         VALUES (?, 'other', ?, 1, 'indexable')
+         ON CONFLICT(url) DO NOTHING`,
+      );
+    } catch (err) {
+      this.db.close();
+      throw err;
     }
-
-    this.stmtUpsertUrl = this.db.prepare(UPSERT_URL_SQL);
-    this.stmtGetUrlId = this.db.prepare('SELECT id FROM urls WHERE url = ?');
-    this.stmtInsertLink = this.db.prepare(
-      'INSERT INTO links (from_url_id, to_url, anchor, rel, is_internal) VALUES (?, ?, ?, ?, ?)',
-    );
-    this.stmtInsertExternalStub = this.db.prepare(
-      `INSERT INTO urls (url, content_kind, depth, is_external, indexability)
-       VALUES (?, 'other', ?, 1, 'indexable')
-       ON CONFLICT(url) DO NOTHING`,
-    );
   }
 
   close(): void {
