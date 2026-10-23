@@ -57,7 +57,13 @@ async function foreign(host: string, headStatus = 200): Promise<Foreign> {
       .writeHead(req.method === 'HEAD' ? f.headStatus : 200, { 'content-type': 'text/html' })
       .end('ok');
   });
-  await new Promise<void>((r) => f.server.listen(0, host, r));
+  await new Promise<void>((resolve, reject) => {
+    f.server.once('error', reject);
+    f.server.listen(0, host, resolve);
+  }).catch((err: unknown) => {
+    f.server.close();
+    throw err;
+  });
   f.port = (f.server.address() as { port: number }).port;
   closers.push(f.server);
   return f;
