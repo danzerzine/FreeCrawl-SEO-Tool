@@ -184,7 +184,10 @@ describe('freecrawl export --what pdf-text', () => {
     const lines = jsonl(out);
     expect(lines).toHaveLength(2);
     for (const l of lines) expect(l.status).toMatch(/^skipped: auth secrets are encrypted/);
-    expect(fs.existsSync(path.join(out, 'pdf-links.csv'))).toBe(false);
+    // pdf-links.csv is always written next to the jsonl: the header alone when no PDF gave a link.
+    expect(fs.readFileSync(path.join(out, 'pdf-links.csv'), 'utf8').replace(/^\uFEFF/, '')).toBe(
+      'pdf_url,page,link_url,is_internal\n',
+    );
   });
 
   it('a crawl without PDFs gives the same exit code and message as --what pdfs, and no file', async () => {

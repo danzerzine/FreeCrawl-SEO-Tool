@@ -22,7 +22,7 @@ export interface PdfTextExportOptions extends PdfExportOptions {
 }
 
 export interface PdfTextExportResult extends MediaExportResult {
-  /** Rows of `pdf-links.csv`; 0 means that file was not written. */
+  /** Rows of `pdf-links.csv` (0: only the header; the file is written whenever `pdf-text.jsonl` is). */
   linkRows: number;
   linksCsvPath: string | null;
 }
@@ -110,8 +110,8 @@ export async function exportPdfText(
         },
         (r) => r.listed > 0,
       ),
-    // The links file is kept only when some PDF had a link; the jsonl above is already decided.
-    () => linkRows > 0,
+    // Both files stand or fall together: with PDFs listed, pdf-links.csv exists (header only when none had a link).
+    (r) => r.listed > 0,
   );
   const wrote = pass.listed > 0;
   return {
@@ -120,6 +120,6 @@ export async function exportPdfText(
     errors: pass.errors,
     skipped: pass.skipped,
     linkRows,
-    linksCsvPath: linkRows > 0 ? linksPath : null,
+    linksCsvPath: wrote ? linksPath : null,
   };
 }
