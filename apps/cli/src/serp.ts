@@ -1,6 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { checkSerpRows, parseSerpInput, serpRowsToCsv, type SerpRowResult } from '@freecrawl/core';
-import { DEFAULT_SEO_THRESHOLDS, type SeoThresholds } from '@freecrawl/shared-types';
+import { checkSerpRows, parseSerpInput, serpRowsToCsv } from '@freecrawl/core';
+import {
+  DEFAULT_SEO_THRESHOLDS,
+  type SeoThresholds,
+  type SerpRowResult,
+} from '@freecrawl/shared-types';
 
 export interface SerpOptions {
   /** Path of the list, or '-' for stdin. */

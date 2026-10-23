@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkSerpRows, parseSerpInput, SERP_CSV_COLUMNS, serpRowsToCsv } from './serp-check.js';
+import { checkSerpRows, parseSerpInput, SERP_CSV_COLUMNS, serpRowsToCsv, checkSerpInput } from './serp-check.js';
 import { estimatePixelWidth, META_DESCRIPTION_FONT_PX, parseHtml } from './html-parser.js';
 
 const row = (title: string, description = 'd', url?: string) => ({ url, title, description });
@@ -166,5 +166,18 @@ describe('B85 serpRowsToCsv', () => {
     const csv = serpRowsToCsv(checkSerpRows([row('=HYPERLINK("http://x","y")', '+cmd')]));
     expect(csv).toContain(`"'=HYPERLINK(""http://x"",""y"")"`);
     expect(csv).toContain("'+cmd");
+  });
+});
+
+describe('B85 checkSerpInput (the dialog seam)', () => {
+  it('pasted text goes through the parser and the check with the project limits', () => {
+    const rows = checkSerpInput({ text: 'Hello there\tdesc\nHello there\tother', thresholds: { titleMinChars: 3 } });
+    expect(rows.map((r) => r.titleStatus)).toEqual(['pixel-too-short', 'pixel-too-short']);
+    expect(rows.map((r) => r.duplicateTitle)).toEqual([2, 2]);
+  });
+
+  it('ready rows are checked as given; no text and no rows is an empty list', () => {
+    expect(checkSerpInput({ rows: [row('Solo')] })).toHaveLength(1);
+    expect(checkSerpInput({})).toEqual([]);
   });
 });

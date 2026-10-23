@@ -33,6 +33,7 @@ import type {
   IssueTrend,
   MonitorHistoryRow,
 } from './monitor.js';
+import type { SerpCheckInput, SerpRowResult } from './serp.js';
 import type { AxeResultRow } from './axe.js';
 import type {
   PagespeedRow,
@@ -324,6 +325,8 @@ export const IPC = {
   reportsServerHeaders: 'reports:server-headers',
   reportsTopWords: 'reports:top-words',
   reportsTopWordsBlocks: 'reports:top-words-blocks',
+  /** B85: check pasted titles and descriptions against the snippet limits; nothing is fetched or stored. */
+  reportsSerpCheck: 'reports:serp-check',
   /**
    * Renderer → main heartbeat carrying the live input-lag estimate (ms).
    * The crawler subscribes to this so it can adaptively shrink its
@@ -2534,6 +2537,8 @@ export interface FreeCrawlApi {
   reportsTopWords(input: TopWordsInput): Promise<TopWordsRow[]>;
   /** B84: words or phrases for the site, one folder, every folder or one page; each block says whether it is approximate. */
   reportsTopWordsBlocks(input: TopWordsInput): Promise<TopWordsBlock[]>;
+  /** B85 SERP-lite: pasted text or rows against the limits (project's or given); no storage, no fetch. */
+  reportsSerpCheck(input: SerpCheckInput): Promise<SerpRowResult[]>;
   /** Heartbeat: renderer reports its latest input-lag sample (ms). */
   reportRendererLag(lagMs: number): void;
   prefsExportSettings(input: SettingsExportInput): Promise<SettingsExportResult>;

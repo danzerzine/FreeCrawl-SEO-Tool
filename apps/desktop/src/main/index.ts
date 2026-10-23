@@ -117,6 +117,8 @@ import {
   type ServerHeaderRow,
   type TopWordsBlock,
   type TopWordsInput,
+  type SerpCheckInput,
+  type SerpRowResult,
   type TopWordsRow,
   type WordCountPerDirectoryInput,
   type WordCountPerDirectoryRow,
@@ -331,6 +333,7 @@ import {
   testUrlAgainstRobots,
   validateRobotsTxt,
   topWordsBlocksAsync,
+  checkSerpInput,
   fetchSitemaps,
   validateFetchedSitemaps,
   normalizeUrl,
@@ -5560,6 +5563,11 @@ function registerIpc(): void {
   registerHandle(
     IPC.reportsTopWordsBlocks,
     (_e, input: TopWordsInput): Promise<TopWordsBlock[]> => computeTopWordsBlocks(input),
+  );
+  // B85: pure check of pasted text, no project read and no storage.
+  registerHandle(
+    IPC.reportsSerpCheck,
+    (_e, input: SerpCheckInput): SerpRowResult[] => checkSerpInput(input ?? {}),
   );
 
   registerHandle(

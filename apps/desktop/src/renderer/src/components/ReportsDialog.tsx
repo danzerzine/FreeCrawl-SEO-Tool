@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store.js';
+import { SerpCheckPanel } from './SerpCheckPanel.js';
 import type {
   PagesPerDirectoryRow,
   StatusCodeHistogramRow,
@@ -61,6 +62,7 @@ type ReportKind =
   | 'orphan-cross-source'
   | 'server-headers'
   | 'top-words'
+  | 'serp-check'
   | 'pages-over-link-limit'
   | 'mobile-parity';
 
@@ -119,6 +121,7 @@ const REPORT_LABELS: Record<ReportKind, string> = {
   'orphan-cross-source': 'Orphan Pages — Sitemap + GSC + GA4 + Metrica (Top 1000)',
   'server-headers': 'Server Stack (Server Header)',
   'top-words': 'Top Words (Title + Meta + H1, Top 100)',
+  'serp-check': 'SERP check',
   'pages-over-link-limit': 'Pages Over Max Links per Page',
   'mobile-parity': 'Mobile vs Desktop Differences',
 };
@@ -152,6 +155,7 @@ const TOP_URL_METRIC: Record<ReportKind, TopUrlMetric | null> = {
   'orphan-cross-source': null,
   'server-headers': null,
   'top-words': null,
+  'serp-check': null,
   'pages-over-link-limit': null,
   'mobile-parity': null,
 };
@@ -190,6 +194,7 @@ const VALUE_FORMAT: Record<ReportKind, (v: number | null) => string> = {
   'orphan-cross-source': (v) => (v ?? 0).toLocaleString(),
   'server-headers': (v) => (v ?? 0).toLocaleString(),
   'top-words': (v) => (v ?? 0).toLocaleString(),
+  'serp-check': () => '',
   'pages-over-link-limit': (v) => (v ?? 0).toLocaleString(),
   'mobile-parity': (v) => (v ?? 0).toLocaleString(),
 };
@@ -256,6 +261,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
     'orphan-cross-source': t('reports.report.orphanCrossSource', { defaultValue: REPORT_LABELS['orphan-cross-source'] }),
     'server-headers': t('reports.report.serverHeaders', { defaultValue: REPORT_LABELS['server-headers'] }),
     'top-words': t('reports.report.topWords', { defaultValue: REPORT_LABELS['top-words'] }),
+    'serp-check': t('reports.report.serpCheck', { defaultValue: REPORT_LABELS['serp-check'] }),
     'pages-over-link-limit': t('reports.report.pagesOverLinkLimit', {
       defaultValue: REPORT_LABELS['pages-over-link-limit'],
     }),
@@ -290,12 +296,19 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
     'orphan-cross-source': 'URL',
     'server-headers': t('reports.keyServer', { defaultValue: 'Server' }),
     'top-words': topN === 1 ? t('reports.keyWord', { defaultValue: 'Word' }) : t('reports.keyPhrase', { defaultValue: 'Phrase' }),
+    'serp-check': 'URL',
     'pages-over-link-limit': 'URL',
     'mobile-parity': 'URL',
   }), [t, topN]);
 
   useEffect(() => {
     if (!open) return;
+    if (kind === 'serp-check') {
+      // B85: the panel owns its data (pasted text); nothing is read from the project.
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setNotComputed(false);
@@ -878,6 +891,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
               </select>
             </label>
           )}
+          {kind !== 'serp-check' && (
           <span className="ml-auto text-surface-500">
             {loading
               ? t('common.loading', { defaultValue: 'Loading…' })
@@ -887,8 +901,12 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
                   urls: total.toLocaleString(),
                 })}
           </span>
+          )}
         </div>
 
+        {kind === 'serp-check' ? (
+          <SerpCheckPanel />
+        ) : (
         <div ref={scrollRef} className="flex-1 overflow-auto px-4 py-3 text-[11px]">
           {rows.length === 0 && !loading && (
             <div className="p-6 text-center text-surface-500">
@@ -968,6 +986,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
             </div>
           )}
         </div>
+        )}
 
         <div className="flex items-center justify-end gap-2 border-t border-surface-800 px-4 py-2.5">
           <button
