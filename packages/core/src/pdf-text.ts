@@ -4,7 +4,7 @@
  * keeps PDF bodies, so `--what pdf-text` downloads them again and reads each.
  */
 
-import { getDocumentProxy } from 'unpdf';
+import type { getDocumentProxy as GetDocumentProxy } from 'unpdf';
 
 /** Characters of text kept per PDF. */
 export const PDF_TEXT_MAX_CHARS = 5_000_000;
@@ -55,9 +55,11 @@ export async function extractPdf(
   const parts: string[] = [];
   let chars = 0;
   let abandoned = false;
-  let doc: Awaited<ReturnType<typeof getDocumentProxy>> | undefined;
+  let doc: Awaited<ReturnType<typeof GetDocumentProxy>> | undefined;
   let timer: NodeJS.Timeout | undefined;
   const read = async (): Promise<void> => {
+    // Loaded on first use, so the desktop (which does not run pdf-text) never loads unpdf at start-up.
+    const { getDocumentProxy } = await import('unpdf');
     doc = await getDocumentProxy(bytes, { verbosity: 0 });
     result.pages = doc.numPages;
     const last = Math.min(doc.numPages, maxPages);
