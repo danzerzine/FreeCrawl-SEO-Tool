@@ -5600,6 +5600,11 @@ export class Crawler extends EventEmitter {
       let cookiesJson: string | null = null;
       let cookiesTotal: number | null = null;
       let cookiesTruncated: number | null = null;
+      // CSS / JS coverage of the render (B44); null = not measured.
+      let cssBytes: number | null = null;
+      let cssUnusedBytes: number | null = null;
+      let jsBytes: number | null = null;
+      let jsUnusedBytes: number | null = null;
       let renderScriptRan = false;
       let renderScriptResult: string | undefined;
       let renderPreScriptHtml: string | undefined;
@@ -5686,6 +5691,9 @@ export class Crawler extends EventEmitter {
               cookiesJson = JSON.stringify(renderRes.cookies.list);
               cookiesTotal = renderRes.cookies.total;
               cookiesTruncated = renderRes.cookies.truncated ? 1 : 0;
+            }
+            if (this.config.jsRender.coverage && renderRes.coverage) {
+              ({ cssBytes, cssUnusedBytes, jsBytes, jsUnusedBytes } = renderRes.coverage);
             }
             renderScriptRan = renderRes.scriptRan === true;
             renderScriptResult = renderRes.scriptResult;
@@ -6056,6 +6064,10 @@ export class Crawler extends EventEmitter {
           cookiesJson,
           cookiesTotal,
           cookiesTruncated,
+          cssBytes,
+          cssUnusedBytes,
+          jsBytes,
+          jsUnusedBytes,
           markupErrors: parsed.markupErrors,
           markupCodes: parsed.markupCodes,
           // A page the configured content area missed is fingerprinted on

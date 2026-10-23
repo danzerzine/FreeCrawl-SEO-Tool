@@ -738,6 +738,15 @@ export interface CrawlUrlRow {
   /** Compact JSON `{code: count}` behind `markupErrors`; null when none or not checked. */
   markupCodes: string | null;
   /**
+   * CSS / JavaScript coverage of the render (B44), in UTF-16 code units of the stylesheet and script
+   * text (not transfer sizes): what the page loaded and what nothing used by the end of the load wait.
+   * Null = not measured; 0 = measured and the page has none.
+   */
+  cssBytes: number | null;
+  cssUnusedBytes: number | null;
+  jsBytes: number | null;
+  jsUnusedBytes: number | null;
+  /**
    * Cookies the page set or tried to set while it loaded (B43), from `Set-Cookie` headers and script
    * writes, as a compact JSON array without values (`{n, d, p, s, h, ss, e, by}`, at most 100 cookies /
    * 32 KB). Null = not recorded (option off, text mode, failed render); `[]` = recorded and none.
@@ -1762,6 +1771,12 @@ export interface JsRenderConfig {
    * `cookiePolicy`, which only governs the HTTP cookie counters. JS mode only. Off by default.
    */
   cookieList: boolean;
+  /**
+   * Measure how much of the CSS and JavaScript a rendered page loads and never uses (B44): one page load
+   * with the browser's coverage on, no interaction, so code that runs only on a click counts as unused.
+   * Slows each render (see the CLI help for the measured cost). JS mode only. Off by default.
+   */
+  coverage: boolean;
   /**
    * A script that runs once on every rendered page that answered 2xx, after
    * the wait and before the DOM is read (B34): click "Load more", scroll,
@@ -3205,6 +3220,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
     axeAudit: false,
     consoleErrors: false,
     cookieList: false,
+    coverage: false,
     pageScript: '',
     pageScriptTimeoutMs: PAGE_SCRIPT_TIMEOUT_DEFAULT_MS,
     spaRouting: false,

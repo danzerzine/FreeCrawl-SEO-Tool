@@ -49,6 +49,7 @@ describe('renderHookFields (a field not listed is silently dropped)', () => {
     axe: null,
     axeMs: 1,
     cookies: { total: 1, truncated: false, list: [] },
+    coverage: { cssBytes: 1, cssUnusedBytes: 1, jsBytes: 1, jsUnusedBytes: 1 },
   };
 
   it('copies every non-desktop key of a full hook result', () => {

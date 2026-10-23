@@ -582,6 +582,11 @@ interface UrlRowDb {
   cookies_total: number | null;
   /** 1 when `cookies_json` is cut at 100 cookies / 32 KB, 0 complete, NULL not recorded. */
   cookies_truncated: number | null;
+  /** CSS / JS coverage of the render (B44), UTF-16 code units; NULL = not measured, 0 = measured, none. */
+  css_bytes: number | null;
+  css_unused_bytes: number | null;
+  js_bytes: number | null;
+  js_unused_bytes: number | null;
   /** 128-byte MinHash signature of the main content (near-duplicate similarity). */
   minhash: Uint8Array | null;
   /** Best estimated similarity (%) to a near-duplicate cluster mate. */
@@ -915,6 +920,11 @@ export interface UpsertUrlInput {
   cookiesJson?: string | null;
   cookiesTotal?: number | null;
   cookiesTruncated?: number | null;
+  /** B44: NULL / undefined = not measured. */
+  cssBytes?: number | null;
+  cssUnusedBytes?: number | null;
+  jsBytes?: number | null;
+  jsUnusedBytes?: number | null;
   minhash?: Uint8Array | null;
   /** Template set the near-duplicate fingerprint was made with (B98); null = none. */
   templateSetId?: number | null;
@@ -1104,7 +1114,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, markup_errors, markup_codes, cookies_json, cookies_total, cookies_truncated, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
+    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, markup_errors, markup_codes, cookies_json, cookies_total, cookies_truncated, css_bytes, css_unused_bytes, js_bytes, js_unused_bytes, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
     template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
@@ -1150,7 +1160,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :markup_errors, :markup_codes, :cookies_json, :cookies_total, :cookies_truncated, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :markup_errors, :markup_codes, :cookies_json, :cookies_total, :cookies_truncated, :css_bytes, :css_unused_bytes, :js_bytes, :js_unused_bytes, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
     :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
@@ -1326,6 +1336,10 @@ const UPSERT_URL_SQL = `
     cookies_json = excluded.cookies_json,
     cookies_total = excluded.cookies_total,
     cookies_truncated = excluded.cookies_truncated,
+    css_bytes = excluded.css_bytes,
+    css_unused_bytes = excluded.css_unused_bytes,
+    js_bytes = excluded.js_bytes,
+    js_unused_bytes = excluded.js_unused_bytes,
     minhash = excluded.minhash,
     template_set_id = excluded.template_set_id,
     content_source = excluded.content_source,
@@ -3324,6 +3338,10 @@ export class ProjectDb {
       cookies_json: input.cookiesJson ?? null,
       cookies_total: input.cookiesTotal ?? null,
       cookies_truncated: input.cookiesTruncated ?? null,
+      css_bytes: input.cssBytes ?? null,
+      css_unused_bytes: input.cssUnusedBytes ?? null,
+      js_bytes: input.jsBytes ?? null,
+      js_unused_bytes: input.jsUnusedBytes ?? null,
       minhash: input.minhash ?? null,
       template_set_id: input.templateSetId ?? null,
       content_source: input.contentSource ?? null,
@@ -13470,6 +13488,10 @@ export class ProjectDb {
     cookiesJson: r.cookies_json ?? null,
     cookiesTotal: r.cookies_total ?? null,
     cookiesTruncated: r.cookies_truncated ?? null,
+    cssBytes: r.css_bytes ?? null,
+    cssUnusedBytes: r.css_unused_bytes ?? null,
+    jsBytes: r.js_bytes ?? null,
+    jsUnusedBytes: r.js_unused_bytes ?? null,
     nearDupSimilarity: r.near_dup_similarity ?? null,
     contentSource: (r.content_source as ContentSource | null) ?? null,
     ampPage: r.amp_page === 1,

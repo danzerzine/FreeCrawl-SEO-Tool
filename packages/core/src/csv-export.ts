@@ -45,6 +45,10 @@ const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'cookiesTotal',
   'cookiesTruncated',
   'cookiesJson',
+  'cssBytes',
+  'cssUnusedBytes',
+  'jsBytes',
+  'jsUnusedBytes',
   'crawledAt',
 ];
 

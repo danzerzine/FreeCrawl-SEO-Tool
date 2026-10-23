@@ -56,15 +56,18 @@ describe('B43 urls CSV columns', () => {
     await exportUrlsToCsv(db, f);
     const lines = fs.readFileSync(f, 'utf8').replace(/^﻿/, '').split('\n').filter(Boolean);
     const head = lines[0]!.split(',');
-    expect(head.slice(-5)).toEqual(['Markup Error Codes', 'Cookies', 'Cookies Truncated', 'Cookies JSON', 'Crawl Timestamp']);
+    expect(head.slice(-9)).toEqual([
+      'Markup Error Codes', 'Cookies', 'Cookies Truncated', 'Cookies JSON',
+      'CSS Bytes', 'Unused CSS Bytes', 'JS Bytes', 'Unused JS Bytes', 'Crawl Timestamp',
+    ]);
     expect(lines[1]).toContain('https://www.ex.com/zzz');
     expect(lines[1]).toContain(',4,1,"[{""n"":""sid""');
     expect(lines[2]).toContain('https://www.ex.com/none');
-    expect(lines[2]).toContain(',0,0,[],');
+    expect(lines[2]).toContain(',0,0,[],,,,,');
     expect(lines[3]).toContain('https://www.ex.com/aaa');
     // Never recorded: empty cells, not zeros.
     expect(lines[4]).toContain('https://www.ex.com/unrecorded');
-    expect(lines[4]).toMatch(/,,,,[^,]*$/);
+    expect(lines[4]).toMatch(/,{7}[^,]*$/);
   });
 });
 

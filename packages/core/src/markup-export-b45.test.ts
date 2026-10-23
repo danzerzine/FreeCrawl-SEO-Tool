@@ -67,6 +67,10 @@ it('URL CSV: Markup Errors and Markup Error Codes sit right before Crawled At; r
     'Cookies',
     'Cookies Truncated',
     'Cookies JSON',
+    'CSS Bytes',
+    'Unused CSS Bytes',
+    'JS Bytes',
+    'Unused JS Bytes',
     'Crawl Timestamp',
   ]);
   expect(lines[1]).toContain('https://ex.com/zzz');

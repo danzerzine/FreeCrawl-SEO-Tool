@@ -10,6 +10,7 @@ import type { AxeAudit } from './axe-reduce.js';
 import { AXE_PROBE_MS, AXE_RUN_MS, axeRunExpression, isDeadPageError, loadAxeSource } from './axe-run.js';
 import { attachConsoleCollector, type ConsoleLog } from './render-console.js';
 import type { CookieListResult } from './cookie-list.js';
+import { summarizeCoverage, type CoverageSummary } from './coverage.js';
 import { attachCookieCollector, type CookieCollector } from './render-cookies.js';
 
 export interface RenderOptions {
@@ -55,6 +56,8 @@ export interface RenderOptions {
    * responses plus the recorder's script writes (the pool needs `cookieRecorder` for those). Never the jar.
    */
   collectCookies?: boolean;
+  /** Measure CSS / JS coverage of this page (B44): the browser's coverage runs from before the navigation to the end of the wait. */
+  collectCoverage?: boolean;
   /** Resource types the pool blocks on purpose; their failures are not the site's. */
   blockedTypes?: readonly string[];
   /**
@@ -176,6 +179,8 @@ export interface RenderResult {
   consoleLog?: ConsoleLog;
   /** Cookies of this render (B43); set only with `collectCookies`, on a successful render. */
   cookies?: CookieListResult;
+  /** CSS / JS coverage numbers (B44); set only with `collectCoverage`, on a successful render whose coverage could be read. */
+  coverage?: CoverageSummary;
   /** A page script ran for this page (B34). */
   scriptRan?: boolean;
   /** JSON the script produced (the value, or `{"error": ...}`); unset when it returned nothing. */
@@ -478,6 +483,14 @@ const SPA_ROUTE_COLLECT_FN = `(() => {
   return out;
 })()`;
 
+/** Stop a coverage session that is still running (a failed or aborted render), ignoring errors. */
+async function stopCoverage(page: {
+  coverage: { stopCSSCoverage(): Promise<unknown>; stopJSCoverage(): Promise<unknown> };
+}): Promise<void> {
+  await page.coverage.stopCSSCoverage().catch(() => undefined);
+  await page.coverage.stopJSCoverage().catch(() => undefined);
+}
+
 /** Pages that already carry the SPA hook. Playwright cannot remove an
  *  init script, and the pool hands the same page back for the next URL,
  *  so re-adding it on every render would stack duplicates. */
@@ -544,6 +557,7 @@ export async function renderUrl(
 
   let collector: ReturnType<typeof attachConsoleCollector> | null = null;
   let cookieCollector: CookieCollector | null = null;
+  let coverageOn = false;
   try {
     if (opts.viewport) {
       await page.setViewportSize(opts.viewport);
@@ -563,6 +577,20 @@ export async function renderUrl(
       });
     }
     if (opts.collectCookies) cookieCollector = attachCookieCollector(page);
+    if (opts.collectCoverage) {
+      // Both before the navigation, kept across it (redirects, client-side navigation), per page: the
+      // pool's pages share a context, but the coverage session belongs to the page.
+      try {
+        // A reused page still holds the previous document; the coverage session would report its
+        // stylesheets and scripts as part of this one. Empty the page first.
+        if (page.url() !== 'about:blank') await page.goto('about:blank');
+        await page.coverage.startCSSCoverage({ resetOnNavigation: false });
+        await page.coverage.startJSCoverage({ resetOnNavigation: false });
+        coverageOn = true;
+      } catch {
+        await stopCoverage(page);
+      }
+    }
     const response = await page.goto(url, {
       waitUntil: opts.waitUntil,
       timeout: opts.timeoutMs,
@@ -596,6 +624,18 @@ export async function renderUrl(
         cookies = await cookieCollector.collect(response);
       } catch {
         cookies = undefined;
+      }
+    }
+
+    // Coverage stops here, before the page script: what a script's clicks load is not the page's own.
+    let coverage: CoverageSummary | undefined;
+    if (coverageOn) {
+      coverageOn = false;
+      try {
+        const [css, js] = await Promise.all([page.coverage.stopCSSCoverage(), page.coverage.stopJSCoverage()]);
+        coverage = summarizeCoverage(css, js);
+      } catch {
+        coverage = undefined;
       }
     }
 
@@ -821,6 +861,7 @@ export async function renderUrl(
       servedHtml,
       consoleLog: collector?.finish(),
       cookies,
+      coverage,
       scriptRan,
       scriptResult,
       renderedHtmlPreScript,
@@ -841,6 +882,7 @@ export async function renderUrl(
     // Pages are reused: a listener must never outlive its render.
     collector?.finish();
     cookieCollector?.finish();
+    if (coverageOn) await stopCoverage(page);
     signal?.removeEventListener('abort', abortHandler);
     if (!aborted && !discard) {
       // Best-effort cookie wipe between URLs so cross-URL state
