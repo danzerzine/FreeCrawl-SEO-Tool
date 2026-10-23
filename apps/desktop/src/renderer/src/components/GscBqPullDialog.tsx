@@ -40,12 +40,12 @@ export function GscBqPullDialog({
   const failed = t('gscBq.failed', { defaultValue: 'Failed' });
 
   const load = useCallback(
-    async (withReset: boolean) => {
+    async () => {
       setLoading(true);
       setError(null);
       setPlan(null);
       try {
-        const res = await window.freecrawl.gscBqPlan({ reset: withReset || undefined });
+        const res = await window.freecrawl.gscBqPlan({});
         setPlan(res.plan);
         setError(res.ok ? null : (res.error ?? failed));
       } catch (e) {
@@ -58,7 +58,7 @@ export function GscBqPullDialog({
   );
 
   useEffect(() => {
-    void load(false);
+    void load();
   }, [load]);
 
   useEffect(() => window.freecrawl.onGscBqProgress((p) => setProgress(p)), []);

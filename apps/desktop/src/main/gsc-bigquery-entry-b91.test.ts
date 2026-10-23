@@ -178,18 +178,26 @@ describe('BigQuery pull entries (B91)', () => {
     expect(res.partsDone).toBe(1);
   });
 
-  it('a changed source needs the reset; plan with reset drops only the bq rows and returns a runnable plan', async () => {
+  it('a changed source needs the reset: planning it, with or without a stray reset flag, drops nothing; the dry-reset run resets', async () => {
     const a = env();
     const p = await gscBqPlanEntry(a.e, {});
     await gscBqRunEntry(a.e, { planId: p.plan!.planId });
     db.replaceGscResults([{ url: 'https://ex.test/a', clicks: 9, impressions: 9, ctr: 1, position: 1 }], 't', 'google-acc');
     fake.data.rows.forEach((r) => (r.type = 'IMAGE'));
+    const before = bqRows();
+    expect(before).toBeGreaterThan(0);
     const b = env({ searchType: 'image' });
     const stale = await gscBqPlanEntry(b.e, {});
     expect(stale.plan).toMatchObject({ needsReset: true, canRun: false });
-    const fresh = await gscBqPlanEntry(b.e, { reset: true });
-    expect(bqRows()).toBe(0);
-    expect(fresh.plan).toMatchObject({ needsReset: false, canRun: true });
+    // An old caller may still send `reset`: the plan call must not drop anything before the cost is known.
+    const stray = await gscBqPlanEntry(b.e, { reset: true } as never);
+    expect(bqRows()).toBe(before);
+    expect(stray.plan).toMatchObject({ needsReset: true, canRun: false });
+    const dry = await gscBqPlanEntry(b.e, { dryReset: true });
+    expect(bqRows()).toBe(before);
+    expect(dry.plan).toMatchObject({ needsReset: false, rebuild: true, canRun: true });
+    const run = await gscBqRunEntry(b.e, { planId: dry.plan!.planId });
+    expect(run.ok).toBe(true);
     expect(
       (db as unknown as { db: { prepare(s: string): { get(): any } } }).db.prepare("SELECT COUNT(*) n FROM gsc_results WHERE account_id='google-acc'").get().n, // eslint-disable-line @typescript-eslint/no-explicit-any
     ).toBe(1);

@@ -2187,8 +2187,6 @@ export interface GscBqPlanPart {
 }
 
 export interface GscBqPlanInput {
-  /** Drop the saved BigQuery data (and its ledger) first: the source changed, or «Rebuild». */
-  reset?: boolean;
   /**
    * «Rebuild»: plan the full range as if the ledger were empty, writing nothing. Running that plan
    * resets and pulls in one step, and only when it fits the cap.

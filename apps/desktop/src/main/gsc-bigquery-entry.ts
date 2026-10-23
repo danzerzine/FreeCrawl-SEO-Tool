@@ -87,22 +87,18 @@ function clientFor(env: BqEntryEnv, target?: Pick<PullPlan, 'dataProject' | 'dat
   });
 }
 
-/** What a pull would read and cost; with `reset` the saved BigQuery data is dropped first. */
+/** What a pull would read and cost; writes nothing (a rebuild drops the saved data only in the run, see `dryReset`). */
 export async function gscBqPlanEntry(env: BqEntryEnv, input: GscBqPlanInput): Promise<GscBqPlanResult> {
   const problem = checkSettings(env);
   if (problem) return fail(problem);
   if (env.slot.active) return fail('A BigQuery pull is running.');
   try {
-    if (input.reset) {
-      resetBigQuery(env.db);
-      env.onChanged();
-    }
     const plan = await buildBqPlan({
       client: clientFor(env),
       db: env.db,
       settings: env.settings,
       dataProject: env.settings.bqDataProject || env.projectId,
-      ignoreLedger: input.dryReset === true && !input.reset,
+      ignoreLedger: input.dryReset === true,
     });
     env.slot.plan = plan;
     env.slot.planId = env.newPlanId();
