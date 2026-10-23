@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as DesktopBridge from './desktop-bridge.js';
 
 vi.mock('./desktop-bridge.js', async (orig) => ({
-  ...(await orig<typeof import('./desktop-bridge.js')>()),
+  ...(await orig<typeof DesktopBridge>()),
   bridgeRequest: vi.fn(async () => ({ ok: true })),
 }));
 import { bridgeRequest } from './desktop-bridge.js';
