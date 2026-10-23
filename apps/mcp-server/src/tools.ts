@@ -1310,6 +1310,36 @@ export function buildTools(): Tool[] {
       inputSchema: { type: 'object', properties: {} },
       handler: (_args, db) => ({ rows: db.linkPositionBreakdown() }),
     },
+    {
+      requiresDb: false,
+      name: 'report_link_suggestions',
+      description:
+        'Internal-link suggestions: for each weakly linked page (few effective inlinks, orphans first) up to perTarget indexable pages ' +
+        'that are about the same thing (closeness 0-100 from title, H1 and meta description words) and do not link to it yet. ' +
+        'Effective inlinks = distinct indexable pages linking it, redirects folded, menu/footer links and self-links left out. ' +
+        'A target with no good source is listed with rank 0. Returns {rows, targets, withoutSuggestion, truncated, degraded, redirectsFolded, missingColumns}; ' +
+        'truncated = more weak pages than maxTargets or the time budget ran out; redirectsFolded "one-hop" = redirect chains were not computed. ' +
+        'Returns notComputed instead of rows until the crawl has computed inlinks. suggestedAnchor is a hint taken from the target, not text found in the source page. ' +
+        'Runs in the desktop app (a worker thread), so the app must be open on the project; a big site takes minutes.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          maxInlinks: { type: 'integer', minimum: 0, maximum: 50, description: 'Default 3.' },
+          perTarget: { type: 'integer', minimum: 1, maximum: 20, description: 'Default 5.' },
+          perSource: { type: 'integer', minimum: 1, maximum: 100, description: 'Default 10.' },
+          minCloseness: { type: 'integer', minimum: 0, maximum: 100, description: 'Default 20.' },
+          maxTargets: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 20_000,
+            description: 'Default 1000.',
+          },
+          maxSourceOutlinks: { type: 'integer', minimum: 0, description: 'Default 150.' },
+        },
+      },
+      handler: async (args) =>
+        bridgeRequest<unknown>('POST', '/v1/action/report-link-suggestions', args),
+    },
     ...LINK_TARGET_REPORTS.map(
       ([name, report, what]): Tool => ({
         name,
