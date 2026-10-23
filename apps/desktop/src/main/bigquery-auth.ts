@@ -8,7 +8,7 @@
 import { createSign } from 'node:crypto';
 import { apiFetch } from './api-fetch.js';
 import * as logger from './logger.js';
-import { GoogleTokenError, type GoogleDeps } from './google-retry.js';
+import { GoogleTokenError, ServiceAccountKeyError, type GoogleDeps } from './google-retry.js';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const SCOPE = 'https://www.googleapis.com/auth/bigquery';
@@ -33,7 +33,7 @@ function base64url(buf: Buffer | string): string {
 /** Parse and validate the stored service-account JSON. */
 export function parseServiceAccount(raw: string): ServiceAccount {
   if (!raw.trim()) {
-    throw new Error(
+    throw new ServiceAccountKeyError(
       'No BigQuery service account — paste the JSON key in Settings → Integrations.',
     );
   }
@@ -41,21 +41,21 @@ export function parseServiceAccount(raw: string): ServiceAccount {
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw new Error(
+    throw new ServiceAccountKeyError(
       `Service account JSON failed to parse: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
   }
   if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Service account JSON is not an object.');
+    throw new ServiceAccountKeyError('Service account JSON is not an object.');
   }
   const sa = parsed as Partial<ServiceAccount>;
   if (typeof sa.client_email !== 'string' || !sa.client_email) {
-    throw new Error('Service account JSON missing `client_email`.');
+    throw new ServiceAccountKeyError('Service account JSON missing `client_email`.');
   }
   if (typeof sa.private_key !== 'string' || !sa.private_key.includes('PRIVATE KEY')) {
-    throw new Error('Service account JSON missing `private_key`.');
+    throw new ServiceAccountKeyError('Service account JSON missing `private_key`.');
   }
   return sa as ServiceAccount;
 }

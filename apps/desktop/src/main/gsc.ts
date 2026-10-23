@@ -11,11 +11,12 @@
  * (`google-oauth.ts`) — `getAccessToken('gsc')` mints / refreshes the
  * bearer token; nothing here touches credentials directly.
  */
-import type {
-  GscSite,
-  GscIntegrationSettings,
-  GscSearchType,
-  GscRichResultType,
+import {
+  GSC_PRESET_DAYS,
+  type GscSite,
+  type GscIntegrationSettings,
+  type GscSearchType,
+  type GscRichResultType,
 } from '@freecrawl/shared-types';
 import { getAccessToken } from './google-oauth.js';
 import { apiFetch } from './api-fetch.js';
@@ -104,14 +105,7 @@ export function resolveGscDateRange(settings: GscIntegrationSettings): {
   if (settings.dateRange === 'custom' && settings.startDate && settings.endDate) {
     return { startDate: settings.startDate, endDate: settings.endDate };
   }
-  const daysBack =
-    settings.dateRange === '7d'
-      ? 7
-      : settings.dateRange === '90d'
-        ? 90
-        : settings.dateRange === '16m'
-          ? 480
-          : 28;
+  const daysBack = GSC_PRESET_DAYS[settings.dateRange] ?? 28;
   const end = new Date(Date.now() - 2 * 86_400_000);
   const start = new Date(end.getTime() - (daysBack - 1) * 86_400_000);
   return { startDate: isoDate(start), endDate: isoDate(end) };

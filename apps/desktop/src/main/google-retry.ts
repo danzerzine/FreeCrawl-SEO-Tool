@@ -111,6 +111,14 @@ export function throwIfQuotaOrPermission(op: string, status: number, json: unkno
  * is a transient failure of the token endpoint (5xx, 429, unreadable answer). `hasAdvice` is true
  * when the message already tells the user what to do, so no generic advice is appended to it.
  */
+/** The pasted service-account key is empty or does not parse (BigQuery); the text never quotes the key. */
+export class ServiceAccountKeyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceAccountKeyError';
+  }
+}
+
 export class GoogleTokenError extends Error {
   constructor(
     message: string,

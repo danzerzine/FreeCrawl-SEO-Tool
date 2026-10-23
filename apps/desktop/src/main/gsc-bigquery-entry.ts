@@ -15,7 +15,7 @@ import type {
   GscBqRunResult,
   GscIntegrationSettings,
 } from '@freecrawl/shared-types';
-import { BqError, describeBqError, type BqTarget } from './gsc-bigquery.js';
+import { describeBqError, type BqTarget } from './gsc-bigquery.js';
 import { buildBqPlan, resetBigQuery, runGscBigQuery, type BqRunClient, type PullPlan } from './gsc-bigquery-run.js';
 
 /** Per-window state of the BigQuery pull. */
@@ -75,13 +75,14 @@ function checkSettings(env: BqEntryEnv): string | null {
   return null;
 }
 
-function clientFor(env: BqEntryEnv): BqRunClient {
+/** A client for the plan's own target: settings changed after the plan was shown never reach the run. */
+function clientFor(env: BqEntryEnv, target?: Pick<PullPlan, 'dataProject' | 'dataset' | 'siteUrl' | 'searchType'>): BqRunClient {
   return env.makeClient({
     billingProject: env.projectId,
-    dataProject: env.settings.bqDataProject || env.projectId,
-    dataset: env.settings.bqDataset,
-    siteUrl: env.settings.property,
-    searchType: env.settings.searchType,
+    dataProject: target?.dataProject ?? (env.settings.bqDataProject || env.projectId),
+    dataset: target?.dataset ?? env.settings.bqDataset,
+    siteUrl: target?.siteUrl ?? env.settings.property,
+    searchType: target?.searchType ?? env.settings.searchType,
   });
 }
 
@@ -132,7 +133,7 @@ export async function gscBqRunEntry(env: BqEntryEnv, input: GscBqRunInput): Prom
   try {
     const res = await runGscBigQuery(
       {
-        client: clientFor(env),
+        client: clientFor(env, plan),
         db: env.db,
         now: env.now,
         isCancelled: () => slot.cancelRequested,
@@ -143,7 +144,7 @@ export async function gscBqRunEntry(env: BqEntryEnv, input: GscBqRunInput): Prom
     );
     return { ok: true, error: null, partsDone: res.partsDone, partsSkipped: res.partsSkipped, stopped: res.stopped, totalBilled: res.totalBilled };
   } catch (err) {
-    return none(err instanceof BqError ? err.message : describeBqError(err));
+    return none(describeBqError(err));
   } finally {
     slot.active = false;
     slot.cancelRequested = false;

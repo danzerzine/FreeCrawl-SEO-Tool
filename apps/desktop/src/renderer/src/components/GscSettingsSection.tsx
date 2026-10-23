@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   defaultGscSettings,
+  GSC_BQ_MAX_GIB_MAX,
+  GSC_BQ_MAX_GIB_MIN,
   type GoogleAccount,
   type GscIntegrationSettings,
 } from '@freecrawl/shared-types';
@@ -150,14 +152,14 @@ export function GscSettingsSection() {
             <span>{t('gscSettings.bqMaxGiB', { defaultValue: 'Billing cap (GiB)' })}</span>
             <input
               type="number"
-              min={0.1}
-              max={1000}
+              min={GSC_BQ_MAX_GIB_MIN}
+              max={GSC_BQ_MAX_GIB_MAX}
               step={1}
               className={`${inputCls} w-20`}
               value={settings.bqMaxGiB}
               onChange={(e) => {
                 const n = Number(e.target.value);
-                if (Number.isFinite(n)) update('bqMaxGiB', Math.min(1000, Math.max(0.1, n)));
+                if (Number.isFinite(n)) update('bqMaxGiB', Math.min(GSC_BQ_MAX_GIB_MAX, Math.max(GSC_BQ_MAX_GIB_MIN, n)));
               }}
             />
           </label>

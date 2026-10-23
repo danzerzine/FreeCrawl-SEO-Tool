@@ -106,6 +106,7 @@ import type {
 } from '@freecrawl/shared-types';
 import {
   EXTERNAL_NO_ANSWER_CONFIRMED,
+  GSC_BQ_ACCOUNT,
   GENERIC_ANCHOR_TEXTS,
   ISSUE_CATEGORIES,
   ISSUE_COUNT_KEY,
@@ -6722,9 +6723,9 @@ export class ProjectDb {
     const allowed = ['gsc_results', 'ga4_results'];
     if (!allowed.includes(table)) return '';
     const row = this.db
-      // 'bq' is the BigQuery-export pseudo account (B91): read only through `gscReadAccount`.
-      .prepare(`SELECT account_id FROM ${table} WHERE account_id <> 'bq' ORDER BY fetched_at DESC LIMIT 1`)
-      .get() as { account_id: string } | undefined;
+      // The BigQuery-export pseudo account (B91) is read only through `gscReadAccount`.
+      .prepare(`SELECT account_id FROM ${table} WHERE account_id <> ? ORDER BY fetched_at DESC LIMIT 1`)
+      .get(GSC_BQ_ACCOUNT) as { account_id: string } | undefined;
     return row?.account_id ?? '';
   }
 

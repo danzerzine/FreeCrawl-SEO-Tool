@@ -170,6 +170,8 @@ export type GscSource = 'api' | 'bigquery';
 export const GSC_BQ_ACCOUNT = 'bq';
 export const GSC_BQ_MAX_GIB_MIN = 0.1;
 export const GSC_BQ_MAX_GIB_MAX = 1000;
+/** Days back of each preset range (`16m` = the API's 480-day maximum). */
+export const GSC_PRESET_DAYS: Readonly<Record<string, number>> = { '7d': 7, '28d': 28, '90d': 90, '16m': 480 };
 /** Device dimension filter — API values (or `all` for no filter). */
 export type GscDeviceFilter = 'all' | 'DESKTOP' | 'MOBILE' | 'TABLET';
 /** Search-appearance type the metrics are pulled for. */

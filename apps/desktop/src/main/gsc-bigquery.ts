@@ -11,11 +11,12 @@
  * `location` on every job call and poll, billed bytes read from `jobs.get` after the job is done.
  */
 import { createHash } from 'node:crypto';
-import type { GscSearchType } from '@freecrawl/shared-types';
+import { GSC_PRESET_DAYS, type GscSearchType } from '@freecrawl/shared-types';
 import {
   GoogleAuthError,
   GooglePermissionError,
   GoogleQuotaError,
+  ServiceAccountKeyError,
   googleRequest,
   throwIfQuotaOrPermission,
   type GoogleDeps,
@@ -209,8 +210,7 @@ export function resolveBqRange(
   if (settings.dateRange === 'custom' && settings.startDate && settings.endDate) {
     return { start: settings.startDate, end: settings.endDate };
   }
-  const back: Record<string, number> = { '7d': 7, '28d': 28, '90d': 90, '16m': 480 };
-  const n = back[settings.dateRange];
+  const n = GSC_PRESET_DAYS[settings.dateRange];
   if (!n) return { start: first, end: last };
   return { start: isoDay(Date.parse(last) - (n - 1) * DAY_MS), end: last };
 }
@@ -231,6 +231,9 @@ export function describeBqError(err: unknown): string {
   if (err instanceof BqError) return err.message;
   if (err instanceof GoogleAuthError) {
     return 'Google rejected the BigQuery service-account key: it may be deleted, disabled or pasted wrong (Settings → Integrations → BigQuery).';
+  }
+  if (err instanceof ServiceAccountKeyError) {
+    return 'The BigQuery service-account key is empty or not valid: paste the JSON key again (Settings → Integrations → BigQuery).';
   }
   if (err instanceof GooglePermissionError) return PERMISSION_FIX;
   if (err instanceof GoogleQuotaError) return 'BigQuery quota or rate limit reached: try again later.';
@@ -259,6 +262,7 @@ interface ResultPage {
 
 export class GscBqClient {
   private location = '';
+  private smallBilled = 0;
   private readonly base: string;
   private readonly pageSize: number;
 
@@ -378,8 +382,26 @@ export class GscBqClient {
         continue;
       }
       for (const r of page.rows ?? []) rows.push(r.f.map((c) => String(c.v)));
-      if (!page.pageToken) return rows;
+      if (!page.pageToken) {
+        await this.noteSmallBilled(jobId, location);
+        return rows;
+      }
       page = await this.resultsPage(jobId, location, page.pageToken);
+    }
+  }
+
+  /** Bytes billed for the last small (ExportLog) query: it bills at least 10 MB like any query. */
+  lastQueryBilled(): number {
+    return this.smallBilled;
+  }
+
+  private async noteSmallBilled(jobId: string, location: string): Promise<void> {
+    this.smallBilled = 0;
+    if (!jobId) return;
+    try {
+      this.smallBilled = (await this.jobStatus(jobId, location)).billed;
+    } catch {
+      // A figure for the display only: the plan does not fail because it could not be read.
     }
   }
 

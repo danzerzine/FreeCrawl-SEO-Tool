@@ -397,3 +397,36 @@ describe('parseAggregateRows (r1 L9)', () => {
     ]);
   });
 });
+
+describe('review r1: ids placed in SQL and a key that does not parse', () => {
+  it('a backtick (or space, semicolon) in the dataset name is refused before any request (safeId)', async () => {
+    fake = await startFakeBigQuery({});
+    for (const dataset of ['a`; DROP', 'a b', 'x;y']) {
+      const client = bq.createGscBqClient(
+        { billingProject: fake.opts.project, dataProject: fake.opts.dataProject, dataset, siteUrl: SITE, searchType: 'web', apiBase: fake.base },
+        deps(),
+      );
+      client.setLocation('EU');
+      const err = await client.exportCoverage('EU').catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(bq.BqError);
+      expect(bq.describeBqError(err)).toMatch(/characters BigQuery ids do not allow/);
+    }
+    expect(fake.requests.filter((r) => r.kind.startsWith('jobs.'))).toHaveLength(0);
+  });
+
+  it('an empty or broken service-account key says to paste the JSON key, not "try again"', async () => {
+    const { parseServiceAccount } = await import('./bigquery-auth.js');
+    fake = await startFakeBigQuery({});
+    for (const raw of ['', '   ', '{not json', '{"client_email":"a@b"}']) {
+      const client = bq.createGscBqClient(
+        { billingProject: fake.opts.project, dataProject: fake.opts.dataProject, dataset: fake.opts.dataset, siteUrl: SITE, searchType: 'web', apiBase: fake.base },
+        deps({ getToken: async () => (parseServiceAccount(raw), 'tok') }),
+      );
+      const err = await client.preflight().catch((e: unknown) => e);
+      const text = bq.describeBqError(err);
+      expect(text).toMatch(/service-account key/i);
+      expect(text).toMatch(/JSON key/);
+      expect(text).not.toMatch(/Try again/);
+    }
+  });
+});

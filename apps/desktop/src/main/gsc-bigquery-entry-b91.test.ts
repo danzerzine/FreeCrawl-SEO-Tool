@@ -76,12 +76,26 @@ describe('BigQuery pull entries (B91)', () => {
     expect(plan.plan!.parts).toHaveLength(2);
     expect(JSON.stringify(plan.plan)).not.toContain('coverage');
     const res = await gscBqRunEntry(e, { planId: 'plan-1' });
-    expect(res).toMatchObject({ ok: true, partsDone: 2, stopped: null, totalBilled: 60 * MIB });
+    expect(res).toMatchObject({ ok: true, partsDone: 2, stopped: null, totalBilled: 70 * MIB }); // 2 x 30 MiB parts + the 10 MiB ExportLog query
     expect(bqRows()).toBe(1);
     expect(progress.length).toBeGreaterThan(0);
     expect(changed()).toBeGreaterThan(0);
     const again = await gscBqRunEntry(e, { planId: 'plan-1' });
     expect(again.ok).toBe(false);
+  });
+
+  it('the run reads the property and search type of the plan, not of the settings at run time', async () => {
+    const { e } = env();
+    const plan = await gscBqPlanEntry(e, {});
+    expect(plan.ok).toBe(true);
+    e.settings = { ...e.settings, property: 'sc-domain:other.test', searchType: 'image' };
+    const res = await gscBqRunEntry(e, { planId: 'plan-1' });
+    expect(res.ok).toBe(true);
+    expect(fake.mainJobs().length).toBeGreaterThan(0);
+    for (const j of fake.mainJobs()) {
+      expect(j.params['site']).toBe(SITE);
+      expect(j.params['type']).toBe('WEB');
+    }
   });
 
   it('a run without a plan on screen (unknown id) starts nothing', async () => {

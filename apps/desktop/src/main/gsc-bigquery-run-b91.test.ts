@@ -99,7 +99,7 @@ describe('runner: parts, ledger, restart', () => {
     expect(first.stopped?.message).toMatch(/Job User/);
     const ledger = readLedger(db)!;
     expect(ledger.doneRanges.map((r) => r.start)).toEqual(['2026-06-01', '2026-07-01']);
-    expect(ledger.totalBilled).toBe(2 * 20 * MIB);
+    expect(ledger.totalBilled).toBe(2 * 20 * MIB + 10 * MIB); // + the plan's ExportLog query
     // rows of parts 1-2 are exactly their totals: /a = (1 click, 100 imps, pos 1+1) + (2, 200, pos 2+1)
     const a = stored('https://ex.test/a')!;
     expect(a.clicks).toBe(3);
@@ -121,7 +121,7 @@ describe('runner: parts, ledger, restart', () => {
     expect(all.impressions).toBe(1000);
     expect(all.position).toBeCloseTo((1 * 100 + 2 * 200 + 3 * 300 + 4 * 400) / 1000 + 1, 12);
     const meta = JSON.parse(db.getMeta('gscFetchMeta:bq')!);
-    expect(meta).toMatchObject({ property: SITE, source: 'bigquery', startDate: '2026-06-01', endDate: '2026-09-01', rowCount: 5, bytesBilled: 4 * 20 * MIB });
+    expect(meta).toMatchObject({ property: SITE, source: 'bigquery', startDate: '2026-06-01', endDate: '2026-09-01', rowCount: 5, bytesBilled: 4 * 20 * MIB + 2 * 10 * MIB });
     expect(meta.gapDays).toBeGreaterThan(0); // the days between the four exported ones
   });
 
@@ -179,12 +179,12 @@ describe('runner: parts, ledger, restart', () => {
     expect(crashed.partsDone).toBe(0);
     const left = readLedger(db)!;
     expect(left.inFlight).toMatchObject({ start: '2026-06-01', end: '2026-06-01' });
-    expect(left.totalBilled).toBe(0);
+    expect(left.totalBilled).toBe(10 * MIB); // only the plan's ExportLog query so far
     expect(bqRowCount()).toBe(0);
 
     const jobId = left.inFlight!.jobId;
     const mark = f.requests.length;
-    const res = await runGscBigQuery(runDeps(f), one, {});
+    const res = await runGscBigQuery(runDeps(f), { ...one, exportBilled: 0 }, {});
     expect(res.partsDone).toBe(1);
     expect(f.mainJobs()).toHaveLength(1);
     const after = f.requests.slice(mark).filter((r) => r.kind.startsWith('jobs.'));
@@ -193,7 +193,7 @@ describe('runner: parts, ledger, restart', () => {
     expect(after.some((r) => r.kind === 'jobs.insert')).toBe(false);
     const done = readLedger(db)!;
     expect(done.inFlight).toBeNull();
-    expect(done.totalBilled).toBe(20 * MIB);
+    expect(done.totalBilled).toBe(30 * MIB);
     expect(done.doneRanges).toHaveLength(1);
     expect(bqRowCount()).toBe(2);
   });
@@ -222,7 +222,7 @@ describe('runner: parts, ledger, restart', () => {
     const res = await runGscBigQuery(runDeps(f), { ...p, parts: p.parts.slice(0, 1) }, {});
     expect(res.partsDone).toBe(1);
     expect(f.mainJobs()).toHaveLength(1);
-    expect(readLedger(db)!.totalBilled).toBe(20 * MIB);
+    expect(readLedger(db)!.totalBilled).toBe(30 * MIB);
     expect(readLedger(db)!.doneRanges).toHaveLength(1);
   });
 });
@@ -278,7 +278,7 @@ describe('runner: review r1 fixes (S-High resume double count, adoption, per-run
     expect(stored('https://ex.test/img')).toBeDefined();
     const l = readLedger(db)!;
     expect(l.sourceKey).toBe(imgPlan.sourceKey);
-    expect(l.totalBilled).toBe(40 * MIB); // the old job and the new one
+    expect(l.totalBilled).toBe(60 * MIB); // the old job and the new one, two ExportLog queries
     expect(l.doneRanges).toHaveLength(1);
   });
 
@@ -287,13 +287,13 @@ describe('runner: review r1 fixes (S-High resume double count, adoption, per-run
     const june = await plan(f, { bqMaxGiB: 0.1, dateRange: 'custom', startDate: '2026-06-01', endDate: '2026-06-30' });
     expect((await runGscBigQuery(runDeps(f), june, {})).partsDone).toBe(1);
     const july = await plan(f, { bqMaxGiB: 0.1, dateRange: 'custom', startDate: '2026-07-01', endDate: '2026-07-31' });
-    expect(july.billedSoFar).toBe(60 * MIB); // shown, not compared
+    expect(july.billedSoFar).toBe(70 * MIB); // shown, not compared
     expect(july.overCap).toBe(false);
     expect(july.canRun).toBe(true);
     const res = await runGscBigQuery(runDeps(f), july, {});
     expect(res.stopped).toBeNull();
     expect(res.partsDone).toBe(1);
-    expect(res.totalBilled).toBe(120 * MIB);
+    expect(res.totalBilled).toBe(140 * MIB);
   });
 
   it('a poll that fails after jobs.insert keeps inFlight; the next start asks jobs.get and inserts no second job (S-Med)', async () => {
@@ -308,13 +308,23 @@ describe('runner: review r1 fixes (S-High resume double count, adoption, per-run
     expect(left).not.toBeNull();
     f.faults.length = 0;
     const mark = f.requests.length;
-    const second = await runGscBigQuery(runDeps(f), one, {});
+    const second = await runGscBigQuery(runDeps(f), { ...one, exportBilled: 0 }, {});
     expect(second.partsDone).toBe(1);
     expect(f.mainJobs()).toHaveLength(1);
     const after = f.requests.slice(mark).filter((r) => r.kind.startsWith('jobs.'));
     expect(after[0]!.kind).toBe('jobs.get');
     expect(after.some((r) => r.kind === 'jobs.insert')).toBe(false);
-    expect(readLedger(db)!.totalBilled).toBe(20 * MIB);
+    expect(readLedger(db)!.totalBilled).toBe(30 * MIB);
+  });
+});
+
+describe('runner: ExportLog query bytes (review r1 Low)', () => {
+  it('the small ExportLog query of the plan is billed too: it is in the plan and in the ledger total', async () => {
+    const f = await start(fourMonths());
+    const p = await plan(f);
+    expect(p.exportBilled).toBe(10 * MIB);
+    await runGscBigQuery(runDeps(f), { ...p, parts: p.parts.slice(0, 1) }, {});
+    expect(readLedger(db)!.totalBilled).toBe(30 * MIB);
   });
 });
 
@@ -328,7 +338,7 @@ describe('runner: empty parts (r1 H3) and the source key', () => {
     expect(res.stopped?.message).toContain('WEB');
     const ledger = readLedger(db)!;
     expect(ledger.doneRanges).toEqual([]);
-    expect(ledger.totalBilled).toBe(2 * 15 * MIB); // the empty part and the diagnostic query are both billed and counted
+    expect(ledger.totalBilled).toBe(2 * 15 * MIB + 10 * MIB); // the empty part, the diagnostic query and the ExportLog query are all billed and counted
     const billed = [...f.jobs.values()].filter((j) => j.kind !== 'log');
     expect(billed.map((j) => j.kind)).toEqual(['main', 'distinct']);
     for (const j of billed) expect(j.maximumBytesBilled).not.toBeNull();

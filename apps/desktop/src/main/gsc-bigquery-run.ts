@@ -12,6 +12,7 @@
  */
 import type { ProjectDb } from '@freecrawl/db';
 import { GSC_BQ_ACCOUNT, type GscFetchMeta, type GscIntegrationSettings, type GscSearchType } from '@freecrawl/shared-types';
+import { googleMetaKey } from './ga4-pull.js';
 import {
   MIN_BILLED_BYTES,
   bqSourceKey,
@@ -30,7 +31,7 @@ import {
 } from './gsc-bigquery.js';
 
 export const BQ_LEDGER_META_KEY = 'gscBqRun';
-export const BQ_FETCH_META_KEY = `gscFetchMeta:${GSC_BQ_ACCOUNT}`;
+export const BQ_FETCH_META_KEY = googleMetaKey('gscFetchMeta', GSC_BQ_ACCOUNT);
 const FREE_TIER_BYTES = 1024 ** 4;
 
 /** What the runner needs from the BigQuery client (the real one, or a fake in tests). */
@@ -46,6 +47,8 @@ export interface BqRunClient {
   preflight(): Promise<{ location: string }>;
   setLocation(location: string): void;
   exportCoverage(location?: string): Promise<Map<string, number>>;
+  /** Bytes the last ExportLog query was billed. */
+  lastQueryBilled(): number;
 }
 
 export interface PlannedPart extends Part {
@@ -55,6 +58,9 @@ export interface PlannedPart extends Part {
 
 export interface PullPlan {
   sourceKey: string;
+  /** The data project and dataset the plan was made for: the run reads exactly these. */
+  dataProject: string;
+  dataset: string;
   location: string;
   siteUrl: string;
   searchType: GscSearchType;
@@ -71,6 +77,8 @@ export interface PullPlan {
   capBytes: number;
   /** Bytes billed since the last reset (the ledger's total): shown, never compared with the cap. */
   billedSoFar: number;
+  /** Bytes the plan's ExportLog query was billed: added to the ledger total when the plan runs. */
+  exportBilled: number;
   overCap: boolean;
   /** The saved data came from another property, dataset or search type: reset before pulling. */
   needsReset: boolean;
@@ -128,6 +136,8 @@ export async function buildBqPlan(args: {
   const overCap = totalEstimate > capBytes;
   return {
     sourceKey,
+    dataProject: args.dataProject,
+    dataset: settings.bqDataset,
     location,
     siteUrl: settings.property,
     searchType: settings.searchType,
@@ -142,6 +152,7 @@ export async function buildBqPlan(args: {
     freeTierShare: totalEstimate / FREE_TIER_BYTES,
     capBytes,
     billedSoFar,
+    exportBilled: client.lastQueryBilled(),
     overCap,
     needsReset,
     canRun: !needsReset && !overCap && parts.length > 0,
@@ -205,6 +216,8 @@ export async function runGscBigQuery(deps: RunDeps, plan: PullPlan, opts: { reco
     ledger = l;
     db.setMeta(BQ_LEDGER_META_KEY, JSON.stringify(l));
   };
+  // The plan's own ExportLog query was billed too (once per plan: a plan runs once).
+  if (plan.exportBilled > 0) save({ ...ledger, totalBilled: ledger.totalBilled + plan.exportBilled });
 
   /** Merge one finished part with its ledger entry in one transaction. */
   const record = (part: Part, rows: BqUrlRow[], billed: number): void => {

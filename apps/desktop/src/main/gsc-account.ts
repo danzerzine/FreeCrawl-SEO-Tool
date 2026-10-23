@@ -9,6 +9,7 @@
  * Electron-free: the OAuth resolution comes in as a function, so the readers run under test.
  */
 import type { ProjectDb } from '@freecrawl/db';
+import { googleMetaKey } from './ga4-pull.js';
 import {
   GSC_BQ_ACCOUNT,
   type GscFetchMeta,
@@ -29,10 +30,6 @@ export function gscReadAccount(env: GscReadEnv, requested?: string): string {
   return env.resolveGoogleAccount('gsc', requested);
 }
 
-/** Meta key of the last pull of an account (same format as `googleMetaKey`). */
-function fetchMetaKey(accountId: string): string {
-  return accountId ? `gscFetchMeta:${accountId}` : 'gscFetchMeta';
-}
 
 /** The Search Console tab's `gscQuery`: rows joined to the crawl, plus the context line's meta. */
 export async function gscTabQuery(
@@ -62,7 +59,7 @@ export async function gscTabQuery(
   });
   let meta: GscFetchMeta | null = null;
   try {
-    const raw = env.getMeta(fetchMetaKey(accountId));
+    const raw = env.getMeta(googleMetaKey('gscFetchMeta', accountId));
     if (raw) meta = JSON.parse(raw) as GscFetchMeta;
   } catch {
     /* no / corrupt meta: render without the context line */
