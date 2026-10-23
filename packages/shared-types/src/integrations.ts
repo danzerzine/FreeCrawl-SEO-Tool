@@ -459,6 +459,50 @@ export const INTEGRATIONS: IntegrationDef[] = [
     setupHint:
       'The SMTP server URL carries the login: smtps://user:password@host:465 (or smtp://…:587 for STARTTLS). Percent-encode special characters in the password. The URL is stored encrypted.',
   },
+  {
+    id: 'github-tasks',
+    name: 'GitHub Issues',
+    category: 'notify',
+    authType: 'api-key',
+    description: 'Create a GitHub issue from an Issues-tab check, after you have read the text.',
+    fields: [
+      { key: 'token', label: 'Access token', secret: true, placeholder: 'github_pat_…' },
+      { key: 'owner', label: 'Owner', secret: false, placeholder: 'my-org' },
+      { key: 'repo', label: 'Repository', secret: false, placeholder: 'my-site' },
+      {
+        key: 'apiBase',
+        label: 'API address (leave empty for GitHub)',
+        secret: false,
+        placeholder: 'https://<host>',
+        optional: true,
+      },
+    ],
+    helpUrl: 'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens',
+    setupHint:
+      'Create a fine-grained personal access token for the one repository with Repository permissions → Issues: Read and write. Nothing is sent until you press Send in the task preview.',
+  },
+  {
+    id: 'basecamp-tasks',
+    name: 'Basecamp to-do',
+    category: 'notify',
+    authType: 'api-key',
+    description: 'Create a Basecamp to-do from an Issues-tab check, after you have read the text.',
+    fields: [
+      { key: 'accessToken', label: 'Access token', secret: true, placeholder: 'BAhb…' },
+      { key: 'accountId', label: 'Account ID', secret: false, placeholder: '1234567' },
+      { key: 'todolistId', label: 'To-do list ID', secret: false, placeholder: '9876543210' },
+      {
+        key: 'apiBase',
+        label: 'API address (leave empty for Basecamp)',
+        secret: false,
+        placeholder: 'https://<host>',
+        optional: true,
+      },
+    ],
+    helpUrl: 'https://github.com/basecamp/bc3-api',
+    setupHint:
+      'Paste an OAuth access token. Basecamp tokens expire every 2 weeks: when a send says the token expired, paste a new one here. The account ID and the to-do list ID are the numbers in the to-do list URL. Nothing is sent until you press Send in the task preview.',
+  },
 ];
 
 /** Lookup an integration definition by id. */
