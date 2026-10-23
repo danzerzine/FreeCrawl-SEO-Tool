@@ -54,7 +54,7 @@ describe('B43 urls CSV columns', () => {
   it('Cookies, Cookies Truncated and Cookies JSON sit right before Crawl Timestamp; rows in id order', async () => {
     const f = path.join(dir, 'a.csv');
     await exportUrlsToCsv(db, f);
-    const lines = fs.readFileSync(f, 'utf8').replace(/^﻿/, '').split('\n').filter(Boolean);
+    const lines = fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '').split('\n').filter(Boolean);
     const head = lines[0]!.split(',');
     expect(head.slice(-9)).toEqual([
       'Markup Error Codes', 'Cookies', 'Cookies Truncated', 'Cookies JSON',
@@ -115,7 +115,7 @@ describe('B43 export run: manifest', () => {
   it('--what dataset:cookies writes cookies.csv and manifest.json lists it with rows, ms and peakRssMb', async () => {
     const res = await runExportItems(db, out, parseExportWhat('dataset:cookies'));
     expect(res.errors).toEqual([]);
-    const csv = fs.readFileSync(path.join(out, 'cookies.csv'), 'utf8').replace(/^﻿/, '');
+    const csv = fs.readFileSync(path.join(out, 'cookies.csv'), 'utf8').replace(/^\uFEFF/, '');
     const lines = csv.split('\n').filter(Boolean);
     expect(lines[0]).toBe('URL,Cookie,Domain,Path,Secure,HttpOnly,SameSite,Expires,Set By,Third Party,Page Cookies Total,Page Cookies Truncated');
     expect(lines).toHaveLength(6);

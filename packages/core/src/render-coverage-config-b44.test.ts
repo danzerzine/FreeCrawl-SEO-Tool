@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import {
-  browserPoolOptionsFromConfig,
   renderHookFields,
   renderOptionsFromConfig,
-  type RenderHookResult,
 } from './render-config.js';
 import type { RenderResult } from './render-fetcher.js';
 

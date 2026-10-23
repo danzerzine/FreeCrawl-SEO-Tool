@@ -149,7 +149,7 @@ describe('B43 iterateCookies', () => {
       sql.push(s);
       return orig(s);
     };
-    [...db.iterateCookies(3)];
+    void [...db.iterateCookies(3)];
     inner.prepare = orig;
     expect(sql.length).toBeGreaterThan(0);
     expect(sql.join('\n')).not.toMatch(/OFFSET/i);

@@ -108,7 +108,7 @@ describe('B44 CLI --coverage: as a process', () => {
     expect(ex.code, ex.err.slice(-600)).toBe(0);
     const urls = fs.readdirSync(out).find((f) => /^urls|internal/i.test(f) && f.endsWith('.csv'));
     expect(urls).toBeTruthy();
-    const lines = fs.readFileSync(path.join(out, urls!), 'utf8').replace(/^﻿/, '').split('\n');
+    const lines = fs.readFileSync(path.join(out, urls!), 'utf8').replace(/^\uFEFF/, '').split('\n');
     const head = lines[0]!.split(',');
     expect(head).toEqual(expect.arrayContaining(['CSS Bytes', 'Unused CSS Bytes', 'JS Bytes', 'Unused JS Bytes']));
   }, 120_000);
