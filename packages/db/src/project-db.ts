@@ -1,5 +1,6 @@
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import * as zlib from 'node:zlib';
+import { sectionOf } from './section-of.js';
 import { STATUS_CODES } from 'node:http';
 import type {
   MobileParityDiff,
@@ -763,6 +764,14 @@ function imageOrderBy(
  * only the difference, so the write cost tracks crawl throughput rather
  * than the size of the pending frontier.
  */
+/** Narrows {@link ProjectDb.seoTextCorpus} to a folder of the site (`section` as `sectionOf` names it) or one page. */
+export interface SeoTextScope {
+  section?: string;
+  /** Folder depth `section` was made with (1 or 2, default 1). */
+  depth?: number;
+  url?: string;
+}
+
 /** A saved queue entry; `resourceRow` is set for images, CSS, JS and media. */
 export interface SavedQueueItem {
   url: string;
@@ -12900,20 +12909,15 @@ export class ProjectDb {
       .all() as { url: string; word_count: number }[];
     const acc = new Map<string, { sum: number; n: number }>();
     for (const r of rows) {
-      try {
-        const u = new URL(r.url);
-        const segments = u.pathname.split('/').filter((s) => s.length > 0);
-        const taken = segments.slice(0, targetDepth);
-        const dir = taken.length > 0 ? '/' + taken.join('/') : '/';
-        const cur = acc.get(dir);
-        if (cur) {
-          cur.sum += r.word_count;
-          cur.n += 1;
-        } else {
-          acc.set(dir, { sum: r.word_count, n: 1 });
-        }
-      } catch {
-        // skip unparseable URL
+      const section = sectionOf(r.url, targetDepth);
+      if (section === null) continue; // unparseable URL
+      const dir = section === '/' ? '/' : '/' + section;
+      const cur = acc.get(dir);
+      if (cur) {
+        cur.sum += r.word_count;
+        cur.n += 1;
+      } else {
+        acc.set(dir, { sum: r.word_count, n: 1 });
       }
     }
     return [...acc.entries()]
@@ -12943,27 +12947,48 @@ export class ProjectDb {
    * thread (this handler doesn't use the reader pool). Yielding keeps one
    * row alive at a time and leaves the counting cost unchanged.
    */
-  *seoTextCorpus(): IterableIterator<string> {
+  seoTextCorpus(): IterableIterator<string>;
+  /** With a scope: `{url, text}` per page, narrowed to a section (folder) or to one page. */
+  seoTextCorpus(scope: SeoTextScope): IterableIterator<{ url: string; text: string }>;
+  *seoTextCorpus(
+    scope?: SeoTextScope,
+  ): IterableIterator<string | { url: string; text: string }> {
+    const where: string[] = [];
+    const params: string[] = [];
+    if (scope?.url !== undefined) {
+      where.push('AND url = ?');
+      params.push(scope.url);
+    }
+    // The section is narrowed in SQL on the path (any origin); the exact folder test stays in
+    // `sectionOf`, which also keeps `/news` apart from `/newsletter`.
+    const section = scope?.section;
+    if (section !== undefined && section !== '/') {
+      where.push("AND url LIKE ? ESCAPE '\\'");
+      params.push(`%/${section.replace(/[\\%_]/g, (c) => '\\' + c)}/%`);
+    }
     const rows = this.db
       .prepare(
-        `SELECT title, meta_description, h1
+        `SELECT url, title, meta_description, h1
            FROM urls
           WHERE is_external = 0
             AND content_kind = 'html'
             AND status_code BETWEEN 200 AND 299
-            AND indexability = 'indexable'`,
+            AND indexability = 'indexable' ${where.join(' ')}`,
       )
-      .iterate() as Iterable<{
+      .iterate(...params) as Iterable<{
+      url: string;
       title: string | null;
       meta_description: string | null;
       h1: string | null;
     }>;
     for (const r of rows) {
+      if (section !== undefined && sectionOf(r.url, scope?.depth ?? 1) !== section) continue;
       const parts: string[] = [];
       if (r.title) parts.push(r.title);
       if (r.meta_description) parts.push(r.meta_description);
       if (r.h1) parts.push(r.h1);
-      if (parts.length > 0) yield parts.join(' ');
+      if (parts.length === 0) continue;
+      yield scope === undefined ? parts.join(' ') : { url: r.url, text: parts.join(' ') };
     }
   }
 

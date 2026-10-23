@@ -98,7 +98,21 @@ export {
   type TopWordsRow,
   type TopWordsOptions,
   type TopWordsLocale,
+  createSectionedTopWords,
+  sectionOf,
+  DEFAULT_MAX_GRAMS,
+  MAX_SECTIONS,
+  OTHER_SECTION,
+  type SectionedTopWords,
+  type SectionedTopWordsOptions,
+  type SectionTopWords,
 } from './top-words.js';
+export {
+  topWordsBlocks,
+  topWordsForUrl,
+  type TopWordsBlock,
+  type TopWordsBlocksOptions,
+} from './top-words-db.js';
 export {
   exportSitemap,
   type SitemapOptions,

@@ -1,3 +1,5 @@
+import { sectionOf } from '@freecrawl/db';
+
 /**
  * Word-frequency aggregation for the "Top Words" report. Pure / sync /
  * data-only — the DB layer feeds raw text strings (titles, descriptions,
@@ -276,6 +278,70 @@ export function createTopWordsAggregator(opts: TopWordsOptions = {}): TopWordsAg
         }))
         .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word))
         .slice(0, limit);
+    },
+  };
+}
+
+/** The folder a page belongs to (`news`, `news/a` at depth 2, `/` for the root); see `sectionOf` in the db package. */
+export { sectionOf };
+
+/** Most sections a by-section report keeps; the smaller ones are summed into {@link OTHER_SECTION}. */
+export const MAX_SECTIONS = 50;
+export const OTHER_SECTION = '(other)';
+const MIN_GRAMS_PER_SECTION = 20_000;
+
+export interface SectionedTopWordsOptions extends TopWordsOptions {
+  /** Folder depth, 1 (default) or 2. */
+  sectionDepth?: number;
+  /** Pages per section of the whole corpus: decides which {@link MAX_SECTIONS} sections are kept. */
+  sectionPages: ReadonlyMap<string, number>;
+}
+
+export interface SectionTopWords {
+  section: string;
+  rows: TopWordsRow[];
+  capped: boolean;
+}
+
+export interface SectionedTopWords {
+  /** Counts one page's text under its section. */
+  add(url: string, text: string): void;
+  /** One block per section, ordered by name; `(other)` holds every section that was not kept. */
+  result(): SectionTopWords[];
+  /** Phrase map limit of each section: the shared 200 000 split between them, never below 20 000. */
+  readonly limitPerSection: number;
+}
+
+/**
+ * One aggregator per section. The sections kept are the {@link MAX_SECTIONS} with the most pages;
+ * the phrase map of each gets `max(20 000, total / sections)`, so the total stays near 1 M grams.
+ */
+export function createSectionedTopWords(opts: SectionedTopWordsOptions): SectionedTopWords {
+  const depth = opts.sectionDepth ?? 1;
+  const ranked = [...opts.sectionPages.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const kept = new Set(ranked.slice(0, MAX_SECTIONS).map(([name]) => name));
+  const blocks = kept.size + (ranked.length > MAX_SECTIONS ? 1 : 0);
+  const limitPerSection = Math.max(
+    MIN_GRAMS_PER_SECTION,
+    Math.floor((opts.maxGrams ?? DEFAULT_MAX_GRAMS) / Math.max(1, blocks)),
+  );
+  const aggregators = new Map<string, TopWordsAggregator>();
+  return {
+    limitPerSection,
+    add(url: string, text: string): void {
+      const own = sectionOf(url, depth);
+      const section = own !== null && kept.has(own) ? own : OTHER_SECTION;
+      let agg = aggregators.get(section);
+      if (!agg) {
+        agg = createTopWordsAggregator({ ...opts, maxGrams: limitPerSection });
+        aggregators.set(section, agg);
+      }
+      agg.add(text);
+    },
+    result(): SectionTopWords[] {
+      return [...aggregators.entries()]
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+        .map(([section, agg]) => ({ section, rows: agg.result(), capped: agg.capped() }));
     },
   };
 }
