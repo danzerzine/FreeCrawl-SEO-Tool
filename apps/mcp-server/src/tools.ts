@@ -881,7 +881,7 @@ export function buildTools(): Tool[] {
     {
       name: 'query_pagespeed',
       description:
-        'PageSpeed Insights rows: lab perf/SEO/a11y scores, Core Web Vitals (LCP/CLS/INP/FCP/TTFB), opportunities. Populate via Settings → Integrations → PageSpeed Insights, then run a batch from the desktop.',
+        'PageSpeed Insights rows per crawled page and device (mobile, desktop): the Lighthouse performance score, the seven lab metrics (LCP, CLS, FCP, TBT, speed index, TTI, max-potential FID) and INP (a field metric, empty without real-user data), plus the count of Lighthouse insights/opportunities and the largest estimated saving in ms (an estimate; savings overlap, do not add them up). It holds no SEO or accessibility score and no time-to-first-byte. The audits themselves (what to speed up, with affected resources) are in `query_pagespeed_audits`. Populate via Settings → Integrations → PageSpeed Insights, then run a batch from the desktop.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -900,6 +900,34 @@ export function buildTools(): Tool[] {
           offset: clamp(args.offset, 0, 10_000_000, 0),
           search: typeof args.search === 'string' ? args.search : undefined,
           filter: args.filter as 'all' | 'tested' | 'untested' | undefined,
+        }),
+    },
+    {
+      name: 'query_pagespeed_audits',
+      description:
+        'Lighthouse insights, opportunities and diagnostics that PageSpeed Insights returned, one row per page x device x audit, biggest estimated saving first: audit_id, kind (insight | opportunity | diagnostic), title, score (0-1, null when informative), display value, savings in ms and bytes (estimates; savings overlap, do not add them up; null when Lighthouse gives none), the affected resources (url, wasted bytes, selector, up to 20 per audit; `itemsTruncated` marks a cut), Lighthouse version and fetch time. Only audits the page did not pass are stored. Pages tested before this feature need a PageSpeed re-run. Filter by url (exact), strategy (mobile | desktop), kind and audit_id.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Exact page URL.' },
+          strategy: { type: 'string', enum: ['mobile', 'desktop'] },
+          kind: { type: 'string', enum: ['insight', 'opportunity', 'diagnostic'] },
+          audit_id: { type: 'string', description: 'E.g. render-blocking-insight, unused-javascript.' },
+          limit: { type: 'integer', minimum: 1, maximum: 1000 },
+          offset: { type: 'integer', minimum: 0 },
+        },
+      },
+      handler: (args, db) =>
+        db.queryPagespeedAudits({
+          limit: clamp(args.limit, 1, 1000, 50),
+          offset: clamp(args.offset, 0, 10_000_000, 0),
+          url: typeof args.url === 'string' && args.url ? args.url : undefined,
+          strategy: args.strategy === 'mobile' || args.strategy === 'desktop' ? args.strategy : undefined,
+          kind:
+            args.kind === 'insight' || args.kind === 'opportunity' || args.kind === 'diagnostic'
+              ? args.kind
+              : undefined,
+          auditId: typeof args.audit_id === 'string' && args.audit_id ? args.audit_id : undefined,
         }),
     },
     {

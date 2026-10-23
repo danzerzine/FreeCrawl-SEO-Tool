@@ -70,6 +70,7 @@ const ALLOWED_METHODS = new Set<string>([
   'queryImages',
   'queryBrokenLinks',
   'queryPagespeed',
+  'queryPagespeedAudits',
   'queryCrux',
   'querySpelling',
   'getSpellingMatches',

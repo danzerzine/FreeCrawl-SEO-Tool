@@ -124,7 +124,13 @@ type DatasetTab =
 const DATASET_TABS: Partial<Record<TabKey, DatasetTab>> = {
   images: { dataset: 'images' },
   'broken-links': { dataset: 'broken-links' },
-  pagespeed: { dataset: 'pagespeed' },
+  pagespeed: {
+    subdir: 'pagespeed',
+    providers: [
+      { id: 'metrics', label: 'PageSpeed', dataset: 'pagespeed' },
+      { id: 'audits', label: 'Lighthouse audits', dataset: 'pagespeed-audits' },
+    ],
+  },
   crux: { dataset: 'crux' },
   spelling: { dataset: 'spelling' },
   'search-console': { dataset: 'search-console' },

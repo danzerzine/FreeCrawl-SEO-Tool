@@ -35,6 +35,8 @@ import type {
 } from './monitor.js';
 import type {
   PagespeedRow,
+  PagespeedAuditRow,
+  PagespeedAuditsQueryParams,
   PagespeedRunStrategy,
 } from './pagespeed.js';
 import type { CruxRow, CruxRunFormFactor } from './crux.js';
@@ -382,6 +384,8 @@ export const IPC = {
    *  URLs (the slow part — emits `pagespeedProgress` as it goes);
    *  `pagespeedCancel` stops an in-flight run early. */
   pagespeedQuery: 'pagespeed:query',
+  /** B41 — the stored Lighthouse audits of one page (the Lighthouse sub-tab of the detail panel). */
+  pagespeedAuditsQuery: 'pagespeed:audits-query',
   pagespeedRun: 'pagespeed:run',
   pagespeedCancel: 'pagespeed:cancel',
   /** main → renderer: live progress of an in-flight PageSpeed run. */
@@ -1683,6 +1687,14 @@ export interface PagespeedQueryResult {
   total: number;
 }
 
+/** B41 — stored Lighthouse insights, opportunities and diagnostics, biggest saving first. */
+export type PagespeedAuditsQueryInput = PagespeedAuditsQueryParams;
+
+export interface PagespeedAuditsQueryResult {
+  rows: PagespeedAuditRow[];
+  total: number;
+}
+
 export interface PagespeedRunInput {
   /** URLs to audit — taken from the candidate rows in the tab. */
   urls: string[];
@@ -2453,6 +2465,8 @@ export interface FreeCrawlApi {
   /** Faz 7 — list crawled internal HTML pages joined with their stored
    *  PageSpeed Insights audit results. */
   pagespeedQuery(input: PagespeedQueryInput): Promise<PagespeedQueryResult>;
+  /** B41 — the stored Lighthouse audits of a page. */
+  pagespeedAuditsQuery(input: PagespeedAuditsQueryInput): Promise<PagespeedAuditsQueryResult>;
   /** Run a PageSpeed Insights audit over the given URLs. Resolves when
    *  the whole run finishes; subscribe to `onPagespeedProgress` for
    *  live progress. */

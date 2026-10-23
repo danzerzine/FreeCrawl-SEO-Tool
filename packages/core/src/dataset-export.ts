@@ -149,6 +149,17 @@ export function datasetRows(
       return asRecords(db.iterateCrawlQueue());
     case 'pagespeed':
       return asRecords(paged((limit, offset) => db.queryPagespeed({ limit, offset })));
+    case 'pagespeed-audits':
+      return asRecords(
+        (function* () {
+          for (const row of paged((limit, offset) => db.queryPagespeedAudits({ limit, offset })))
+            yield {
+              ...row,
+              resourcesCount: row.items.length,
+              resourcesJson: JSON.stringify(row.items),
+            };
+        })(),
+      );
     case 'crux':
       return asRecords(paged((limit, offset) => db.queryCrux({ limit, offset })));
     case 'spelling':

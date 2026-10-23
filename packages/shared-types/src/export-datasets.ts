@@ -33,6 +33,7 @@ export type ExportDatasetKey =
   | 'page-html'
   | 'page-text'
   | 'pagespeed'
+  | 'pagespeed-audits'
   | 'crux'
   | 'spelling'
   | 'search-console'
@@ -231,6 +232,27 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     ...PAGE,
     ...pagespeedColumns('mobile', 'Mobile'),
     ...pagespeedColumns('desktop', 'Desktop'),
+    // B41: appended at the end so the order of the older columns does not change.
+    { key: 'mobileOpportunityCount', header: 'Mobile Opportunities' },
+    { key: 'mobileTopSavingsMs', header: 'Mobile Top Saving (ms)' },
+    { key: 'desktopOpportunityCount', header: 'Desktop Opportunities' },
+    { key: 'desktopTopSavingsMs', header: 'Desktop Top Saving (ms)' },
+  ],
+  // B41: one row per page x device x Lighthouse audit (insight, opportunity or diagnostic).
+  'pagespeed-audits': [
+    { key: 'url', header: 'URL' },
+    { key: 'strategy', header: 'Strategy' },
+    { key: 'auditId', header: 'Audit' },
+    { key: 'kind', header: 'Kind' },
+    { key: 'title', header: 'Title' },
+    { key: 'score', header: 'Score' },
+    { key: 'displayValue', header: 'Display Value' },
+    { key: 'savingsMs', header: 'Savings (ms)' },
+    { key: 'savingsBytes', header: 'Savings (bytes)' },
+    { key: 'resourcesCount', header: 'Resources Count' },
+    { key: 'resourcesJson', header: 'Resources JSON' },
+    { key: 'lighthouseVersion', header: 'Lighthouse Version' },
+    { key: 'fetchedAt', header: 'Fetched At' },
   ],
   crux: [...PAGE, ...cruxColumns('phone', 'Phone'), ...cruxColumns('desktop', 'Desktop')],
   spelling: [

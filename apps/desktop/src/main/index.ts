@@ -151,6 +151,8 @@ import {
   type UrlCertInfoResult,
   type UrlsQueryInput,
   type UrlsQueryResult,
+  type PagespeedAuditsQueryInput,
+  type PagespeedAuditsQueryResult,
   type PagespeedQueryInput,
   type PagespeedQueryResult,
   type PagespeedRunInput,
@@ -5787,6 +5789,26 @@ function registerIpc(): void {
         'queryPagespeed',
         [params],
         () => getDb().queryPagespeed(params),
+      );
+    },
+  );
+
+  // B41: the stored Lighthouse audits of one page, for the Lighthouse sub-tab of the detail panel.
+  registerHandle(
+    IPC.pagespeedAuditsQuery,
+    async (_e, input: PagespeedAuditsQueryInput): Promise<PagespeedAuditsQueryResult> => {
+      const params = {
+        url: input.url,
+        strategy: input.strategy,
+        kind: input.kind,
+        auditId: input.auditId,
+        limit: input.limit,
+        offset: input.offset,
+      };
+      return callReaderOrFallback<PagespeedAuditsQueryResult>(
+        'queryPagespeedAudits',
+        [params],
+        () => getDb().queryPagespeedAudits(params),
       );
     },
   );

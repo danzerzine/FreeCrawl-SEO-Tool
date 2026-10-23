@@ -279,7 +279,8 @@ export options:
                                     sitemap-files, sitemap-reconciliation (every sitemap URL and every
                                     crawled HTML page with a verdict: ok, not fetched, redirect,
                                     lastmod differs, ...; needs a crawl that read a sitemap), crawl-queue, broken-links, broken-links-by-target,
-                                    response-headers, images, pagespeed, crux, spelling, ai:<provider>,
+                                    response-headers, images, pagespeed, pagespeed-audits (one row per
+                                    page x device x Lighthouse audit), crux, spelling, ai:<provider>,
                                     seo:<provider>
                                     (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies
                                     exceed the CSV cell limit; not in bulk). crawl-queue is the URLs a

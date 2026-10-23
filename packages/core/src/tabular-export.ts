@@ -86,6 +86,8 @@ const EMPTY_DATASET_REASONS: Partial<Record<ExportDatasetKey, string>> = {
     'No sitemap URLs are stored in this project (no sitemap was read, or the ones read held no URLs), so there is nothing to compare the crawl with.',
   'analytics-custom':
     'No custom GA4 fields came back in the last pull: choose fields in the GA4 settings and fetch again.',
+  'pagespeed-audits':
+    'No Lighthouse audits are stored: run PageSpeed from the PageSpeed tab (pages tested before this export existed need a re-run).',
   webmaster:
     'No Yandex Webmaster pull yet for the chosen host, or Yandex reports no removed pages: pick the host in Settings and fetch first.',
   'webmaster-broken-links':
