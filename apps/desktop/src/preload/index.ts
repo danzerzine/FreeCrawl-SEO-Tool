@@ -492,6 +492,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.reportsTopWordsBlocks, input),
   reportsLinkSuggestions: (input: LinkSuggestionInput): Promise<LinkSuggestionResult | null> =>
     ipcRenderer.invoke(IPC.reportsLinkSuggestions, input),
+  reportsLinkSuggestionsCancel: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.reportsLinkSuggestionsCancel),
   reportsLinkSuggestionsExport: (rows: LinkSuggestionRow[]): Promise<ExportCsvResult> =>
     ipcRenderer.invoke(IPC.reportsLinkSuggestionsExport, rows),
   reportsSerpCheck: (input: SerpCheckInput): Promise<SerpRowResult[]> =>

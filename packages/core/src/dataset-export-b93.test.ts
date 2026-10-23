@@ -3,8 +3,9 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { ProjectDb } from '@freecrawl/db';
-import { EXPORT_DATASET_COLUMNS } from '@freecrawl/shared-types';
+import { EXPORT_DATASET_COLUMNS, type LinkSuggestionInput } from '@freecrawl/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { linkSuggestions } from './link-suggestions.js';
 import { CLI_EXPORT_DATASETS, parseExportWhat, runExportItems, type ExportOutcome } from './export-items.js';
 
 let dir: string;
@@ -104,7 +105,17 @@ describe('B93 dataset:link-suggestions', () => {
 
   it('records truncated and the one-hop redirect fold as warnings, also in manifest.json', async () => {
     seed({ redirect: true });
-    const { outcome } = await run({ linkSuggestions: { maxTargets: 1 } });
+    const { outcome } = await run({
+      linkSuggestionsRunner: async (input: LinkSuggestionInput) => {
+        const own = new ProjectDb(file);
+        try {
+          const r = linkSuggestions(own, input);
+          return r && { ...r, truncated: true };
+        } finally {
+          own.close();
+        }
+      },
+    });
     expect(outcome.files[0]!.warnings).toEqual(expect.arrayContaining(['truncated', 'redirectsFolded: one-hop']));
     const manifest = JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8')) as {
       files: { path: string; warnings?: string[] }[];
@@ -112,5 +123,52 @@ describe('B93 dataset:link-suggestions', () => {
     expect(manifest.files.find((f) => f.path === 'link-suggestions.csv')!.warnings).toEqual(
       expect.arrayContaining(['truncated', 'redirectsFolded: one-hop']),
     );
+  });
+
+  it('computes through the given runner and never in this thread when one is passed', async () => {
+    seed();
+    const seen: unknown[] = [];
+    const canned = {
+      rows: [
+        {
+          targetUrl: 'https://ex.test/zebra',
+          targetTitle: 'Zebra',
+          targetInlinks: 0,
+          targetContentInlinks: 0,
+          targetLinkScore: null,
+          rank: 0,
+          sourceUrl: null,
+          sourceTitle: null,
+          closeness: null,
+          sourceLinkScore: null,
+          sourceOutlinks: null,
+          sameSection: null,
+          suggestedAnchor: null,
+        },
+      ],
+      targets: 1,
+      withoutSuggestion: 1,
+      truncated: false,
+      degraded: false,
+    };
+    const { outcome, lines } = await run({
+      linkSuggestions: { perTarget: 2 },
+      linkSuggestionsRunner: async (input: unknown) => {
+        seen.push(input);
+        return canned;
+      },
+    });
+    expect(seen).toEqual([{ perTarget: 2 }]);
+    expect(outcome.errors).toEqual([]);
+    // only the runner's row: the in-thread computation would also have listed the espresso pages
+    expect(lines.length).toBe(2);
+    expect(lines[1]).toContain('https://ex.test/zebra');
+  });
+
+  it('reports not computed when the runner answers null', async () => {
+    seed();
+    const { outcome, lines } = await run({ linkSuggestionsRunner: async () => null });
+    expect(lines).toEqual([]);
+    expect(outcome.errors.length).toBe(1);
   });
 });

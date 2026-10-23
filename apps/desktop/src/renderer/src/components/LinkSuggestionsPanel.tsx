@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +6,7 @@ import type { LinkSuggestionResult, LinkSuggestionRow } from '@freecrawl/shared-
 import { InfoTip } from './InfoTip.js';
 
 const INFO_TIP =
-  'Effective inlinks are the other pages that really link to a page: links from menus and footers, redirects to it counted once, and links to itself are left out. A page with few of them is hard for visitors and search engines to find. Closeness (0-100) says how much a candidate page and the weak page talk about the same things, judged by the rare words in their titles, headings and descriptions. A source is only listed if it does not link to the page yet.';
+  'Effective inlinks are the other pages that really link to a page: each page counts once however often it links, links from menus and footers count too, redirects to it are counted once, and links to itself are left out. A page with few of them is hard for visitors and search engines to find. Closeness (0-100) says how much a candidate page and the weak page talk about the same things, judged by the rare words in their titles, headings and descriptions. A source is only listed if it does not link to the page yet.';
 
 const DEFAULTS = { maxInlinks: 3, perTarget: 5, perSource: 10, minCloseness: 20 };
 
@@ -48,6 +48,16 @@ export function LinkSuggestionsPanel() {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [saved, setSaved] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const request = useRef(0);
+
+  // Closing the dialog (or leaving this tab) stops the report running on the worker.
+  useEffect(
+    () => () => {
+      request.current++;
+      void window.freecrawl.reportsLinkSuggestionsCancel();
+    },
+    [],
+  );
 
   const groups = result ? groupByTarget(result.rows) : [];
   const virtualizer = useVirtualizer({
@@ -59,6 +69,7 @@ export function LinkSuggestionsPanel() {
   });
 
   const compute = async () => {
+    const mine = ++request.current;
     setLoading(true);
     setError(null);
     setSaved(null);
@@ -69,14 +80,18 @@ export function LinkSuggestionsPanel() {
         perSource,
         minCloseness,
       });
+      if (mine !== request.current) return;
       setNotComputed(r === null);
       setResult(r);
       setOpen(new Set());
     } catch (e) {
+      // A newer request, a closed dialog or another project stopped this one: nothing to show.
+      if (mine !== request.current) return;
+      const message = e instanceof Error ? e.message : String(e);
       setResult(null);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(/Link suggestions cancelled/.test(message) ? null : message);
     } finally {
-      setLoading(false);
+      if (mine === request.current) setLoading(false);
     }
   };
 
@@ -190,7 +205,7 @@ export function LinkSuggestionsPanel() {
         <div className="text-amber-300">
           {t('reports.linkSuggestions.truncated', {
             defaultValue:
-              'Partial result: more weak pages exist than were looked at, or the time limit was reached.',
+              'Partial result: the time limit was reached, so only some of the weak pages were looked at.',
           })}
         </div>
       )}

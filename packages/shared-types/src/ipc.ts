@@ -334,6 +334,7 @@ export const IPC = {
   /** B93: internal-link suggestions, computed on a dedicated worker. */
   reportsLinkSuggestions: 'reports:link-suggestions',
   /** B93: save the rows the tab shows as CSV (asks for the file). */
+  reportsLinkSuggestionsCancel: 'reports:link-suggestions-cancel',
   reportsLinkSuggestionsExport: 'reports:link-suggestions-export',
   /** B85: check pasted titles and descriptions against the snippet limits; nothing is fetched or stored. */
   reportsSerpCheck: 'reports:serp-check',
@@ -2609,6 +2610,8 @@ export interface FreeCrawlApi {
   reportsTopWordsBlocks(input: TopWordsInput): Promise<TopWordsBlock[]>;
   /** B93: pages that should link to weakly linked pages; `null` when the crawl did not compute inlinks. */
   reportsLinkSuggestions(input: LinkSuggestionInput): Promise<LinkSuggestionResult | null>;
+  /** Stops the running link-suggestions report of this window (dialog closed). */
+  reportsLinkSuggestionsCancel(): Promise<void>;
   reportsLinkSuggestionsExport(rows: LinkSuggestionRow[]): Promise<ExportCsvResult>;
   /** B85 SERP-lite: pasted text or rows against the limits (project's or given); no storage, no fetch. */
   reportsSerpCheck(input: SerpCheckInput): Promise<SerpRowResult[]>;

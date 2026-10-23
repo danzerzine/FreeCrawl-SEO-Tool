@@ -196,6 +196,12 @@ export interface RunExportItemsOptions {
   topWords?: TopWordsBlocksOptions;
   /** Thresholds of `dataset:link-suggestions` (CLI `--max-inlinks`, `--per-target`, ...). */
   linkSuggestions?: LinkSuggestionInput;
+  /**
+   * How `dataset:link-suggestions` is computed. Without it the report runs in this thread (fine for
+   * the CLI); the desktop passes one that uses the worker thread so a saved set or a schedule never
+   * freezes the main process. `null` = the crawl did not compute inlinks.
+   */
+  linkSuggestionsRunner?: (input: LinkSuggestionInput) => Promise<LinkSuggestionResult | null>;
 }
 
 /**
@@ -313,9 +319,10 @@ export async function runExportItems(
           // B93: the report runs once, here; the writer only reads its rows.
           let suggestions: LinkSuggestionResult | null = null;
           if (item.dataset === 'link-suggestions') {
-            suggestions = await db.withoutMmap(async () =>
-              linkSuggestions(db, options.linkSuggestions ?? {}),
-            );
+            const input = options.linkSuggestions ?? {};
+            suggestions = options.linkSuggestionsRunner
+              ? await options.linkSuggestionsRunner(input)
+              : await db.withoutMmap(async () => linkSuggestions(db, input));
             if (suggestions === null) {
               const error = LINK_SUGGESTIONS_NOT_COMPUTED;
               progress(`${label}: ${error}`);

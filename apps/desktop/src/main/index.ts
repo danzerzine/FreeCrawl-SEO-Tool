@@ -340,7 +340,6 @@ import {
   testUrlAgainstRobots,
   validateRobotsTxt,
   topWordsBlocksAsync,
-  linkSuggestions,
   runLinkSuggestionsInWorker,
   datasetRows,
   buildCsvTable,
@@ -487,6 +486,12 @@ import {
   type SchedulerStore,
 } from './scheduler.js';
 import { runScheduledExport, runScheduledSheets } from './scheduled-export.js';
+import {
+  guardedLinkSuggestions,
+  LinkSuggestionsGate,
+  linkSuggestionsAbortError,
+  linkSuggestionsBridgeResult,
+} from './link-suggestions-guard.js';
 import { keepPreviousCrawl, previousCrawlPath, runChangeReport } from './change-report.js';
 import { cancelledCompareResult, compareWithOpenProject } from './compare-load.js';
 import { monitorHistory, monitorMetricNames } from './monitor-history.js';
@@ -641,6 +646,8 @@ class ProjectSession {
   autoSaveInFlight = false;
   readonly readerPool: DbReaderPool;
   readonly writerPool: DbWriterPool;
+  /** B93: the one link-suggestions worker this window may have running. */
+  readonly linkSuggestionsGate = new LinkSuggestionsGate();
   /**
    * Second write-capable worker with its own SQLite connection, for the
    * long passes that must not sit in front of the crawl's per-URL
@@ -880,6 +887,7 @@ class ProjectSession {
     } catch {
       /* best-effort */
     }
+    this.linkSuggestionsGate.cancel();
     this.db = null;
     // Remove this window's throwaway scratch DB (+ WAL/SHM siblings) so
     // repeated New Project Window / close cycles don't leak files under
@@ -2555,6 +2563,7 @@ async function openProjectAtPath(documentPath: string): Promise<void> {
     running.stop();
     s.activeCrawler = null;
   }
+  s.linkSuggestionsGate.cancel();
   if (s.db) {
     try {
       s.db.close();
@@ -5583,6 +5592,9 @@ function registerIpc(): void {
     (_e, input: LinkSuggestionInput): Promise<LinkSuggestionResult | null> =>
       computeLinkSuggestions(input ?? {}),
   );
+  registerHandle(IPC.reportsLinkSuggestionsCancel, (): void => {
+    currentSession().linkSuggestionsGate.cancel();
+  });
   registerHandle(
     IPC.reportsLinkSuggestionsExport,
     async (_e, rows: LinkSuggestionRow[]): Promise<ExportCsvResult> => {
@@ -5721,6 +5733,8 @@ function registerIpc(): void {
     const r = await runSavedExportSet(sess.getDb(), outputDir, name, {
       branding: readReportBranding(),
       ...bulkExportMeta(sess),
+      // B93: dataset:link-suggestions runs on the worker, not on the main process.
+      linkSuggestionsRunner: (input) => runLinkSuggestionsOffThread(sess, input),
     });
     await showExportOutcome(L().dlgExportSetCompleteTitle, outputDir, r, win);
     return { outputDir, files: r.files.length, errors: r.errors.length };
@@ -8009,6 +8023,7 @@ function registerIpc(): void {
           branding: readReportBranding(),
           ...bulkExportMeta(sess),
           writePdf: writePdfReport,
+          linkSuggestionsRunner: (input) => runLinkSuggestionsOffThread(sess, input),
           onProgress: (line) => logger.log('info', 'main', `Scheduled export: ${line}`, undefined, sess.logTag),
         });
         files.push(...r.files.map((f) => f.path));
@@ -8094,20 +8109,60 @@ function registerIpc(): void {
   }
 
   /**
-   * B93: internal-link suggestions. A disk project runs on its own read-only connection in a
-   * dedicated worker thread (the shared reader pool times out at 30 s); a RAM-only project has
-   * no file to open and computes in-process.
+   * B93: internal-link suggestions, always on a dedicated read-only worker thread (the shared
+   * reader pool times out at 30 s), never in the main process. A RAM-only project has no file, so
+   * it is first copied to a temp file with `VACUUM INTO` (seconds, against minutes for the report;
+   * the least code for a worker that needs a file), and the copy is deleted afterwards.
    */
-  async function computeLinkSuggestions(
+  async function runLinkSuggestionsOffThread(
+    sess: ProjectSession,
+    input: LinkSuggestionInput,
+    signal?: AbortSignal,
+  ): Promise<LinkSuggestionResult | null> {
+    const run = (file: string): Promise<LinkSuggestionResult | null> =>
+      runLinkSuggestionsInWorker(file, input, {
+        workerPath: join(__dirname, 'link-suggestions-worker.js'),
+        signal,
+      });
+    sess.getDb();
+    if (sess.storageModeActive === 'disk' && sess.scratchPath) return run(sess.scratchPath);
+    const copy = join(
+      projectsDir(),
+      `link-suggestions-${process.pid}-${Math.round(performance.now())}.seoproject`,
+    );
+    try {
+      await snapshotDatabase(sess, copy);
+      if (signal?.aborted) throw linkSuggestionsAbortError();
+      return await run(copy);
+    } finally {
+      for (const suffix of ['', '-wal', '-shm']) rmSync(`${copy}${suffix}`, { force: true });
+    }
+  }
+
+  /** The Reports tab: one report per window; a new request, a cancel or a project switch drops the old one. */
+  function computeLinkSuggestions(
     input: LinkSuggestionInput,
   ): Promise<LinkSuggestionResult | null> {
     const sess = currentSession();
-    if (sess.storageModeActive === 'disk' && sess.scratchPath) {
-      return runLinkSuggestionsInWorker(sess.scratchPath, input, {
-        workerPath: join(__dirname, 'link-suggestions-worker.js'),
-      });
-    }
-    return linkSuggestions(getDb(), input);
+    sess.getDb();
+    return guardedLinkSuggestions(
+      sess.linkSuggestionsGate,
+      () => sess.db,
+      (signal) => runLinkSuggestionsOffThread(sess, input, signal),
+    );
+  }
+
+  /** The bridge (MCP): same worker, its own gate so it never cancels the dialog's report. */
+  function computeLinkSuggestionsForBridge(
+    input: LinkSuggestionInput,
+  ): Promise<LinkSuggestionResult | null> {
+    const sess = currentSession();
+    sess.getDb();
+    return guardedLinkSuggestions(
+      new LinkSuggestionsGate(),
+      () => sess.db,
+      (signal) => runLinkSuggestionsOffThread(sess, input, signal),
+    );
   }
 
   /** The rows of the first block: what the report returned before blocks (site words). */
@@ -8826,7 +8881,9 @@ function registerIpc(): void {
 
     // B93: same worker as the Reports tab; thresholds are optional and validated in core.
     'report-link-suggestions': async (input) => {
-      return computeLinkSuggestions((input ?? {}) as LinkSuggestionInput);
+      return linkSuggestionsBridgeResult(
+        await computeLinkSuggestionsForBridge((input ?? {}) as LinkSuggestionInput),
+      );
     },
 
     // ---- Faz 0.5 Increment 3 — URL mutation, exports, config, integrations, project file ----

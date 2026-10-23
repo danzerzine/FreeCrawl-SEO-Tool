@@ -44,6 +44,30 @@ describe('B93 link suggestions: IPC, bridge and worker wiring', () => {
     expect(main).toMatch(/storageModeActive === 'disk'/);
   });
 
+  it('nothing computes the report on the main thread: export sets, schedules and RAM-only projects use the worker', () => {
+    const main = src('./index.ts');
+    expect(main).not.toMatch(/\blinkSuggestions\(\s*getDb\(\)/);
+    expect(main).not.toMatch(/import[^;]*\blinkSuggestions,/s);
+    // saved export set and scheduled export both pass the worker runner
+    expect(main.match(/linkSuggestionsRunner: \(input\) => runLinkSuggestionsOffThread\(sess, input\)/g)?.length).toBe(2);
+    // a RAM-only project is copied to a temp file for the worker
+    expect(main).toMatch(/await snapshotDatabase\(sess, copy\)/);
+    expect(src('./scheduled-export.ts')).toMatch(/linkSuggestionsRunner: ctx\.linkSuggestionsRunner/);
+  });
+
+  it('closing the dialog, a second Find and a project switch cancel the running worker', () => {
+    const main = src('./index.ts');
+    expect(main).toMatch(/registerHandle\(IPC\.reportsLinkSuggestionsCancel/);
+    expect(main.match(/linkSuggestionsGate\.cancel\(\)/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(src('../renderer/src/components/LinkSuggestionsPanel.tsx')).toMatch(
+      /reportsLinkSuggestionsCancel\(\)/,
+    );
+  });
+
+  it('the bridge action answers notComputed, not null', () => {
+    expect(src('./index.ts')).toMatch(/linkSuggestionsBridgeResult\(\s*await computeLinkSuggestionsForBridge/);
+  });
+
   it('the worker entry is bundled next to the main bundle', () => {
     expect(src('../../electron.vite.config.ts')).toMatch(
       /'link-suggestions-worker': resolve\(__dirname, 'src\/main\/link-suggestions-worker\.ts'\)/,
@@ -98,5 +122,12 @@ describe('B93 info tip', () => {
     for (const l of LOCALES.filter((x) => x !== 'en')) {
       expect(src(`../renderer/src/i18n/info-tips/${l}.ts`), l).toContain(tip!);
     }
+  });
+
+  it('does not say menu and footer links are left out (the code counts them)', () => {
+    const panel = src('../renderer/src/components/LinkSuggestionsPanel.tsx');
+    const tip = /const INFO_TIP =\s*'((?:[^'\\]|\\.)*)'/.exec(panel)![1]!;
+    expect(tip).toMatch(/links from menus and footers count too/);
+    expect(tip).not.toMatch(/menus and footers[^.]*left out/);
   });
 });

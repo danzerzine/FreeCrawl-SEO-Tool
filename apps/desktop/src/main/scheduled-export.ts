@@ -14,6 +14,7 @@ import {
   parseExportWhat,
   type ExportOutcome,
   type HtmlReportOptions,
+  type RunExportItemsOptions,
 } from '@freecrawl/core';
 import type { ScheduleAfterCrawl } from '@freecrawl/shared-types';
 import { runDesktopExportItems } from './export-sets.js';
@@ -26,6 +27,8 @@ export interface ScheduledExportContext {
   projectFile?: string;
   writePdf: (db: ProjectDb, target: string) => Promise<unknown>;
   onProgress?: (line: string) => void;
+  /** B93: computes `dataset:link-suggestions` off the main thread (the desktop's worker). */
+  linkSuggestionsRunner?: RunExportItemsOptions['linkSuggestionsRunner'];
 }
 
 export interface ScheduledExportResult {
@@ -50,6 +53,7 @@ export async function runScheduledExport(
     projectFile: ctx.projectFile,
     branding: ctx.branding,
     onProgress: ctx.onProgress,
+    linkSuggestionsRunner: ctx.linkSuggestionsRunner,
   };
   let r: ExportOutcome;
   if (after.export === 'set') {
