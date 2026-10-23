@@ -5750,6 +5750,8 @@ export class Crawler extends EventEmitter {
         collectShingles: this.templateLearn,
         // B45: only a 2xx page; the check runs inside the parse (the worker pool, when there is one).
         markupValidation: this.config.markupValidation === true && statusCode >= 200 && statusCode < 300,
+        // With a render, parseBody is Chromium's rewritten DOM; the check wants what the server sent.
+        markupSource: parseBody !== body ? body : undefined,
       });
       // Hashes ride with the page to its write, so a set frozen meanwhile
       // can be applied there (B98). A missed content area has no fingerprint.

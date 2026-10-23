@@ -7,11 +7,15 @@ import { LATER_CHECKS, MARKUP_CHECKS, ProjectDb } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG } from '@freecrawl/shared-types';
 import { compareCrawls } from './compare.js';
 import { Crawler } from './crawler.js';
+import { fakeRender } from './fake-render.test-support.js';
 
 // B45: a crawl of a local 4-page site: a clean home, a page with a repeated id, a page without doctype, a 404.
 const PAGES: Record<string, string> = {
   '/': '<!DOCTYPE html><html><head><title>Home</title></head><body><h1>H</h1><a href="/dup">d</a><a href="/nodoc">n</a><a href="/gone">g</a></body></html>',
   '/dup': '<!DOCTYPE html><html><head><title>Dup</title></head><body><p id="x">a</p><p id="x">b</p></body></html>',
+  // Served with a repeated attribute and a stray end tag; Chromium would serialize it clean.
+  '/broken':
+    '<!DOCTYPE html><html><head><title>Broken</title></head><body><p class="a" class="b">x</p></div></body></html>',
   '/nodoc': '<html><head><title>No doctype</title></head><body><p>x</p></body></html>',
 };
 const NOT_FOUND = '<html><body><p id="y">a</p><p id="y">b</p></body></html>';
@@ -108,6 +112,38 @@ describe('crawl with the markup check (B45)', () => {
     expect(listed(db, 'markup-errors')).toEqual([]);
     for (const k of MARKUP_CHECKS) expect(db.checksFilled().has(k)).toBe(false);
     expect(LATER_CHECKS).toEqual(expect.arrayContaining([...MARKUP_CHECKS]));
+    db.close();
+  }, 30_000);
+});
+
+describe('crawl with --render and the markup check (B45)', () => {
+  it('the check reads the HTML the server sent, not the rendered DOM', async () => {
+    const url = base + 'broken';
+    const clean =
+      '<!DOCTYPE html><html><head><title>Broken</title></head><body><p class="a">x</p></body></html>';
+    const db = new ProjectDb(join(dir, `p${n++}.seoproject`));
+    const c = new Crawler(
+      {
+        ...DEFAULT_CRAWL_CONFIG,
+        startUrl: url,
+        renderingMode: 'js',
+        maxConcurrency: 1,
+        markupValidation: true,
+        discoverSitemaps: false,
+        checkExternalLinks: false,
+        probeTlsCerts: false,
+        probeManifestJson: false,
+        probeSocialImages: false,
+        probeImageSizes: false,
+      },
+      db,
+      { renderUrl: fakeRender({ [url]: clean }) },
+    );
+    c.on('error', () => {});
+    await c.start();
+    const row = db.getUrlById(db.getUrlIdByUrl(url)!)!;
+    expect(row.markupErrors).toBeGreaterThan(0);
+    expect(JSON.parse(row.markupCodes!)).toHaveProperty('duplicate-attribute');
     db.close();
   }, 30_000);
 });

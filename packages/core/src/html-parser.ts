@@ -1127,6 +1127,8 @@ export function parseHtml(
     collectShingles?: boolean;
     /** Count HTML markup errors on this page (B45); two more parses of the string. */
     markupValidation?: boolean;
+    /** The HTML the server sent, when `html` is Chromium's rewrite of it: the markup check reads this (B45). */
+    markupSource?: string;
   } = {},
 ): ParsedPage {
   // Fast path: force the htmlparser2 backend and skip entity decoding.
@@ -1834,11 +1836,12 @@ export function parseHtml(
   // JS substrings + meta tags. Cheaper to scan once over `$` than per-tracker.
   const analyticsTrackers = detectAnalyticsTrackers($, html);
 
-  // B45: the markup check reads the string parseHtml was given, not the cheerio tree.
+  // B45: the markup check reads a string, not the cheerio tree: the served HTML when the page was
+  // rendered (Chromium's DOM is always well formed), else the string parseHtml was given.
   let markupErrors: number | null = null;
   let markupCodes: string | null = null;
   if (opts.markupValidation) {
-    const check = checkMarkup(html);
+    const check = checkMarkup(opts.markupSource ?? html);
     markupErrors = check.total;
     if (check.total > 0) {
       markupCodes = JSON.stringify(
