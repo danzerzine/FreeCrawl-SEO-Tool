@@ -6,6 +6,7 @@ import {
   clampPageScriptTimeout,
   runPageScript,
 } from './page-script.js';
+import type { AxeAudit } from './axe-reduce.js';
 import { attachConsoleCollector, type ConsoleLog } from './render-console.js';
 
 export interface RenderOptions {
@@ -23,6 +24,8 @@ export interface RenderOptions {
   detectLcp?: boolean;
   /** Run the in-page accessibility audit (contrast + focus outline). */
   detectA11y?: boolean;
+  /** Run axe-core after everything else (B40). Only the main desktop-size render, on a 2xx HTML page. */
+  detectAxe?: boolean;
   /**
    * Record client-side route changes (History API + hash router) so the
    * crawler can follow routes an SPA reaches without a document request.
@@ -78,6 +81,24 @@ export function renderLimitMs(opts: RenderOptions): number {
   );
 }
 
+/**
+ * Whether axe-core runs on this render (B40 R4): option on, main response 2xx,
+ * HTML, and the document did not replace itself. Pure, so a unit test sees it
+ * (a fake render hook bypasses `renderUrl`). The one place the 2xx rule lives.
+ */
+export function shouldRunAxe(p: {
+  detectAxe?: boolean;
+  status: number;
+  contentType?: string;
+  navigatedTo?: string | null;
+}): boolean {
+  if (!p.detectAxe) return false;
+  if (!(p.status >= 200 && p.status < 300)) return false;
+  if (p.navigatedTo) return false;
+  if (p.contentType === undefined || p.contentType === '') return true;
+  return /^(text\/html|application\/xhtml\+xml)\b/i.test(p.contentType.trim());
+}
+
 export interface LcpCandidate {
   selector: string;
   tagName: string;
@@ -109,6 +130,8 @@ export interface RenderResult {
   lcp?: LcpCandidate | null;
   /** Accessibility audit from `detectA11y` — null when it could not run. */
   a11y?: A11yAudit | null;
+  /** axe-core result from `detectAxe` (B40) — null when axe was skipped or did not finish. */
+  axe?: AxeAudit | null;
   /**
    * Absolute URLs the page navigated to client-side during this render
    * (`history.pushState` / `replaceState` / `popstate` / `hashchange`),

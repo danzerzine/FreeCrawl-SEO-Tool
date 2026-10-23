@@ -261,6 +261,7 @@ interface FormState {
   jsMobileUsability: boolean;
   jsLcpCandidate: boolean;
   jsA11yAudit: boolean;
+  jsAxeAudit: boolean;
   jsConsoleErrors: boolean;
   jsPageScript: string;
   jsPageScriptTimeoutMs: string;
@@ -728,6 +729,7 @@ function configToForm(c: CrawlConfig): FormState {
     jsMobileUsability: c.jsRender?.mobileUsability ?? false,
     jsLcpCandidate: c.jsRender?.lcpCandidate ?? false,
     jsA11yAudit: c.jsRender?.a11yAudit ?? false,
+    jsAxeAudit: c.jsRender?.axeAudit ?? false,
     jsConsoleErrors: c.jsRender?.consoleErrors ?? false,
     jsPageScript: c.jsRender?.pageScript ?? '',
     jsPageScriptTimeoutMs: String(c.jsRender?.pageScriptTimeoutMs ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs),
@@ -1124,6 +1126,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         mobileUsability: form.jsMobileUsability,
         lcpCandidate: form.jsLcpCandidate,
         a11yAudit: form.jsA11yAudit,
+        axeAudit: form.jsAxeAudit,
         consoleErrors: form.jsConsoleErrors,
         pageScript: form.jsPageScript.slice(0, PAGE_SCRIPT_MAX_CHARS),
         pageScriptTimeoutMs: Math.min(

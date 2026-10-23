@@ -1709,6 +1709,12 @@ export interface JsRenderConfig {
    */
   a11yAudit: boolean;
   /**
+   * Run axe-core (WCAG 2.0-2.2 A/AA rules) on every rendered page (B40). Separate
+   * from `a11yAudit`: either, both or neither may be on. JS mode only. Off by
+   * default: it costs time per page and adds a few KB per page to the project.
+   */
+  axeAudit: boolean;
+  /**
    * Record console errors, uncaught page errors and resources that failed
    * to load (failed requests, subresource answers >= 400) while a page
    * renders (B35). Feeds the Console Errors and Failed Resources issues.
@@ -3129,6 +3135,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
     mobileUsability: false,
     lcpCandidate: false,
     a11yAudit: false,
+    axeAudit: false,
     consoleErrors: false,
     pageScript: '',
     pageScriptTimeoutMs: PAGE_SCRIPT_TIMEOUT_DEFAULT_MS,

@@ -301,6 +301,7 @@ import {
   PlaywrightBrowserMissingError,
   browserPoolOptionsFromConfig,
   renderOptionsFromConfig,
+  renderHookFields,
   type RenderHook,
   Crawler,
   renderUrl,
@@ -2315,6 +2316,7 @@ function mergeCrawlConfig(parsed: Partial<CrawlConfig>): CrawlConfig {
         DEFAULT_CRAWL_CONFIG.jsRender.lcpCandidate,
       a11yAudit:
         parsed.jsRender?.a11yAudit ?? DEFAULT_CRAWL_CONFIG.jsRender.a11yAudit,
+      axeAudit: parsed.jsRender?.axeAudit ?? DEFAULT_CRAWL_CONFIG.jsRender.axeAudit,
       consoleErrors:
         parsed.jsRender?.consoleErrors ?? DEFAULT_CRAWL_CONFIG.jsRender.consoleErrors,
       pageScript: parsed.jsRender?.pageScript ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScript,
@@ -8231,22 +8233,13 @@ function registerIpc(): void {
                 ...(mobileScreenshotPath ? { mobile: mobileScreenshotPath } : {}),
               }
             : undefined;
+        // renderHookFields is the shared field list (axe included); the desktop adds its own.
         return {
-          ok: res.ok,
-          html: res.html,
-          timingMs: res.timingMs,
-          error: res.error,
+          ...renderHookFields(res),
           screenshots,
           lcp: res.lcp ?? null,
           mobileUsability,
           a11y: res.a11y ?? null,
-          spaRoutes: res.spaRoutes,
-          navigatedTo: res.navigatedTo ?? null,
-          servedHtml: res.servedHtml,
-          consoleLog: res.consoleLog,
-          scriptRan: res.scriptRan,
-          scriptResult: res.scriptResult,
-          renderedHtmlPreScript: res.renderedHtmlPreScript,
         };
       };
     }

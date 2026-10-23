@@ -14,16 +14,26 @@ export {
 } from './browser-pool.js';
 export {
   renderUrl,
+  shouldRunAxe,
   auditMobileUsability,
   type RenderOptions,
   type RenderResult,
   type LcpCandidate,
   type MobileUsabilityResult,
 } from './render-fetcher.js';
+export {
+  reduceAxeResults,
+  AXE_MAX_RULES,
+  AXE_MAX_JSON_BYTES,
+  type AxeAudit,
+  type AxeRuleResult,
+  type AxeSample,
+} from './axe-reduce.js';
 export { runMobilePass, type MobilePassResult } from './render-mobile-pass.js';
 export {
   browserPoolOptionsFromConfig,
   createRenderHook,
+  renderHookFields,
   renderOptionsFromConfig,
   type RenderHook,
   type RenderHookResult,

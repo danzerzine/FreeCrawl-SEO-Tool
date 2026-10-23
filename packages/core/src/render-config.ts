@@ -2,7 +2,8 @@ import { hasPageScript, type CrawlConfig } from '@freecrawl/shared-types';
 import type { BrowserPool, BrowserPoolOptions } from './browser-pool.js';
 import { MOBILE_DEVICE_SCALE_FACTOR, MOBILE_USER_AGENT, MOBILE_VIEWPORT } from './http-client.js';
 import type { ConsoleLog } from './render-console.js';
-import { renderUrl, type RenderOptions } from './render-fetcher.js';
+import type { AxeAudit } from './axe-reduce.js';
+import { renderUrl, type RenderOptions, type RenderResult } from './render-fetcher.js';
 
 /**
  * The Playwright pool a crawl renders with, from its settings. The desktop
@@ -56,6 +57,7 @@ export function renderOptionsFromConfig(config: CrawlConfig): RenderOptions {
     blockedTypes: blockedResourceTypes(config),
     pageScript: hasPageScript(config.jsRender.pageScript) ? config.jsRender.pageScript : undefined,
     pageScriptTimeoutMs: config.jsRender.pageScriptTimeoutMs,
+    detectAxe: config.jsRender.axeAudit || undefined,
   };
 }
 
@@ -108,6 +110,8 @@ export interface RenderHookResult {
   renderedHtmlPreScript?: string;
   /** Console errors and failed resources of the render (B35); set only with `jsRender.consoleErrors`. */
   consoleLog?: ConsoleLog;
+  /** axe-core result of the page (B40); null/unset when axe was off, skipped or did not finish. */
+  axe?: AxeAudit | null;
 }
 
 export type RenderHook = (
@@ -115,6 +119,28 @@ export type RenderHook = (
   urlId: number | null,
   signal: AbortSignal,
 ) => Promise<RenderHookResult>;
+
+/**
+ * The hook-result fields every product copies from a render. A field not listed
+ * here is silently dropped, so the CLI hook and the desktop hook both build on
+ * this one list (the desktop adds screenshots, LCP, a11y and the mobile pass).
+ */
+export function renderHookFields(res: RenderResult): RenderHookResult {
+  return {
+    ok: res.ok,
+    html: res.html,
+    timingMs: res.timingMs,
+    error: res.error,
+    spaRoutes: res.spaRoutes,
+    navigatedTo: res.navigatedTo ?? null,
+    servedHtml: res.servedHtml,
+    consoleLog: res.consoleLog,
+    scriptRan: res.scriptRan,
+    scriptResult: res.scriptResult,
+    renderedHtmlPreScript: res.renderedHtmlPreScript,
+    axe: res.axe ?? null,
+  };
+}
 
 /**
  * The crawler's `renderUrl` hook over a pool: the DOM after the scripts
@@ -125,19 +151,6 @@ export function createRenderHook(pool: BrowserPool, config: CrawlConfig): Render
   const opts = renderOptionsFromConfig(config);
   return async (url, _urlId, signal) => {
     if (pool.isClosed()) return { ok: false, html: '', timingMs: 0, error: 'pool closed' };
-    const res = await renderUrl(url, pool, opts, signal);
-    return {
-      ok: res.ok,
-      html: res.html,
-      timingMs: res.timingMs,
-      error: res.error,
-      spaRoutes: res.spaRoutes,
-      navigatedTo: res.navigatedTo ?? null,
-      servedHtml: res.servedHtml,
-      consoleLog: res.consoleLog,
-      scriptRan: res.scriptRan,
-      scriptResult: res.scriptResult,
-      renderedHtmlPreScript: res.renderedHtmlPreScript,
-    };
+    return renderHookFields(await renderUrl(url, pool, opts, signal));
   };
 }
