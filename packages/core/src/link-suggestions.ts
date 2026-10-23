@@ -20,6 +20,8 @@ export interface LinkSuggestionInternals {
   termBits?: number;
   /** Filled while running. */
   stats?: { maxListWalked: number; listsSkipped: number };
+  /** In-process checks only (a function does not cross to a worker): the effective inlinks of every eligible page. */
+  onEffectiveInlinks?: (urls: readonly string[], eff: Int32Array) => void;
 }
 
 export const LINK_SUGGESTION_DEFAULTS = {
@@ -278,6 +280,8 @@ export function linkSuggestions(
       }
     }
   }
+
+  internals.onEffectiveInlinks?.(urls, eff);
 
   // ---- 4. Term index: hashes reduced to the table size, pruned, then CSR postings ----
   const bits = clamp(internals.termBits, 24, 8, 24);

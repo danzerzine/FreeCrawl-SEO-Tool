@@ -3006,7 +3006,7 @@ export interface LinkSuggestionInput {
 export interface LinkSuggestionRow {
   targetUrl: string;
   targetTitle: string | null;
-  /** Distinct eligible pages that link the target, redirects folded, template links and self-links left out. */
+  /** Distinct eligible pages that link the target, redirects folded, self-links left out; menu and footer links are counted. */
   targetInlinks: number;
   /** The same count restricted to links in the page content; information only. */
   targetContentInlinks: number;
@@ -3029,7 +3029,7 @@ export interface LinkSuggestionResult {
   targets: number;
   /** Of those, how many found no source. */
   withoutSuggestion: number;
-  /** More weak pages exist than `maxTargets`, or the time budget stopped the run. */
+  /** The time budget stopped the run (more weak pages than `maxTargets` is not truncation). */
   truncated: boolean;
   /** The term index was thinned to stay inside the memory guard. */
   degraded: boolean;

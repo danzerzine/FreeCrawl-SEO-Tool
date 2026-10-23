@@ -260,6 +260,26 @@ describe('linkSuggestions (B93)', () => {
     expect(rowsOf(r, '/a')[0]!.targetInlinks).toBe(3);
   });
 
+  it('hands the effective inlinks of every eligible page to an in-process check', () => {
+    let seen: Record<string, number> = {};
+    run(
+      {
+        pages: [
+          { id: 1, path: '/a', title: 'Quantum widget handbook' },
+          { id: 2, path: '/b', title: 'Gardening notes spring' },
+        ],
+        links: [{ from: 2, to: '/a' }, { from: 2, to: '/a' }],
+      },
+      {},
+      {
+        onEffectiveInlinks: (urls, eff) => {
+          seen = Object.fromEntries(urls.map((u, i) => [u, eff[i]!]));
+        },
+      },
+    );
+    expect(seen).toEqual({ [BASE + '/a']: 1, [BASE + '/b']: 0 });
+  });
+
   // 6
   it('ignores template links and never lists the template URL as a target', () => {
     const pages: Page[] = [

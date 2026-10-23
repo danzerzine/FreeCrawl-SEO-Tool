@@ -59,4 +59,31 @@ describe('runLinkSuggestionsInWorker (B93)', () => {
     live.abort();
     await expect(p).rejects.toMatchObject({ name: 'AbortError' });
   });
+
+  it('retries once without the old-generation cap when the capped worker runs out of memory', async () => {
+    // A stand-in worker: allocates until it dies while a cap is set, answers when there is none.
+    const fake = path.join(dir, 'oom-worker.mjs');
+    fs.writeFileSync(
+      fake,
+      `import { parentPort, resourceLimits } from 'node:worker_threads';
+       if (resourceLimits.maxOldGenerationSizeMb && resourceLimits.maxOldGenerationSizeMb < 1000) {
+         const keep = []; for (;;) keep.push(new Array(1e6).fill(keep.length));
+       }
+       parentPort.postMessage({ ok: true, result: { rows: [], capped: resourceLimits.maxOldGenerationSizeMb } });`,
+    );
+    const res = await runLinkSuggestionsInWorker(file, {}, { workerPath: fake, oldLimitMb: 24 });
+    expect(res).toMatchObject({ rows: [] });
+    expect((res as unknown as { capped: number }).capped).not.toBe(24);
+  });
+
+  it('does not retry a second time: a second out-of-memory is reported', async () => {
+    const fake = path.join(dir, 'oom-always.mjs');
+    fs.writeFileSync(
+      fake,
+      `const keep = []; for (;;) keep.push(new Array(1e6).fill(keep.length));`,
+    );
+    await expect(
+      runLinkSuggestionsInWorker(file, {}, { workerPath: fake, oldLimitMb: 24, uncappedLimitMb: 48 }),
+    ).rejects.toMatchObject({ code: 'ERR_WORKER_OUT_OF_MEMORY' });
+  });
 });

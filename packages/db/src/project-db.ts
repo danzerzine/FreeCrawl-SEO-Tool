@@ -10750,7 +10750,7 @@ export class ProjectDb {
   /** Redirect rows: where each 3xx URL goes (one hop) and, when chains were walked, where it ends. */
   linkSuggestionRedirects(
     columns: LinkSuggestionColumns,
-  ): { url: string; target: string | null; finalUrl: string | null }[] {
+  ): Iterable<{ url: string; target: string | null; finalUrl: string | null }> {
     if (!columns.redirectTarget) return [];
     return this.db
       .prepare(
@@ -10759,7 +10759,11 @@ export class ProjectDb {
            FROM urls
           WHERE status_code >= 300 AND status_code < 400 AND redirect_target IS NOT NULL`,
       )
-      .all() as unknown as { url: string; target: string | null; finalUrl: string | null }[];
+      .iterate() as unknown as Iterable<{
+      url: string;
+      target: string | null;
+      finalUrl: string | null;
+    }>;
   }
 
   /**

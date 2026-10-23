@@ -45,7 +45,7 @@ describe('B93 CLI: dataset:link-suggestions', () => {
     seed(true);
     const r = run('--what', 'dataset:link-suggestions', '--per-target', '1', '--min-closeness', '10', '--out', out);
     expect(r.status, r.stderr).toBe(0);
-    const lines = fs.readFileSync(path.join(out, 'link-suggestions.csv'), 'utf8').replace(/^﻿/, '').trimEnd().split('\n');
+    const lines = fs.readFileSync(path.join(out, 'link-suggestions.csv'), 'utf8').replace(/^\uFEFF/, '').trimEnd().split('\n');
     expect(lines[0]).toBe(
       'Target URL,Target Title,Target Inlinks,Target Content Inlinks,Target Link Score,Rank,Source URL,Source Title,Closeness %,Source Link Score,Source Outlinks,Same Section,Suggested Anchor',
     );

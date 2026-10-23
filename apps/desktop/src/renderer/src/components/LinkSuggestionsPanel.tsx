@@ -59,6 +59,21 @@ export function LinkSuggestionsPanel() {
     [],
   );
 
+  // File > Open: the shown rows belong to the old project, so they go (and with them Export CSV).
+  useEffect(
+    () =>
+      window.freecrawl.onProjectConfigChanged(() => {
+        request.current++;
+        setResult(null);
+        setNotComputed(false);
+        setError(null);
+        setSaved(null);
+        setOpen(new Set());
+        setLoading(false);
+      }),
+    [],
+  );
+
   const groups = result ? groupByTarget(result.rows) : [];
   const virtualizer = useVirtualizer({
     count: groups.length,

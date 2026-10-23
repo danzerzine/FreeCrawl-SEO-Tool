@@ -648,6 +648,8 @@ class ProjectSession {
   readonly writerPool: DbWriterPool;
   /** B93: the one link-suggestions worker this window may have running. */
   readonly linkSuggestionsGate = new LinkSuggestionsGate();
+  /** MCP/bridge reports: one at a time per project, cancelled with the project. */
+  readonly bridgeLinkSuggestionsGate = new LinkSuggestionsGate();
   /**
    * Second write-capable worker with its own SQLite connection, for the
    * long passes that must not sit in front of the crawl's per-URL
@@ -888,6 +890,7 @@ class ProjectSession {
       /* best-effort */
     }
     this.linkSuggestionsGate.cancel();
+    this.bridgeLinkSuggestionsGate.cancel();
     this.db = null;
     // Remove this window's throwaway scratch DB (+ WAL/SHM siblings) so
     // repeated New Project Window / close cycles don't leak files under
@@ -2564,6 +2567,7 @@ async function openProjectAtPath(documentPath: string): Promise<void> {
     s.activeCrawler = null;
   }
   s.linkSuggestionsGate.cancel();
+  s.bridgeLinkSuggestionsGate.cancel();
   if (s.db) {
     try {
       s.db.close();
@@ -8152,14 +8156,14 @@ function registerIpc(): void {
     );
   }
 
-  /** The bridge (MCP): same worker, its own gate so it never cancels the dialog's report. */
+  /** The bridge (MCP): same worker, its own per-project gate: never cancels the dialog's report, a second call replaces the first, a project switch stops it. */
   function computeLinkSuggestionsForBridge(
     input: LinkSuggestionInput,
   ): Promise<LinkSuggestionResult | null> {
     const sess = currentSession();
     sess.getDb();
     return guardedLinkSuggestions(
-      new LinkSuggestionsGate(),
+      sess.bridgeLinkSuggestionsGate,
       () => sess.db,
       (signal) => runLinkSuggestionsOffThread(sess, input, signal),
     );

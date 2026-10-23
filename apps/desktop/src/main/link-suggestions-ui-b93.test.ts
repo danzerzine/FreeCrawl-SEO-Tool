@@ -91,6 +91,24 @@ describe('B93 link suggestions: IPC, bridge and worker wiring', () => {
   });
 });
 
+describe('B93 panel and project switch', () => {
+  it('the MCP bridge report runs on a per-project gate that a project switch cancels', () => {
+    const main = src('./index.ts');
+    expect(main).not.toMatch(/guardedLinkSuggestions\(\s*new LinkSuggestionsGate\(\)/);
+    expect(main.match(/bridgeLinkSuggestionsGate\.cancel\(\)/g)?.length).toBe(2);
+  });
+
+  it('File > Open clears the shown result (so Export CSV is off) and drops a running request', () => {
+    const panel = src('../renderer/src/components/LinkSuggestionsPanel.tsx');
+    const m = /onProjectConfigChanged\(\(\) => \{([\s\S]*?)\}\);/.exec(panel);
+    expect(m, 'subscription to the project-open push').toBeTruthy();
+    expect(m![1]).toContain('request.current++');
+    expect(m![1]).toContain('setResult(null)');
+    expect(m![1]).toContain('setLoading(false)');
+    expect(panel).toMatch(/disabled=\{!result \|\| result\.rows\.length === 0\}/);
+  });
+});
+
 describe('B93 link suggestions: strings in all 11 locales', () => {
   const keys = usedKeys();
   it('finds the keys the UI uses', () => {

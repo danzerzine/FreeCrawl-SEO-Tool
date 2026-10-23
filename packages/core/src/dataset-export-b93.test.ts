@@ -63,7 +63,7 @@ async function run(options: Record<string, unknown> = {}): Promise<{ outcome: Ex
   db.close();
   const csv = path.join(out, 'link-suggestions.csv');
   const lines = fs.existsSync(csv)
-    ? fs.readFileSync(csv, 'utf8').replace(/^﻿/, '').trimEnd().split('\n')
+    ? fs.readFileSync(csv, 'utf8').replace(/^\uFEFF/, '').trimEnd().split('\n')
     : [];
   return { outcome, lines };
 }

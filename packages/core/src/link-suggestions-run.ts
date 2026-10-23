@@ -15,6 +15,10 @@ export interface RunLinkSuggestionsOptions {
   /** Worker file when it is bundled elsewhere (the desktop app). */
   workerPath?: string;
   internals?: LinkSuggestionInternals;
+  /** Old-generation cap in MB for the first attempt; default scales with the file (tests inject a tiny one). */
+  oldLimitMb?: number;
+  /** Cap for the retry after an out-of-memory; default none (V8's own limit). Young-gen cap stays. */
+  uncappedLimitMb?: number;
 }
 
 /**
@@ -22,10 +26,27 @@ export interface RunLinkSuggestionsOptions {
  * reader pool: that one times out at 30 s and a heavy slot would block the overview).
  * Resolves `null` when the crawl did not compute inlinks.
  */
-export function runLinkSuggestionsInWorker(
+export async function runLinkSuggestionsInWorker(
   file: string,
   input: LinkSuggestionInput = {},
   opts: RunLinkSuggestionsOptions = {},
+): Promise<LinkSuggestionResult | null> {
+  try {
+    return await runOnce(file, input, opts, opts.oldLimitMb ?? oldLimitMb(file));
+  } catch (err) {
+    // The cap follows the file size, not the heap the report really needs (eligible pages, redirect
+    // rows, URL length): once, run again without the old-generation cap rather than fail the report.
+    if ((err as { code?: string }).code !== 'ERR_WORKER_OUT_OF_MEMORY' || opts.signal?.aborted)
+      throw err;
+    return runOnce(file, input, opts, opts.uncappedLimitMb);
+  }
+}
+
+function runOnce(
+  file: string,
+  input: LinkSuggestionInput,
+  opts: RunLinkSuggestionsOptions,
+  oldMb: number | undefined,
 ): Promise<LinkSuggestionResult | null> {
   return new Promise((resolve, reject) => {
     const { signal } = opts;
@@ -35,7 +56,10 @@ export function runLinkSuggestionsInWorker(
     }
     const worker = new Worker(opts.workerPath ?? LINK_SUGGESTIONS_WORKER_PATH, {
       workerData: { file, input, internals: opts.internals },
-      resourceLimits: { maxYoungGenerationSizeMb: 24, maxOldGenerationSizeMb: oldLimitMb(file) },
+      resourceLimits: {
+        maxYoungGenerationSizeMb: 24,
+        ...(oldMb === undefined ? {} : { maxOldGenerationSizeMb: oldMb }),
+      },
     });
     let settled = false;
     const finish = (fn: () => void): void => {
@@ -64,8 +88,8 @@ export function runLinkSuggestionsInWorker(
 /**
  * Heap caps of the worker. Row blocks, token arrays and key strings die young; with V8's default
  * limits they pile up as RSS (1.49 GB at 1M URLs, 0.83 GB with the caps). The old-generation cap
- * grows with the project file (about 8 KB per URL, live heap about 300 bytes per URL) so a bigger
- * crawl is not killed by it.
+ * grows with the project file (about 8 KB per URL, live heap about 300 bytes per URL); where that
+ * guess is too low the worker is run once more without the cap.
  */
 function oldLimitMb(file: string): number {
   let mb = 0;

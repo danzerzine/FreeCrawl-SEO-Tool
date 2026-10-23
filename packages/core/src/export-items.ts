@@ -5,6 +5,7 @@
  * files whichever of them runs it.
  */
 
+import { existsSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { EXPENSIVE_ISSUE_DEFINITIONS, type ProjectDb } from '@freecrawl/db';
@@ -36,6 +37,10 @@ import { exportPdfText } from './pdf-text-export.js';
 import { exportTabular } from './tabular-export.js';
 import type { TopWordsBlocksOptions } from './top-words-db.js';
 import { linkSuggestions } from './link-suggestions.js';
+import {
+  LINK_SUGGESTIONS_WORKER_PATH,
+  runLinkSuggestionsInWorker,
+} from './link-suggestions-run.js';
 
 /** One `--what` entry of `freecrawl export`. */
 export type ExportItem =
@@ -320,9 +325,14 @@ export async function runExportItems(
           let suggestions: LinkSuggestionResult | null = null;
           if (item.dataset === 'link-suggestions') {
             const input = options.linkSuggestions ?? {};
+            // Caller's runner (desktop); else the capped worker on the project file (CLI, 0.8 GB
+            // against 1.5 GB in-thread at 1M URLs); in-thread only when there is no file or no
+            // built worker (tests run from src).
             suggestions = options.linkSuggestionsRunner
               ? await options.linkSuggestionsRunner(input)
-              : await db.withoutMmap(async () => linkSuggestions(db, input));
+              : options.projectFile && existsSync(LINK_SUGGESTIONS_WORKER_PATH)
+                ? await runLinkSuggestionsInWorker(options.projectFile, input)
+                : await db.withoutMmap(async () => linkSuggestions(db, input));
             if (suggestions === null) {
               const error = LINK_SUGGESTIONS_NOT_COMPUTED;
               progress(`${label}: ${error}`);
