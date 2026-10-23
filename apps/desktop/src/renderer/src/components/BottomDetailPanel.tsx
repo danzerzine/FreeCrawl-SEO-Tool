@@ -1546,6 +1546,14 @@ function RenderDiffList({ row }: { row: CrawlUrlRow }) {
   );
 }
 
+/** `X of Y KB (Z %)` for the Unused CSS / JS lines of URL Details (B44); null when not measured. */
+function coverageText(unused: number | null | undefined, total: number | null | undefined): string | null {
+  if (unused == null || total == null) return null;
+  const kb = (n: number): string => (n / 1024).toFixed(1);
+  const pct = total > 0 ? Math.round((unused / total) * 100) : 0;
+  return `${kb(unused)} of ${kb(total)} KB (${pct} %)`;
+}
+
 /** The row's `markupCodes` JSON as `code ×count, …` for URL Details (B45); null when empty or unreadable. */
 function markupCodesText(json: string | null | undefined): string | null {
   if (!json) return null;
@@ -2684,6 +2692,8 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
     ['Markup Errors', row.markupErrors ?? null],
     ['Markup Error Codes', markupCodesText(row.markupCodes)],
     ['Cookies', row.cookiesTotal ?? null],
+    ['Unused CSS', coverageText(row.cssUnusedBytes, row.cssBytes)],
+    ['Unused JS', coverageText(row.jsUnusedBytes, row.jsBytes)],
     ['Cookies Truncated', row.cookiesTruncated ?? null],
     ['Failed Resources', row.failedResources ?? null],
     [

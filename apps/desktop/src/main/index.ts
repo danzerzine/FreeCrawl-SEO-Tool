@@ -2341,6 +2341,7 @@ function mergeCrawlConfig(parsed: Partial<CrawlConfig>): CrawlConfig {
       consoleErrors:
         parsed.jsRender?.consoleErrors ?? DEFAULT_CRAWL_CONFIG.jsRender.consoleErrors,
       cookieList: parsed.jsRender?.cookieList ?? DEFAULT_CRAWL_CONFIG.jsRender.cookieList,
+      coverage: parsed.jsRender?.coverage ?? DEFAULT_CRAWL_CONFIG.jsRender.coverage,
       pageScript: parsed.jsRender?.pageScript ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScript,
       pageScriptTimeoutMs:
         parsed.jsRender?.pageScriptTimeoutMs ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs,

@@ -720,6 +720,19 @@ export const RU_INFO_TIPS: Record<string, string> = {
     "Считает ошибки HTML-разметки на каждой странице по небольшому фиксированному набору правил: нет doctype, повторяющиеся атрибуты и id, сломанные теги, неожиданный конец файла, неверные символьные ссылки, устаревшие и незакрытые элементы. Заполняет проблемы «Ошибки HTML-разметки» и «Повторяющиеся атрибуты id» и две колонки. Это не полный валидатор: лишние закрывающие теги и неверная вложенность не определяются. По умолчанию выключено: каждая HTML-страница разбирается ещё дважды.",
   ["Leave off for speed; on to find broken markup and repeated ids."]:
     "Оставьте выключенным ради скорости; включите, чтобы найти сломанную разметку и повторяющиеся id.",
+  // B44: coverage
+  ["Size of the stylesheets the page loaded (characters of CSS text, not transfer size): 0 none, empty when not measured. Needs Settings → Rendering → Measure unused CSS and JavaScript."]:
+    "Размер таблиц стилей, которые загрузила страница (символы текста CSS, а не переданные байты): 0 — стилей нет, пусто — не измеряли. Нужна настройка «Настройки → Рендеринг → Измерять неиспользуемые CSS и JavaScript».",
+  ["Part of CSS Bytes that no rule applied to by the end of the load wait, with no clicking or scrolling. Rules for states and other pages count as unused."]:
+    "Часть «CSS, байт», к которой не применилось ни одно правило к концу ожидания загрузки, без кликов и прокрутки. Правила для состояний и других страниц считаются неиспользуемыми.",
+  ["Size of the scripts the page loaded, inline ones included (characters of script text, not transfer size): 0 none, empty when not measured."]:
+    "Размер скриптов, которые загрузила страница, включая встроенные (символы текста скрипта, а не переданные байты): 0 — скриптов нет, пусто — не измеряли.",
+  ["Part of JS Bytes that never ran by the end of the load wait, with no clicking or scrolling: code that waits for a click counts as unused."]:
+    "Часть «JS, байт», которая не выполнялась к концу ожидания загрузки, без кликов и прокрутки: код, который ждёт клика, считается неиспользуемым.",
+  ["Measures how much CSS and JavaScript each rendered page loads and never uses, in one page load without clicking or scrolling, so code that only runs on interaction counts as unused. Fills four columns and the Unused CSS / Unused JS lines of URL Details. Sizes are the text length of the stylesheets and scripts, not transfer sizes. Slows rendering. Needs JavaScript rendering."]:
+    "Измеряет, сколько CSS и JavaScript отрисованная страница загружает и не использует: за одну загрузку, без кликов и прокрутки, поэтому код, который срабатывает только по действию, считается неиспользуемым. Заполняет четыре колонки и строки «Неиспользуемый CSS» и «Неиспользуемый JS» в деталях URL. Размеры — длина текста стилей и скриптов, а не переданные байты. Замедляет рендеринг. Нужен рендеринг JavaScript.",
+  ["On to find heavy unused code; off for plain crawls."]:
+    "Включите, чтобы найти тяжёлый неиспользуемый код; для обычных обходов оставьте выключенным.",
   // B43: cookie list
   ["How many cookies the page set or tried to set while it loaded, from Set-Cookie headers and from scripts: 0 none, empty when not listed. Needs Settings → Rendering → List the cookies each page sets."]:
     "Сколько cookie страница поставила или пыталась поставить при загрузке: из заголовков Set-Cookie и из скриптов. 0 — ни одной, пусто — список не собирали. Нужна настройка «Настройки → Рендеринг → Список cookie каждой страницы».",

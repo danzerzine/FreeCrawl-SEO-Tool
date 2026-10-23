@@ -265,6 +265,7 @@ interface FormState {
   jsAxeAudit: boolean;
   jsConsoleErrors: boolean;
   jsCookieList: boolean;
+  jsCoverage: boolean;
   jsPageScript: string;
   jsPageScriptTimeoutMs: string;
   jsSpaRouting: boolean;
@@ -735,6 +736,7 @@ function configToForm(c: CrawlConfig): FormState {
     jsAxeAudit: c.jsRender?.axeAudit ?? false,
     jsConsoleErrors: c.jsRender?.consoleErrors ?? false,
     jsCookieList: c.jsRender?.cookieList ?? false,
+    jsCoverage: c.jsRender?.coverage ?? false,
     jsPageScript: c.jsRender?.pageScript ?? '',
     jsPageScriptTimeoutMs: String(c.jsRender?.pageScriptTimeoutMs ?? DEFAULT_CRAWL_CONFIG.jsRender.pageScriptTimeoutMs),
     jsSpaRouting: c.jsRender?.spaRouting ?? false,
@@ -1134,6 +1136,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         axeAudit: form.jsAxeAudit,
         consoleErrors: form.jsConsoleErrors,
         cookieList: form.jsCookieList,
+        coverage: form.jsCoverage,
         pageScript: form.jsPageScript.slice(0, PAGE_SCRIPT_MAX_CHARS),
         pageScriptTimeoutMs: Math.min(
           PAGE_SCRIPT_TIMEOUT_MAX_MS,
@@ -5097,6 +5100,14 @@ function RenderingPanel({ form, update }: PanelProps) {
             hint=""
             info="Lists the cookies each page sets or tries to set while it loads, from Set-Cookie headers and from scripts (the browser may have refused some), up to 100 per page; separate from the header counts. Values are never stored. A script cannot set HttpOnly, so HttpOnly cookies appear only when they came in a header. Cookies written by workers are not seen. Needs JavaScript rendering."
             example="On to find third-party and tracking cookies per page; off for plain crawls."
+          />
+          <Bool
+            label={t('settingsPanels.rendering.coverage', { defaultValue: 'Measure unused CSS and JavaScript' })}
+            checked={form.jsCoverage}
+            onChange={(v) => update('jsCoverage', v)}
+            hint=""
+            info="Measures how much CSS and JavaScript each rendered page loads and never uses, in one page load without clicking or scrolling, so code that only runs on interaction counts as unused. Fills four columns and the Unused CSS / Unused JS lines of URL Details. Sizes are the text length of the stylesheets and scripts, not transfer sizes. Slows rendering. Needs JavaScript rendering."
+            example="On to find heavy unused code; off for plain crawls."
           />
           <Bool
             label={t('settingsPanels.rendering.spaRouting', { defaultValue: 'SPA route discovery' })}

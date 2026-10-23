@@ -43,7 +43,10 @@ export interface CoverageSummary {
  * ran stays used for that block only, and a called function with a skipped
  * branch loses the branch.
  */
-export function coverageBytes(sourceLength: number, functions: readonly CoverageFunction[]): number {
+export function coverageBytes(
+  sourceLength: number,
+  functions: readonly CoverageFunction[],
+): number {
   if (sourceLength <= 0) return 0;
   const ranges: CoverageRange[] = [];
   for (const f of functions) for (const r of f.ranges) ranges.push(r);
@@ -59,7 +62,10 @@ export function coverageBytes(sourceLength: number, functions: readonly Coverage
   return n;
 }
 
-function cssUsedBytes(textLength: number, ranges: ReadonlyArray<{ start: number; end: number }>): number {
+function cssUsedBytes(
+  textLength: number,
+  ranges: ReadonlyArray<{ start: number; end: number }>,
+): number {
   const used = new Uint8Array(textLength);
   for (const r of ranges) {
     const from = Math.max(0, r.start);

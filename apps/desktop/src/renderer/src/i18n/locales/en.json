@@ -1082,6 +1082,7 @@
       "axeAuditHelp": "Runs the axe-core accessibility engine on every rendered page (WCAG 2.0 to 2.2, levels A and AA) and stores each violated rule with its impact, the number of elements and up to three samples. Surfaces the three Axe issue filters and the Accessibility (axe) tab of the detail panel. Needs JavaScript rendering; slower per page and adds several KB per page to the project. Rules axe cannot decide are listed as Needs Review and never counted as issues.",
       "consoleErrors": "Console errors and failed resources",
       "cookieList": "List the cookies each page sets",
+      "coverage": "Measure unused CSS and JavaScript",
       "pageScript": "Page script (optional)",
       "pageScriptTimeoutMs": "Page script timeout (ms)",
       "screenshotNone": "None (default)",

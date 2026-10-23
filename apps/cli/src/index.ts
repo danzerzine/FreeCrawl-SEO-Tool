@@ -154,6 +154,7 @@ Options:
                         (WCAG 2.0-2.2 A/AA, about a second per page); stored per page and exported
                         as dataset:axe-violations. Also jsRender.axeAudit in --config. Off by default
   --cookie-list       With --render: list the cookies each page sets or tries to set while loading (name, domain, flags, set by header or script), up to 100 per page. Values are never stored; HttpOnly cookies set by scripts cannot exist and are seen only from headers.
+  --coverage          With --render: measure how much CSS and JavaScript of each page is unused after load (one page load, no interaction). Slows rendering.
   --markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags, unclosed elements…). Parses every page twice more.
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
@@ -378,6 +379,7 @@ function parseCliArgs() {
       'page-script': { type: 'string' },
       axe: { type: 'boolean' },
       'cookie-list': { type: 'boolean' },
+      coverage: { type: 'boolean' },
       'markup-check': { type: 'boolean' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
@@ -661,12 +663,13 @@ async function main(): Promise<void> {
       : {}),
     ...(values.render ? { renderingMode: 'js' as const } : {}),
     ...(values['markup-check'] ? { markupValidation: true } : {}),
-    ...(pageScriptText !== undefined || values.axe || values['cookie-list']
+    ...(pageScriptText !== undefined || values.axe || values['cookie-list'] || values.coverage
       ? {
           jsRender: {
             ...(pageScriptText !== undefined ? { pageScript: pageScriptText } : {}),
             ...(values.axe ? { axeAudit: true } : {}),
             ...(values['cookie-list'] ? { cookieList: true } : {}),
+            ...(values.coverage ? { coverage: true } : {}),
           } as CrawlConfig['jsRender'],
         }
       : {}),

@@ -880,4 +880,11 @@ export const RU_LABELS: Record<string, string> = {
   // B43: cookie list
   'Cookies Truncated': 'Cookie: список обрезан',
   'Cookies JSON': 'Cookie (JSON)',
+  // B44: coverage
+  'CSS Bytes': 'CSS, байт',
+  'Unused CSS Bytes': 'Неиспользуемый CSS, байт',
+  'JS Bytes': 'JS, байт',
+  'Unused JS Bytes': 'Неиспользуемый JS, байт',
+  'Unused CSS': 'Неиспользуемый CSS',
+  'Unused JS': 'Неиспользуемый JS',
 };

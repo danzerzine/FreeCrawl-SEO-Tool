@@ -61,6 +61,11 @@ export function mergeCrawlConfig(
     return { kind: 'error', message: '--cookie-list needs --render' };
   }
 
+  // Coverage (B44) is measured in the browser: without rendering there is nothing to measure.
+  if (config.jsRender.coverage && config.renderingMode !== 'js') {
+    return { kind: 'error', message: '--coverage needs --render' };
+  }
+
   // axe-core (B40) audits rendered pages only: without rendering it does nothing.
   if (config.jsRender.axeAudit && config.renderingMode !== 'js') {
     notes.push('--axe needs JavaScript rendering (add --render or set renderingMode "js"): no accessibility audit runs.');
