@@ -38,10 +38,13 @@ export {
 } from './open-project.js';
 export {
   asNoSpaceError,
+  bareWorkingCopyPath,
   checkFreeSpace,
+  nextPreviousWorkDirs,
   PACKED_PER_UNPACKED,
   saveTempPid,
   sweepCrashLeftovers,
+  sweepTargets,
   sweepWorkingFolder,
   UNPACKED_PER_PACKED,
   workDirProblem,

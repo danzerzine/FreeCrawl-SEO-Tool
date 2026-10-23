@@ -221,3 +221,45 @@ export function isDiskFull(err: unknown): boolean {
 export function asNoSpaceError(err: unknown, dir: string, needed: number): unknown {
   return isDiskFull(err) ? new Error(noSpaceMessage(dir, freeBytes(dir), needed)) : err;
 }
+
+const MAX_PREVIOUS_WORK_DIRS = 10;
+
+/**
+ * The remembered list of working folders left behind (B152), newest first,
+ * after switching from `left` to `dir`: the folder being left goes on top
+ * (still holds files that may be open), the new one comes off the list.
+ */
+export function nextPreviousWorkDirs(
+  previous: readonly string[],
+  left: unknown,
+  dir: string | null,
+): string[] {
+  const others = previous.filter((d) => d !== left && d !== dir);
+  return typeof left === 'string' && left !== dir
+    ? [left, ...others].slice(0, MAX_PREVIOUS_WORK_DIRS)
+    : others;
+}
+
+/**
+ * Folders the startup sweep covers: the app's own folder, the active one and
+ * every previous working folder; plus the OS temp folder, where a comparison
+ * copy lands when no working folder is set (B110).
+ */
+export function sweepTargets(input: {
+  defaultDir: string;
+  activeDir: string;
+  previous: readonly string[];
+  tmp: string;
+}): { workingFolders: string[]; tmpDir: string } {
+  return {
+    workingFolders: [
+      ...new Set([input.defaultDir, input.activeDir, ...input.previous.map((d) => workFolder(d))]),
+    ],
+    tmpDir: input.tmp,
+  };
+}
+
+/** A working copy's path without a SQLite sidecar suffix (`-wal`, `-shm`, `-journal`). */
+export function bareWorkingCopyPath(full: string): string {
+  return full.replace(/-(wal|shm|journal)$/, '');
+}

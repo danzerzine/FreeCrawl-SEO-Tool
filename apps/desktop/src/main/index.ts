@@ -312,6 +312,9 @@ import {
   workDirProblem,
   workDirProblemText,
   workFolder,
+  bareWorkingCopyPath,
+  nextPreviousWorkDirs,
+  sweepTargets,
 } from '@freecrawl/db';
 import {
   BrowserPool,
@@ -2466,8 +2469,8 @@ function liveWorkingPaths(extra?: string): ReadonlySet<string> {
  */
 function sweepStaleWorkingCopies(keep: ReadonlySet<string>): void {
   const isLive = (full: string): boolean => {
-    // Includes the `-wal` / `-shm` sidecars of live working copies.
-    const bare = full.replace(/-(wal|shm)$/, '');
+    // Includes the `-wal` / `-shm` / `-journal` sidecars of live working copies.
+    const bare = bareWorkingCopyPath(full);
     if (keep.has(full) || keep.has(bare)) return true;
     const savePid = saveTempPid(basename(full));
     if (savePid !== null) return savePid === process.pid;
@@ -2482,12 +2485,13 @@ function sweepStaleWorkingCopies(keep: ReadonlySet<string>): void {
   };
   // Working folders the user left behind (B152) are swept too: what was
   // open in them is `keep`, the rest is a crash leftover.
-  const folders = new Set([
-    defaultProjectsDir(),
-    projectsDir(),
-    ...previousWorkDirs().map((d) => workFolder(d)),
-  ]);
-  for (const dir of folders) {
+  const targets = sweepTargets({
+    defaultDir: defaultProjectsDir(),
+    activeDir: projectsDir(),
+    previous: previousWorkDirs(),
+    tmp: tmpdir(),
+  });
+  for (const dir of targets.workingFolders) {
     try {
       sweepWorkingFolder(dir, isLive);
       sweepCrashLeftovers(dir);
@@ -2497,7 +2501,7 @@ function sweepStaleWorkingCopies(keep: ReadonlySet<string>): void {
   }
   // A comparison copy lands in the OS temp folder when no working folder is set (B110).
   try {
-    sweepCrashLeftovers(tmpdir());
+    sweepCrashLeftovers(targets.tmpDir);
   } catch (err) {
     logger.log('warn', 'main', `compare-copy sweep failed: ${(err as Error).message}`);
   }
@@ -5837,9 +5841,7 @@ function registerIpc(): void {
       }
       // The folder being left stays on the sweep list: files still open in it are not its to lose.
       const left = prefsCache['workDir'];
-      const others = previousWorkDirs().filter((d) => d !== left && d !== dir);
-      prefsCache['previousWorkDirs'] =
-        typeof left === 'string' && left !== dir ? [left, ...others].slice(0, 10) : others;
+      prefsCache['previousWorkDirs'] = nextPreviousWorkDirs(previousWorkDirs(), left, dir);
       if (dir) prefsCache['workDir'] = dir;
       else delete prefsCache['workDir'];
       schedulePrefsWrite();
