@@ -21,6 +21,7 @@ import {
   LATER_CHECKS,
   packProject,
   ProjectDb,
+  RENDER_CHECKS,
   UNPACKED_PER_PACKED,
   unpackProject,
   workFolder,
@@ -168,6 +169,8 @@ interface MinimalRow {
   schema_types: string | null;
   content_hash: string | null;
   content_source: string | null;
+  /** Bit i: the page has a verdict for `VERDICT_CHECKS[i]`; bit RENDERED_BIT: the browser rendered it (B162). */
+  verdicts: number;
 }
 
 /**
@@ -404,6 +407,61 @@ function columnsOf(db: ProjectDb, table: string): Set<string> {
 /** Columns the newer kinds read. A missing one is selected as NULL and its kind is reported as not comparable. */
 const KIND_COLUMNS = ['depth', 'schema_types', 'content_hash', 'content_source'] as const;
 
+/**
+ * B162: the checks that exist only after a successful render or audit, with the SQL
+ * that says "this page has a verdict for it" (a NULL / -1 column is "not checked", not
+ * "not flagged"). `cols` are the columns it reads; an older schema without one counts as a verdict.
+ * The two JS-injected checks have no column of their own: their verdict is the rendered
+ * signal below (kind render / heuristic / none).
+ */
+const VERDICT_CHECKS: readonly { key: UrlCategory; sql: string; cols: readonly string[] }[] = [
+  { key: 'issues:h1-changed-by-js', sql: 'js_h1_changed IS NOT NULL', cols: ['js_h1_changed'] },
+  { key: 'issues:canonical-changed-by-js', sql: 'js_canonical_changed IS NOT NULL', cols: ['js_canonical_changed'] },
+  { key: 'issues:links-changed-by-js', sql: 'js_links_changed IS NOT NULL', cols: ['js_links_changed'] },
+  { key: 'issues:text-changed-by-js', sql: 'js_text_changed IS NOT NULL', cols: ['js_text_changed'] },
+  { key: 'issues:console-errors', sql: 'console_errors IS NOT NULL', cols: ['console_errors'] },
+  { key: 'issues:failed-resources', sql: 'failed_resources IS NOT NULL', cols: ['failed_resources'] },
+  { key: 'issues:low-contrast-text', sql: 'a11y_low_contrast IS NOT NULL', cols: ['a11y_low_contrast'] },
+  { key: 'issues:focus-outline-suppressed', sql: 'a11y_focus_suppressed IS NOT NULL', cols: ['a11y_focus_suppressed'] },
+  { key: 'issues:font-too-small', sql: 'a11y_small_font IS NOT NULL', cols: ['a11y_small_font'] },
+  { key: 'issues:tap-targets-too-small', sql: 'a11y_tap_targets_small IS NOT NULL', cols: ['a11y_tap_targets_small'] },
+  { key: 'issues:axe-critical-serious', sql: 'axe_serious IS NOT NULL', cols: ['axe_serious'] },
+  {
+    key: 'issues:axe-moderate-minor',
+    sql: '(axe_violations IS NOT NULL AND axe_serious IS NOT NULL)',
+    cols: ['axe_violations', 'axe_serious'],
+  },
+  { key: 'issues:axe-needs-review', sql: 'axe_incomplete IS NOT NULL', cols: ['axe_incomplete'] },
+  { key: 'issues:content-wider-than-screen', sql: 'mobile_usable >= 0', cols: ['mobile_usable'] },
+];
+/** Bit of `MinimalRow.verdicts` for "the browser rendered this page". */
+const RENDERED_BIT = VERDICT_CHECKS.length;
+/** Checks whose verdict is the kind (render / heuristic / none), not a column. */
+const KIND_CHECKS: ReadonlySet<UrlCategory> = new Set<UrlCategory>([
+  'issues:noindex-js-injected',
+  'issues:title-changed-by-js',
+]);
+const RENDERED_SQL =
+  '(js_h1_changed IS NOT NULL OR js_canonical_changed IS NOT NULL OR js_links_changed IS NOT NULL OR js_text_changed IS NOT NULL OR render_diff IS NOT NULL)';
+const RENDERED_COLUMNS = [
+  'js_h1_changed',
+  'js_canonical_changed',
+  'js_links_changed',
+  'js_text_changed',
+  'render_diff',
+] as const;
+
+/** One integer per page: the verdict bits (see `MinimalRow.verdicts`), as SQL. */
+function verdictsSql(urlColumns: ReadonlySet<string>): string {
+  const parts = VERDICT_CHECKS.map((c, i) =>
+    c.cols.every((col) => urlColumns.has(col)) ? `((${c.sql}) << ${i})` : `(1 << ${i})`,
+  );
+  parts.push(
+    RENDERED_COLUMNS.every((col) => urlColumns.has(col)) ? `(${RENDERED_SQL} << ${RENDERED_BIT})` : '0',
+  );
+  return parts.join(' | ');
+}
+
 function loadAll(db: ProjectDb, urlColumns: ReadonlySet<string>): Iterable<MinimalRow> {
   // Pull only the fields the diff needs — keeps memory bounded at 1M
   // URLs (~120 MB for the seven columns vs ~600 MB for the full table).
@@ -422,7 +480,8 @@ function loadAll(db: ProjectDb, urlColumns: ReadonlySet<string>): Iterable<Minim
   return rawDb
     .prepare(
       `SELECT id, url, status_code, title, meta_description, h1, canonical,
-              indexability, response_time_ms, ${KIND_COLUMNS.map((c) => (urlColumns.has(c) ? c : `NULL AS ${c}`)).join(', ')}
+              indexability, response_time_ms, ${KIND_COLUMNS.map((c) => (urlColumns.has(c) ? c : `NULL AS ${c}`)).join(', ')},
+              ${verdictsSql(urlColumns)} AS verdicts
          FROM urls
         WHERE is_external = 0 AND content_kind = 'html'`,
     )
@@ -448,6 +507,7 @@ function compactRow(r: MinimalRow): MinimalRow {
     schema_types: r.schema_types,
     content_hash: r.content_hash,
     content_source: r.content_source,
+    verdicts: r.verdicts,
   };
 }
 
@@ -571,6 +631,16 @@ export function compareCrawls(
   const noContent = lacking('content_hash', 'content_source').length > 0;
   let contentSkipped = 0;
   const usable = keys.map((_, i) => !flagsA.failed.has(i) && !flagsB.failed.has(i));
+  // B162: a page without a verdict for a check (never rendered / audited) is not "not flagged".
+  // Kind of the verdict of the JS-injected checks: 2 rendered, 1 inline-script guess of a
+  // text-mode crawl, 0 none (a JS-mode crawl that did not render this page).
+  const jsModeA = RENDER_CHECKS.some((k) => filledA.has(k));
+  const jsModeB = RENDER_CHECKS.some((k) => filledB.has(k));
+  const kindOf = (verdicts: number, jsMode: boolean): number =>
+    (verdicts >> RENDERED_BIT) & 1 ? 2 : jsMode ? 0 : 1;
+  const verdictBit = keys.map((k) => VERDICT_CHECKS.findIndex((c) => c.key === k));
+  const isKindCheck = keys.map((k) => KIND_CHECKS.has(k));
+  const partlySkipped = keys.map(() => 0);
 
   // Field-level changes — present in both, value differs.
   for (const [urlA, ra] of mapA) {
@@ -683,6 +753,21 @@ export function compareCrawls(
     const appeared: number[] = [];
     for (let i = 0; i < keys.length; i++) {
       if (!usable[i]) continue;
+      if (isKindCheck[i]) {
+        const kA = kindOf(ra.verdicts, jsModeA);
+        const kB = kindOf(rb.verdicts, jsModeB);
+        if (kA !== kB || kA === 0) {
+          if (kA !== 0 || kB !== 0) partlySkipped[i]!++;
+          continue;
+        }
+      } else if (verdictBit[i]! >= 0) {
+        const vA = (ra.verdicts >> verdictBit[i]!) & 1;
+        const vB = (rb.verdicts >> verdictBit[i]!) & 1;
+        if (!vA || !vB) {
+          if (vA || vB) partlySkipped[i]!++;
+          continue;
+        }
+      }
       const inA = flagsA.has(i, ra.id);
       if (inA !== flagsB.has(i, rb.id)) (inA ? resolved : appeared).push(i);
     }
@@ -756,6 +841,15 @@ export function compareCrawls(
       urls: compared,
     };
   }
+  // Only for checks that ran (`usable`): a failed flag query keeps its own reason below.
+  keys.forEach((k, i) => {
+    if (partlySkipped[i]! > 0 && usable[i]) {
+      notComparable[k] ??= {
+        reason: `partly compared: ${partlySkipped[i]} pages had no verdict in one of the crawls (not rendered or not audited)`,
+        urls: partlySkipped[i]!,
+      };
+    }
+  });
   for (const failed of [flagsA.failed, flagsB.failed]) {
     for (const [i, reason] of failed) {
       notComparable[keys[i]!] ??= { reason, urls: compared };
