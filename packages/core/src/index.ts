@@ -329,7 +329,10 @@ export {
 } from './issue-task.js';
 export {
   sendGithubIssue,
+  sendBasecampTodo,
+  BASECAMP_TOKEN_EXPIRED,
   type GithubTaskConfig,
+  type BasecampTaskConfig,
   type TaskSendResult,
   type TrackerDeps,
   type TrackerFetch,

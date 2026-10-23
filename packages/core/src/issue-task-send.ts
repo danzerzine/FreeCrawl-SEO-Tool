@@ -1,4 +1,4 @@
-import { toMarkdown, type IssueTask } from './issue-task.js';
+import { toBasecampHtml, toMarkdown, type IssueTask } from './issue-task.js';
 
 /** Minimal fetch shape: the desktop passes its `apiFetch`, tests pass global `fetch`. */
 export type TrackerFetch = (
@@ -147,4 +147,50 @@ export async function sendGithubIssue(
   if (status === 410) return { ok: false, status, message: 'Issues are disabled in this repository.' };
   if (status >= 500) return { ok: false, status, message: `GitHub error ${status}: ${detail}; ${MAY_EXIST}.`, mayHaveBeenCreated: true };
   return { ok: false, status, message: `GitHub answered ${status}: ${detail}` };
+}
+
+export interface BasecampTaskConfig {
+  /** Required, no default in core. */
+  apiBase: string;
+  accessToken: string;
+  accountId: string;
+  todolistId: string;
+  userAgent: string;
+}
+
+export const BASECAMP_TOKEN_EXPIRED =
+  'Basecamp token expired or revoked; paste a new one in Settings → Integrations';
+
+/** Creates a Basecamp to-do on the flat route; never retried. */
+export async function sendBasecampTodo(
+  cfg: BasecampTaskConfig,
+  task: IssueTask,
+  deps: TrackerDeps,
+): Promise<TaskSendResult> {
+  const b = checkBase(cfg.apiBase);
+  if ('error' in b) return { ok: false, message: b.error };
+  const url = `${b.base}/${encodeURIComponent(cfg.accountId)}/todolists/${encodeURIComponent(cfg.todolistId)}/todos.json`;
+  const res = await post(
+    url,
+    {
+      Authorization: `Bearer ${cfg.accessToken}`,
+      'Content-Type': 'application/json; charset=utf-8',
+      'User-Agent': cfg.userAgent,
+    },
+    { content: task.title, description: toBasecampHtml(task) },
+    [cfg.accessToken],
+    deps,
+  );
+  if ('fail' in res) return res.fail;
+  const { status } = res;
+  if (status === 201) {
+    const app = pickUrl(res.body, 'app_url');
+    return app
+      ? { ok: true, url: app }
+      : { ok: false, status, message: 'Basecamp created the to-do but sent no link; check the to-do list.', mayHaveBeenCreated: true };
+  }
+  if (status === 401) return { ok: false, status, message: BASECAMP_TOKEN_EXPIRED };
+  const detail = detailOf(res.body, [cfg.accessToken]);
+  if (status >= 500) return { ok: false, status, message: `Basecamp error ${status}: ${detail}; ${MAY_EXIST}.`, mayHaveBeenCreated: true };
+  return { ok: false, status, message: `Basecamp answered ${status}: ${detail}` };
 }
