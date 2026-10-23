@@ -71,7 +71,7 @@ describe('B44 CLI --coverage: as a process', () => {
   it('--help lists --coverage', async () => {
     const r = await run(['--help']);
     expect(r.code).toBe(0);
-    expect(r.out).toMatch(/--coverage\s+With --render: measure how much CSS and JavaScript of each page is unused after load/);
+    expect(r.out).toMatch(/--coverage\s+With --render: measure how much CSS and JavaScript of each page is unused after\s+load/);
     expect(r.out).toContain('Slows rendering');
   });
 

@@ -153,9 +153,15 @@ Options:
   --axe               With --render: run the axe-core accessibility audit on every rendered page
                         (WCAG 2.0-2.2 A/AA, about a second per page); stored per page and exported
                         as dataset:axe-violations. Also jsRender.axeAudit in --config. Off by default
-  --cookie-list       With --render: list the cookies each page sets or tries to set while loading (name, domain, flags, set by header or script), up to 100 per page. Values are never stored; HttpOnly cookies set by scripts cannot exist and are seen only from headers.
-  --coverage          With --render: measure how much CSS and JavaScript of each page is unused after load (one page load, no interaction). Slows rendering.
-  --markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags, unclosed elements…). Parses every page twice more.
+  --cookie-list       With --render: list the cookies each page sets or tries to set while loading
+                        (name, domain, flags, set by header or script), up to 100 per page. Values
+                        are never stored; HttpOnly cookies set by scripts cannot exist and are seen
+                        only from headers
+  --coverage          With --render: measure how much CSS and JavaScript of each page is unused after
+                        load (one page load, no interaction). Slows rendering
+  --markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags,
+                        unclosed elements…). With --render the HTML the server sent is checked.
+                        Parses every page twice more
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
@@ -324,11 +330,15 @@ export options:
                         in errors and on stderr (exit 1); exit 2 when none is in the project.
   --config <file>     With --what pdfs or pdf-text: crawl config to take the user agent and headers from
   --max-bytes <n>     With --what pdfs or pdf-text: stop downloading after n bytes in all (default 2 GB)
-  --ngram <1|2|3>      With dataset:top-words: words (1) or 2-3 word phrases. Default 1.
-  --word-locale <l>    With dataset:top-words: stopword list: en, ru, tr or all (default all).
-  --by-section        With dataset:top-words: one block per folder of the site (see --section-depth); the memory cap is shared between sections, so rare phrases may be dropped.
-  --section-depth <n>  With --by-section: folder depth, 1 or 2 (default 1).
-  --with-bodies        With dataset:top-words: also read stored page bodies (slower; needs bodies saved by the crawl).
+  --ngram <1|2|3>     With dataset:top-words: words (1) or 2-3 word phrases (default 1)
+  --word-locale <l>   With dataset:top-words: stopword list: en, ru, tr or all (default all)
+  --by-section        With dataset:top-words: one block per folder of the site (see --section-depth).
+                        At most 50 sections are kept (the biggest by pages; the rest are summed into
+                        "(other)"); each keeps up to max(20 000, 200 000 / sections) distinct phrases,
+                        so rare phrases may be dropped
+  --section-depth <n> With --by-section: folder depth, 1 or 2 (default 1)
+  --with-bodies       With dataset:top-words: also read stored page bodies (slower; needs bodies saved
+                        by the crawl)
   --save-set <name>   Save --what (and --raw-headers) in the project as a named export set, replacing
                         one of the same name; writes no files. The desktop scheduler can run it too.
   --set <name>        Run a saved export set instead of --what (exit 2 if the project has none of that name)

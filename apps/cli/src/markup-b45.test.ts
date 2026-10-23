@@ -76,8 +76,8 @@ describe('B45 CLI --markup-check: as a process', () => {
   it('--help carries the flag line', async () => {
     const r = await run(['--help']);
     expect(r.code).toBe(0);
-    expect(r.out).toContain(
-      '--markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags, unclosed elements…). Parses every page twice more.',
+    expect(r.out.replace(/\s+/g, ' ')).toContain(
+      '--markup-check Count HTML markup errors per page (missing doctype, duplicate id, broken tags, unclosed elements…). With --render the HTML the server sent is checked. Parses every page twice more',
     );
   });
 
