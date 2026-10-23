@@ -42,6 +42,9 @@ import type {
   PagespeedAuditItem,
   PagespeedAuditKind,
   PagespeedAuditRow,
+  AxeAudit,
+  AxeResultRow,
+  AxeSample,
   PagespeedAudits,
   PagespeedAuditsQueryParams,
   PagespeedMetrics,
@@ -192,7 +195,11 @@ const JUDGED_WORDS_SQL = 'COALESCE(main_word_count, word_count)';
  * build may have no `main_word_count` column (`wordsSql` is then plain
  * `word_count`, which is what such a build judged by).
  */
-type ClauseLimits = SeoThresholds & { readonly wordsSql?: string };
+type ClauseLimits = SeoThresholds & {
+  readonly wordsSql?: string;
+  /** The project file has no axe columns (before migration 127): the axe filters match nothing. */
+  readonly noAxeColumns?: boolean;
+};
 /** The URL up to its query, with a trailing slash so a last path segment ends like the others (B28). */
 const URL_PATH_SLASH_SQL =
   "((CASE WHEN instr(url, '?') > 0 THEN substr(url, 1, instr(url, '?') - 1) ELSE url END) || '/')";
@@ -572,6 +579,11 @@ interface UrlRowDb {
   /** Mobile-usability a11y counts (JS-render pass); NULL until audited. */
   a11y_small_font: number | null;
   a11y_tap_targets_small: number | null;
+  /** B40 axe-core audit: NULL = not audited, 0 = audited and clean. Missing in files before migration 127. */
+  axe_violations?: number | null;
+  axe_serious?: number | null;
+  axe_incomplete?: number | null;
+  axe_version?: string | null;
   /** V2 Faz 15 — performance budget verdict bitmask
    *  (1=response, 2=size, 4=LCP, 8=CLS). 0 = within budget,
    *  NULL = budget disabled / page not an internal 200 HTML page. */
@@ -1881,7 +1893,7 @@ export class ProjectDb {
     // again, which is exactly the kind of regression that is expensive to
     // rediscover. Dropping FK enforcement stays safe only because all four
     // tables carrying a foreign key (links, headers, image_usages,
-    // url_sources) are deleted explicitly below, so nothing relies on
+    // url_sources, axe_results) are deleted explicitly below, so nothing relies on
     // ON DELETE CASCADE to be reached.
     //
     // `host_certs` is included so a Clear after a TLS-probe pass
@@ -1907,6 +1919,7 @@ export class ProjectDb {
          DELETE FROM urls;
          DELETE FROM project_meta WHERE key NOT IN (${META_KEYS_KEPT_BY_RESET.map((k) => `'${k}'`).join(', ')});
          DELETE FROM urls_issues;
+         DELETE FROM axe_results;
          DELETE FROM crawl_queue;
          DELETE FROM host_certs;
          DELETE FROM pagespeed_results;
@@ -2052,7 +2065,7 @@ export class ProjectDb {
     // foreign key to a deleted row is emptied of those rows in the *same*
     // transaction before the parent is deleted — links / headers /
     // url_sources / image_usages are cleared for the target url_ids below
-    // (the only four tables with an FK to `urls`), and orphan `images` are
+    // (and axe_results since B40; these are the tables with an FK to `urls`), and orphan `images` are
     // removed with a `NOT IN image_usages` guard (the only FK to `images`).
     // Nothing relies on ON DELETE CASCADE being reached, so dropping the
     // check cannot leave a dangling child. The url-keyed audit tables have
@@ -2120,6 +2133,10 @@ export class ProjectDb {
             .run(...slice);
           this.db
             .prepare(`DELETE FROM urls_issues WHERE url_id IN (${placeholders})`)
+            .run(...slice);
+          // Holds page HTML snippets: must not survive the page (B40).
+          this.db
+            .prepare(`DELETE FROM axe_results WHERE url_id IN (${placeholders})`)
             .run(...slice);
         }
 
@@ -2427,7 +2444,9 @@ export class ProjectDb {
   /** This project's thresholds, adjusted to its schema (see `ClauseLimits`). */
   private clauseLimits(): ClauseLimits {
     const t = this.getSeoThresholds();
-    return this.urlSortColumns().has('main_word_count') ? t : { ...t, wordsSql: 'word_count' };
+    const cols = this.urlSortColumns();
+    const limits: ClauseLimits = cols.has('main_word_count') ? t : { ...t, wordsSql: 'word_count' };
+    return cols.has('axe_serious') ? limits : { ...limits, noAxeColumns: true };
   }
 
   private hasTable(name: string): boolean {
@@ -2773,6 +2792,7 @@ export class ProjectDb {
         )
         .run(id, id);
       this.db.prepare('DELETE FROM urls_issues WHERE url_id = ?').run(id);
+      this.db.prepare('DELETE FROM axe_results WHERE url_id = ?').run(id);
       this.db.prepare('DELETE FROM urls WHERE id = ?').run(id);
     });
   }
@@ -2904,6 +2924,9 @@ export class ProjectDb {
           .run(...slice, ...slice);
         this.db
           .prepare(`DELETE FROM urls_issues WHERE url_id IN (${placeholders})`)
+          .run(...slice);
+        this.db
+          .prepare(`DELETE FROM axe_results WHERE url_id IN (${placeholders})`)
           .run(...slice);
         this.db
           .prepare(`DELETE FROM urls WHERE id IN (${placeholders})`)
@@ -9089,6 +9112,9 @@ export class ProjectDb {
       focusOutlineSuppressed: gatedCount('issues:focus-outline-suppressed'),
       fontTooSmall: gatedCount('issues:font-too-small'),
       tapTargetsTooSmall: gatedCount('issues:tap-targets-too-small'),
+      axeCriticalSerious: gatedCount('issues:axe-critical-serious'),
+      axeModerateMinor: gatedCount('issues:axe-moderate-minor'),
+      axeNeedsReview: gatedCount('issues:axe-needs-review'),
       paginationSequenceBreak: gatedCount('issues:pagination-sequence-break'),
       linksPerPageTooMany: gatedCount('issues:links-per-page-too-many'),
       hreflangInconsistentLang: gatedCount('issues:hreflang-inconsistent-lang'),
@@ -9788,6 +9814,125 @@ export class ProjectDb {
         Math.max(0, Math.round(audit.tapTargetsSmall ?? 0)),
         urlId,
       );
+  }
+
+  /**
+   * Store an axe-core result for a page (B40 R8): the counts on the `urls` row and one
+   * `axe_results` row per rule, in one transaction. A re-render replaces the page's old rows.
+   * `null` (axe was asked for and gave nothing) clears both, so a stale result never sits
+   * beside a fresh DOM. NULL columns mean "not audited"; 0 means "audited and clean".
+   */
+  setUrlAxe(urlId: number, audit: AxeAudit | null): void {
+    this.runInTransaction(() => {
+      this.db.prepare('DELETE FROM axe_results WHERE url_id = ?').run(urlId);
+      if (audit === null) {
+        this.db
+          .prepare(
+            `UPDATE urls SET axe_violations = NULL, axe_serious = NULL, axe_incomplete = NULL, axe_version = NULL
+              WHERE id = ?`,
+          )
+          .run(urlId);
+        return;
+      }
+      const ins = this.db.prepare(
+        `INSERT INTO axe_results (url_id, rule_id, kind, impact, help, help_url, tags, nodes, samples_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(url_id, rule_id, kind) DO UPDATE SET
+           impact = excluded.impact, help = excluded.help, help_url = excluded.help_url,
+           tags = excluded.tags, nodes = excluded.nodes, samples_json = excluded.samples_json`,
+      );
+      for (const [kind, rules] of [
+        ['violation', audit.violations],
+        ['incomplete', audit.incomplete],
+      ] as const) {
+        for (const r of rules) {
+          ins.run(urlId, r.id, kind, r.impact, r.help, r.helpUrl || null, r.tags.join(','), r.nodes, JSON.stringify(r.samples));
+        }
+      }
+      this.db
+        .prepare(
+          `UPDATE urls SET axe_violations = ?, axe_serious = ?, axe_incomplete = ?, axe_version = ? WHERE id = ?`,
+        )
+        .run(audit.violationsTotal, audit.seriousTotal, audit.incomplete.length, audit.version || null, urlId);
+    });
+  }
+
+  /** Looked up once per connection: the table is missing in files older than migration 127. */
+  private axeResultsTable: boolean | null = null;
+
+  /**
+   * Stored axe-core rule results (B40), worst impact first, then the most elements. A file from
+   * before migration 127 (opened read-only by the MCP server) has no table: no rows.
+   */
+  queryAxe(params: {
+    url?: string;
+    impact?: string;
+    ruleId?: string;
+    kind?: 'violation' | 'incomplete';
+    limit: number;
+    offset: number;
+  }): { rows: AxeResultRow[]; total: number } {
+    this.axeResultsTable ??= this.hasTable('axe_results');
+    if (!this.axeResultsTable) return { rows: [], total: 0 };
+    const where: string[] = [];
+    const args: (string | number)[] = [];
+    if (params.url) {
+      where.push('u.url = ?');
+      args.push(params.url);
+    }
+    if (params.impact) {
+      where.push('a.impact = ?');
+      args.push(params.impact);
+    }
+    if (params.ruleId) {
+      where.push('a.rule_id = ?');
+      args.push(params.ruleId);
+    }
+    if (params.kind) {
+      where.push('a.kind = ?');
+      args.push(params.kind);
+    }
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const total = (
+      this.db
+        .prepare(`SELECT COUNT(*) AS n FROM axe_results a JOIN urls u ON u.id = a.url_id ${whereSql}`)
+        .get(...args) as { n: number }
+    ).n;
+    const rows = this.db
+      .prepare(
+        `SELECT u.url AS url, a.rule_id, a.kind, a.impact, a.help, a.help_url, a.tags, a.nodes, a.samples_json
+           FROM axe_results a JOIN urls u ON u.id = a.url_id ${whereSql}
+          ORDER BY (a.kind = 'violation') DESC,
+                   CASE a.impact WHEN 'critical' THEN 0 WHEN 'serious' THEN 1 WHEN 'moderate' THEN 2
+                                 WHEN 'minor' THEN 3 ELSE 4 END,
+                   a.nodes DESC, u.url, a.rule_id
+          LIMIT ? OFFSET ?`,
+      )
+      .all(...args, Math.max(1, params.limit), Math.max(0, params.offset)) as unknown as {
+      url: string;
+      rule_id: string;
+      kind: 'violation' | 'incomplete';
+      impact: string | null;
+      help: string;
+      help_url: string | null;
+      tags: string | null;
+      nodes: number;
+      samples_json: string | null;
+    }[];
+    return {
+      total,
+      rows: rows.map((r) => ({
+        url: r.url,
+        ruleId: r.rule_id,
+        kind: r.kind,
+        impact: r.impact,
+        help: r.help,
+        helpUrl: r.help_url,
+        tags: r.tags ? r.tags.split(',') : [],
+        nodes: r.nodes,
+        samples: parseAxeSamples(r.samples_json),
+      })),
+    };
   }
 
   /**
@@ -13088,6 +13233,10 @@ export class ProjectDb {
     a11yFocusSuppressed: r.a11y_focus_suppressed ?? null,
     a11ySmallFont: r.a11y_small_font ?? null,
     a11yTapTargetsSmall: r.a11y_tap_targets_small ?? null,
+    axeViolations: r.axe_violations ?? null,
+    axeSerious: r.axe_serious ?? null,
+    axeIncomplete: r.axe_incomplete ?? null,
+    axeVersion: r.axe_version ?? null,
     budgetStatus: r.budget_status ?? null,
     favicon: r.favicon,
     mixedContentCount: r.mixed_content_count,
@@ -13785,7 +13934,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'h1-changed-by-js', 'canonical-changed-by-js', 'links-changed-by-js', 'text-changed-by-js', 'console-errors', 'failed-resources', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'h1-changed-by-js', 'canonical-changed-by-js', 'links-changed-by-js', 'text-changed-by-js', 'console-errors', 'failed-resources', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate', 'axe-critical-serious', 'axe-moderate-minor', 'axe-needs-review'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -13813,6 +13962,7 @@ function baseCategoryWhereClause(
   t: ClauseLimits = DEFAULT_SEO_THRESHOLDS,
 ): string | null {
   if (disabledIssues?.has(cat)) return '1 = 0';
+  if (t.noAxeColumns && cat.startsWith('issues:axe-')) return '1 = 0';
   switch (cat) {
     case 'all':
       return null;
@@ -15091,6 +15241,19 @@ function baseCategoryWhereClause(
       // (not audited) excluded.
       return `is_external = 0 AND content_kind = 'html'
               AND a11y_focus_suppressed = 1`;
+    case 'issues:axe-critical-serious':
+      // axe-core rules with impact critical or serious (B40). NULL = not audited
+      // (excluded); needs-review rules never count here.
+      return `is_external = 0 AND content_kind = 'html'
+              AND axe_serious IS NOT NULL AND axe_serious > 0`;
+    case 'issues:axe-moderate-minor':
+      return `is_external = 0 AND content_kind = 'html'
+              AND axe_violations IS NOT NULL AND axe_serious IS NOT NULL
+              AND axe_violations > axe_serious`;
+    case 'issues:axe-needs-review':
+      // Informational: axe could not decide, a person has to look.
+      return `is_external = 0 AND content_kind = 'html'
+              AND axe_incomplete IS NOT NULL AND axe_incomplete > 0`;
     case 'issues:font-too-small':
       // Pages with sampled text rendered below ~12px (hard to read on mobile
       // without zooming), from the JS-render in-page audit. NULL (not
@@ -15389,5 +15552,15 @@ function computeQueryParamCount(rawUrl: string): number {
     return u.searchParams.size;
   } catch {
     return 0;
+  }
+}
+
+function parseAxeSamples(json: string | null): AxeSample[] {
+  if (!json) return [];
+  try {
+    const v = JSON.parse(json) as unknown;
+    return Array.isArray(v) ? (v as AxeSample[]) : [];
+  } catch {
+    return [];
   }
 }

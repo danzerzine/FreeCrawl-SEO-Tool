@@ -215,6 +215,9 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-focus-outline-suppressed', label: 'Focus Outline Suppressed', category: 'issues:focus-outline-suppressed', count: 'focusOutlineSuppressed' },
       { key: 'issues-font-too-small', label: 'Font Size Too Small', category: 'issues:font-too-small', count: 'fontTooSmall' },
       { key: 'issues-tap-targets-too-small', label: 'Tap Target Too Small', category: 'issues:tap-targets-too-small', count: 'tapTargetsTooSmall' },
+      { key: 'issues-axe-critical-serious', label: 'Axe: Critical / Serious Violations', category: 'issues:axe-critical-serious', count: 'axeCriticalSerious' },
+      { key: 'issues-axe-moderate-minor', label: 'Axe: Moderate / Minor Violations', category: 'issues:axe-moderate-minor', count: 'axeModerateMinor' },
+      { key: 'issues-axe-needs-review', label: 'Axe: Needs Review', category: 'issues:axe-needs-review', count: 'axeNeedsReview' },
     ],
   },
   {

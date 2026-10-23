@@ -176,12 +176,16 @@ const WARNING: UrlCategory[] = [
   'issues:focus-outline-suppressed',
   'issues:font-too-small',
   'issues:tap-targets-too-small',
+  // axe-core (B40): critical/serious sit with the other accessibility warnings, never below them.
+  'issues:axe-critical-serious',
   'issues:hreflang-inconsistent-lang',
   'issues:over-budget',
 ];
 
 /** Informational / stylistic / nice-to-have signals. */
 const INFO: UrlCategory[] = [
+  'issues:axe-moderate-minor',
+  'issues:axe-needs-review',
   'issues:links-changed-by-js',
   'issues:text-changed-by-js',
   'issues:title-pixel-width-too-short',

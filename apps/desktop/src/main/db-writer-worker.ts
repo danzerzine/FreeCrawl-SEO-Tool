@@ -113,6 +113,7 @@ const ALLOWED_METHODS = new Set<string>([
   'setUrlLcpCandidate',
   'setUrlMobileUsability',
   'setUrlA11y',
+  'setUrlAxe',
   'setSitemapUrls',
   'setHostCert',
   'setImageSize',

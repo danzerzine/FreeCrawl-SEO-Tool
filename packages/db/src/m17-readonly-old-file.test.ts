@@ -48,4 +48,33 @@ describe('a project file from before M17 (version 125), opened read-only', () =>
     expect(db.queryPagespeedAudits({ limit: 10, offset: 0 })).toEqual({ rows: [], total: 0 });
     expect(db.queryPagespeedAudits({ url: A, strategy: 'mobile', kind: 'insight', auditId: 'x', limit: 10, offset: 0 })).toEqual({ rows: [], total: 0 });
   });
+
+  // B40: no urls.axe_* columns and no axe_results table before migration 127.
+  it('queryAxe answers with no rows, with and without filters', () => {
+    expect(db.queryAxe({ limit: 10, offset: 0 })).toEqual({ rows: [], total: 0 });
+    expect(db.queryAxe({ url: A, impact: 'critical', ruleId: 'image-alt', kind: 'violation', limit: 10, offset: 0 })).toEqual({ rows: [], total: 0 });
+  });
+
+  it('the url row and the url detail read the axe columns as NULL', () => {
+    const d = db.getUrlDetail(1)!;
+    expect(d.row).toMatchObject({ axeViolations: null, axeSerious: null, axeIncomplete: null, axeVersion: null });
+  });
+
+  it('the axe issue filters match nothing and their counts are 0, the other counts still work', () => {
+    for (const cat of ['issues:axe-critical-serious', 'issues:axe-moderate-minor', 'issues:axe-needs-review']) {
+      expect([...db.iterateUrlsByCategory(cat as never)]).toEqual([]);
+      expect(db.queryUrls({ category: cat as never, limit: 10, offset: 0 }).total).toBe(0);
+    }
+    const counts = db.getOverviewCounts().issues as unknown as Record<string, number>;
+    expect(counts.axeCriticalSerious).toBe(0);
+    expect(counts.axeModerateMinor).toBe(0);
+    expect(counts.axeNeedsReview).toBe(0);
+    expect(db.queryUrls({ category: 'all', limit: 10, offset: 0 }).total).toBe(1);
+  });
+
+  it('the severity roll-ups still answer (they include the axe filters)', () => {
+    for (const cat of ['issues:severity-critical', 'issues:severity-warning', 'issues:severity-info']) {
+      expect(() => db.queryUrls({ category: cat as never, limit: 10, offset: 0 })).not.toThrow();
+    }
+  });
 });

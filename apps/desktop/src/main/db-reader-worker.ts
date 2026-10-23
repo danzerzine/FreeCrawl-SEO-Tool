@@ -71,6 +71,7 @@ const ALLOWED_METHODS = new Set<string>([
   'queryBrokenLinks',
   'queryPagespeed',
   'queryPagespeedAudits',
+  'queryAxe',
   'queryCrux',
   'querySpelling',
   'getSpellingMatches',

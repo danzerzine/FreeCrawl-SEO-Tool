@@ -64,7 +64,11 @@ describe('B39 migration', () => {
     db.close();
 
     const raw2 = new DatabaseSync(file);
-    for (const t of before) expect(schemaOf(raw2, t.name)).toBe(t.sql);
+    for (const t of before) {
+      // `urls` gains columns in later migrations (M17 axe): the old definition stays a prefix of it.
+      if (t.name === 'urls') expect(schemaOf(raw2, t.name)!.startsWith(t.sql.slice(0, t.sql.lastIndexOf(')')).trimEnd())).toBe(true);
+      else expect(schemaOf(raw2, t.name)).toBe(t.sql);
+    }
     const cols = (t: string) =>
       (raw2.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name);
     expect(cols('webmaster_events')).toEqual([

@@ -8,40 +8,14 @@
  * name-keeping wrapper would be undefined in the page).
  */
 
+import type { AxeAudit, AxeRuleResult, AxeSample } from '@freecrawl/shared-types';
+
+export type { AxeAudit, AxeRuleResult, AxeSample };
+
 /** At most this many rules (violations first, then needs-review) are stored per page. */
 export const AXE_MAX_RULES = 100;
 /** One page's stored axe JSON never exceeds this many characters. */
 export const AXE_MAX_JSON_BYTES = 30 * 1024;
-
-export interface AxeSample {
-  target: string;
-  html: string;
-  summary: string;
-}
-
-export interface AxeRuleResult {
-  id: string;
-  impact: string | null;
-  help: string;
-  helpUrl: string;
-  tags: string[];
-  /** Elements that failed (or need review); all of them, not only the samples. */
-  nodes: number;
-  samples: AxeSample[];
-}
-
-export interface AxeAudit {
-  version: string;
-  violations: AxeRuleResult[];
-  /** "Needs review": axe could not decide; never counted as an issue. */
-  incomplete: AxeRuleResult[];
-  /** Violated rules axe found, also those the cap did not store. */
-  violationsTotal: number;
-  /** Of those, rules with impact critical or serious. */
-  seriousTotal: number;
-  /** Rules or samples were dropped to stay inside the caps. */
-  truncated?: boolean;
-}
 
 export function reduceAxeResults(raw: {
   testEngine?: { version?: string };

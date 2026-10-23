@@ -259,6 +259,9 @@ export type UrlCategory =
   | 'issues:focus-outline-suppressed'
   | 'issues:font-too-small'
   | 'issues:tap-targets-too-small'
+  | 'issues:axe-critical-serious'
+  | 'issues:axe-moderate-minor'
+  | 'issues:axe-needs-review'
   | 'issues:pagination-sequence-break'
   | 'issues:links-per-page-too-many'
   | 'tab:redirects'
@@ -720,6 +723,14 @@ export interface CrawlUrlRow {
    *  `a11yTapTargetsSmall` = interactive elements below 24×24 CSS px. */
   a11ySmallFont: number | null;
   a11yTapTargetsSmall: number | null;
+  /**
+   * axe-core audit of the rendered page (B40): rules violated, of them critical or serious,
+   * rules that need a human look, and the axe version. NULL = not audited, 0 = audited and clean.
+   */
+  axeViolations: number | null;
+  axeSerious: number | null;
+  axeIncomplete: number | null;
+  axeVersion: string | null;
   /**
    * V2 Faz 15 — performance budget verdict, a bitmask: 1=response time,
    * 2=transfer size, 4=LCP, 8=CLS. 0 = evaluated and within budget,
@@ -2451,6 +2462,10 @@ export interface OverviewCounts {
     /** Mobile-usability checks from the same in-page a11y audit. */
     fontTooSmall: number;
     tapTargetsTooSmall: number;
+    /** axe-core (B40): pages with critical/serious rules, with only moderate/minor rules, and with rules needing review. */
+    axeCriticalSerious: number;
+    axeModerateMinor: number;
+    axeNeedsReview: number;
     /**
      * Pages whose `twitter:image` dimensions don't fit the declared
      * card type — `summary_large_image` wants ~2:1 (min 300×157),

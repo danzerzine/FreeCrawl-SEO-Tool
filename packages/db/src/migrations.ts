@@ -2910,6 +2910,37 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    // B40: axe-core audit of rendered pages. NULL in the urls columns means "not audited", 0 means
+    // "audited and clean". axe_results keeps one row per page and rule (page HTML snippets live in
+    // samples_json, so it is deleted explicitly on every delete path, never left to the cascade:
+    // deleteByDomain and reset run with foreign keys off).
+    version: 127,
+    name: 'add_axe_audit',
+    up: (db) => {
+      addColumnsIfMissing(db, 'urls', [
+        ['axe_violations', 'INTEGER'],
+        ['axe_serious', 'INTEGER'],
+        ['axe_incomplete', 'INTEGER'],
+        ['axe_version', 'TEXT'],
+      ]);
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS axe_results (
+          url_id INTEGER NOT NULL REFERENCES urls(id) ON DELETE CASCADE,
+          rule_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          impact TEXT,
+          help TEXT NOT NULL,
+          help_url TEXT,
+          tags TEXT,
+          nodes INTEGER NOT NULL,
+          samples_json TEXT,
+          PRIMARY KEY (url_id, rule_id, kind)
+        );
+        CREATE INDEX IF NOT EXISTS idx_axe_results_rule ON axe_results(rule_id, kind);
+      `);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

@@ -114,7 +114,6 @@ describe('reduceAxeResults (B40 R5, R10)', () => {
 
   it('runs as a string inside a function-free eval, with no outside names', () => {
     const src = reduceAxeResults.toString();
-    // eslint-disable-next-line no-new-func
     const f = new Function(`return (${src})`)() as typeof reduceAxeResults;
     expect(f(raw([rule('a')])).violations[0]!.id).toBe('a');
   });
