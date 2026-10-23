@@ -220,6 +220,11 @@ export interface PdfExportOptions {
   onProgress?: (line: string) => void;
   /** Pause between two requests, ms (default 500: 2 per second); tests pass 0. */
   requestGapMs?: number;
+  /**
+   * Shared by the items of one `--what` run: a PDF one item fetched is handed
+   * to the next from here instead of being requested again.
+   */
+  ledger?: Map<string, PdfFetched>;
 }
 
 /** Thrown for a file left out on purpose; the message is its reason. */
@@ -227,25 +232,55 @@ class PdfSkip extends Error {}
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/** One PDF of the crawl as `db.iteratePdfFiles()` lists it. */
+export interface PdfListed {
+  url: string;
+  contentLength: number | null;
+  title: string | null;
+  author: string | null;
+  pages: number | null;
+}
+
+/** What fetching one PDF came to. */
+export interface PdfFetched {
+  /** The pdfs.csv status: `downloaded`, `already present`, `skipped: …` or `failed: …`. */
+  status: string;
+  /** Bytes of the file in `pdfs/`; null when there is none. */
+  bytes: number | null;
+  /** `pdfs/<name>`, or null when there is no file. */
+  file: string | null;
+  /** Where the file is, or null. */
+  path: string | null;
+}
+
+/** What one {@link forEachPdf} pass did besides the visits. */
+export interface PdfPassResult {
+  /** PDFs of the crawl (0: nothing was visited and `errors` says so). */
+  listed: number;
+  errors: string[];
+  skipped: string[];
+}
+
 /**
- * Download the crawl's PDF documents into `<outDir>/pdfs/` and list them in
- * `pdfs.csv` (url, file, bytes, status, title, author, pages). Requests use
- * the saved config's user agent and custom headers, send
- * `Accept-Encoding: identity` (so Content-Length is the file size), run at
- * 2 per second, and stop at 50 MB per file and `maxBytes` per run. A file
- * already there is not fetched again. When the config needs secrets only the
- * desktop can decrypt, nothing is requested.
+ * Fetch each PDF of the crawl into `<outDir>/pdfs/` and hand it to `visit`,
+ * one at a time. This is the one place that decides how: the saved config's
+ * user agent and custom headers, `Accept-Encoding: identity`, 2 requests per
+ * second, 50 MB per file and `maxBytes` per run, the auth rules, and the
+ * `already present` check. `exportPdfs` and `exportPdfText` both run on it.
+ * With a `ledger`, a PDF fetched earlier in the same run (by another item of
+ * `--what`) is not requested again: its first result is handed out again.
  */
-export async function exportPdfs(
+export async function forEachPdf(
   db: ProjectDb,
   outDir: string,
-  options: PdfExportOptions = {},
-): Promise<MediaExportResult> {
+  options: PdfExportOptions,
+  visit: (file: PdfListed, got: PdfFetched) => void | Promise<void>,
+): Promise<PdfPassResult> {
   const crawl = options.crawlConfig ?? { config: {}, secretsEnc: false };
   const progress = options.onProgress ?? (() => {});
   const files = [...db.iteratePdfFiles()];
   if (files.length === 0) {
-    return { rows: 0, csvPath: null, errors: ['no PDF files in this crawl'], skipped: [] };
+    return { listed: 0, errors: ['no PDF files in this crawl'], skipped: [] };
   }
   const errors: string[] = [];
   const skipped: string[] = [];
@@ -278,7 +313,6 @@ export async function exportPdfs(
   headers['accept-encoding'] = 'identity';
   const runCap = options.maxBytes ?? PDF_MAX_RUN_BYTES;
   const taken = new Set<string>();
-  const rows: unknown[][] = [];
   let total = 0;
   let lastRequest = 0;
   const gapMs = options.requestGapMs ?? PDF_REQUEST_GAP_MS;
@@ -296,16 +330,28 @@ export async function exportPdfs(
   for (const f of files) {
     const name = uniqueName(taken, f.url, '', '.pdf');
     const dest = join(outDir, 'pdfs', name);
-    const meta = [f.title, f.author, f.pages];
-    const row = (status: string, bytes: number | null): unknown[] => [
-      f.url,
-      bytes === null ? '' : `pdfs/${name}`,
-      bytes,
+    const none = (status: string): PdfFetched => ({ status, bytes: null, file: null, path: null });
+    const have_ = (status: string, bytes: number): PdfFetched => ({
       status,
-      ...meta,
-    ];
+      bytes,
+      file: `pdfs/${name}`,
+      path: dest,
+    });
+    const earlier = options.ledger?.get(f.url);
+    if (earlier) {
+      if (earlier.status.startsWith('skipped: ')) skipped.push(`${f.url}: ${earlier.status}`);
+      else if (earlier.status.startsWith('failed: ')) {
+        errors.push(`${f.url}: ${earlier.status.slice('failed: '.length)}`);
+      }
+      await visit(f, earlier);
+      continue;
+    }
+    const finish = async (got: PdfFetched): Promise<void> => {
+      options.ledger?.set(f.url, got);
+      await visit(f, got);
+    };
     if (authSkipStatus) {
-      rows.push(row(authSkipStatus, null));
+      await visit(f, none(authSkipStatus));
       continue;
     }
     try {
@@ -321,7 +367,7 @@ export async function exportPdfs(
         present = head.ok && Number(head.headers.get('content-length')) === have;
       }
       if (present) {
-        rows.push(row('already present', have));
+        await finish(have_('already present', have));
         continue;
       }
       if (total >= runCap) throw new PdfSkip(`skipped: run cap of ${runCap} bytes reached`);
@@ -388,13 +434,37 @@ export async function exportPdfs(
         ),
       );
       total += bytes;
-      rows.push(row('downloaded', bytes));
+      await finish(have_('downloaded', bytes));
     } catch (err) {
       const msg = err instanceof PdfSkip ? err.message : formatFetchError(err);
       if (err instanceof PdfSkip) skipped.push(`${f.url}: ${msg}`);
       else errors.push(`${f.url}: ${msg}`);
-      rows.push(row(err instanceof PdfSkip ? msg : `failed: ${msg}`, null));
+      await finish(none(err instanceof PdfSkip ? msg : `failed: ${msg}`));
     }
+  }
+  return { listed: files.length, errors, skipped };
+}
+
+/**
+ * Download the crawl's PDF documents into `<outDir>/pdfs/` and list them in
+ * `pdfs.csv` (url, file, bytes, status, title, author, pages). Requests use
+ * the saved config's user agent and custom headers, send
+ * `Accept-Encoding: identity` (so Content-Length is the file size), run at
+ * 2 per second, and stop at 50 MB per file and `maxBytes` per run. A file
+ * already there is not fetched again. When the config needs secrets only the
+ * desktop can decrypt, nothing is requested.
+ */
+export async function exportPdfs(
+  db: ProjectDb,
+  outDir: string,
+  options: PdfExportOptions = {},
+): Promise<MediaExportResult> {
+  const rows: unknown[][] = [];
+  const pass = await forEachPdf(db, outDir, options, (f, got) => {
+    rows.push([f.url, got.file ?? '', got.bytes, got.status, f.title, f.author, f.pages]);
+  });
+  if (pass.listed === 0) {
+    return { rows: 0, csvPath: null, errors: pass.errors, skipped: [] };
   }
   const csvPath = join(outDir, 'pdfs.csv');
   await writeSmallCsv(
@@ -402,5 +472,5 @@ export async function exportPdfs(
     ['url', 'file', 'bytes', 'status', 'title', 'author', 'pages'],
     rows,
   );
-  return { rows: rows.length, csvPath, errors, skipped };
+  return { rows: rows.length, csvPath, errors: pass.errors, skipped: pass.skipped };
 }

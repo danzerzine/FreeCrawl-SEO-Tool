@@ -283,7 +283,11 @@ export options:
                                     says why and the run exits 1. A digest or form login that is readable
                                     is not performed either: those PDFs are skipped the same way. A reply
                                     that is not a PDF is never saved. A saved proxy is not applied.
-                                    PDF text is not extracted.
+                                    For the text inside, use pdf-text.
+                        pdf-text    pdf-text.jsonl (url, file, pages, chars, truncated, status, text: the text
+                                    of every PDF of the crawl, downloaded now like pdfs) and
+                                    pdf-links.csv (pdf_url, page, link_url, is_internal). Not in bulk. Uses
+                                    --config and --max-bytes like pdfs.
                         tab:<key> / issues:<key>
                                     one category CSV, e.g. tab:redirects, issues:title-missing
                         dataset:<key>
@@ -318,8 +322,8 @@ export options:
                         pages, columns of the Inlinks / Outlinks tabs). Without --what, only these two
                         files are written; with it, they are added. URLs not in the project are listed
                         in errors and on stderr (exit 1); exit 2 when none is in the project.
-  --config <file>     With --what pdfs: crawl config to take the user agent and headers from
-  --max-bytes <n>     With --what pdfs: stop downloading after n bytes in all (default 2 GB)
+  --config <file>     With --what pdfs or pdf-text: crawl config to take the user agent and headers from
+  --max-bytes <n>     With --what pdfs or pdf-text: stop downloading after n bytes in all (default 2 GB)
   --ngram <1|2|3>      With dataset:top-words: words (1) or 2-3 word phrases. Default 1.
   --word-locale <l>    With dataset:top-words: stopword list: en, ru, tr or all (default all).
   --by-section        With dataset:top-words: one block per folder of the site (see --section-depth); the memory cap is shared between sections, so rare phrases may be dropped.

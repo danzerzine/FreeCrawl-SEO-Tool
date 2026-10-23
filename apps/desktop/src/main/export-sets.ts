@@ -53,12 +53,12 @@ export function exportSetChoices(): ExportSetChoiceGroup[] {
 }
 
 /**
- * Exports that only the command line offers: the PDF and screenshot files
+ * Exports that only the command line offers: the PDF, PDF text and screenshot files
  * need a request config (user agent, headers, auth, byte cap) and a sidecar
  * folder the desktop dialogs do not give them yet, so an unattended desktop
  * run would differ from the same set run by `freecrawl export --set`.
  */
-export const CLI_ONLY_EXPORTS = ['pdfs', 'screenshots'] as const;
+export const CLI_ONLY_EXPORTS = ['pdfs', 'screenshots', 'pdf-text'] as const;
 
 const cliOnlyMessage = (name: string): string =>
   `"${name}" is only available in the command line for now (freecrawl export --what ${name}); the desktop app skipped it.`;

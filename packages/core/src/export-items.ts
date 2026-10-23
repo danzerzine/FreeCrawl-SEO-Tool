@@ -29,13 +29,14 @@ import { writeExportFile } from './export-file.js';
 import { exportHtmlReport, type HtmlReportOptions } from './html-report.js';
 import { exportIssuesSummary, exportLinkTargetReport, LINK_TARGET_EXPORTS } from './report-export.js';
 import { runSeoAuditExport } from './seo-audit-export.js';
-import { exportPdfs, exportScreenshots, type PdfCrawlConfig } from './media-export.js';
+import { exportPdfs, exportScreenshots, type PdfCrawlConfig, type PdfFetched } from './media-export.js';
+import { exportPdfText } from './pdf-text-export.js';
 import { exportTabular } from './tabular-export.js';
 import type { TopWordsBlocksOptions } from './top-words-db.js';
 
 /** One `--what` entry of `freecrawl export`. */
 export type ExportItem =
-  | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues' | 'screenshots' | 'pdfs'; name: string }
+  | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues' | 'screenshots' | 'pdfs' | 'pdf-text'; name: string }
   | { kind: 'category'; name: string; tasks: BulkExportTask[] }
   | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
   | { kind: 'selected'; name: 'selected-links'; urls: string[] }
@@ -70,7 +71,7 @@ export interface ExportOutcome {
 }
 
 export const EXPORT_WHAT_HELP =
-  'bulk, seo-audit, html, issues, screenshots, pdfs, tab:<key>, issues:<key>, dataset:<key>, issue-inlinks:<check>, ' +
+  'bulk, seo-audit, html, issues, screenshots, pdfs, pdf-text, tab:<key>, issues:<key>, dataset:<key>, issue-inlinks:<check>, ' +
   LINK_TARGET_EXPORTS.map((r) => r.report).join(', ');
 
 /**
@@ -88,7 +89,8 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
       name === 'html' ||
       name === 'issues' ||
       name === 'screenshots' ||
-      name === 'pdfs'
+      name === 'pdfs' ||
+      name === 'pdf-text'
     ) {
       return { kind: name, name };
     }
@@ -141,6 +143,7 @@ function readsIssueData(item: ExportItem): boolean {
       return true;
     case 'screenshots':
     case 'pdfs':
+    case 'pdf-text':
       return false;
     case 'category':
       return item.tasks.some((t) => t.category.startsWith('issues:'));
@@ -162,7 +165,7 @@ export interface RunExportItemsOptions {
   toolVersion?: string;
   /** White-label header of the `html` report. */
   branding?: HtmlReportOptions['branding'];
-  /** Config the `pdfs` requests are built from (user agent, headers, auth), and its whole-run byte cap. */
+  /** Config the `pdfs` and `pdf-text` requests are built from (user agent, headers, auth), and its whole-run byte cap. */
   pdfs?: { crawlConfig?: PdfCrawlConfig; maxBytes?: number };
   /** One line per step; the CLI sends it to stderr. */
   onProgress?: (line: string) => void;
@@ -189,6 +192,8 @@ export async function runExportItems(
   const headers = options.rawHeaders ? ('keys' as const) : undefined;
   const outcome: ExportOutcome = options.outcome ?? { files: [], errors: [], skipped: [] };
   const progress = options.onProgress ?? (() => {});
+  // PDFs fetched by one item are handed to the next (`--what pdfs,pdf-text`), not requested twice.
+  const pdfLedger = new Map<string, PdfFetched>();
   // Its presence means the run reached the end: a previous run's manifest
   // goes before any file of this run replaces one of its files.
   await rm(join(outDir, 'manifest.json'), { force: true });
@@ -250,13 +255,31 @@ export async function runExportItems(
           outcome.errors.push({ label: 'Screenshots', error });
         }
       } else if (item.kind === 'pdfs') {
-        const r = await exportPdfs(db, outDir, { ...options.pdfs, onProgress: progress });
+        const r = await exportPdfs(db, outDir, {
+          ...options.pdfs,
+          ledger: pdfLedger,
+          onProgress: progress,
+        });
         if (r.csvPath) outcome.files.push({ path: r.csvPath, label: 'PDF files', rows: r.rows });
         for (const error of r.errors) {
           progress(`PDF files: ${error}`);
           outcome.errors.push({ label: 'PDF files', error });
         }
         for (const reason of r.skipped) outcome.skipped.push({ label: 'PDF files', reason });
+      } else if (item.kind === 'pdf-text') {
+        const r = await exportPdfText(db, outDir, {
+          ...options.pdfs,
+          ledger: pdfLedger,
+          onProgress: progress,
+          startUrl: db.getMeta('lastStartUrl') ?? '',
+        });
+        if (r.csvPath) outcome.files.push({ path: r.csvPath, label: 'PDF text', rows: r.rows });
+        if (r.linksCsvPath) outcome.files.push({ path: r.linksCsvPath, label: 'PDF links', rows: r.linkRows });
+        for (const error of r.errors) {
+          progress(`PDF text: ${error}`);
+          outcome.errors.push({ label: 'PDF text', error });
+        }
+        for (const reason of r.skipped) outcome.skipped.push({ label: 'PDF text', reason });
       } else if (item.kind === 'issues') {
         const path = join(outDir, 'issues-summary.csv');
         const { rowsWritten } = await exportIssuesSummary(db, path, { headers });

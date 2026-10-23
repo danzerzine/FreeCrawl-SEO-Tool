@@ -51,6 +51,12 @@ extraResources:
   # in the notices folder next to the app, where a user looks for it.
   - from: "../../node_modules/axe-core/LICENSE"
     to: "notice/axe-core-LICENSE.txt"
+  # unpdf (B42) is MIT; its dist/pdfjs.mjs is pdf.js (Apache-2.0) with the notices stripped, so the
+  # Apache text is a checked-in file (the test pins its first line to the bundled pdf.js version).
+  - from: "../../node_modules/unpdf/LICENSE"
+    to: "notice/unpdf-LICENSE.txt"
+  - from: "resources/notice/pdfjs-LICENSE-Apache-2.0.txt"
+    to: "notice/pdfjs-LICENSE-Apache-2.0.txt"
 win:
   target:
     - target: nsis
