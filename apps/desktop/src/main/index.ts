@@ -61,6 +61,8 @@ import {
   type CrawlProgress,
   type CrawlSummary,
   type ExportCsvInput,
+  type IssueTaskPreviewInput,
+  type IssueTaskSendInput,
   type ExportCsvResult,
   type ExportJsonInput,
   type ExportJsonResult,
@@ -358,6 +360,7 @@ import {
 } from '@freecrawl/core';
 import { fetch as undiciFetch } from 'undici';
 import { apiFetch } from './api-fetch.js';
+import { createIssueTaskService } from './issue-task-service.js';
 import { ProjectDb, EXPENSIVE_ISSUE_DEFINITIONS, type SavedQueueItem } from '@freecrawl/db';
 import { buildAppMenu } from './menu.js';
 import {
@@ -10322,6 +10325,38 @@ function registerIpc(): void {
       return { filePath, rowsWritten };
     },
   );
+
+  // M21 (fork only) — issue to tracker task. The renderer only sees the built
+  // text; tokens are read here and nothing is sent without `issueTaskSend`.
+  const issueTasks = createIssueTaskService({
+    credentials: resolveCredentials,
+    fetch: (url, init) => apiFetch(url, init),
+    env: process.env,
+    loadSource: async (category) => {
+      const db = getDb();
+      const [counts, page] = await Promise.all([
+        overviewCountsFor(currentSession()),
+        Promise.resolve(db.queryUrls({ category, limit: 200, offset: 0 })),
+      ]);
+      return {
+        counts,
+        rows: page.rows,
+        total: page.total,
+        siteUrl: db.getMeta('lastStartUrl') ?? db.getMeta('startUrl') ?? '',
+        crawledAt: new Date().toISOString(),
+      };
+    },
+    pickSavePath: async (defaultName) => {
+      const res = await dialog.showSaveDialog(mainWindow!, {
+        defaultPath: defaultName,
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      });
+      return res.canceled || !res.filePath ? null : res.filePath;
+    },
+  });
+  registerHandle(IPC.issueTaskPreview, (_e, input: IssueTaskPreviewInput) => issueTasks.preview(input));
+  registerHandle(IPC.issueTaskSend, (_e, input: IssueTaskSendInput) => issueTasks.send(input));
+  registerHandle(IPC.issueTaskSave, (_e, input: IssueTaskPreviewInput) => issueTasks.save(input));
 
   registerHandle(
     IPC.exportJson,

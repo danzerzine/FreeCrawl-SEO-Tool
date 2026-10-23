@@ -187,6 +187,9 @@ export const IPC = {
   overviewGet: 'overview:get',
   summaryGet: 'summary:get',
   exportCsv: 'export:csv',
+  issueTaskPreview: 'issue-task:preview',
+  issueTaskSend: 'issue-task:send',
+  issueTaskSave: 'issue-task:save',
   exportJson: 'export:json',
   exportXml: 'export:xml',
   /** Export the Broken Links tab to a CSV file. Honours the tab's
@@ -698,6 +701,48 @@ export interface BrokenLinksQueryResult {
    *  to it. */
   uniqueTargets: number;
 }
+
+/** M21: where a task can be sent. Copy and Save .md need no target. */
+export type IssueTaskTarget = 'github' | 'basecamp';
+
+export interface IssueTaskPreviewInput {
+  category: UrlCategory;
+  /** The user's edits; absent means the generated title / no note. */
+  title?: string;
+  note?: string;
+}
+
+export interface IssueTaskTargetState {
+  /** All required fields filled. */
+  configured: boolean;
+  /** Where it would go, as configured (`owner/repo`, `account 1 / to-do list 2`); never a secret. */
+  where: string;
+  /** A task from this check was already sent to it in this session. */
+  alreadySent: boolean;
+}
+
+export type IssueTaskPreviewResult =
+  | {
+      ok: true;
+      title: string;
+      /** The exact GitHub issue body / .md file text. */
+      markdown: string;
+      /** The exact Basecamp description that would be sent. */
+      basecampHtml: string;
+      totalUrls: number;
+      targets: Record<IssueTaskTarget, IssueTaskTargetState>;
+    }
+  | { ok: false; message: string };
+
+export interface IssueTaskSendInput extends IssueTaskPreviewInput {
+  target: IssueTaskTarget;
+}
+
+export type IssueTaskSendResult =
+  | { ok: true; url: string }
+  | { ok: false; message: string; mayHaveBeenCreated?: boolean };
+
+export type IssueTaskSaveResult = { ok: true; filePath: string } | { ok: false; message: string };
 
 export interface ExportCsvInput {
   filePath: string;
@@ -2413,6 +2458,9 @@ export interface FreeCrawlApi {
     password: string,
   ): Promise<{ filePath: string } | { error: string } | null>;
   urlsQuery(input: UrlsQueryInput): Promise<UrlsQueryResult>;
+  issueTaskPreview(input: IssueTaskPreviewInput): Promise<IssueTaskPreviewResult>;
+  issueTaskSend(input: IssueTaskSendInput): Promise<IssueTaskSendResult>;
+  issueTaskSave(input: IssueTaskPreviewInput): Promise<IssueTaskSaveResult>;
   urlDetailGet(input: UrlDetailInput): Promise<UrlDetail | null>;
   urlSourceGet(input: UrlSourceInput): Promise<UrlSourceResult>;
   urlPageImages(input: UrlPageImagesInput): Promise<UrlPageImagesResult>;

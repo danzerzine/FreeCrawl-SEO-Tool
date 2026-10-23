@@ -13,6 +13,11 @@ import {
   type CrawlProgress,
   type CrawlSummary,
   type ExportCsvInput,
+  type IssueTaskPreviewInput,
+  type IssueTaskPreviewResult,
+  type IssueTaskSaveResult,
+  type IssueTaskSendInput,
+  type IssueTaskSendResult,
   type ExportCsvResult,
   type ExportJsonInput,
   type ExportJsonResult,
@@ -320,6 +325,12 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.brokenLinksQuery, input),
   overviewGet: (): Promise<OverviewCounts> => ipcRenderer.invoke(IPC.overviewGet),
   summaryGet: (): Promise<CrawlSummary> => ipcRenderer.invoke(IPC.summaryGet),
+  issueTaskPreview: (input: IssueTaskPreviewInput): Promise<IssueTaskPreviewResult> =>
+    ipcRenderer.invoke(IPC.issueTaskPreview, input),
+  issueTaskSend: (input: IssueTaskSendInput): Promise<IssueTaskSendResult> =>
+    ipcRenderer.invoke(IPC.issueTaskSend, input),
+  issueTaskSave: (input: IssueTaskPreviewInput): Promise<IssueTaskSaveResult> =>
+    ipcRenderer.invoke(IPC.issueTaskSave, input),
   exportCsv: (input: ExportCsvInput): Promise<ExportCsvResult> =>
     ipcRenderer.invoke(IPC.exportCsv, input),
   exportJson: (input: ExportJsonInput): Promise<ExportJsonResult> =>
