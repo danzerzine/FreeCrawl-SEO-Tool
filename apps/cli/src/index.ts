@@ -153,6 +153,7 @@ Options:
   --axe               With --render: run the axe-core accessibility audit on every rendered page
                         (WCAG 2.0-2.2 A/AA, about a second per page); stored per page and exported
                         as dataset:axe-violations. Also jsRender.axeAudit in --config. Off by default
+  --markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags, unclosed elements…). Parses every page twice more.
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
@@ -375,6 +376,7 @@ function parseCliArgs() {
       'with-bodies': { type: 'boolean' },
       'page-script': { type: 'string' },
       axe: { type: 'boolean' },
+      'markup-check': { type: 'boolean' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'night-rps': { type: 'string' },
@@ -656,6 +658,7 @@ async function main(): Promise<void> {
       ? { memoryLimitMb: parsePositiveInt('memory-limit', values['memory-limit']) }
       : {}),
     ...(values.render ? { renderingMode: 'js' as const } : {}),
+    ...(values['markup-check'] ? { markupValidation: true } : {}),
     ...(pageScriptText !== undefined || values.axe
       ? {
           jsRender: {
