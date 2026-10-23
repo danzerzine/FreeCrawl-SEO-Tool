@@ -1,3 +1,5 @@
+import * as v8 from 'node:v8';
+import * as vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { CrawlTrapWatch, trapSectionKey } from './crawl-trap-watch.js';
 
@@ -104,5 +106,136 @@ describe('R2 one parameter pattern grows', () => {
     const w = settled();
     const f = feed(w, 2000, (i) => `${H}/s?${names.map((n) => `${n}=${i % 9}`).join('&')}`);
     expect(f[0]!.key.length).toBeLessThanOrEqual(200);
+  });
+});
+
+describe('R1 and R3 need a clean sitemap baseline', () => {
+  const sitemap = (n: number, dir = 'p') => Array.from({ length: n }, (_, i) => `${H}/${dir}/${i}/x`);
+  const shop = (i: number) => `${H}/shop/item/${i}`;
+  const baselineFor = (urls: string[]) => {
+    const w = new CrawlTrapWatch();
+    w.setBaseline('a.test', urls);
+    return w;
+  };
+
+  it('R3 fires at 5 000 in one section and not one URL below', () => {
+    expect(feed(baselineFor(sitemap(1200)), 4999, shop)).toEqual([]);
+    const f = feed(baselineFor(sitemap(1200)), 5000, shop);
+    expect(f.map((x) => [x.rule, x.key, x.expected, x.count])).toEqual([['R3', 'a.test/shop', 0, 5000]]);
+    expect(f[0]!.samples.length).toBe(3);
+  });
+  it('R3 is off without a baseline', () => {
+    expect(feed(new CrawlTrapWatch(), 9000, shop)).toEqual([]);
+  });
+  it('R3 needs half of everything counted', () => {
+    const w = baselineFor(sitemap(1200));
+    const f = feed(w, 11000, (i) => (i % 11 < 5 ? shop(i) : `${H}/other${i % 40}/${i}`));
+    expect(f).toEqual([]);
+  });
+  it('news-only sitemap over 5 000 and 10 000 articles: no finding, R1 is the info line', () => {
+    for (const total of [5000, 10000]) {
+      const w = baselineFor(sitemap(1000, 'news'));
+      expect(feed(w, total, (i) => `${H}/news/a${i}`)).toEqual([]);
+      expect(w.snapshot('t').sitemapShort).toEqual({ found: expect.any(Number), listed: 1000 });
+    }
+  });
+  it('R1 needs 5 000 URLs and five times the sitemap, and is reported once', () => {
+    const w = baselineFor(sitemap(1000));
+    let first: unknown = null;
+    let times = 0;
+    for (let i = 0; i < 5200; i++)
+      if (w.observe(`${H}/news/a${i}`)) {
+        const r = w.check();
+        if (r.sitemapShort) {
+          times++;
+          first ??= r.sitemapShort;
+        }
+      }
+    expect(times).toBe(1);
+    expect(first).toEqual({ found: 5000, listed: 1000 });
+    const small = baselineFor(sitemap(1001));
+    for (let i = 0; i < 5000; i++) small.observe(`${H}/news/a${i}`);
+    expect(small.check().sitemapShort).toBeNull();
+  });
+  it('a sitemap of another host, an empty one, leaves the baseline off', () => {
+    const w = new CrawlTrapWatch();
+    w.setBaseline('www.a.test', sitemap(1200));
+    expect(w.hasBaseline).toBe(false);
+    expect(feed(w, 9000, shop)).toEqual([]);
+    const e = new CrawlTrapWatch();
+    e.setBaseline('a.test', []);
+    expect(e.hasBaseline).toBe(false);
+  });
+  it('a calendar of 36 months with distinct content stays quiet', () => {
+    const w = baselineFor(sitemap(1200));
+    expect(feed(w, 36, (i) => `${H}/events?year=${2024 + Math.floor(i / 12)}&month=${(i % 12) + 1}`)).toEqual([]);
+  });
+});
+
+describe('findings across a resume', () => {
+  it('a restored finding is kept and its key does not fire again', () => {
+    const first = new CrawlTrapWatch();
+    first.markSettled();
+    expect(feed(first, 2500, facet)).toHaveLength(1);
+    const snap = first.snapshot('t');
+    const again = new CrawlTrapWatch();
+    again.markSettled();
+    again.restore(JSON.parse(JSON.stringify(snap)));
+    expect(feed(again, 3000, facet)).toEqual([]);
+    const out = again.snapshot('t2');
+    expect(out.findings).toHaveLength(1);
+    expect(out.findings[0]!.count).toBe(3000);
+  });
+});
+
+describe('memory and CPU bound', () => {
+  const longUrl = (k: number, v: number): string => {
+    const names = Array.from({ length: 8 }, (_, j) => `n${String(j)}_${String(k).padStart(5, '0')}_aaaaaaaaaaaaaaaaaaaaaaaaaaaaa`);
+    return `https://h.test/seg${k}/x?${names.map((n) => `${n}=v${v}`).join('&')}`;
+  };
+  const gc = (): void => {
+    v8.setFlagsFromString('--expose-gc');
+    (vm.runInNewContext('gc') as () => void)();
+  };
+  const used = (): number => {
+    gc();
+    const m = process.memoryUsage();
+    return m.heapUsed + m.arrayBuffers;
+  };
+
+  it('both tables at 5 000 keys of 200 characters, 6 names x 64 values: heap growth < 35 MB, <= 5 us per observe', () => {
+    const before = used();
+    const w = new CrawlTrapWatch();
+    for (let k = 0; k < 5000; k++) for (let v = 0; v < 64; v++) w.observe(longUrl(k, v));
+    const after = used();
+    const sizes = w.tableSizes();
+    expect(sizes.bySection).toBe(5000);
+    expect(sizes.byHost).toBe(5000);
+    const mb = (after - before) / 1e6;
+    console.log(`worst-case fill: ${mb.toFixed(1)} MB for ${JSON.stringify(sizes)}`);
+    expect(mb).toBeLessThan(35);
+
+    const urls = Array.from({ length: 1000 }, (_, i) => longUrl((i * 7) % 5000, i % 64));
+    const t0 = process.hrtime.bigint();
+    for (let i = 0; i < 1_000_000; i++) w.observe(urls[i % 1000]!);
+    const us = Number(process.hrtime.bigint() - t0) / 1000 / 1_000_000;
+    console.log(`worst-case observe: ${us.toFixed(2)} us per call`);
+    expect(us).toBeLessThanOrEqual(5);
+  }, 120_000);
+
+  it('a full table drops idle keys in one batch, never a key above a quarter of the floor, no scan per insert', () => {
+    const w = new CrawlTrapWatch({ maxKeys: 100 });
+    // one busy key (above 500 = 25 % of the 2 000 floor) and 99 idle ones
+    for (let i = 0; i < 600; i++) w.observe(`https://h.test/busy?a=${i % 5}&b=${i % 4}`);
+    for (let k = 0; k < 98; k++) w.observe(`https://h.test/s${k}?p${k}=1&q${k}=2`);
+    expect(w.tableSizes().byHost).toBe(99);
+    const scans0 = w.evictScans;
+    // key 100 fits, key 101 meets a full table: one batch
+    for (let k = 98; k < 200; k++) w.observe(`https://h.test/s${k}?p${k}=1&q${k}=2`);
+    expect(w.patternCount('h.test?a,b')).toBe(600);
+    // 102 new keys in each of 3 tables: a scan per ~98 inserts, not one per insert
+    expect(w.evictScans - scans0).toBeLessThanOrEqual(6);
+    expect(w.evictIterations).toBeLessThanOrEqual(6 * 100);
+    expect(w.tableSizes().byHost).toBeLessThanOrEqual(100);
   });
 });
