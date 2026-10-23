@@ -2941,6 +2941,19 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    // B45: HTML markup errors per page. NULL = not checked (option off, or a project from before),
+    // 0 = checked and clean; markup_codes is a compact JSON {code: count}, NULL when 0 or not checked.
+    // No backfill: a re-crawl fills them.
+    version: 128,
+    name: 'add_markup_checks',
+    up: (db) => {
+      addColumnsIfMissing(db, 'urls', [
+        ['markup_errors', 'INTEGER'],
+        ['markup_codes', 'TEXT'],
+      ]);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

@@ -6,7 +6,7 @@ import { ProjectDb } from '@freecrawl/db';
 import { ISSUE_CATEGORIES } from '@freecrawl/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { exportIssueInlinks, runBulkExport } from './bulk-export.js';
-import { runExportItems } from './export-items.js';
+import { parseExportWhat, runExportItems } from './export-items.js';
 
 let dir: string;
 let file: string;
@@ -89,5 +89,56 @@ describe('exportIssueInlinks: a failed check keeps its previous file', () => {
     db.close();
     expect(res.errors.length).toBe(1);
     expect(fs.readFileSync(target, 'utf8')).toBe('previous good\n');
+  });
+});
+
+describe('B45: --what issues:markup-errors', () => {
+  const addMarkupRows = (): void => {
+    const raw = new DatabaseSync(file);
+    // Inserted out of alphabetical order on purpose: the file keeps the id order.
+    raw.exec(`
+      INSERT INTO urls (id, url, is_external, content_kind, status_code, markup_errors, markup_codes) VALUES
+        (21,'https://ex.com/zzz',0,'html',200,2,'{"duplicate-id":1,"missing-doctype":1}'),
+        (22,'https://ex.com/clean',0,'html',200,0,NULL),
+        (23,'https://ex.com/aaa',0,'html',200,1,'{"missing-doctype":1}');
+    `);
+    raw.close();
+  };
+
+  it('writes one CSV with exactly the failing URLs, and manifest.json lists it with rows, ms and peakRssMb', async () => {
+    addMarkupRows();
+    const db = new ProjectDb(file);
+    const items = parseExportWhat('issues:markup-errors');
+    const res = await runExportItems(db, out, items);
+    db.close();
+    expect(res.errors).toEqual([]);
+    const csv = fs.readFileSync(path.join(out, 'issues-markup-errors.csv'), 'utf8').replace(/^\uFEFF/, '');
+    const lines = csv.split('\n').filter(Boolean);
+    expect(lines[0]!.split(',')).toEqual([
+      'URL', 'Status', 'Type', 'Indexability', 'Indexability Status', 'Title 1', 'Inlinks', 'Outlinks', 'Crawl Depth',
+      'Markup Errors', 'Markup Error Codes',
+    ]);
+    // Unsorted: the id order (zzz before aaa), not alphabetical.
+    expect(lines.slice(1).map((l) => l.split(',')[0])).toEqual(['https://ex.com/zzz', 'https://ex.com/aaa']);
+    const m = JSON.parse(fs.readFileSync(manifest(), 'utf8')) as {
+      what: string[];
+      files: { path: string; rows: number; ms: number; peakRssMb: number }[];
+    };
+    expect(m.what).toEqual(['issues:markup-errors']);
+    expect(m.files).toHaveLength(1);
+    expect(m.files[0]).toMatchObject({ path: 'issues-markup-errors.csv', rows: 2 });
+    expect(Number.isInteger(m.files[0]!.ms)).toBe(true);
+    expect(Number.isInteger(m.files[0]!.peakRssMb)).toBe(true);
+  });
+
+  it('an interrupted run leaves no manifest', async () => {
+    addMarkupRows();
+    fs.writeFileSync(manifest(), '{"old":true}\n');
+    const db = new ProjectDb(file);
+    await expect(
+      runExportItems(db, out, parseExportWhat('issues:markup-errors,html'), { onProgress: interruptAt('html') }),
+    ).rejects.toThrow('interrupted');
+    db.close();
+    expect(fs.existsSync(manifest())).toBe(false);
   });
 });

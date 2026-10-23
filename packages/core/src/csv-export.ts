@@ -40,6 +40,8 @@ const CSV_COLUMNS: (keyof CrawlUrlRow)[] = [
   'consoleErrors',
   'failedResources',
   'consoleLog',
+  'markupErrors',
+  'markupCodes',
   'crawledAt',
 ];
 

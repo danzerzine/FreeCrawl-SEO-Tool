@@ -26,6 +26,7 @@ import {
 import { computeContentFingerprint } from './simhash.js';
 import { assessContentLanguage, primaryLanguage } from './content-language.js';
 import { runExtractionRules } from './extraction.js';
+import { checkMarkup } from './markup-check.js';
 import {
   AGGREGATE_OFFER_RULE,
   BREADCRUMB_ITEM_RULE,
@@ -449,6 +450,10 @@ export interface ParsedPage {
   jsTitle: string | null;
   /** An inline script writes a robots meta carrying noindex. */
   jsNoindexWrite: boolean;
+  /** HTML markup errors found (B45); null = not checked (`markupValidation` off). */
+  markupErrors: number | null;
+  /** Compact JSON `{code: count}` of those errors, null when none or not checked. */
+  markupCodes: string | null;
   /** On-page images (`<img>` + its srcset / `<picture>` variants), deduped by URL. */
   images: DiscoveredImage[];
   /** `<img>` elements with a usable src — the page's image slots. */
@@ -1120,6 +1125,8 @@ export function parseHtml(
     templateSet?: TemplateSet;
     /** Return the main text's shingle hashes (the crawl is learning its template set). */
     collectShingles?: boolean;
+    /** Count HTML markup errors on this page (B45); two more parses of the string. */
+    markupValidation?: boolean;
   } = {},
 ): ParsedPage {
   // Fast path: force the htmlparser2 backend and skip entity decoding.
@@ -1826,6 +1833,19 @@ export function parseHtml(
   // Analytics / marketing trackers — fingerprinted by script src + inline
   // JS substrings + meta tags. Cheaper to scan once over `$` than per-tracker.
   const analyticsTrackers = detectAnalyticsTrackers($, html);
+
+  // B45: the markup check reads the string parseHtml was given, not the cheerio tree.
+  let markupErrors: number | null = null;
+  let markupCodes: string | null = null;
+  if (opts.markupValidation) {
+    const check = checkMarkup(html);
+    markupErrors = check.total;
+    if (check.total > 0) {
+      markupCodes = JSON.stringify(
+        Object.fromEntries(Object.entries(check.codes).sort(([a], [b]) => (a < b ? -1 : 1))),
+      );
+    }
+  }
 
   // Content fingerprint for the post-crawl duplicate clustering pass.
   // Computed from the main-content region (boilerplate stripped) so two
@@ -2587,6 +2607,8 @@ export function parseHtml(
     jsTitleWrite: headWrites.titleWrite,
     jsTitle: headWrites.title,
     jsNoindexWrite: headWrites.noindexWrite,
+    markupErrors,
+    markupCodes,
     images: [...imageMap.values()],
     imageCount: imageSlotCount,
     imagesMissingAlt,

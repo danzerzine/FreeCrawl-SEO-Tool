@@ -148,6 +148,8 @@ export type UrlCategory =
   | 'issues:text-changed-by-js'
   | 'issues:console-errors'
   | 'issues:failed-resources'
+  | 'issues:markup-errors'
+  | 'issues:duplicate-ids'
   | 'issues:amp-validation-errors'
   | 'issues:amp-target-broken'
   | 'issues:amp-target-redirect'
@@ -731,6 +733,10 @@ export interface CrawlUrlRow {
   axeSerious: number | null;
   axeIncomplete: number | null;
   axeVersion: string | null;
+  /** HTML markup errors found by the fixed rule set (B45): null = not checked, 0 = checked and clean. */
+  markupErrors: number | null;
+  /** Compact JSON `{code: count}` behind `markupErrors`; null when none or not checked. */
+  markupCodes: string | null;
   /**
    * V2 Faz 15 — performance budget verdict, a bitmask: 1=response time,
    * 2=transfer size, 4=LCP, 8=CLS. 0 = evaluated and within budget,
@@ -1035,6 +1041,12 @@ export interface CrawlConfig {
    * Following internal ones is `followNofollow`.
    */
   storeNofollowLinks: boolean;
+  /**
+   * Count HTML markup errors per page (B45): missing doctype, duplicate attribute or id, broken
+   * tags, obsolete elements, unclosed elements. Two extra parses of every HTML page, so it is
+   * off by default (and its two issues would otherwise appear in every old workflow's report).
+   */
+  markupValidation: boolean;
   /**
    * Extra headers sent on every request — key/value pairs added on top of
    * the defaults (User-Agent, Accept-Language, Accept-Encoding). User
@@ -2184,6 +2196,10 @@ export interface OverviewCounts {
     consoleErrors: number;
     /** Pages with resources that failed to load while rendering. */
     failedResources: number;
+    /** Pages with at least one HTML markup error (B45; needs the markup check). */
+    markupErrors: number;
+    /** Pages with a repeated id attribute (B45). */
+    duplicateIds: number;
     ampValidationErrors: number;
     ampTargetBroken: number;
     ampTargetRedirect: number;
@@ -3052,6 +3068,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   retryAttempts: 2,
   retryInitialDelayMs: 500,
   storeNofollowLinks: false,
+  markupValidation: false,
   customHeaders: {},
   includePatterns: [],
   excludePatterns: [],

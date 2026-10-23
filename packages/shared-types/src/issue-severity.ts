@@ -180,6 +180,9 @@ const WARNING: UrlCategory[] = [
   'issues:axe-critical-serious',
   'issues:hreflang-inconsistent-lang',
   'issues:over-budget',
+  // B45: markup errors and repeated ids, counted only when the markup check ran.
+  'issues:markup-errors',
+  'issues:duplicate-ids',
 ];
 
 /** Informational / stylistic / nice-to-have signals. */

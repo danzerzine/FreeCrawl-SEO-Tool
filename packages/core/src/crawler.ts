@@ -42,6 +42,7 @@ import {
   LATER_CHECKS,
   RENDER_CHECKS,
   CONSOLE_CHECKS,
+  MARKUP_CHECKS,
   TEMPLATE_LEARN_META_KEY,
   TEMPLATE_SET_ID_META_KEY,
   TEMPLATE_SHINGLES_META_KEY,
@@ -1529,9 +1530,13 @@ export class Crawler extends EventEmitter {
     const rendering = this.config.renderingMode === 'js' && !!this.renderUrlHook;
     // The console checks (B35) also need the option: with it off nothing was recorded.
     const recordsConsole = rendering && this.config.jsRender.consoleErrors === true;
+    // The markup checks (B45) need the option: with it off the columns stay NULL.
+    const recordsMarkup = this.config.markupValidation === true;
     const fillable = LATER_CHECKS.filter(
       (k) =>
-        (rendering || !RENDER_CHECKS.includes(k)) && (recordsConsole || !CONSOLE_CHECKS.includes(k)),
+        (rendering || !RENDER_CHECKS.includes(k)) &&
+        (recordsConsole || !CONSOLE_CHECKS.includes(k)) &&
+        (recordsMarkup || !MARKUP_CHECKS.includes(k)),
     );
     const filled = continued ? fillable.filter((k) => before.has(k)) : fillable;
     this.db.setMeta(CHECKS_FILLED_META_KEY, JSON.stringify(filled));
@@ -5726,6 +5731,8 @@ export class Crawler extends EventEmitter {
         robotsBot: robotsMetaBot(robotsUserAgentToken(this.config.userAgent)),
         templateSet: this.templateSet ?? undefined,
         collectShingles: this.templateLearn,
+        // B45: only a 2xx page; the check runs inside the parse (the worker pool, when there is one).
+        markupValidation: this.config.markupValidation === true && statusCode >= 200 && statusCode < 300,
       });
       // Hashes ride with the page to its write, so a set frozen meanwhile
       // can be applied there (B98). A missed content area has no fingerprint.
@@ -6037,6 +6044,8 @@ export class Crawler extends EventEmitter {
           consoleErrors,
           failedResources,
           consoleLog,
+          markupErrors: parsed.markupErrors,
+          markupCodes: parsed.markupCodes,
           // A page the configured content area missed is fingerprinted on
           // its template, so it stays out of near-duplicate clustering. The
           // exact-content hash stays: an exact copy is still one.

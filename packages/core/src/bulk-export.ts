@@ -153,6 +153,19 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
   { label: 'CSP Missing', file: 'security-csp-missing.csv', category: 'issues:csp-missing' },
   { label: 'SERP Summary', file: 'serp-summary.csv', category: 'tab:serp' },
   { label: 'Outlinks Zero', file: 'outlinks-zero.csv', category: 'issues:outlinks-zero' },
+  // B45: written only by a crawl that ran with the markup check (no rows, no file, otherwise).
+  {
+    label: 'HTML Markup Errors',
+    file: 'issues-markup-errors.csv',
+    category: 'issues:markup-errors',
+    columns: [...BULK_BASE_COLUMNS, 'markupErrors', 'markupCodes'],
+  },
+  {
+    label: 'Duplicate id Attributes',
+    file: 'issues-duplicate-ids.csv',
+    category: 'issues:duplicate-ids',
+    columns: [...BULK_BASE_COLUMNS, 'markupErrors', 'markupCodes'],
+  },
 ];
 
 export interface BulkExportDatasetTask {

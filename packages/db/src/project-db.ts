@@ -204,6 +204,8 @@ type ClauseLimits = SeoThresholds & {
   readonly wordsSql?: string;
   /** The project file has no axe columns (before migration 127): the axe filters match nothing. */
   readonly noAxeColumns?: boolean;
+  /** No markup columns (before migration 128): the two markup filters match nothing. */
+  readonly noMarkupColumns?: boolean;
 };
 /** The URL up to its query, with a trailing slash so a last path segment ends like the others (B28). */
 const URL_PATH_SLASH_SQL =
@@ -245,9 +247,15 @@ export const CONSOLE_CHECKS: readonly UrlCategory[] = [
   'issues:failed-resources',
 ];
 /**
+ * The markup checks of B45. They have a verdict only for a crawl that ran with
+ * `markupValidation` on; with it off the columns stay NULL.
+ */
+export const MARKUP_CHECKS: readonly UrlCategory[] = ['issues:markup-errors', 'issues:duplicate-ids'];
+/**
  * Page checks added or changed since module 5. A crawl fills every one of
  * them, except the RENDER_CHECKS when it did not render with a hook and the
- * CONSOLE_CHECKS unless the console option was on as well.
+ * CONSOLE_CHECKS unless the console option was on as well, and the MARKUP_CHECKS
+ * unless the markup option was on.
  */
 export const LATER_CHECKS: readonly UrlCategory[] = [
   // Pixel widths: Cyrillic is measured per letter since B77, so an older crawl's widths differ.
@@ -271,6 +279,7 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:text-code-ratio-low',
   ...RENDER_CHECKS,
   ...CONSOLE_CHECKS,
+  ...MARKUP_CHECKS,
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -562,6 +571,10 @@ interface UrlRowDb {
   failed_resources: number | null;
   /** JSON entries (at most 50) behind the two counts; NULL when both are 0 or not recorded. */
   console_log: string | null;
+  /** HTML markup errors (B45): NULL not checked, 0 clean. */
+  markup_errors: number | null;
+  /** Compact JSON {code: count} behind markup_errors; NULL when 0 or not checked. */
+  markup_codes: string | null;
   /** 128-byte MinHash signature of the main content (near-duplicate similarity). */
   minhash: Uint8Array | null;
   /** Best estimated similarity (%) to a near-duplicate cluster mate. */
@@ -888,6 +901,9 @@ export interface UpsertUrlInput {
   consoleErrors?: number | null;
   failedResources?: number | null;
   consoleLog?: string | null;
+  /** B45: NULL / undefined = not checked, 0 = checked and clean. */
+  markupErrors?: number | null;
+  markupCodes?: string | null;
   minhash?: Uint8Array | null;
   /** Template set the near-duplicate fingerprint was made with (B98); null = none. */
   templateSetId?: number | null;
@@ -1077,7 +1093,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
+    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, markup_errors, markup_codes, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
     template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
@@ -1123,7 +1139,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :markup_errors, :markup_codes, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
     :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
@@ -1294,6 +1310,8 @@ const UPSERT_URL_SQL = `
     console_errors = excluded.console_errors,
     failed_resources = excluded.failed_resources,
     console_log = excluded.console_log,
+    markup_errors = excluded.markup_errors,
+    markup_codes = excluded.markup_codes,
     minhash = excluded.minhash,
     template_set_id = excluded.template_set_id,
     content_source = excluded.content_source,
@@ -2471,7 +2489,8 @@ export class ProjectDb {
     const t = this.getSeoThresholds();
     const cols = this.urlSortColumns();
     const limits: ClauseLimits = cols.has('main_word_count') ? t : { ...t, wordsSql: 'word_count' };
-    return cols.has('axe_serious') ? limits : { ...limits, noAxeColumns: true };
+    const withAxe = cols.has('axe_serious') ? limits : { ...limits, noAxeColumns: true };
+    return cols.has('markup_errors') ? withAxe : { ...withAxe, noMarkupColumns: true };
   }
 
   private hasTable(name: string): boolean {
@@ -3286,6 +3305,8 @@ export class ProjectDb {
       console_errors: input.consoleErrors ?? null,
       failed_resources: input.failedResources ?? null,
       console_log: input.consoleLog ?? null,
+      markup_errors: input.markupErrors ?? null,
+      markup_codes: input.markupCodes ?? null,
       minhash: input.minhash ?? null,
       template_set_id: input.templateSetId ?? null,
       content_source: input.contentSource ?? null,
@@ -9033,6 +9054,8 @@ export class ProjectDb {
       textChangedByJs: gatedCount('issues:text-changed-by-js'),
       consoleErrors: gatedCount('issues:console-errors'),
       failedResources: gatedCount('issues:failed-resources'),
+      markupErrors: gatedCount('issues:markup-errors'),
+      duplicateIds: gatedCount('issues:duplicate-ids'),
       charsetMissing: countWhere(
         `${html} AND status_code >= 200 AND status_code < 300
          AND (charset IS NULL OR charset = '')`,
@@ -13388,6 +13411,8 @@ export class ProjectDb {
     consoleErrors: r.console_errors ?? null,
     failedResources: r.failed_resources ?? null,
     consoleLog: r.console_log ?? null,
+    markupErrors: r.markup_errors ?? null,
+    markupCodes: r.markup_codes ?? null,
     nearDupSimilarity: r.near_dup_similarity ?? null,
     contentSource: (r.content_source as ContentSource | null) ?? null,
     ampPage: r.amp_page === 1,
@@ -14098,7 +14123,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'h1-changed-by-js', 'canonical-changed-by-js', 'links-changed-by-js', 'text-changed-by-js', 'console-errors', 'failed-resources', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate', 'axe-critical-serious', 'axe-moderate-minor', 'axe-needs-review'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'h1-changed-by-js', 'canonical-changed-by-js', 'links-changed-by-js', 'text-changed-by-js', 'console-errors', 'failed-resources', 'markup-errors', 'duplicate-ids', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate', 'axe-critical-serious', 'axe-moderate-minor', 'axe-needs-review'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -14127,6 +14152,7 @@ function baseCategoryWhereClause(
 ): string | null {
   if (disabledIssues?.has(cat)) return '1 = 0';
   if (t.noAxeColumns && cat.startsWith('issues:axe-')) return '1 = 0';
+  if (t.noMarkupColumns && MARKUP_CHECKS.includes(cat)) return '1 = 0';
   switch (cat) {
     case 'all':
       return null;
@@ -14687,6 +14713,11 @@ function baseCategoryWhereClause(
       return "is_external = 0 AND content_kind = 'html' AND console_errors IS NOT NULL AND console_errors > 0";
     case 'issues:failed-resources':
       return "is_external = 0 AND content_kind = 'html' AND failed_resources IS NOT NULL AND failed_resources > 0";
+    // B45: NULL = not checked.
+    case 'issues:markup-errors':
+      return "is_external = 0 AND content_kind = 'html' AND markup_errors IS NOT NULL AND markup_errors > 0";
+    case 'issues:duplicate-ids':
+      return "is_external = 0 AND content_kind = 'html' AND markup_errors IS NOT NULL AND json_extract(markup_codes, '$.\"duplicate-id\"') > 0";
     case 'issues:charset-missing':
       // HTML 2xx page declares no charset anywhere — neither
       // `<meta charset>` / `<meta http-equiv="Content-Type">` nor the

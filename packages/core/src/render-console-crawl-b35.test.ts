@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CONSOLE_CHECKS, LATER_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
+import { CONSOLE_CHECKS, LATER_CHECKS, MARKUP_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import { compareCrawls } from './compare.js';
 import { Crawler } from './crawler.js';
@@ -118,7 +118,7 @@ describe('checks filled and compare (B1)', () => {
     for (const r of [off, text, noHook]) {
       expect(filled(r.db)).toEqual([false, false]);
       // Everything else a crawl fills is still filled (the render checks only with a hook).
-      const rest = LATER_CHECKS.filter((k) => !ids.includes(k) && !(RENDER_CHECKS as readonly string[]).includes(k));
+      const rest = LATER_CHECKS.filter((k) => !ids.includes(k) && !(RENDER_CHECKS as readonly string[]).includes(k) && !(MARKUP_CHECKS as readonly string[]).includes(k));
       expect(rest.every((k) => r.db.checksFilled().has(k))).toBe(true);
     }
   }, 30_000);
