@@ -63,7 +63,11 @@ function dyingBrowser(okPages: number): { hook: RenderHook; rendered: string[] }
   return { hook, rendered };
 }
 
-async function crawl(db: ProjectDb, hook: RenderHook): Promise<void> {
+async function crawl(
+  db: ProjectDb,
+  hook: RenderHook,
+  jsRender: Partial<typeof DEFAULT_CRAWL_CONFIG.jsRender> = {},
+): Promise<void> {
   const c = new Crawler(
     {
       ...DEFAULT_CRAWL_CONFIG,
@@ -82,6 +86,7 @@ async function crawl(db: ProjectDb, hook: RenderHook): Promise<void> {
         a11yAudit: true,
         mobileUsability: true,
         axeAudit: true,
+        ...jsRender,
       },
     },
     db,
@@ -162,6 +167,22 @@ describe('refresh crawl whose browser dies after the first page (B162)', () => {
     } finally {
       a.close();
       db.close();
+    }
+  });
+
+  it('with the a11y and mobile options off, a failed render leaves the old values untouched (known limit)', async () => {
+    const file = join(dir, 'off.seoproject');
+    let db = new ProjectDb(file);
+    await crawl(db, dyingBrowser(99).hook);
+    db.close();
+    db = new ProjectDb(file);
+    await crawl(db, dyingBrowser(0).hook, { a11yAudit: false, mobileUsability: false });
+    db.close();
+    for (const p of ['/', '/a', '/b']) {
+      const r = raw(file, p);
+      expect(r.a11y_low_contrast, p).toBe(2);
+      expect(r.mobile_usable, p).toBe(0);
+      expect(r.mobile_overflow_px, p).toBe(40);
     }
   });
 });

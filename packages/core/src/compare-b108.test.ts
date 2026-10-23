@@ -84,3 +84,48 @@ describe('compareCrawls: structured data of a project that never stored it (B108
     expect(s.notComparable.structured_data).toBeUndefined();
   });
 });
+
+describe('compareCrawls: an old project continued by a later crawl (B108)', () => {
+  const addMarkup = (name: string, id: number): void => {
+    const raw = new DatabaseSync(path.join(dir, `${name}.seoproject`));
+    raw.exec(`UPDATE urls SET schema_types = 'Article' WHERE id = ${id}`);
+    raw.close();
+  };
+
+  it('markup on some re-fetched pages keeps it not comparable until a fresh crawl', () => {
+    const old = project('old', [
+      { id: 1, url: U('a') },
+      { id: 2, url: U('b') },
+    ]);
+    const cont = project('cont', [
+      { id: 1, url: U('a') },
+      { id: 2, url: U('b') },
+    ]);
+    // A continued crawl starts on the old project, then re-fetches page 1 only.
+    cont.beginSchemaTypesCrawl(true);
+    addMarkup('cont', 1);
+    expect(cont.schemaTypesStored()).toBe(false);
+    let s = compareCrawls(old, cont);
+    expect(s.counts.structured_data).toBe(0);
+    expect(s.notComparable.structured_data?.urls).toBe(2);
+    // A second continuation does not turn it into "stored".
+    cont.beginSchemaTypesCrawl(true);
+    addMarkup('cont', 2);
+    expect(cont.schemaTypesStored()).toBe(false);
+    s = compareCrawls(old, cont);
+    expect(s.counts.structured_data).toBe(0);
+    // A fresh crawl or refresh re-fetches everything: comparable again.
+    cont.beginSchemaTypesCrawl(false);
+    expect(cont.schemaTypesStored()).toBe(true);
+    const base = project('base', [{ id: 1, url: U('a') }], STORED);
+    s = compareCrawls(base, cont);
+    expect(s.notComparable.structured_data).toBeUndefined();
+  });
+
+  it('a continued crawl of a project that stored it keeps it stored', () => {
+    const db = project('stored', [{ id: 1, url: U('a') }]);
+    db.beginSchemaTypesCrawl(false);
+    db.beginSchemaTypesCrawl(true);
+    expect(db.schemaTypesStored()).toBe(true);
+  });
+});

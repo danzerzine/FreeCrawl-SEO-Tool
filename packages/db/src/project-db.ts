@@ -230,6 +230,12 @@ export const CHECKS_FILLED_META_KEY = 'checksFilled';
  */
 export const SCHEMA_TYPES_STORED_META_KEY = 'schemaTypesStored';
 /**
+ * `project_meta` key: '1' while a project that never stored the types has only
+ * been continued by later crawls (B108): some pages carry them, the rest are empty.
+ * A fresh crawl or a refresh clears it.
+ */
+export const SCHEMA_TYPES_PARTIAL_META_KEY = 'schemaTypesPartial';
+/**
  * `project_meta` key: JSON of the `SeoThresholds` this project is counted
  * with (B77). Written at crawl start and when the desktop saves a config;
  * absent on older projects, which then use the defaults.
@@ -10882,12 +10888,33 @@ export class ProjectDb {
    * when any page carries markup, since only a crawl that stored it can have written one.
    */
   schemaTypesStored(): boolean {
+    if (this.getMeta(SCHEMA_TYPES_PARTIAL_META_KEY) === '1') return false;
     if (this.getMeta(SCHEMA_TYPES_STORED_META_KEY) === '1') return true;
     return (
       this.db
         .prepare('SELECT 1 FROM urls WHERE schema_types IS NOT NULL OR schema_block_count > 0 LIMIT 1')
         .get() !== undefined
     );
+  }
+
+  /**
+   * Records, at crawl start, what the crawl does to the stored types (B108).
+   * A crawl that re-fetches everything (fresh, refresh) stores them and ends
+   * any partial state. A continued crawl of a project that stored them keeps
+   * that; one of a project that did not re-fetches only some pages, so the
+   * project is marked partly stored and stays so until a full crawl. The
+   * fallback in `schemaTypesStored` is read here, before this crawl's pages
+   * can make it true.
+   */
+  beginSchemaTypesCrawl(continued: boolean): void {
+    if (!continued) {
+      this.setMeta(SCHEMA_TYPES_PARTIAL_META_KEY, '');
+      this.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
+    } else if (!this.schemaTypesStored()) {
+      this.setMeta(SCHEMA_TYPES_PARTIAL_META_KEY, '1');
+    } else if (this.getMeta(SCHEMA_TYPES_STORED_META_KEY) !== '1') {
+      this.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
+    }
   }
 
   /** The `LATER_CHECKS` this project's crawls filled; empty for a project made before them. */

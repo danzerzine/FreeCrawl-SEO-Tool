@@ -225,4 +225,25 @@ describe('compareCrawls: pages the browser never rendered are not "checked" (B16
     expect(s.notComparable['issues:h1-changed-by-js']?.reason).toBe('flag query broke');
     expect(s.issueChanges['issues:h1-changed-by-js']).toBeUndefined();
   });
+
+  it('an older schema without the verdict columns compares as before', () => {
+    const OLD_COLS = [
+      'js_h1_changed', 'js_canonical_changed', 'js_links_changed', 'js_text_changed', 'render_diff',
+      'console_errors', 'failed_resources', 'a11y_low_contrast', 'a11y_focus_suppressed', 'a11y_small_font',
+      'a11y_tap_targets_small', 'axe_violations', 'axe_serious', 'axe_incomplete', 'mobile_usable',
+    ];
+    const old = (name: string, title: string | null): ProjectDb => {
+      const db = project(name, [[1, U('p'), CLEAN]]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const h = (db as any).db as { exec: (sql: string) => void };
+      for (const c of OLD_COLS) h.exec(`ALTER TABLE urls DROP COLUMN ${c}`);
+      h.exec(title === null ? 'UPDATE urls SET title = NULL' : `UPDATE urls SET title = '${title}'`);
+      return db;
+    };
+    const a = old('a', null);
+    const b = old('b', 'T');
+    const s = compareCrawls(a, b);
+    expect(s.issueChanges['issues:title-missing']).toEqual({ appeared: 0, resolved: 1 });
+    expect(Object.values(s.notComparable).filter((v) => /partly compared/.test(v.reason))).toEqual([]);
+  });
 });
