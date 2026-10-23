@@ -83,8 +83,6 @@ export interface CrawlTrapSnapshot {
   sitemapShort?: { found: number; listed: number };
 }
 
-export const CRAWL_TRAP_META_KEY = 'crawlTrapWatch';
-
 const MAX_KEY = 200;
 const MAX_NAMES = 6;
 const VALUES = 64;
@@ -654,24 +652,32 @@ export function parseTrapSnapshot(raw: string | null | undefined): CrawlTrapSnap
 /**
  * A sitemap read is a baseline only when every file was read without error,
  * abort or truncation and at least one file was parsed (B90: a partial read
- * would make the site look smaller than it is).
+ * would make the site look smaller than it is). A guessed conventional
+ * location that does not exist is not an error.
  */
 export function isCleanSitemapRead(
   res: {
     truncated: boolean;
-    errors: readonly unknown[];
     sitemapsParsed: readonly unknown[];
-    sitemapsTried: readonly unknown[];
-    files: readonly { error: string | null; reason: string | null }[];
+    files: readonly {
+      url: string;
+      status: number | null;
+      error: string | null;
+      reason: string | null;
+    }[];
   },
   aborted: boolean,
+  /** Conventional locations tried without being declared: «not found» there is no failure. */
+  guessed: ReadonlySet<string> = new Set(),
 ): boolean {
   return (
     !aborted &&
     !res.truncated &&
-    res.errors.length === 0 &&
     res.sitemapsParsed.length > 0 &&
-    res.sitemapsParsed.length === res.sitemapsTried.length &&
-    res.files.every((f) => f.error === null && f.reason === null)
+    res.files.every(
+      (f) =>
+        (guessed.has(f.url) && (f.status === 404 || f.status === 410)) ||
+        (f.error === null && f.reason === null),
+    )
   );
 }

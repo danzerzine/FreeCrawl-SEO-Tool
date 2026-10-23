@@ -2018,6 +2018,8 @@ export interface OverviewCounts {
     } | null;
     /** The page limit the last crawl stopped at, so «not crawled» counts can say why; null when it did not hit it. */
     crawlStoppedAtLimit?: number | null;
+    /** Possible crawl traps found in the project (B90); empty when none, absent on an older project. */
+    crawlTraps?: CrawlTrapFinding[];
   };
   summary: {
     totalInternalUrls: number;
@@ -2836,6 +2838,22 @@ export interface SitemapUrlExportRow {
  * `too-large` inflates past the reader's cap, so not read; `counted-only` read
  * after the URL cap for its counts, its URLs not kept.
  */
+/** One crawl-trap finding kept in the project (B90). Facts and counts, no rating. */
+export interface CrawlTrapFinding {
+  /** R2: one parameter pattern grows; R3: one section outgrows its sitemap share. */
+  rule: 'R2' | 'R3';
+  /** Pattern (`host/section?name,name`) or section (`host/section`). */
+  key: string;
+  count: number;
+  /** What the sitemap lists for this key, null when no clean sitemap was read. */
+  expected: number | null;
+  /** Share of all page URLs counted at the time (0..1). */
+  share: number;
+  samples: string[];
+  /** Page URLs counted when it first fired. */
+  atCount: number;
+}
+
 export interface SitemapFileRow {
   url: string;
   /** HTTP status; null when not fetched or the request failed. */

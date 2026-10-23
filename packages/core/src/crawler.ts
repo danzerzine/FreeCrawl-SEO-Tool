@@ -24,7 +24,6 @@ import {
 } from '@freecrawl/shared-types';
 import {
   CrawlTrapWatch,
-  CRAWL_TRAP_META_KEY,
   describeTrap,
   isCleanSitemapRead,
   parseTrapSnapshot,
@@ -36,6 +35,7 @@ import {
   EXPENSIVE_ISSUE_DEFINITIONS,
   SOFT404_PROBE_META_KEY,
   PAGE_LIMIT_HIT_META_KEY,
+  CRAWL_TRAP_META_KEY,
   COUNT_NOFOLLOW_META_KEY,
   CHECK_EXTERNAL_META_KEY,
   CHECKS_FILLED_META_KEY,
@@ -3383,7 +3383,11 @@ export class Crawler extends EventEmitter {
           if (this.stopped) return;
           const res = await fetchSitemaps(roots, fetchOpts);
           if (this.stopped) return;
-          cleanRead = isCleanSitemapRead(res, controller.signal.aborted);
+          const declared = new Set(robots?.sitemaps ?? []);
+          const guessed = new Set(
+            [`${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`].filter((u) => !declared.has(u)),
+          );
+          cleanRead = isCleanSitemapRead(res, controller.signal.aborted, guessed);
           autoEntries = res.entries;
           autoFiles = res.files;
           if (res.entries.length > 0) {

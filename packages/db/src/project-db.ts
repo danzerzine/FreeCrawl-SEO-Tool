@@ -38,6 +38,7 @@ import type {
   OutlinkRow,
   OverviewCounts,
   Soft404ProbeResult,
+  CrawlTrapFinding,
   PerformanceBudgetConfig,
   PagespeedAuditItem,
   PagespeedAuditKind,
@@ -152,6 +153,8 @@ export const DEDUPE_PRE_NORMALIZE_META_KEY = 'dedupePreNormalize';
 export const SOFT404_PROBE_META_KEY = 'soft404Probe';
 /** The page limit the last crawl stopped at (B76); '' when it did not hit it. */
 export const PAGE_LIMIT_HIT_META_KEY = 'pageLimitHit';
+/** JSON of the crawl-trap watch: findings kept across a resume (B90). */
+export const CRAWL_TRAP_META_KEY = 'crawlTrapWatch';
 /** `project_meta` key set by `recomputeInlinks`; orphans mean nothing before it. */
 export const INLINKS_COMPUTED_META_KEY = 'inlinksComputed';
 /** `project_meta` key set by `recomputeRedirectChains`; redirect ends mean nothing before it. */
@@ -8718,6 +8721,7 @@ export class ProjectDb {
         siteWide: { pagesBase, checks: siteWideChecks },
         sitemapFindings: this.sitemapFindings(),
         crawlStoppedAtLimit: Number(this.getMeta(PAGE_LIMIT_HIT_META_KEY)) || null,
+        crawlTraps: this.readCrawlTraps(),
       },
     };
   }
@@ -8733,6 +8737,17 @@ export class ProjectDb {
       )
       .get() as { s: string } | undefined;
     return row?.s ?? null;
+  }
+
+  private readCrawlTraps(): CrawlTrapFinding[] {
+    const raw = this.getMeta(CRAWL_TRAP_META_KEY);
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw) as { v?: number; findings?: CrawlTrapFinding[] };
+      return v.v === 1 && Array.isArray(v.findings) ? v.findings : [];
+    } catch {
+      return [];
+    }
   }
 
   private readSoft404Probe(): Soft404ProbeResult | null {
