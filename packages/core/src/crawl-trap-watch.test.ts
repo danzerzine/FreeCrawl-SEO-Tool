@@ -203,7 +203,7 @@ describe('memory and CPU bound', () => {
     return m.heapUsed + m.arrayBuffers;
   };
 
-  it('both tables at 5 000 keys of 200 characters, 6 names x 64 values: heap growth < 35 MB, <= 5 us per observe', () => {
+  it('both tables at 5 000 keys of 200 characters, 6 names x 64 values: heap growth < 35 MB, <= 25 us per observe (5 us with FC_TIMING=1)', () => {
     const before = used();
     const w = new CrawlTrapWatch();
     for (let k = 0; k < 5000; k++) for (let v = 0; v < 64; v++) w.observe(longUrl(k, v));
@@ -215,26 +215,31 @@ describe('memory and CPU bound', () => {
     console.log(`worst-case fill: ${mb.toFixed(1)} MB for ${JSON.stringify(sizes)}`);
     expect(mb).toBeLessThan(35);
 
-    // The 5 us bound is a CPU-time claim that a loaded shared machine cannot keep (6.5 us at load ~90 in
-    // the parallel full suite, 3.3 us alone), so it runs only on request:
+    // The strict 5 us bound is a CPU-time claim that a loaded shared machine cannot keep (6.5 us at load
+    // ~90 in the parallel full suite, 3.3 us alone), so it runs only on request:
     //   fc-mac-lock env FC_TIMING=1 npx vitest run packages/core/src/crawl-trap-watch.test.ts -t "5 000 keys"
-    if (process.env.FC_TIMING !== '1') return;
+    // A loose 25 us bound always runs: it cannot flake on a loaded Mac, and a gross regression still fails it.
     const urls = Array.from({ length: 1000 }, (_, i) => longUrl((i * 7) % 5000, i % 64));
     // The cost of the code, not of the machine: warm up, then the best of many short timed batches,
     // each measured in this process's CPU time (not wall time), so a busy machine that takes the core
-    // away mid-batch does not count (7.5 us in a parallel full run against 2.65 us idle). The bound
-    // stays 5 us.
-    for (let i = 0; i < 200_000; i++) w.observe(urls[i % 1000]!);
+    // away mid-batch does not count (7.5 us in a parallel full run against 2.65 us idle).
     const BATCH = 20_000;
-    let us = Infinity;
-    for (let b = 0; b < 50; b++) {
-      const c0 = process.cpuUsage();
-      for (let i = 0; i < BATCH; i++) w.observe(urls[i % 1000]!);
-      const c = process.cpuUsage(c0);
-      us = Math.min(us, (c.user + c.system) / BATCH);
-    }
-    console.log(`worst-case observe: ${us.toFixed(2)} us per call (best of 50 batches, CPU time)`);
-    expect(us).toBeLessThanOrEqual(5);
+    const best = (batches: number): number => {
+      let us = Infinity;
+      for (let b = 0; b < batches; b++) {
+        const c0 = process.cpuUsage();
+        for (let i = 0; i < BATCH; i++) w.observe(urls[i % 1000]!);
+        const c = process.cpuUsage(c0);
+        us = Math.min(us, (c.user + c.system) / BATCH);
+      }
+      return us;
+    };
+    for (let i = 0; i < 200_000; i++) w.observe(urls[i % 1000]!);
+    const strict = process.env.FC_TIMING === '1';
+    const us = best(strict ? 50 : 10);
+    console.log(`worst-case observe: ${us.toFixed(2)} us per call (best batch, CPU time)`);
+    expect(us).toBeLessThanOrEqual(25);
+    if (strict) expect(us).toBeLessThanOrEqual(5);
   }, 120_000);
 
   it('a full table drops idle keys in one batch, never a key above a quarter of the floor, no scan per insert', () => {
