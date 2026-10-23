@@ -283,3 +283,4 @@ export {
   type SendOptions,
   type TelegramConfig,
 } from './monitor/notify.js';
+export { parsePagespeedAudits } from './pagespeed-audits.js';

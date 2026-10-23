@@ -72,3 +72,63 @@ export interface PagespeedRow {
   mobile: PagespeedMetrics | null;
   desktop: PagespeedMetrics | null;
 }
+
+/** Which Lighthouse group an audit came from: new `insights`, legacy `load-opportunities`, or `diagnostics`. */
+export type PagespeedAuditKind = 'insight' | 'opportunity' | 'diagnostic';
+
+/**
+ * One affected resource of an audit, whitelisted and capped (B41 R4). Every field is optional:
+ * which ones exist depends on the audit. `section` tags rows flattened out of a nested `list`;
+ * `value` is the boolean of a checklist entry (`label` names it).
+ */
+export interface PagespeedAuditItem {
+  url?: string;
+  source?: string;
+  wastedMs?: number;
+  wastedBytes?: number;
+  totalBytes?: number;
+  selector?: string;
+  snippet?: string;
+  label?: string;
+  value?: boolean;
+  section?: string;
+}
+
+/** One Lighthouse insight / opportunity / diagnostic parsed from a PSI response (before storing). */
+export interface PagespeedAuditData {
+  auditId: string;
+  kind: PagespeedAuditKind;
+  title: string;
+  /** 0-1, `null` when the audit is informative. */
+  score: number | null;
+  displayValue: string | null;
+  /** Estimated saving in ms (an estimate: savings of different audits overlap), `null` when unknown. */
+  savingsMs: number | null;
+  /** Estimated saving in bytes, `null` when unknown (never 0 for "unknown"). */
+  savingsBytes: number | null;
+  items: PagespeedAuditItem[];
+  /** True when rows were dropped to fit the row or size cap. */
+  itemsTruncated: boolean;
+}
+
+export interface PagespeedAudits {
+  lighthouseVersion: string | null;
+  audits: PagespeedAuditData[];
+}
+
+/** A stored audit row (table `pagespeed_audits`), as `queryPagespeedAudits` returns it. */
+export interface PagespeedAuditRow extends PagespeedAuditData {
+  url: string;
+  strategy: PagespeedStrategy;
+  lighthouseVersion: string | null;
+  fetchedAt: string;
+}
+
+export interface PagespeedAuditsQueryParams {
+  url?: string;
+  strategy?: PagespeedStrategy;
+  kind?: PagespeedAuditKind;
+  auditId?: string;
+  limit: number;
+  offset: number;
+}
