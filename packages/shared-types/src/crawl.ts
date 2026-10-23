@@ -2987,6 +2987,58 @@ export interface LinkTargetRow {
   sampleSourceUrl: string | null;
 }
 
+/** Thresholds of the internal-link suggestions report (B93); every field is optional. */
+export interface LinkSuggestionInput {
+  /** A page with at most this many effective inlinks needs links. Default 3, 0..50. */
+  maxInlinks?: number;
+  /** Suggested sources per target. Default 5, 1..20. */
+  perTarget?: number;
+  /** One source is offered to at most this many targets in a run. Default 10, 1..100. */
+  perSource?: number;
+  /** Lowest closeness (0-100) a source may have. Default 20, 0..100. */
+  minCloseness?: number;
+  /** Weakest pages to look at, worst first. Default 1000, 1..20000. */
+  maxTargets?: number;
+  /** A page with more outlinks than this is not suggested as a source. Default 150. */
+  maxSourceOutlinks?: number;
+}
+
+export interface LinkSuggestionRow {
+  targetUrl: string;
+  targetTitle: string | null;
+  /** Distinct eligible pages that link the target, redirects folded, template links and self-links left out. */
+  targetInlinks: number;
+  /** The same count restricted to links in the page content; information only. */
+  targetContentInlinks: number;
+  targetLinkScore: number | null;
+  /** 1..perTarget; 0 = the target is listed with no suggestion. */
+  rank: number;
+  sourceUrl: string | null;
+  sourceTitle: string | null;
+  /** 0-100, a property of the pair; null on a rank 0 row. */
+  closeness: number | null;
+  sourceLinkScore: number | null;
+  sourceOutlinks: number | null;
+  sameSection: boolean | null;
+  suggestedAnchor: string | null;
+}
+
+export interface LinkSuggestionResult {
+  rows: LinkSuggestionRow[];
+  /** Weak pages looked at (listed in `rows`). */
+  targets: number;
+  /** Of those, how many found no source. */
+  withoutSuggestion: number;
+  /** More weak pages exist than `maxTargets`, or the time budget stopped the run. */
+  truncated: boolean;
+  /** The term index was thinned to stay inside the memory guard. */
+  degraded: boolean;
+  /** Redirect ends were not computed by the crawl: links were folded through one hop only. */
+  redirectsFolded?: 'one-hop';
+  /** Columns an old project file lacks, so that part of the rules was skipped. */
+  missingColumns: string[];
+}
+
 export interface InlinkRow {
   fromUrl: string;
   fromStatusCode: number | null;

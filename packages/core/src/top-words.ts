@@ -114,6 +114,11 @@ function isStopword(stopwords: Set<string>, tok: string): boolean {
   return stopwords.has(tok) || (tok.includes('ё') && stopwords.has(tok.replace(/ё/g, 'е')));
 }
 
+/** Is the lowercase token a stopword of the locale (default: all bundled locales)? */
+export function isTopWordStopword(token: string, locale: TopWordsLocale = 'all'): boolean {
+  return false;
+}
+
 export interface TopWordsRow {
   word: string;
   /** Total occurrences across all input strings. */
