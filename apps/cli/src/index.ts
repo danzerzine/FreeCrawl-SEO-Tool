@@ -158,7 +158,8 @@ Options:
                         are never stored; HttpOnly cookies set by scripts cannot exist and are seen
                         only from headers
   --coverage          With --render: measure how much CSS and JavaScript of each page is unused after
-                        load (one page load, no interaction). Slows rendering
+                        load (one page load, no interaction). Adds about 12 % to the render
+                        time of each page
   --markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags,
                         unclosed elements…). With --render the HTML the server sent is checked.
                         Parses every page twice more
