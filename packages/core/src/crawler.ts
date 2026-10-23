@@ -3529,6 +3529,7 @@ export class Crawler extends EventEmitter {
       // With the sitemap still to be re-read, the stored counts are judged once it is in
       // (`settleTrapWatch`): a check now would run without a baseline and call a pattern the
       // sitemap lists in full a trap.
+      this.trapWatch.awaitBaseline();
       if (this.trapWatch.isSettled) this.runTrapCheck();
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));

@@ -276,6 +276,12 @@ describe('a resume does not warn before the re-read sitemap is in (review r1)', 
   let server: Server;
   let base: string;
   let sitemapDelayMs = 0;
+  /** 'all' lists every facet; 'few' lists only the home page, so the facets are a real trap. */
+  let sitemapMode: 'all' | 'few' | 'none' = 'all';
+  let facetDelayMs = 20;
+  let facetHits = 0;
+  let onFacet: ((n: number) => void) | null = null;
+  let sitemapServedAt = 0;
   const floors = { r2Count: 300, r3Count: 600, r1Count: 600, checkEvery: 100 };
   /** 14 colors x 10 sizes x 5 pages = 700 faceted pages, every one of them listed in the sitemap. */
   const facets: string[] = [];
@@ -288,16 +294,26 @@ describe('a resume does not warn before the re-read sitemap is in (review r1)', 
         void res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>${u.pathname} page title long enough</title></head><body>${b}</body></html>`);
       if (u.pathname === '/robots.txt' || u.pathname === '/sitemap_index.xml') return void res.writeHead(404).end();
       if (u.pathname === '/sitemap.xml') {
-        const loc = facets.map((f) => `<url><loc>http://${req.headers.host}${f.replace(/&/g, '&amp;')}</loc></url>`).join('');
+        if (sitemapMode === 'none') {
+          return void setTimeout(() => {
+            sitemapServedAt = Date.now();
+            res.writeHead(404).end();
+          }, sitemapDelayMs);
+        }
+        const loc = (sitemapMode === 'all' ? facets : ['/']).map((f) => `<url><loc>http://${req.headers.host}${f.replace(/&/g, '&amp;')}</loc></url>`).join('');
         const body = `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${loc}</urlset>`;
-        return void setTimeout(() => res.writeHead(200, { 'content-type': 'application/xml' }).end(body), sitemapDelayMs);
+        return void setTimeout(() => {
+          sitemapServedAt = Date.now();
+          res.writeHead(200, { 'content-type': 'application/xml' }).end(body);
+        }, sitemapDelayMs);
       }
       const link = (i: number): string => `<a href="${facets[i % facets.length]!.replace(/&/g, '&amp;')}">x</a>`;
-      if (u.pathname === '/') return html(link(0));
+      if (u.pathname === '/') return html(sitemapMode === 'all' ? link(0) : facets.map((_, k) => link(k)).join(' '));
       // A chain, answered slowly: the crawl grows page by page, so the sitemap read (no delay in the
       // fresh run) is in long before the count nears the no-baseline threshold.
       const i = facets.indexOf(u.pathname + u.search);
-      setTimeout(() => html(`<p>${'facet '.repeat(40)}${u.search}</p>${[1, 7, 53, 211].map((d) => link(i + d)).join(' ')}`), 20);
+      onFacet?.(++facetHits);
+      setTimeout(() => html(`<p>${'facet '.repeat(40)}${u.search}</p>${[1, 7, 53, 211].map((d) => link(i + d)).join(' ')}`), facetDelayMs);
     });
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -336,6 +352,117 @@ describe('a resume does not warn before the re-read sitemap is in (review r1)', 
     expect(db.getOverviewCounts().site?.crawlTraps ?? []).toEqual([]);
     db.close();
   }, 120_000);
+  /** Stops a crawl with pages still queued once `at` facet pages were asked for. */
+  const stopWithQueue = (db: ProjectDb, c: Crawler, at: number): void => {
+    facetHits = 0;
+    let done = false;
+    onFacet = (n) => {
+      if (n < at || done) return;
+      done = true;
+      void c.saveQueueCheckpoint().then(() => c.stop());
+    };
+  };
+
+  it('a queued resume (stopped at ~650 pages) with a sitemap that lists every facet and a 3 s delay gives 0 warnings, like fresh', async () => {
+    const db = new ProjectDb(join(dir, 'r2.seoproject'));
+    sitemapMode = 'all';
+    sitemapDelayMs = 0;
+    const c1 = crawler(db);
+    const w1 = warns(c1);
+    stopWithQueue(db, c1, 650);
+    await c1.start();
+    onFacet = null;
+    expect(db.loadUnfetchedQueueCheckpoint().length).toBeGreaterThan(0);
+    expect(c1.trapWatch.discovered).toBeGreaterThanOrEqual(600);
+
+    sitemapDelayMs = 3000;
+    const c2 = crawler(db, { resumeOnly: true });
+    const w2 = warns(c2);
+    c2.enqueueCheckpointed(db.loadUnfetchedQueueCheckpoint());
+    await c2.start();
+    expect(c2.trapWatch.hasBaseline).toBe(true);
+    expect(w1).toEqual([]);
+    expect(w2).toEqual([]);
+    expect(db.getOverviewCounts().site?.crawlTraps ?? []).toEqual([]);
+    sitemapDelayMs = 0;
+    db.close();
+  }, 180_000);
+
+  it('a queued resume over a real trap warns exactly once, after the sitemap is in', async () => {
+    const db = new ProjectDb(join(dir, 'r3.seoproject'));
+    sitemapMode = 'few';
+    sitemapDelayMs = 0;
+    // First part: floors out of reach, so the stop comes before any warning.
+    const c1 = quiet(
+      new Crawler(
+        { ...baseConfig(`${base}/`), maxConcurrency: 8, maxDepth: 5, maxUrls: 2000, discoverSitemaps: true },
+        db,
+        { trapWatch: { floors: { ...floors, r2Count: 100000, r3Count: 100000, r1Count: 100000 } } },
+      ),
+    );
+    stopWithQueue(db, c1, 650);
+    await c1.start();
+    onFacet = null;
+    expect(db.loadUnfetchedQueueCheckpoint().length).toBeGreaterThan(0);
+
+    sitemapDelayMs = 2000;
+    sitemapServedAt = 0;
+    const c2 = crawler(db, { resumeOnly: true });
+    const at: number[] = [];
+    const w2: string[] = [];
+    c2.on('warn', (m: string) => {
+      if (!/Possible crawl trap/.test(m)) return;
+      w2.push(m);
+      at.push(Date.now());
+    });
+    c2.enqueueCheckpointed(db.loadUnfetchedQueueCheckpoint());
+    await c2.start();
+    // The facet pattern warns once (the shop section is a second, separate key); none before the sitemap is in.
+    expect(w2.filter((m) => m.includes('share the pattern'))).toHaveLength(1);
+    expect(sitemapServedAt).toBeGreaterThan(0);
+    expect(at.length).toBeGreaterThan(0);
+    for (const t of at) expect(t).toBeGreaterThanOrEqual(sitemapServedAt);
+    expect(w2.find((m) => m.includes('share the pattern'))!).toMatch(/the sitemap lists 0 of them/);
+    sitemapMode = 'all';
+    sitemapDelayMs = 0;
+    db.close();
+  }, 180_000);
+  it('a queued resume whose sitemap read fails over a real trap warns when the read ends, not at the end of the crawl', async () => {
+    const db = new ProjectDb(join(dir, 'r4.seoproject'));
+    sitemapMode = 'few';
+    sitemapDelayMs = 0;
+    const c1 = quiet(
+      new Crawler(
+        { ...baseConfig(`${base}/`), maxConcurrency: 8, maxDepth: 5, maxUrls: 2000, discoverSitemaps: true },
+        db,
+        { trapWatch: { floors: { ...floors, r2Count: 100000, r3Count: 100000, r1Count: 100000 } } },
+      ),
+    );
+    stopWithQueue(db, c1, 650);
+    await c1.start();
+    onFacet = null;
+    expect(db.loadUnfetchedQueueCheckpoint().length).toBeGreaterThan(30);
+
+    // No baseline will ever come; the queued pages answer slowly, so the crawl outlasts the sitemap read.
+    sitemapMode = 'none';
+    sitemapDelayMs = 1000;
+    facetDelayMs = 1500;
+    sitemapServedAt = 0;
+    const c2 = crawler(db, { resumeOnly: true });
+    const at: number[] = [];
+    c2.on('warn', (m: string) => {
+      if (/share the pattern/.test(m)) at.push(Date.now());
+    });
+    c2.enqueueCheckpointed(db.loadUnfetchedQueueCheckpoint());
+    await c2.start();
+    facetDelayMs = 20;
+    sitemapMode = 'all';
+    sitemapDelayMs = 0;
+    expect(at).toHaveLength(1);
+    expect(at[0]!).toBeGreaterThanOrEqual(sitemapServedAt);
+    expect(at[0]! - sitemapServedAt).toBeLessThan(700);
+    db.close();
+  }, 180_000);
 });
 
 describe('normal sites stay quiet on a real crawl', () => {

@@ -227,6 +227,8 @@ export class CrawlTrapWatch {
   private sSection = new Map<string, number>();
   private sPattern = new Map<string, number>();
   private settled = false;
+  /** Stored counts were loaded and the sitemap is still to be re-read: no no-baseline R2 until it is in. */
+  private awaitingBaseline = false;
 
   private findings: TrapFinding[] = [];
   private fired = new Set<string>();
@@ -265,6 +267,16 @@ export class CrawlTrapWatch {
   /** The sitemap read has finished, failed or timed out (or there is none). */
   markSettled(): void {
     this.settled = true;
+    this.awaitingBaseline = false;
+  }
+
+  /**
+   * Call after loading stored counts while the sitemap is still to be re-read: those counts are
+   * far above the 2x escape, so every check path stays silent about patterns until the sitemap
+   * has settled (the rule lives here so no call site can forget it).
+   */
+  awaitBaseline(): void {
+    if (!this.settled) this.awaitingBaseline = true;
   }
 
   /**
@@ -296,6 +308,7 @@ export class CrawlTrapWatch {
       }
     }
     this.settled = true;
+    this.awaitingBaseline = false;
     if (seen.size === 0) {
       this.baselineHost = null;
       this.sitemapTotal = null;
@@ -545,6 +558,7 @@ export class CrawlTrapWatch {
         if (this.fired.has(`R2|${key}`)) continue;
         const expected = S === null ? null : (this.sPattern.get(key) ?? 0);
         if (e.count < fl.r2Ratio * Math.max(1, expected ?? 0)) continue;
+        if (S === null && this.awaitingBaseline) continue;
         if (S === null && !this.settled && e.count < 2 * fl.r2Count) continue;
         cands.push({ key, e, host });
       }
