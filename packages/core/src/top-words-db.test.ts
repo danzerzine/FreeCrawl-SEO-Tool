@@ -108,6 +108,38 @@ describe('B84 seoTextCorpus', () => {
   });
 });
 
+describe('B84 section index page', () => {
+  const PAGES = [
+    { id: 1, url: 'https://ex.test/news', title: 'Кофе главная' },
+    { id: 2, url: 'https://ex.test/news?p=2', title: 'Кофе вторая' },
+    { id: 3, url: 'https://ex.test/news/a', title: 'Кофе статья' },
+    { id: 4, url: 'https://ex.test/newsletter', title: 'Чай рассылка' },
+  ];
+
+  it('a single section includes the folder page without a trailing slash, with or without a query', () => {
+    load(PAGES);
+    db = new ProjectDb(file);
+    expect([...db.seoTextCorpus({ section: 'news' })].map((r) => r.url).sort()).toEqual([
+      'https://ex.test/news',
+      'https://ex.test/news/a',
+      'https://ex.test/news?p=2',
+    ]);
+    expect([...db.seoTextCorpus({ section: 'news/a', depth: 2 })].map((r) => r.url)).toEqual([
+      'https://ex.test/news/a',
+    ]);
+  });
+
+  it('one section gives the same counts as the same section in the by-section block', () => {
+    load(PAGES);
+    db = new ProjectDb(file);
+    const by = topWordsBlocks(db, { locale: 'ru', bySection: true }).find((b) => b.section === 'news')!;
+    const one = topWordsBlocks(db, { locale: 'ru', section: 'news' });
+    expect(one).toHaveLength(1);
+    expect(one[0]!.rows).toEqual(by.rows);
+    expect(by.rows.find((r) => r.word === 'кофе')).toEqual({ word: 'кофе', count: 3, pages: 3 });
+  });
+});
+
 describe('B84 per-section top words', () => {
   it('two sections give different top words that add up to the site', () => {
     load(SITE);

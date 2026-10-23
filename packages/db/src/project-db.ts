@@ -13055,11 +13055,15 @@ export class ProjectDb {
       params.push(scope.url);
     }
     // The section is narrowed in SQL on the path (any origin); the exact folder test stays in
-    // `sectionOf`, which also keeps `/news` apart from `/newsletter`.
+    // `sectionOf`, which also keeps `/news` apart from `/newsletter`. The folder's own page
+    // (`/news`, `/news?p=2`) has no trailing slash, so it needs its own patterns.
     const section = scope?.section;
     if (section !== undefined && section !== '/') {
-      where.push("AND url LIKE ? ESCAPE '\\'");
-      params.push(`%/${section.replace(/[\\%_]/g, (c) => '\\' + c)}/%`);
+      const like = section.replace(/[\\%_]/g, (c) => '\\' + c);
+      where.push(
+        "AND (url LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\')",
+      );
+      params.push(`%/${like}/%`, `%/${like}`, `%/${like}?%`);
     }
     const rows = this.db
       .prepare(
