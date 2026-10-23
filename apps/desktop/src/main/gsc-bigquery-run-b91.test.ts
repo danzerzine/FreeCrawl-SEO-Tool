@@ -260,6 +260,30 @@ describe('runner: review r1 fixes (S-High resume double count, adoption, per-run
     expect(f.mainJobs()).toHaveLength(2);
   });
 
+  it('a part trimmed to the days left is estimated again: the job ceiling follows the day left, not the full part (review r2)', async () => {
+    const f = await start(threeDays());
+    const first = await plan(f, { dateRange: 'custom', startDate: '2026-10-01', endDate: '2026-10-02' });
+    await runGscBigQuery(crashAfterInsert(runDeps(f)), first, {});
+    const second = await plan(f);
+    expect(second.parts.map((x) => [x.start, x.end, x.estimate])).toEqual([['2026-10-01', '2026-10-03', 3 * 20 * MIB]]);
+    await runGscBigQuery(runDeps(f), second, {});
+    const jobs = f.mainJobs();
+    expect(jobs).toHaveLength(2);
+    expect(jobs[1]!.maximumBytesBilled).toBe(Math.ceil(1.05 * 20 * MIB)); // one day, not 63 MiB
+  });
+
+  it('record refuses a range that overlaps days already in the ledger: nothing merged twice (review r2)', async () => {
+    const f = await start(threeDays());
+    const p = await plan(f);
+    const [only] = p.parts;
+    // Two overlapping parts in one plan: both pass the trimming (it looks at the ledger of the start).
+    const twice = { ...p, parts: [only!, { ...only!, start: '2026-10-03', end: '2026-10-03', days: 1 }] };
+    await expect(runGscBigQuery(runDeps(f), twice, {})).rejects.toThrow(/overlaps days already in the ledger/);
+    const l = readLedger(db)!;
+    expect(l.doneRanges.map((r) => [r.start, r.end])).toEqual([['2026-10-01', '2026-10-03']]);
+    expect(stored('https://ex.test/a')!.clicks).toBe(3);
+  });
+
   it('adopting a new source key drops the old key in-flight job: billed counted, rows not stored under the new key (S-Med)', async () => {
     const f = await start({
       rows: [row('2026-10-01', 'https://ex.test/web', 5, 50, 0), row('2026-10-01', 'https://ex.test/img', 2, 20, 0, { type: 'IMAGE' })],
