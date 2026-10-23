@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CONSOLE_CHECKS, LATER_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
+import { CONSOLE_CHECKS, LATER_CHECKS, MARKUP_CHECKS, ProjectDb, RENDER_CHECKS } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import { compareCrawls } from './compare.js';
 import { Crawler } from './crawler.js';
@@ -234,8 +234,12 @@ describe('checks filled and compare (B1)', () => {
     await crawl('/fj', page('<h1>x</h1>'), undefined, { mode: 'js', db: j });
     for (const db of [t, j]) {
       expect(issueKeys.some((k) => db.checksFilled().has(k))).toBe(false);
-      // Everything else is still filled.
-      expect(LATER_CHECKS.filter((k) => !issueKeys.includes(k) && !CONSOLE_CHECKS.includes(k)).every((k) => db.checksFilled().has(k))).toBe(true);
+      // Everything else is still filled, except the checks behind an option that is off here
+      // (console B35, markup B45).
+      const rest = LATER_CHECKS.filter(
+        (k) => !issueKeys.includes(k) && !CONSOLE_CHECKS.includes(k) && !MARKUP_CHECKS.includes(k),
+      );
+      expect(rest.filter((k) => !db.checksFilled().has(k))).toEqual([]);
     }
     for (const db of [a, t, j]) db.close();
   }, 30_000);
