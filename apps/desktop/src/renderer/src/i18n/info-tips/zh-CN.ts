@@ -694,4 +694,6 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
     "页面脚本在单个页面上最多可运行多久，500 到 30 000 毫秒。时间用完后，页面按现有的 DOM 继续，结果为 {error: timeout}。渲染限制会随该值增大。",
   ["5000 for a click and a short wait, 15000 for scrolling a long list."]:
     "一次点击加短暂等待用 5000，滚动长列表用 15000。",
+  ["Effective inlinks are the other pages that really link to a page: links from menus and footers, redirects to it counted once, and links to itself are left out. A page with few of them is hard for visitors and search engines to find. Closeness (0-100) says how much a candidate page and the weak page talk about the same things, judged by the rare words in their titles, headings and descriptions. A source is only listed if it does not link to the page yet."]:
+    "有效入链是真正链接到某页面的其他页面：菜单和页脚中的链接不计入，指向它的重定向只算一次，页面指向自身的链接也不计入。入链很少的页面，访客和搜索引擎都很难找到。相关度（0-100）表示候选页面与较弱页面谈论同一内容的程度，依据标题、小标题和描述中的罕见词计算。只有尚未链接到该页面的来源才会列出。",
 };

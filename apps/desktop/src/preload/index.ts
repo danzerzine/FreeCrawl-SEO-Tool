@@ -98,6 +98,9 @@ import {
   type BucketHistogramRow,
   type ServerHeaderRow,
   type TopWordsBlock,
+  type LinkSuggestionInput,
+  type LinkSuggestionResult,
+  type LinkSuggestionRow,
   type TopWordsInput,
   type SerpCheckInput,
   type SerpRowResult,
@@ -487,6 +490,10 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.reportsTopWords, input),
   reportsTopWordsBlocks: (input: TopWordsInput): Promise<TopWordsBlock[]> =>
     ipcRenderer.invoke(IPC.reportsTopWordsBlocks, input),
+  reportsLinkSuggestions: (input: LinkSuggestionInput): Promise<LinkSuggestionResult | null> =>
+    ipcRenderer.invoke(IPC.reportsLinkSuggestions, input),
+  reportsLinkSuggestionsExport: (rows: LinkSuggestionRow[]): Promise<ExportCsvResult> =>
+    ipcRenderer.invoke(IPC.reportsLinkSuggestionsExport, rows),
   reportsSerpCheck: (input: SerpCheckInput): Promise<SerpRowResult[]> =>
     ipcRenderer.invoke(IPC.reportsSerpCheck, input),
   prefsExportSettings: (input: SettingsExportInput): Promise<SettingsExportResult> =>

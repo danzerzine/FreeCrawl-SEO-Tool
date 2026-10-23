@@ -17,6 +17,7 @@ export default defineConfig({
           'db-reader-worker': resolve(__dirname, 'src/main/db-reader-worker.ts'),
           'db-writer-worker': resolve(__dirname, 'src/main/db-writer-worker.ts'),
           'parser-worker': resolve(__dirname, 'src/main/parser-worker.ts'),
+          'link-suggestions-worker': resolve(__dirname, 'src/main/link-suggestions-worker.ts'),
           'freeze-watchdog-worker': resolve(
             __dirname,
             'src/main/freeze-watchdog-worker.ts',

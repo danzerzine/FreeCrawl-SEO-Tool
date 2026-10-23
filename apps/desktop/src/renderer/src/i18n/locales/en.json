@@ -484,7 +484,8 @@
       "redirectInlinks": "Links to Redirects (by Target)",
       "redirectsToError": "Redirects to Error (by Target)",
       "errorInlinks": "Links to Error Pages (by Target)",
-      "nonIndexableInlinks": "Links to Non-Indexable Pages (by Target)"
+      "nonIndexableInlinks": "Links to Non-Indexable Pages (by Target)",
+      "linkSuggestions": "Link suggestions"
     },
     "groupAtDepth": "Group at depth",
     "depthTopLevel": "1 (top-level)",
@@ -605,6 +606,26 @@
       "image": "Image",
       "font": "Font",
       "other": "Other"
+    },
+    "linkSuggestions": {
+      "maxInlinks": "Pages with at most … inlinks",
+      "perTarget": "Suggestions per page",
+      "perSource": "Max uses of one source page",
+      "minCloseness": "Min. closeness",
+      "compute": "Find suggestions",
+      "computing": "Computing…",
+      "exportCsv": "Export CSV",
+      "summary": "{{targets}} pages with few links, {{without}} without a suggestion",
+      "notComputed": "Not computed. Run a crawl that counts inlinks first.",
+      "truncated": "Partial result: more weak pages exist than were looked at, or the time limit was reached.",
+      "degraded": "Very large site: only the most distinctive words were compared.",
+      "oneHop": "Redirect ends were not computed, so links were followed through one redirect only.",
+      "empty": "No pages with so few links.",
+      "inlinks": "{{count}} inlinks",
+      "noSuggestion": "No suggestion",
+      "sources": "{{count}} sources",
+      "anchor": "Anchor: {{text}}",
+      "sameSection": "same section"
     }
   },
   "sitemap": {

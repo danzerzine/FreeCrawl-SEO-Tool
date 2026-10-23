@@ -446,7 +446,8 @@
       "redirectInlinks": "Yönlendirmelere Bağlantılar (Hedefe Göre)",
       "redirectsToError": "Hataya Giden Yönlendirmeler (Hedefe Göre)",
       "errorInlinks": "Hatalı Sayfalara Bağlantılar (Hedefe Göre)",
-      "nonIndexableInlinks": "İndekslenemeyen Sayfalara Bağlantılar (Hedefe Göre)"
+      "nonIndexableInlinks": "İndekslenemeyen Sayfalara Bağlantılar (Hedefe Göre)",
+      "linkSuggestions": "Bağlantı önerileri"
     },
     "groupAtDepth": "Şu derinlikte grupla",
     "depthTopLevel": "1 (üst seviye)",
@@ -534,6 +535,26 @@
       "image": "Görsel",
       "font": "Font",
       "other": "Diğer"
+    },
+    "linkSuggestions": {
+      "maxInlinks": "En fazla … gelen bağlantısı olan sayfalar",
+      "perTarget": "Sayfa başına öneri",
+      "perSource": "Bir kaynak sayfanın en çok kullanım sayısı",
+      "minCloseness": "Min. yakınlık",
+      "compute": "Önerileri bul",
+      "computing": "Hesaplanıyor…",
+      "exportCsv": "CSV dışa aktar",
+      "summary": "Az bağlantılı {{targets}} sayfa, önerisiz {{without}}",
+      "notComputed": "Hesaplanmadı. Önce gelen bağlantıları sayan bir tarama çalıştırın.",
+      "truncated": "Kısmi sonuç: bakılandan daha fazla zayıf sayfa var ya da süre doldu.",
+      "degraded": "Çok büyük site: yalnızca en ayırt edici sözcükler karşılaştırıldı.",
+      "oneHop": "Yönlendirme sonları hesaplanmadı; bağlantılar yalnızca bir yönlendirme boyunca izlendi.",
+      "empty": "Bu kadar az bağlantılı sayfa yok.",
+      "inlinks": "{{count}} gelen bağlantı",
+      "noSuggestion": "Öneri yok",
+      "sources": "{{count}} kaynak",
+      "anchor": "Bağlantı metni: {{text}}",
+      "sameSection": "aynı bölüm"
     }
   },
   "sitemap": {

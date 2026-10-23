@@ -438,7 +438,8 @@
       "redirectInlinks": "指向重定向的链接（按目标）",
       "redirectsToError": "重定向至错误（按目标）",
       "errorInlinks": "指向错误页面的链接（按目标）",
-      "nonIndexableInlinks": "指向不可索引页面的链接（按目标）"
+      "nonIndexableInlinks": "指向不可索引页面的链接（按目标）",
+      "linkSuggestions": "链接建议"
     },
     "groupAtDepth": "按深度分组",
     "depthTopLevel": "1（顶层）",
@@ -517,6 +518,26 @@
       "image": "图片",
       "font": "字体",
       "other": "其他"
+    },
+    "linkSuggestions": {
+      "maxInlinks": "入链不超过…的页面",
+      "perTarget": "每个页面的建议数",
+      "perSource": "单个来源页面最多使用次数",
+      "minCloseness": "最低相关度",
+      "compute": "查找建议",
+      "computing": "计算中…",
+      "exportCsv": "导出 CSV",
+      "summary": "{{targets}} 个页面链接较少，其中 {{without}} 个没有建议",
+      "notComputed": "尚未计算。请先运行统计入链的抓取。",
+      "truncated": "结果不完整：较弱的页面多于已检查的数量，或已超时。",
+      "degraded": "网站非常大：只比较了最具区分度的词。",
+      "oneHop": "未计算重定向终点，因此链接只跟随了一次重定向。",
+      "empty": "没有链接这么少的页面。",
+      "inlinks": "{{count}} 个入链",
+      "noSuggestion": "无建议",
+      "sources": "{{count}} 个来源",
+      "anchor": "锚文本：{{text}}",
+      "sameSection": "同一栏目"
     }
   },
   "sitemap": {

@@ -18,6 +18,9 @@ import type {
   ImageRow,
   ImagesSortKey,
   Indexability,
+  LinkSuggestionInput,
+  LinkSuggestionResult,
+  LinkSuggestionRow,
   LinkTargetReportInput,
   LinkTargetRow,
   OverviewCounts,
@@ -328,6 +331,10 @@ export const IPC = {
   reportsServerHeaders: 'reports:server-headers',
   reportsTopWords: 'reports:top-words',
   reportsTopWordsBlocks: 'reports:top-words-blocks',
+  /** B93: internal-link suggestions, computed on a dedicated worker. */
+  reportsLinkSuggestions: 'reports:link-suggestions',
+  /** B93: save the rows the tab shows as CSV (asks for the file). */
+  reportsLinkSuggestionsExport: 'reports:link-suggestions-export',
   /** B85: check pasted titles and descriptions against the snippet limits; nothing is fetched or stored. */
   reportsSerpCheck: 'reports:serp-check',
   /**
@@ -2600,6 +2607,9 @@ export interface FreeCrawlApi {
   reportsTopWords(input: TopWordsInput): Promise<TopWordsRow[]>;
   /** B84: words or phrases for the site, one folder, every folder or one page; each block says whether it is approximate. */
   reportsTopWordsBlocks(input: TopWordsInput): Promise<TopWordsBlock[]>;
+  /** B93: pages that should link to weakly linked pages; `null` when the crawl did not compute inlinks. */
+  reportsLinkSuggestions(input: LinkSuggestionInput): Promise<LinkSuggestionResult | null>;
+  reportsLinkSuggestionsExport(rows: LinkSuggestionRow[]): Promise<ExportCsvResult>;
   /** B85 SERP-lite: pasted text or rows against the limits (project's or given); no storage, no fetch. */
   reportsSerpCheck(input: SerpCheckInput): Promise<SerpRowResult[]>;
   /** Heartbeat: renderer reports its latest input-lag sample (ms). */

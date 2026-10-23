@@ -454,7 +454,8 @@
       "redirectInlinks": "Enlaces a redirecciones (por destino)",
       "redirectsToError": "Redirecciones a error (por destino)",
       "errorInlinks": "Enlaces a páginas con error (por destino)",
-      "nonIndexableInlinks": "Enlaces a páginas no indexables (por destino)"
+      "nonIndexableInlinks": "Enlaces a páginas no indexables (por destino)",
+      "linkSuggestions": "Sugerencias de enlaces"
     },
     "groupAtDepth": "Agrupar a la profundidad",
     "depthTopLevel": "1 (nivel superior)",
@@ -551,6 +552,26 @@
       "image": "Imagen",
       "font": "Fuente",
       "other": "Otro"
+    },
+    "linkSuggestions": {
+      "maxInlinks": "Páginas con como máximo … enlaces entrantes",
+      "perTarget": "Sugerencias por página",
+      "perSource": "Máx. de usos de una página de origen",
+      "minCloseness": "Cercanía mín.",
+      "compute": "Buscar sugerencias",
+      "computing": "Calculando…",
+      "exportCsv": "Exportar CSV",
+      "summary": "{{targets}} páginas con pocos enlaces, {{without}} sin sugerencia",
+      "notComputed": "No calculado. Antes, ejecuta un rastreo que cuente los enlaces entrantes.",
+      "truncated": "Resultado parcial: hay más páginas débiles de las analizadas o se agotó el tiempo.",
+      "degraded": "Sitio muy grande: solo se compararon las palabras más distintivas.",
+      "oneHop": "Los destinos finales de las redirecciones no se calcularon; los enlaces se siguieron solo a través de una redirección.",
+      "empty": "No hay páginas con tan pocos enlaces.",
+      "inlinks": "{{count}} enlaces entrantes",
+      "noSuggestion": "Sin sugerencia",
+      "sources": "{{count}} orígenes",
+      "anchor": "Ancla: {{text}}",
+      "sameSection": "misma sección"
     }
   },
   "sitemap": {

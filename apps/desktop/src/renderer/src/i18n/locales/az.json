@@ -446,7 +446,8 @@
       "redirectInlinks": "Yönləndirmələrə keçidlər (hədəfə görə)",
       "redirectsToError": "Xətaya aparan yönləndirmələr (hədəfə görə)",
       "errorInlinks": "Xətalı səhifələrə keçidlər (hədəfə görə)",
-      "nonIndexableInlinks": "İndekslənə bilməyən səhifələrə keçidlər (hədəfə görə)"
+      "nonIndexableInlinks": "İndekslənə bilməyən səhifələrə keçidlər (hədəfə görə)",
+      "linkSuggestions": "Keçid təklifləri"
     },
     "groupAtDepth": "Bu dərinlikdə qruplaşdır",
     "depthTopLevel": "1 (ən üst səviyyə)",
@@ -534,6 +535,26 @@
       "image": "Şəkil",
       "font": "Şrift",
       "other": "Digər"
+    },
+    "linkSuggestions": {
+      "maxInlinks": "Daxil olan keçidi ən çox … olan səhifələr",
+      "perTarget": "Hər səhifə üçün təklif",
+      "perSource": "Bir mənbə səhifənin maksimum istifadə sayı",
+      "minCloseness": "Min. yaxınlıq",
+      "compute": "Təklifləri tap",
+      "computing": "Hesablanır…",
+      "exportCsv": "CSV ixrac et",
+      "summary": "Keçidi az olan {{targets}} səhifə, təklifsiz: {{without}}",
+      "notComputed": "Hesablanmayıb. Əvvəlcə daxil olan keçidləri sayan tarama işə salın.",
+      "truncated": "Qismən nəticə: baxılandan çox zəif səhifə var və ya vaxt bitdi.",
+      "degraded": "Çox böyük sayt: yalnız ən səciyyəvi sözlər müqayisə edildi.",
+      "oneHop": "Yönləndirmə sonları hesablanmayıb, keçidlər yalnız bir yönləndirmə boyunca izlənildi.",
+      "empty": "Bu qədər az keçidi olan səhifə yoxdur.",
+      "inlinks": "{{count}} daxil olan keçid",
+      "noSuggestion": "Təklif yoxdur",
+      "sources": "{{count}} mənbə",
+      "anchor": "Ankor: {{text}}",
+      "sameSection": "eyni bölmə"
     }
   },
   "sitemap": {

@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store.js';
 import { SerpCheckPanel } from './SerpCheckPanel.js';
+import { LinkSuggestionsPanel } from './LinkSuggestionsPanel.js';
 import type {
   PagesPerDirectoryRow,
   StatusCodeHistogramRow,
@@ -63,6 +64,7 @@ type ReportKind =
   | 'server-headers'
   | 'top-words'
   | 'serp-check'
+  | 'link-suggestions'
   | 'pages-over-link-limit'
   | 'mobile-parity';
 
@@ -122,6 +124,7 @@ const REPORT_LABELS: Record<ReportKind, string> = {
   'server-headers': 'Server Stack (Server Header)',
   'top-words': 'Top Words (Title + Meta + H1, Top 100)',
   'serp-check': 'SERP check',
+  'link-suggestions': 'Link suggestions',
   'pages-over-link-limit': 'Pages Over Max Links per Page',
   'mobile-parity': 'Mobile vs Desktop Differences',
 };
@@ -156,6 +159,7 @@ const TOP_URL_METRIC: Record<ReportKind, TopUrlMetric | null> = {
   'server-headers': null,
   'top-words': null,
   'serp-check': null,
+  'link-suggestions': null,
   'pages-over-link-limit': null,
   'mobile-parity': null,
 };
@@ -195,6 +199,7 @@ const VALUE_FORMAT: Record<ReportKind, (v: number | null) => string> = {
   'server-headers': (v) => (v ?? 0).toLocaleString(),
   'top-words': (v) => (v ?? 0).toLocaleString(),
   'serp-check': () => '',
+  'link-suggestions': () => '',
   'pages-over-link-limit': (v) => (v ?? 0).toLocaleString(),
   'mobile-parity': (v) => (v ?? 0).toLocaleString(),
 };
@@ -262,6 +267,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
     'server-headers': t('reports.report.serverHeaders', { defaultValue: REPORT_LABELS['server-headers'] }),
     'top-words': t('reports.report.topWords', { defaultValue: REPORT_LABELS['top-words'] }),
     'serp-check': t('reports.report.serpCheck', { defaultValue: REPORT_LABELS['serp-check'] }),
+    'link-suggestions': t('reports.report.linkSuggestions', { defaultValue: REPORT_LABELS['link-suggestions'] }),
     'pages-over-link-limit': t('reports.report.pagesOverLinkLimit', {
       defaultValue: REPORT_LABELS['pages-over-link-limit'],
     }),
@@ -297,13 +303,14 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
     'server-headers': t('reports.keyServer', { defaultValue: 'Server' }),
     'top-words': topN === 1 ? t('reports.keyWord', { defaultValue: 'Word' }) : t('reports.keyPhrase', { defaultValue: 'Phrase' }),
     'serp-check': 'URL',
+    'link-suggestions': 'URL',
     'pages-over-link-limit': 'URL',
     'mobile-parity': 'URL',
   }), [t, topN]);
 
   useEffect(() => {
     if (!open) return;
-    if (kind === 'serp-check') {
+    if (kind === 'serp-check' || kind === 'link-suggestions') {
       // B85: the panel owns its data (pasted text); nothing is read from the project.
       setRows([]);
       setLoading(false);
@@ -899,7 +906,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
               </select>
             </label>
           )}
-          {kind !== 'serp-check' && (
+          {kind !== 'serp-check' && kind !== 'link-suggestions' && (
           <span className="ml-auto text-surface-500">
             {loading
               ? t('common.loading', { defaultValue: 'Loading…' })
@@ -912,7 +919,9 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
           )}
         </div>
 
-        {kind === 'serp-check' ? (
+        {kind === 'link-suggestions' ? (
+          <LinkSuggestionsPanel />
+        ) : kind === 'serp-check' ? (
           <SerpCheckPanel />
         ) : (
         <div ref={scrollRef} className="flex-1 overflow-auto px-4 py-3 text-[11px]">

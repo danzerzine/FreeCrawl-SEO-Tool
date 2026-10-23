@@ -64,6 +64,7 @@ import {
   type IssueTaskPreviewInput,
   type IssueTaskSaveInput,
   type IssueTaskSendInput,
+  EXPORT_DATASET_COLUMNS,
   type ExportCsvResult,
   type ExportJsonInput,
   type ExportJsonResult,
@@ -119,6 +120,9 @@ import {
   type BucketHistogramRow,
   type ServerHeaderRow,
   type TopWordsBlock,
+  type LinkSuggestionInput,
+  type LinkSuggestionResult,
+  type LinkSuggestionRow,
   type TopWordsInput,
   type SerpCheckInput,
   type SerpRowResult,
@@ -336,6 +340,10 @@ import {
   testUrlAgainstRobots,
   validateRobotsTxt,
   topWordsBlocksAsync,
+  linkSuggestions,
+  runLinkSuggestionsInWorker,
+  datasetRows,
+  buildCsvTable,
   checkSerpInput,
   fetchSitemaps,
   validateFetchedSitemaps,
@@ -5570,6 +5578,28 @@ function registerIpc(): void {
     IPC.reportsTopWordsBlocks,
     (_e, input: TopWordsInput): Promise<TopWordsBlock[]> => computeTopWordsBlocks(input),
   );
+  registerHandle(
+    IPC.reportsLinkSuggestions,
+    (_e, input: LinkSuggestionInput): Promise<LinkSuggestionResult | null> =>
+      computeLinkSuggestions(input ?? {}),
+  );
+  registerHandle(
+    IPC.reportsLinkSuggestionsExport,
+    async (_e, rows: LinkSuggestionRow[]): Promise<ExportCsvResult> => {
+      const res = await dialog.showSaveDialog(mainWindow!, {
+        defaultPath: 'link-suggestions.csv',
+        filters: [{ name: 'CSV', extensions: ['csv'] }],
+      });
+      if (res.canceled || !res.filePath) return { filePath: '', rowsWritten: 0 };
+      const cols = EXPORT_DATASET_COLUMNS['link-suggestions'].map((c) => ({
+        key: c.key,
+        label: c.header,
+      }));
+      const out = [...datasetRows(getDb(), 'link-suggestions', { linkSuggestions: rows })];
+      await writeFile(res.filePath, `\uFEFF${buildCsvTable(cols, out)}\n`, 'utf8');
+      return { filePath: res.filePath, rowsWritten: out.length };
+    },
+  );
   // B85: pure check of pasted text, no project read and no storage.
   registerHandle(
     IPC.reportsSerpCheck,
@@ -8063,6 +8093,23 @@ function registerIpc(): void {
     });
   }
 
+  /**
+   * B93: internal-link suggestions. A disk project runs on its own read-only connection in a
+   * dedicated worker thread (the shared reader pool times out at 30 s); a RAM-only project has
+   * no file to open and computes in-process.
+   */
+  async function computeLinkSuggestions(
+    input: LinkSuggestionInput,
+  ): Promise<LinkSuggestionResult | null> {
+    const sess = currentSession();
+    if (sess.storageModeActive === 'disk' && sess.scratchPath) {
+      return runLinkSuggestionsInWorker(sess.scratchPath, input, {
+        workerPath: join(__dirname, 'link-suggestions-worker.js'),
+      });
+    }
+    return linkSuggestions(getDb(), input);
+  }
+
   /** The rows of the first block: what the report returned before blocks (site words). */
   async function computeTopWords(input: TopWordsInput): Promise<TopWordsRow[]> {
     return (await computeTopWordsBlocks(input))[0]?.rows ?? [];
@@ -8775,6 +8822,11 @@ function registerIpc(): void {
         locale: i.locale ?? 'all',
         includeBody: i.includeBody === true,
       });
+    },
+
+    // B93: same worker as the Reports tab; thresholds are optional and validated in core.
+    'report-link-suggestions': async (input) => {
+      return computeLinkSuggestions((input ?? {}) as LinkSuggestionInput);
     },
 
     // ---- Faz 0.5 Increment 3 — URL mutation, exports, config, integrations, project file ----
