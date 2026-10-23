@@ -38,7 +38,7 @@ import {
   statSync,
 } from 'node:fs';
 import { copyFile, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { totalmem, freemem, cpus, release } from 'node:os';
 // Lives under src/main/assets (not resources/) on purpose: electron-vite
 // treats resources/ as the public dir and references it in place, which the
@@ -226,6 +226,10 @@ import {
   type SeoQueryResult,
   type GscInspectPlan,
   type GscInspectRunInput,
+  type GscBqPlanInput,
+  type GscBqPlanResult,
+  type GscBqRunInput,
+  type GscBqRunResult,
   type GscInspectRunResult,
   type ExportSheetsInput,
   type ExportSheetsResult,
@@ -404,6 +408,9 @@ import {
 import { planInspection, runGscInspection, uniqueInspectUrls } from './gsc-inspect-run.js';
 import { exportCategoryToSheets } from './sheets-export.js';
 import { exportCategoryToBigQuery } from './bigquery-export.js';
+import { defaultDeps as bigQueryDefaultDeps } from './bigquery-auth.js';
+import { createGscBqClient } from './gsc-bigquery.js';
+import { gscBqCancelEntry, gscBqPlanEntry, gscBqRunEntry, newBqSlot, type BqEntryEnv } from './gsc-bigquery-entry.js';
 import {
   gscCrawlNewUrlCandidates,
   gscExportContext,
@@ -666,6 +673,8 @@ class ProjectSession {
     // count reports, and `abort` cancels mid-request or mid-backoff.
     metrica: { ...newFetchRunSlot(), abort: null as AbortController | null },
     gscInspect: { active: false, cancelRequested: false },
+    // B91: the BigQuery pull, its plan on screen and the cancel flag
+    gscBq: newBqSlot(),
     webmaster: { active: false, cancelRequested: false, abort: null as AbortController | null },
   };
 
@@ -7527,6 +7536,35 @@ function registerIpc(): void {
       return { toInspect: plan.toInspect.length, skipped: plan.skipped.length };
     },
   );
+  // B91 — Search Console data from the user's own BigQuery bulk export. Desktop only: the entries
+  // refuse a run that was not planned in the same dialog session.
+  function bqEntryEnv(runSession: ProjectSession): BqEntryEnv {
+    const getCreds = () => resolveCredentials('bigquery');
+    return {
+      db: runSession.getDb(),
+      settings: resolveGscSettings(),
+      projectId: (getCreds()['projectId'] ?? '').trim(),
+      makeClient: (target) => createGscBqClient(target, bigQueryDefaultDeps(getCreds)),
+      slot: runSession.fetchRuns.gscBq,
+      now: () => new Date(),
+      newPlanId: () => randomUUID(),
+      onProgress: (p) => runSession.send(IPC.gscBqProgress, p),
+      onChanged: () => fireDataChanged(runSession),
+    };
+  }
+  registerHandle(
+    IPC.gscBqPlan,
+    (_e, input?: GscBqPlanInput): Promise<GscBqPlanResult> =>
+      gscBqPlanEntry(bqEntryEnv(currentSession()), input ?? {}),
+  );
+  registerHandle(
+    IPC.gscBqRun,
+    (_e, input: GscBqRunInput): Promise<GscBqRunResult> =>
+      gscBqRunEntry(bqEntryEnv(currentSession()), input),
+  );
+  registerHandle(IPC.gscBqCancel, () => {
+    gscBqCancelEntry(currentSession().fetchRuns.gscBq);
+  });
   registerHandle(IPC.gscInspectCancel, () => {
     const run = currentSession().fetchRuns.gscInspect;
     if (run.active) {

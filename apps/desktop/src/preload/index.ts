@@ -192,6 +192,11 @@ import {
   type GscInspectRunInput,
   type GscInspectRunResult,
   type GscInspectProgress,
+  type GscBqPlanInput,
+  type GscBqPlanResult,
+  type GscBqProgress,
+  type GscBqRunInput,
+  type GscBqRunResult,
   type ExportSheetsInput,
   type ExportSheetsResult,
   type ExportBigqueryInput,
@@ -602,6 +607,12 @@ const api: FreeCrawlApi = {
   gscInspectCancel: (): Promise<void> => ipcRenderer.invoke(IPC.gscInspectCancel),
   onGscInspectProgress: (cb) =>
     subscribe<GscInspectProgress>(IPC.gscInspectProgress, cb),
+  gscBqPlan: (input: GscBqPlanInput): Promise<GscBqPlanResult> =>
+    ipcRenderer.invoke(IPC.gscBqPlan, input),
+  gscBqRun: (input: GscBqRunInput): Promise<GscBqRunResult> =>
+    ipcRenderer.invoke(IPC.gscBqRun, input),
+  gscBqCancel: (): Promise<void> => ipcRenderer.invoke(IPC.gscBqCancel),
+  onGscBqProgress: (cb) => subscribe<GscBqProgress>(IPC.gscBqProgress, cb),
   exportSheets: (input: ExportSheetsInput): Promise<ExportSheetsResult> =>
     ipcRenderer.invoke(IPC.exportSheets, input),
   exportBigquery: (input: ExportBigqueryInput): Promise<ExportBigqueryResult> =>

@@ -56,6 +56,7 @@ import type {
   GoogleAccount,
   GscSite,
   GscRow,
+  GscSearchType,
   GscFetchMeta,
   GscPreset,
   Ga4Property,
@@ -511,6 +512,13 @@ export const IPC = {
   gscInspectCancel: 'gsc:inspect-cancel',
   gscInspectPlan: 'gsc:inspect-plan',
   gscInspectProgress: 'gsc:inspect-progress',
+  /** B91 — Search Console data from the user's own BigQuery bulk export. `gscBqPlan` shows what a
+   *  pull would read and cost (dry runs only; `reset` first drops the saved BigQuery data);
+   *  `gscBqRun` runs the plan on screen; nothing runs without one. Desktop only. */
+  gscBqPlan: 'gsc:bq-plan',
+  gscBqRun: 'gsc:bq-run',
+  gscBqCancel: 'gsc:bq-cancel',
+  gscBqProgress: 'gsc:bq-progress',
   /** Faz 7 — Google Sheets export. Writes a category's rows to a new
    *  spreadsheet on the connected account's Drive and returns the URL. */
   exportSheets: 'export:sheets',
@@ -2169,6 +2177,74 @@ export interface GscInspectRunResult {
   stopMessage: string | null;
 }
 
+/** B91 — one part of a BigQuery pull: contiguous exported days inside one calendar month. */
+export interface GscBqPlanPart {
+  start: string;
+  end: string;
+  days: number;
+  /** Bytes the dry run says the part reads. */
+  estimate: number;
+}
+
+export interface GscBqPlanInput {
+  /** Drop the saved BigQuery data (and its ledger) first: the source changed, or «Rebuild». */
+  reset?: boolean;
+}
+
+/** What a pull would do, for the plan dialog (B91). */
+export interface GscBqPlanView {
+  /** Passed back to `gscBqRun`: a run only starts from a plan that was shown. */
+  planId: string;
+  location: string;
+  siteUrl: string;
+  searchType: GscSearchType;
+  range: { start: string; end: string } | null;
+  parts: GscBqPlanPart[];
+  coveredDays: number;
+  missingDays: number;
+  /** Pulled days that Google revised since («Rebuild» to include them). */
+  revisedDays: string[];
+  firstCovered: string | null;
+  lastCovered: string | null;
+  totalEstimate: number;
+  /** Share of the free 1 TB a month per project. */
+  freeTierShare: number;
+  capBytes: number;
+  billedSoFar: number;
+  overCap: boolean;
+  needsReset: boolean;
+  canRun: boolean;
+}
+
+export interface GscBqPlanResult {
+  ok: boolean;
+  /** One line that says what to fix. */
+  error: string | null;
+  plan: GscBqPlanView | null;
+}
+
+export interface GscBqRunInput {
+  planId: string;
+  /** Record months the query returned nothing for (after the run stopped on an empty month). */
+  recordEmpty?: boolean;
+}
+
+export interface GscBqRunResult {
+  ok: boolean;
+  error: string | null;
+  partsDone: number;
+  partsSkipped: number;
+  /** Why the run ended early: `cap`, `cancelled`, `error`, `empty` or `source-changed`. */
+  stopped: { reason: string; message: string } | null;
+  totalBilled: number;
+}
+
+export interface GscBqProgress {
+  done: number;
+  total: number;
+  running: boolean;
+}
+
 export interface GscInspectProgress {
   done: number;
   total: number;
@@ -2596,6 +2672,11 @@ export interface FreeCrawlApi {
   gscInspectPlan(input: GscInspectRunInput): Promise<GscInspectPlan>;
   gscInspectCancel(): Promise<void>;
   onGscInspectProgress(cb: (p: GscInspectProgress) => void): () => void;
+  /** B91 — plan, run and cancel a Search Console pull from the user's BigQuery bulk export. */
+  gscBqPlan(input: GscBqPlanInput): Promise<GscBqPlanResult>;
+  gscBqRun(input: GscBqRunInput): Promise<GscBqRunResult>;
+  gscBqCancel(): Promise<void>;
+  onGscBqProgress(cb: (p: GscBqProgress) => void): () => void;
   /** Export a category's rows to a new Google Sheet. Requires the
    *  `sheets` Google integration to be connected. */
   exportSheets(input: ExportSheetsInput): Promise<ExportSheetsResult>;
