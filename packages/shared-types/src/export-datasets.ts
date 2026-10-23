@@ -371,15 +371,15 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'destinationStatusCode', header: 'Destination Crawl Status' },
     { key: 'seenByCrawl', header: 'Also In Crawl Broken Links' },
   ],
-  // B84: words or phrases of title, description and H1 (and stored bodies with --with-bodies); the headers are the keys.
+  // B84: words or phrases of title, description and H1 (and stored bodies with --with-bodies).
   'top-words': [
-    { key: 'scope', header: 'scope' },
-    { key: 'section', header: 'section' },
-    { key: 'n', header: 'n' },
-    { key: 'gram', header: 'gram' },
-    { key: 'count', header: 'count' },
-    { key: 'pages', header: 'pages' },
-    { key: 'capped', header: 'capped' },
+    { key: 'scope', header: 'Scope' },
+    { key: 'section', header: 'Section' },
+    { key: 'n', header: 'N' },
+    { key: 'gram', header: 'Gram' },
+    { key: 'count', header: 'Count' },
+    { key: 'pages', header: 'Pages' },
+    { key: 'capped', header: 'Capped' },
   ],
   'ai:openai': AI,
   'ai:anthropic': AI,

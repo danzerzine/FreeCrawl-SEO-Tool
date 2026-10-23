@@ -34,7 +34,7 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-const HEADER = ['scope', 'section', 'n', 'gram', 'count', 'pages', 'capped'];
+const HEADER = ['Scope', 'Section', 'N', 'Gram', 'Count', 'Pages', 'Capped'];
 
 async function run(topWords: Record<string, unknown>): Promise<string[]> {
   const db = new ProjectDb(file);

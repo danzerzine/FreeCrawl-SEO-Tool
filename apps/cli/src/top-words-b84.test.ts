@@ -41,14 +41,14 @@ function run(...args: string[]) {
   });
 }
 const csv = (): string[] =>
-  fs.readFileSync(path.join(out, 'top-words.csv'), 'utf8').replace(/^﻿/, '').trimEnd().split('\n');
+  fs.readFileSync(path.join(out, 'top-words.csv'), 'utf8').replace(/^\uFEFF/, '').trimEnd().split('\n');
 
 describe('B84 CLI: dataset:top-words', () => {
   it('--ngram 2 --by-section --section-depth 2: exact header, rows ordered section, count desc, gram', () => {
     const r = run('--what', 'dataset:top-words', '--ngram', '2', '--by-section', '--section-depth', '2', '--out', out);
     expect(r.status, r.stderr).toBe(0);
     expect(csv()).toEqual([
-      'scope,section,n,gram,count,pages,capped',
+      'Scope,Section,N,Gram,Count,Pages,Capped',
       'section,news/a,2,кофе новости,2,2,false',
       'section,shop/x,2,чай купить,2,2,false',
     ]);
@@ -106,11 +106,11 @@ describe('B84 CLI: dataset:top-words', () => {
     const r = spawnSync(process.execPath, [CLI, '--help'], { encoding: 'utf8' });
     const help = (r.stdout + r.stderr).replace(/\s+/g, ' ');
     for (const line of [
-      '--ngram <1|2|3> With dataset:top-words: words (1) or 2-3 word phrases. Default 1.',
-      '--word-locale <l> With dataset:top-words: stopword list: en, ru, tr or all (default all).',
-      '--by-section With dataset:top-words: one block per folder of the site (see --section-depth); the memory cap is shared between sections, so rare phrases may be dropped.',
-      '--section-depth <n> With --by-section: folder depth, 1 or 2 (default 1).',
-      '--with-bodies With dataset:top-words: also read stored page bodies (slower; needs bodies saved by the crawl).',
+      '--ngram <1|2|3> With dataset:top-words: words (1) or 2-3 word phrases (default 1)',
+      '--word-locale <l> With dataset:top-words: stopword list: en, ru, tr or all (default all)',
+      '--by-section With dataset:top-words: one block per folder of the site (see --section-depth). At most 50 sections are kept (the biggest by pages; the rest are summed into "(other)"); each keeps up to max(20 000, 200 000 / sections) distinct phrases, so rare phrases may be dropped',
+      '--section-depth <n> With --by-section: folder depth, 1 or 2 (default 1)',
+      '--with-bodies With dataset:top-words: also read stored page bodies (slower; needs bodies saved by the crawl)',
     ]) {
       expect(help).toContain(line);
     }
