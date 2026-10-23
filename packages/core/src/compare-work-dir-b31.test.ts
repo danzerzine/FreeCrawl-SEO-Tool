@@ -38,3 +38,16 @@ it('unpacks the other project of a comparison into the working folder (B31)', as
   expect(readdirSync(tmp)).toEqual([expect.stringMatching(/^freecrawl-compare-/)]);
   q.dispose();
 });
+
+it('refuses a comparison that will not fit, before anything is copied (B110)', async () => {
+  const bare = join(dir, 'bare2.db');
+  new ProjectDb(bare).close();
+  const saved = join(dir, 'saved2.seoproject');
+  await packProject(bare, saved);
+  const noRoom = () => ({ bavail: 1, bsize: 1024 });
+  await expect(openCompareProject(saved, undefined, { statfs: noRoom })).rejects.toThrow(
+    /^Not enough free space in .*freecrawl-compare-.*: .* GB free, .* GB needed\.$/,
+  );
+  // No copy, and no empty folder either.
+  expect(readdirSync(tmp)).toEqual([]);
+});
