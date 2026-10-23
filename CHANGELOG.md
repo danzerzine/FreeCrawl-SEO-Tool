@@ -1,9 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- The full pages export (CSV, XML, XLSX, bulk files) gains ten Yes/No columns for the newer page signals (hreflang, title, description and meta robots outside head, OG tag with name=, internal UTM links, noindex for other engines, pagination loop, hreflang on a non-canonical page, noindex alternate), blank where a project's crawl never ran the check. A separate `page-signals.csv` (bulk, CLI `dataset:page-signals`) lists one row per page and signal, including eight derived checks.
+
 ## [1.1.0] — 2026-10-18
 
 ### Added
-- The full pages export (CSV, XML, XLSX, bulk files) gains ten Yes/No columns for the module-5 page signals (hreflang, title, description and meta robots outside head, OG tag with name=, internal UTM links, noindex for other engines, pagination loop, hreflang on a non-canonical page, noindex alternate), blank where a project's crawl never ran the check. A separate `page-signals.csv` (bulk, CLI `dataset:page-signals`) lists one row per page and signal, including eight derived checks.
 - Adaptive speed (off by default) slows the crawl automatically on 429 / 503 / Retry-After responses and recovers once the server answers cleanly again.
 - Bot-protection detection marks pages blocked by Cloudflare, AWS WAF, Vercel, Sucuri or DataDome as "Blocked" instead of reporting them as broken links or 4xx errors.
 - A site-level soft-404 probe warns when missing pages return 200, and a Soft 404 issue flags "not found" pages served with a 2xx status.

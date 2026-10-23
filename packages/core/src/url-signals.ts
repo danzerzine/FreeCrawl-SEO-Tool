@@ -37,7 +37,7 @@ export function pageSignalChecksNotFilled(db: ProjectDb): string[] {
 export function pageSignalsEmptyReason(db: ProjectDb): string {
   const later = PAGE_SIGNAL_CHECKS.length - SIGNAL_CHECKS_ALWAYS_FILLED.length;
   return pageSignalChecksNotFilled(db).length === later
-    ? 'This project was crawled by a build before module 5, so these signals were not checked.'
+    ? 'This project was crawled by a build without the newer page checks, so these signals were not checked.'
     : 'No page has any of these signals.';
 }
 

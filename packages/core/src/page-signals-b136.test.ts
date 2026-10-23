@@ -368,7 +368,7 @@ describe('B136 bulk export', () => {
       return f;
     };
     for (const [filled, text] of [
-      [false, 'crawled by a build before module 5'],
+      [false, 'without the newer page checks'],
       [true, 'No page has any of these signals.'],
     ] as const) {
       const e = new ProjectDb(empty(filled));

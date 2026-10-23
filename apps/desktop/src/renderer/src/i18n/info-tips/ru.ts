@@ -761,7 +761,7 @@ export const RU_INFO_TIPS: Record<string, string> = {
   ["Meta tags for search engines other than Google (such as bingbot or yandex) tell them not to index the page: check that this is intended."]:
     "Мета-теги для поисковиков, кроме Google (например, bingbot или yandex), запрещают индексировать страницу: проверьте, что так и задумано.",
   ["Following rel=next from this page leads back to a page already in the chain, so the series never ends: fix the next link of the last page."]:
-    "Если идти по rel=next с этой страницы, вернёшься на страницу, которая уже была в цепочке, и серия не кончается: исправьте ссылку next на последней странице.",
+    "Если идти по rel=next с этой страницы, цепочка вернётся на страницу, которая в ней уже была, и серия не кончается: исправьте ссылку next на последней странице.",
   ["The page declares hreflang but its canonical points to another URL, and Google reads hreflang only on canonical pages: align the canonical and the hreflang set."]:
     "Страница объявляет hreflang, но её canonical указывает на другой URL, а Google читает hreflang только на канонических страницах: согласуйте canonical и набор hreflang.",
   ["An hreflang alternate of this page (other than itself) is noindex: remove it from the hreflang set or make it indexable."]:
