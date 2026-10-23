@@ -50,6 +50,7 @@ noun and the second the verb.
 | crawl (noun) | rastreo | rastreamento | exploration | scansione | обход | tarama | tarama | 抓取 | 크롤 | क्रॉल |
 | crawl (verb) | rastrear | rastrear | explorer | scansionare | обходить | taramak | taramaq | 抓取 | 크롤링하다 | क्रॉल करना |
 | crawler | rastreador | rastreador | robot d'exploration | crawler | краулер | tarayıcı | tarayıcı | 抓取器 | 크롤러 | क्रॉलर |
+| crawl trap | trampa de rastreo | armadilha de rastreamento | piège d’exploration | trappola di scansione | ловушка обхода | tarama tuzağı | tarama tələsi | 抓取陷阱 | 크롤 트랩 | क्रॉल ट्रैप |
 | spider (mode) | Spider | Spider | Spider | Spider | Spider | Spider | Spider | Spider | Spider | Spider |
 | URL | URL | URL | URL | URL | URL | URL | URL | URL | URL | URL |
 | link | enlace | link | lien | link | ссылка | bağlantı | keçid | 链接 | 링크 | लिंक |
