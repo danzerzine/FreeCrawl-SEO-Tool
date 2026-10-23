@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { ProjectDb, LATER_CHECKS } from '@freecrawl/db';
 import {
@@ -286,6 +287,31 @@ describe('B136 other writers blank unfilled checks with no option passed', () =>
     await exportTabular(db, old, { format: 'csv', sections: [{ label: 'x', category: 'all' }], columns: cols });
     expect(readCsv(old).map((r) => r.slice(0, 2).join(','))).toContain('https://ex.com/head,');
   });
+
+  it('exportTabular XLSX: Yes/No for the ten columns (not 0/1), blank on an old project', async () => {
+    const sheetCells = (f: string): string[][] => {
+      const xml = execFileSync('unzip', ['-p', f, 'xl/worksheets/sheet1.xml'], { encoding: 'utf8' });
+      return [...xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)].map((r) =>
+        [...r[1]!.matchAll(/<c\b[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)].map((c) =>
+          (c[1] ?? '').replace(/<[^>]+>/g, ''),
+        ),
+      );
+    };
+    const cols = ['url', 'titleOutsideHead', 'paginationLoop'];
+    const filled = path.join(dir, 'x1.xlsx');
+    await exportTabular(db, filled, { format: 'xlsx', sections: [{ label: 'x', category: 'all' }], columns: cols });
+    const rows = sheetCells(filled);
+    const byUrl = (u: string): string[] => rows.find((r) => r[0] === u)!;
+    expect(byUrl('https://ex.com/head').slice(1)).toEqual(['Yes', 'No']);
+    expect(byUrl('https://ex.com/clean').slice(1)).toEqual(['No', 'No']);
+    expect(byUrl('https://ex.com/pag').slice(1)).toEqual(['No', 'Yes']);
+    db.close();
+    build(false);
+    const old = path.join(dir, 'x2.xlsx');
+    await exportTabular(db, old, { format: 'xlsx', sections: [{ label: 'x', category: 'all' }], columns: cols });
+    const oldRows = sheetCells(old);
+    expect(oldRows.find((r) => r[0] === 'https://ex.com/head')!.slice(1).join('')).toBe('');
+  });
 });
 
 describe('B136 bulk export', () => {
@@ -303,6 +329,18 @@ describe('B136 bulk export', () => {
     expect(ps.rows).toBeGreaterThan(0);
     expect(typeof ps.peakRssMb).toBe('number');
     expect(ps.warnings).toBeUndefined();
+  });
+
+  it('an old project: all-urls.csv blanks the nine later-check columns and keeps Yes/No for hreflang outside head', async () => {
+    db.close();
+    build(false);
+    const out = path.join(dir, 'out-old-urls');
+    await runBulkExport(db, out, {});
+    const [head, ...rows] = readCsv(path.join(out, 'all-urls.csv'));
+    const idx = NEW_HEADERS.map((h) => head!.indexOf(h));
+    const cells = (u: string): string[] => idx.map((i) => rows.find((r) => r[0] === `https://ex.com/${u}`)![i]!);
+    expect(cells('head')).toEqual(['Yes', ...Array(9).fill('')]);
+    expect(cells('clean')).toEqual(['No', ...Array(9).fill('')]);
   });
 
   it('an old project still gets the file (six un-gated checks) with the unfilled checks as a warning', async () => {
@@ -387,7 +425,7 @@ describe('B136 page-signals dataset', () => {
     expect(rows().some((x) => x.signal === 'issues:og-name-attribute')).toBe(true);
   });
 
-  it('an Error list fails the dataset, an unfilled later check gives no rows', async () => {
+  it('an old project: the unfilled later checks give no rows', async () => {
     db.close();
     build(false);
     const r = rows();
@@ -436,5 +474,30 @@ describe('B136 CLI wiring in core', () => {
     fs.mkdirSync(out2);
     const o2 = await runExportItems(db, out2, parseExportWhat('dataset:page-signals'));
     expect(o2.files[0]!.warnings!.join(' ')).toContain('issues:title-outside-head');
+  });
+
+  it('single-dataset run of an empty project: no file, reason (a) on a pre-M5 project, reason (b) on a checked one', async () => {
+    const empty = (filled: boolean): ProjectDb => {
+      const e = new ProjectDb(path.join(dir, `se-${filled}.seoproject`));
+      e.upsertUrl({ url: 'https://ex.com/', depth: 0, statusCode: 200, indexability: 'indexable', contentKind: 'html', h2Count: 1, h2First: 'x' });
+      if (filled) e.setMeta('checksFilled', FULL_FILLED);
+      return e;
+    };
+    for (const [filled, text] of [
+      [false, 'these signals were not checked'],
+      [true, 'No page has any of these signals.'],
+    ] as const) {
+      const e = empty(filled);
+      const out = path.join(dir, `so-${filled}`);
+      fs.mkdirSync(out);
+      const o = await runExportItems(e, out, parseExportWhat('dataset:page-signals'));
+      e.close();
+      expect(fs.existsSync(path.join(out, 'page-signals.csv'))).toBe(false);
+      expect(o.files).toEqual([]);
+      expect(o.skipped).toHaveLength(1);
+      const reason = o.skipped[0]!.reason;
+      expect(reason).toContain(text);
+      if (filled) expect(reason).not.toContain('not checked');
+    }
   });
 });

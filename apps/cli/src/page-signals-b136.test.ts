@@ -46,8 +46,10 @@ it('--what bulk writes page-signals.csv and lists it in the manifest', async () 
   const out = join(dir, 'bulk');
   await run(process.execPath, [cli, 'export', '--project', project, '--out', out, '--what', 'bulk'], { timeout: 60_000 });
   expect(existsSync(join(out, 'page-signals.csv'))).toBe(true);
-  const m = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8')) as { files: { path: string }[] };
+  const m = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8')) as { files: { path: string; warnings?: string[] }[] };
   expect(m.files.map((f) => f.path)).toContain('page-signals.csv');
+  // Only title-outside-head was filled, so the other checks are named as not checked.
+  expect(m.files.find((f) => f.path === 'page-signals.csv')!.warnings!.join(' ')).toContain('issues:og-name-attribute');
 }, 90_000);
 
 it('a bad dataset key still errors and lists page-signals among the valid keys', async () => {
