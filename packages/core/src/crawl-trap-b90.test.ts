@@ -427,6 +427,25 @@ describe('a resume does not warn before the re-read sitemap is in (review r1)', 
     sitemapDelayMs = 0;
     db.close();
   }, 180_000);
+  it('a fresh crawl over a real trap warns at 2 x the floor while a slow sitemap read is still pending', async () => {
+    const db = new ProjectDb(join(dir, 'r5.seoproject'));
+    sitemapMode = 'few';
+    sitemapDelayMs = 4000;
+    facetDelayMs = 20;
+    const c = crawler(db);
+    const at: number[] = [];
+    c.on('warn', (m: string) => {
+      if (/share the pattern/.test(m)) at.push(Date.now());
+    });
+    const t0 = Date.now();
+    await c.start();
+    sitemapMode = 'all';
+    sitemapDelayMs = 0;
+    expect(at.length).toBeGreaterThanOrEqual(1);
+    // nothing stored at hydrate, so no baseline is awaited: the warning comes long before the 4 s read ends
+    expect(at[0]! - t0).toBeLessThan(2500);
+    db.close();
+  }, 60_000);
   it('a queued resume whose sitemap read fails over a real trap warns when the read ends, not at the end of the crawl', async () => {
     const db = new ProjectDb(join(dir, 'r4.seoproject'));
     sitemapMode = 'few';

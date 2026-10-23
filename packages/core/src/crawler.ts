@@ -3525,11 +3525,16 @@ export class Crawler extends EventEmitter {
     // The stored pages are the ones a fresh crawl counted on admission; the
     // queue below re-admits them through `requeueKnown`, which skips them.
     if (this.config.mode === 'spider') {
-      for (const url of this.db.getPageUrlsForTrapWatch()) this.trapWatch.observe(url);
+      let stored = 0;
+      for (const url of this.db.getPageUrlsForTrapWatch()) {
+        this.trapWatch.observe(url);
+        stored++;
+      }
       // With the sitemap still to be re-read, the stored counts are judged once it is in
       // (`settleTrapWatch`): a check now would run without a baseline and call a pattern the
       // sitemap lists in full a trap.
-      this.trapWatch.awaitBaseline();
+      // A fresh crawl has none stored: its own count grows from zero and the 2x escape must work.
+      if (stored > 0) this.trapWatch.awaitBaseline();
       if (this.trapWatch.isSettled) this.runTrapCheck();
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));
