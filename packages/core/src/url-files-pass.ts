@@ -12,7 +12,7 @@
  * file of the pass. Reads through SQLite's page cache: see `withoutMmap`.
  */
 
-import { createWriteStream, type WriteStream } from 'node:fs';
+import { createWriteStream, openSync, type WriteStream } from 'node:fs';
 import { once } from 'node:events';
 import type { ProjectDb } from '@freecrawl/db';
 import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
@@ -76,7 +76,20 @@ async function writePass(
       results.get(file)!.catch(() => undefined);
       continue;
     }
-    const out = createWriteStream(partPath, { encoding: 'utf8' });
+    // Opened here, synchronously: a stream opens its file later, through
+    // libuv's thread pool, and Ctrl-C (process.exit) can come in between.
+    // Its exit hook removes the `.part` files, but libuv still runs the
+    // queued creates afterwards and they would come back. Opened now, every
+    // `.part` of the pass exists before the first await.
+    let fd: number;
+    try {
+      fd = openSync(partPath, 'w');
+    } catch (err) {
+      results.set(file, Promise.reject(err as Error));
+      results.get(file)!.catch(() => undefined);
+      continue;
+    }
+    const out = createWriteStream(partPath, { fd, encoding: 'utf8' });
     const sink: Sink = { file, ids, next: 0, out, buf: file.head, rows: 0, failed: false };
     results.set(
       file,
