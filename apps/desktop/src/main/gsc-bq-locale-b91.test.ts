@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { INTEGRATIONS } from '@freecrawl/shared-types';
 
 const dir = path.resolve(__dirname, '../renderer/src/i18n/locales');
 const LOCALES = ['az', 'en', 'es', 'fr', 'hi', 'it', 'ko', 'pt-BR', 'ru', 'tr', 'zh-CN'];
@@ -40,4 +41,25 @@ describe('B91 UI strings exist in all 11 locales', () => {
       }
     });
   }
+});
+
+describe('B91 BigQuery integration card setup hint is translated', () => {
+  const hint = INTEGRATIONS.find((i) => i.id === 'bigquery')!.setupHint;
+  it('the settings card runs the hint through translateLabel', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../renderer/src/components/SettingsDialog.tsx'),
+      'utf8',
+    );
+    expect(src).toContain('translateLabel(def.setupHint, i18n.language)');
+  });
+  it('ru has a Russian entry for the English hint and keeps the two role names', () => {
+    const ru = fs.readFileSync(path.join(dir, '../labels/ru.ts'), 'utf8');
+    const at = ru.indexOf(`'${hint}':`);
+    expect(at, 'ru label table has the English hint as a key').toBeGreaterThan(-1);
+    const value = /^\s*'((?:[^'\\]|\\.)*)'/.exec(ru.slice(at + hint.length + 3))?.[1] ?? '';
+    expect(value).not.toBe(hint);
+    expect(value).toMatch(/[а-яё]/i);
+    expect(value).toContain('BigQuery Data Viewer');
+    expect(value).toContain('BigQuery Job User');
+  });
 });

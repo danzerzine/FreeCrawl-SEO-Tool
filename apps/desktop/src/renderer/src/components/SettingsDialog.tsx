@@ -5393,7 +5393,7 @@ function IntegrationCard({
         })}
       </div>
 
-      <p className="mt-2 text-[10px] leading-relaxed text-surface-500">{def.setupHint}</p>
+      <p className="mt-2 text-[10px] leading-relaxed text-surface-500">{translateLabel(def.setupHint, i18n.language)}</p>
 
       <div className="mt-2 flex items-center gap-2">
         <button
