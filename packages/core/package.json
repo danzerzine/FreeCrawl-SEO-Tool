@@ -20,6 +20,7 @@
   "dependencies": {
     "@freecrawl/db": "*",
     "@freecrawl/shared-types": "*",
+    "axe-core": "4.14.0",
     "cacheable-lookup": "^7.0.0",
     "cheerio": "^1.0.0",
     "domhandler": "^5.0.3",
