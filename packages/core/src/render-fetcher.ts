@@ -7,6 +7,7 @@ import {
   runPageScript,
 } from './page-script.js';
 import type { AxeAudit } from './axe-reduce.js';
+import { AXE_PROBE_MS, AXE_RUN_MS, axeRunExpression, isDeadPageError, loadAxeSource } from './axe-run.js';
 import { attachConsoleCollector, type ConsoleLog } from './render-console.js';
 
 export interface RenderOptions {
@@ -66,6 +67,12 @@ export interface RenderOptions {
   limitMs?: number;
   /** Test knob: margin of the render time limit. Default 5 000. */
   renderMarginMs?: number;
+  /** Test knob: the axe-core source to inject (null: simulate a missing package). Default: the npm package. */
+  axeSource?: string | null;
+  /** Test knob: how long axe may run. Default AXE_RUN_MS. */
+  axeRunMs?: number;
+  /** Test knob: probe time after an axe timeout. Default AXE_PROBE_MS. */
+  axeProbeMs?: number;
 }
 
 /**
@@ -134,6 +141,8 @@ export interface RenderResult {
   axe?: AxeAudit | null;
   /** How long the axe run took (ms); set whenever axe was attempted, also when it failed. */
   axeMs?: number;
+  /** Why axe produced no result (B40 R6); unset when it ran or was not attempted. */
+  axeError?: string;
   /**
    * Absolute URLs the page navigated to client-side during this render
    * (`history.pushState` / `replaceState` / `popstate` / `hashchange`),
@@ -508,12 +517,16 @@ export async function renderUrl(
   let limitHit = false;
   // A page whose script blocked it, or that hit the limit, is closed and replaced.
   let discard = false;
-  const limitTimer = hasScript || opts.limitMs !== undefined
+  // With axe-core on, the crawler's own timers are cleared (B40 R6a), so the limit also covers axe.
+  const axeLimitExtra = opts.detectAxe
+    ? (opts.axeRunMs ?? AXE_RUN_MS) + (opts.axeProbeMs ?? AXE_PROBE_MS)
+    : 0;
+  const limitTimer = hasScript || opts.limitMs !== undefined || opts.detectAxe
     ? setTimeout(() => {
         limitHit = true;
         discard = true;
         page.close({ runBeforeUnload: false }).catch(() => {});
-      }, opts.limitMs ?? renderLimitMs(opts))
+      }, (opts.limitMs ?? renderLimitMs(opts)) + axeLimitExtra)
     : null;
 
   // Save the viewport so we can restore it on a per-render override.
@@ -701,14 +714,84 @@ export async function renderUrl(
       }
     }
 
+    // The render is done: its time is taken before axe, which runs last (B40 R4).
+    const renderMs = Date.now() - t0;
+    let axe: AxeAudit | null = null;
+    let axeMs: number | undefined;
+    let axeError: string | undefined;
+    if (
+      shouldRunAxe({
+        detectAxe: opts.detectAxe,
+        status: response?.status() ?? 0,
+        contentType: headers['content-type'],
+        navigatedTo,
+      }) &&
+      !aborted &&
+      !signal?.aborted
+    ) {
+      const tAxe = Date.now();
+      const source = opts.axeSource === undefined ? loadAxeSource() : opts.axeSource;
+      if (source === null) {
+        axeError = 'axe-core source not found or unreadable';
+      } else {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const runMs = opts.axeRunMs ?? AXE_RUN_MS;
+        try {
+          const run = (async (): Promise<AxeAudit> => {
+            await page.evaluate(source);
+            return (await page.evaluate(axeRunExpression())) as AxeAudit;
+          })();
+          run.catch(() => {});
+          axe = await Promise.race([
+            run,
+            new Promise<never>((_r, reject) => {
+              timer = setTimeout(() => reject(new Error('axe-core timeout')), runMs);
+            }),
+          ]);
+        } catch (err) {
+          axe = null;
+          const msg = err instanceof Error ? err.message : String(err);
+          if (aborted || signal?.aborted) throw new Error('aborted');
+          axeError = msg === 'axe-core timeout' ? `axe-core did not finish within ${runMs} ms (timeout)` : msg;
+          if (msg === 'axe-core timeout') {
+            // A busy loop in the page blocks every later call: probe, replace the page if it is stuck.
+            let probeTimer: ReturnType<typeof setTimeout> | undefined;
+            const answered = await Promise.race([
+              page.evaluate('1').then(
+                () => true,
+                () => false,
+              ),
+              new Promise<boolean>((r) => {
+                probeTimer = setTimeout(() => r(false), opts.axeProbeMs ?? AXE_PROBE_MS);
+              }),
+            ]);
+            clearTimeout(probeTimer);
+            if (!answered) {
+              discard = true;
+              await page.close({ runBeforeUnload: false }).catch(() => {});
+            }
+          } else if (isDeadPageError(msg) || page.isClosed()) {
+            // The browser pool has no crash handler: a dead page must not go back warm.
+            discard = true;
+          }
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      axeMs = Date.now() - tAxe;
+    }
+
     result = {
       status: response?.status() ?? 0,
       statusText: response?.statusText() ?? '',
       headers,
       url: finalUrl,
       html,
-      timingMs: Date.now() - t0,
+      timingMs: renderMs,
       ok: true,
+      axe: opts.detectAxe ? axe : undefined,
+      axeMs,
+      axeError,
       screenshots: Object.keys(screenshots).length > 0 ? screenshots : undefined,
       lcp: opts.detectLcp ? lcp : undefined,
       a11y: opts.detectA11y ? a11y : undefined,
