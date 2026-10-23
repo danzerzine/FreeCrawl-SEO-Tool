@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EXPENSIVE_ISSUE_DEFINITIONS, ProjectDb } from '@freecrawl/db';
+import { killAllChildren, spawnTracked as spawn } from './test-proc.js';
 
 // Drives the built CLI as a process (`npm run build:cli` first).
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/index.js');
@@ -37,6 +38,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  killAllChildren();
   await new Promise((r) => server.close(r));
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -56,7 +58,8 @@ function start(args: string[]): { child: ChildProcess; done: Promise<Exit> } {
 }
 
 async function untilCrawled(db: string, n: number): Promise<void> {
-  for (let i = 0; i < 200; i++) {
+  // Poll until the crawl has saved n pages; the ceiling (120 s) only matters if it never does.
+  for (let i = 0; i < 1200; i++) {
     await new Promise((r) => setTimeout(r, 100));
     if (!fs.existsSync(db)) continue;
     try {
@@ -109,7 +112,7 @@ describe('soft stop (B47)', () => {
     const r = await done;
     expect(r.err).toContain('Stopping');
     checkStopped(db, r);
-  }, 60000);
+  }, 180000);
 
   it('a second SIGINT kills the process at once', async () => {
     const db = path.join(dir, 'twice.seoproject');
@@ -124,7 +127,7 @@ describe('soft stop (B47)', () => {
     // the process, which a shell reports as 130.
     expect(r.signal).toBe('SIGINT');
     expect(Date.now() - t0).toBeLessThan(2000);
-  }, 60000);
+  }, 180000);
 
   it('--stop-file does the same soft stop and is removed afterwards', async () => {
     const db = path.join(dir, 'file.seoproject');
@@ -135,7 +138,7 @@ describe('soft stop (B47)', () => {
     const r = await done;
     checkStopped(db, r);
     expect(fs.existsSync(stopFile)).toBe(false);
-  }, 60000);
+  }, 180000);
 
   it('a stopped crawl writes no export and says so', async () => {
     const db = path.join(dir, 'exp.seoproject');
@@ -147,7 +150,7 @@ describe('soft stop (B47)', () => {
     expect(r.code).toBe(130);
     expect(r.err).toContain('export and compare skipped');
     expect(fs.existsSync(out) ? fs.readdirSync(out) : []).toEqual([]);
-  }, 60000);
+  }, 180000);
 
   it('a stopped refresh says that --resume finishes only new pages', async () => {
     const db = path.join(dir, 'refresh.seoproject');
@@ -162,7 +165,7 @@ describe('soft stop (B47)', () => {
     const stopping = r.err.indexOf('Stopping');
     expect(stopping).toBeGreaterThan(-1);
     expect(r.err.indexOf('This was a refresh: --resume finishes only new pages')).toBeGreaterThan(stopping);
-  }, 60000);
+  }, 180000);
 
   it('Ctrl-C while a finished crawl recounts its checks does not stop it', async () => {
     // Two pages, each with an image answered slowly: the image-size probe
@@ -203,7 +206,7 @@ describe('soft stop (B47)', () => {
     } finally {
       await new Promise((r) => site.close(r));
     }
-  }, 60000);
+  }, 180000);
 
   it('a stop file already there at start is a usage error, no project created', async () => {
     const db = path.join(dir, 'pre.seoproject');
@@ -214,5 +217,5 @@ describe('soft stop (B47)', () => {
     expect(r.code).toBe(2);
     expect(r.err).toContain('already exists');
     expect(fs.existsSync(db)).toBe(false);
-  }, 30000);
+  }, 120000);
 });

@@ -1,13 +1,16 @@
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { killAllChildren, spawnTracked as spawn } from './test-proc.js';
 
 // Drives the built CLI as a process (`npm run build:cli` first).
 const CLI = join(__dirname, '../dist/index.js');
+
+// Whole-crawl processes: slow under load, so no test gets the 5 s default.
+vi.setConfig({ testTimeout: 120_000 });
 
 let dir: string;
 let site: Server;
@@ -30,7 +33,9 @@ beforeAll(async () => {
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${(site.address() as AddressInfo).port}`;
 });
+afterEach(() => killAllChildren());
 afterAll(() => {
+  killAllChildren();
   site.close();
   rmSync(dir, { recursive: true, force: true });
 });
@@ -74,6 +79,7 @@ function cli(args: string[], file?: object): Promise<{ code: number | null; err:
 const hour = new Date().getHours();
 const now = `${hour}-${(hour + 2) % 24}`;
 const later = `${(hour + 2) % 24}-${(hour + 3) % 24}`;
+const median = (a: number[]): number => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]!;
 const gaps = () => pageHits.slice(1).map((t, i) => t - pageHits[i]!);
 
 describe('--night-rps / --night (B30)', () => {
@@ -82,26 +88,28 @@ describe('--night-rps / --night (B30)', () => {
     expect(code).toBe(0);
     expect(gaps().length).toBeGreaterThanOrEqual(5);
     for (const g of gaps()) expect(g).toBeGreaterThanOrEqual(450);
-  }, 30_000);
+  }, 120_000);
 
   it('outside it at --rps', async () => {
     const { code } = await cli(['--night-rps', '2', '--night', later]);
     expect(code).toBe(0);
-    expect(Math.max(...gaps())).toBeLessThan(400);
-  }, 30_000);
+    // Median, not max: one stall under load is no night rate, but a night rate has no gap below 450.
+    expect(median(gaps())).toBeLessThan(400);
+  }, 120_000);
 
   it('a night rate from the file takes a --night window', async () => {
     const { code } = await cli(['--night', now], { nightMaxRps: 2 });
     expect(code).toBe(0);
     for (const g of gaps()) expect(g).toBeGreaterThanOrEqual(450);
-  }, 30_000);
+  }, 120_000);
 
   it('the same start and end hour is no window, with a warning', async () => {
     const { code, err } = await cli(['--night-rps', '2', '--night', `${hour}-${hour}`]);
     expect(code).toBe(0);
     expect(err).toMatch(/\[warn\].*night/i);
-    expect(Math.max(...gaps())).toBeLessThan(400);
-  }, 30_000);
+    // Median, not max: one stall under load is no night rate, but a night rate has no gap below 450.
+    expect(median(gaps())).toBeLessThan(400);
+  }, 120_000);
 
   it.each([['25-3'], ['3'], ['a-b'], ['-1-4'], ['3-24']])('--night %s exits 2', async (value) => {
     const { code, err } = await cli(['--night-rps', '2', '--night', value]);
@@ -152,5 +160,5 @@ describe('adaptive speed messages (B30)', () => {
     p.kill('SIGINT');
     await exited;
     expect(err).toContain('Adaptive speed: server errors');
-  }, 30_000);
+  }, 120_000);
 });

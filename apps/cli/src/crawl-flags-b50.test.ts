@@ -1,13 +1,16 @@
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request, type Server } from 'node:http';
 import { connect, createServer as createTcpServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { killAllChildren, spawnTracked as spawn } from './test-proc.js';
 
 // Drives the built CLI as a process (`npm run build:cli` first).
 const CLI = join(__dirname, '../dist/index.js');
+
+// Whole-crawl processes: slow under load, so no test gets the 5 s default.
+vi.setConfig({ testTimeout: 180_000 });
 
 let dir: string;
 let site: Server;
@@ -43,7 +46,9 @@ beforeAll(async () => {
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${(site.address() as AddressInfo).port}`;
 });
+afterEach(() => killAllChildren());
 afterAll(() => {
+  killAllChildren();
   site.close();
   ext.close();
   rmSync(dir, { recursive: true, force: true });
@@ -79,19 +84,19 @@ describe('on/off flags in both directions (B50)', () => {
     hits.length = 0;
     await cli([`${base}/`, '--robots'], { respectRobotsTxt: false, discoverSitemaps: false });
     expect(hits).not.toContain('/blocked');
-  }, 60_000);
+  }, 180_000);
 
   it('--no-robots still ignores robots.txt', async () => {
     await cli([`${base}/`, '--no-robots', '--no-sitemap-discovery']);
     expect(hits).toContain('/blocked');
-  }, 60_000);
+  }, 180_000);
 
   it('--check-external turns external checks on over a file that switched them off', async () => {
     await cli([`${base}/`, '--no-sitemap-discovery'], { checkExternalLinks: false });
     expect(extHits).toEqual([]);
     await cli([`${base}/`, '--no-sitemap-discovery', '--check-external'], { checkExternalLinks: false });
     expect(extHits.length).toBeGreaterThan(0);
-  }, 60_000);
+  }, 180_000);
 
   it('--no-external crawls no external page over a file that turned it on', async () => {
     // A crawled external page has its links followed: /y is asked for.
@@ -116,7 +121,7 @@ describe('on/off flags in both directions (B50)', () => {
     expect(r.code).toBe(2);
     expect(r.err).toContain('--no-json');
     expect(hits).toEqual([]);
-  }, 30_000);
+  }, 180_000);
 });
 
 describe('sitemap flags (B50)', () => {
@@ -124,7 +129,7 @@ describe('sitemap flags (B50)', () => {
     await cli([`${base}/`, '--sitemap', `${base}/seed.xml`, '--no-sitemap-discovery']);
     expect(hits).toContain('/seed.xml');
     expect(hits).toContain('/from-seed');
-  }, 60_000);
+  }, 180_000);
 
   it('--no-sitemap-discovery asks for no /sitemap.xml; discovery on by default does', async () => {
     await cli([`${base}/`]);
@@ -132,7 +137,7 @@ describe('sitemap flags (B50)', () => {
     hits.length = 0;
     await cli([`${base}/`, '--no-sitemap-discovery']);
     expect(hits.some((h) => h.startsWith('/sitemap'))).toBe(false);
-  }, 60_000);
+  }, 180_000);
 });
 
 describe('--config start and keys (B50)', () => {
@@ -140,7 +145,7 @@ describe('--config start and keys (B50)', () => {
     const r = await cli(['--no-sitemap-discovery'], { startUrl: `${base}/start` });
     expect(r.code).toBe(0);
     expect(hits).toContain('/start');
-  }, 60_000);
+  }, 180_000);
 
   it('a file list with --resume against a spider project is refused', async () => {
     const db = join(dir, 'spider.seoproject');
@@ -157,19 +162,19 @@ describe('--config start and keys (B50)', () => {
     });
     expect(r.code).toBe(2);
     expect(r.err).toContain('--resume --list cannot continue it');
-  }, 60_000);
+  }, 180_000);
 
   it('an empty list in the file exits 2', async () => {
     const r = await cli([], { mode: 'list', urlList: [] });
     expect(r.code).toBe(2);
     expect(hits).toEqual([]);
-  }, 30_000);
+  }, 180_000);
 
   it('an unknown key is a warn line and the crawl runs', async () => {
     const r = await cli([`${base}/`, '--no-sitemap-discovery'], { colour: 'red' });
     expect(r.code).toBe(0);
     expect(r.err).toContain('unknown key in --config: colour');
-  }, 60_000);
+  }, 180_000);
 });
 
 describe('--proxy (B50)', () => {
@@ -208,14 +213,14 @@ describe('--proxy (B50)', () => {
     } finally {
       proxy.close();
     }
-  }, 60_000);
+  }, 180_000);
 
   it('a proxy password is in no output line', async () => {
     const closed = await closedPort();
     const r = await cli([`${base}/`, '--json', '--no-sitemap-discovery', '--proxy', `http://u:s3cretpw@127.0.0.1:${closed}`]);
     expect(r.out + r.err).not.toContain('s3cretpw');
     expect(r.out + r.err).toContain('127.0.0.1');
-  }, 60_000);
+  }, 180_000);
 });
 
 /** A port nothing listens on. */

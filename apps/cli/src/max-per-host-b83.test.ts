@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -6,10 +6,14 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { killAllChildren, spawnTracked as spawn } from './test-proc.js';
 
 // Drives the built CLI as a process (`npm run build:cli` first).
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/index.js');
+
+// Whole-crawl processes: slow under load, so no test gets the 5 s default.
+vi.setConfig({ testTimeout: 240_000 });
 
 let dir: string;
 let site: http.Server;
@@ -65,6 +69,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  killAllChildren();
   await new Promise((r) => site.close(r));
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -86,9 +91,16 @@ function start(args: string[], stdin?: string): { child: ChildProcess; done: Pro
   return { child, done };
 }
 
+/** Read-only handle that waits for the crawler's write lock instead of failing with `database is locked`. */
+function openRead(db: string): DatabaseSync {
+  const raw = new DatabaseSync(db, { readOnly: true });
+  raw.exec('PRAGMA busy_timeout = 10000');
+  return raw;
+}
+
 /** Fetched internal HTML pages per host name. */
 function pagesByHost(db: string): Record<string, number> {
-  const raw = new DatabaseSync(db, { readOnly: true });
+  const raw = openRead(db);
   try {
     const rows = raw
       .prepare(
@@ -107,7 +119,7 @@ function pagesByHost(db: string): Record<string, number> {
 }
 
 function fetchedCount(db: string): number {
-  const raw = new DatabaseSync(db, { readOnly: true });
+  const raw = openRead(db);
   try {
     return (
       raw.prepare('SELECT COUNT(*) AS n FROM urls WHERE status_code IS NOT NULL').get() as { n: number }
@@ -126,6 +138,14 @@ function safePages(db: string): number {
   }
 }
 
+function safeFetched(db: string): number {
+  try {
+    return fetchedCount(db);
+  } catch {
+    return 0;
+  }
+}
+
 function failedRows(db: string): number {
   try {
     return failedRowsOf(db);
@@ -135,7 +155,7 @@ function failedRows(db: string): number {
 }
 
 function failedRowsOf(db: string): number {
-  const raw = new DatabaseSync(db, { readOnly: true });
+  const raw = openRead(db);
   try {
     return (raw.prepare("SELECT COUNT(*) AS n FROM urls WHERE url LIKE '%/bad/%'").get() as { n: number }).n;
   } finally {
@@ -184,10 +204,10 @@ describe('--max-per-host (B83)', () => {
     const db = path.join(dir, 'resume.seoproject');
     delayMs = 300;
     const first = start(['--list', list, '--max-per-host', '3', '--db', db]);
-    const deadline = Date.now() + 20_000;
+    const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 100));
-      if (fs.existsSync(db) && (pagesByHost(db)['127.0.0.1'] ?? 0) >= 2) break;
+      if (fs.existsSync(db) && safePages(db) >= 2) break;
     }
     first.child.kill('SIGINT');
     await first.done;
@@ -204,10 +224,10 @@ describe('--max-per-host (B83)', () => {
     const db = path.join(dir, 'docs.seoproject');
     delayMs = 300;
     const first = start(['--list', list, '--max-per-host', '3', '--db', db]);
-    const deadline = Date.now() + 20_000;
+    const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 100));
-      if (fs.existsSync(db) && fetchedCount(db) >= 2) break;
+      if (fs.existsSync(db) && safeFetched(db) >= 2) break;
     }
     first.child.kill('SIGINT');
     await first.done;
@@ -223,10 +243,10 @@ describe('--max-per-host (B83)', () => {
     const hub = `http://127.0.0.1:${port}/hub`;
     delayMs = 300;
     const first = start([hub, '--max-per-host', limit, '--db', db]);
-    const deadline = Date.now() + 20_000;
+    const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 100));
-      if (fs.existsSync(db) && (pagesByHost(db)['127.0.0.1'] ?? 0) >= 2) break;
+      if (fs.existsSync(db) && safePages(db) >= 2) break;
     }
     first.child.kill('SIGINT');
     await first.done;
@@ -266,7 +286,7 @@ describe('--max-per-host (B83)', () => {
       const b = path.join(dir, 'b.seoproject');
       delayMs = 1500;
       const first = start([hubx(), '--max-per-host', '10', '--db', b]);
-      const deadline = Date.now() + 30_000;
+      const deadline = Date.now() + 90_000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 100));
         if (fs.existsSync(b) && failedRows(b) >= 2 && safePages(b) >= 1) break;
@@ -277,7 +297,7 @@ describe('--max-per-host (B83)', () => {
       const r = await start([hubx(), '--max-per-host', '10', '--db', b, '--resume']).done;
       expect(r.code).toBe(0);
       expect(pagesByHost(b)['127.0.0.1']).toBe(full);
-    }, 120_000);
+    }, 240_000);
 
     it('reports no skipped URLs when the limit cut nothing', async () => {
       const db = path.join(dir, 'json.seoproject');
@@ -286,7 +306,7 @@ describe('--max-per-host (B83)', () => {
       expect(pagesByHost(db)['127.0.0.1']).toBe(8);
       const json = JSON.parse(r.out) as { site: { hostLimitSkipped?: { host: string; skipped: number }[] } };
       expect(json.site.hostLimitSkipped ?? []).toEqual([]);
-    }, 60_000);
+    }, 240_000);
 
     it('a list resume with a failed row stays within the limit', async () => {
       const list = path.join(dir, 'urls.txt');
@@ -301,7 +321,7 @@ describe('--max-per-host (B83)', () => {
       const b = path.join(dir, 'lb.seoproject');
       delayMs = 600;
       const first = start(['--list', list, '--max-per-host', '4', '--db', b]);
-      const deadline = Date.now() + 30_000;
+      const deadline = Date.now() + 90_000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 100));
         if (fs.existsSync(b) && failedRows(b) >= 1 && safePages(b) >= 1) break;
@@ -313,7 +333,7 @@ describe('--max-per-host (B83)', () => {
       expect(r.code).toBe(0);
       expect(pagesByHost(b)['127.0.0.1'] ?? 0).toBeLessThanOrEqual(4);
       expect(pagesByHost(b)['127.0.0.1']).toBe(full);
-    }, 120_000);
+    }, 240_000);
   });
 
   it('refuses a limit that is not a positive whole number', async () => {

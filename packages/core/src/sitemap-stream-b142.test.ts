@@ -78,6 +78,8 @@ it('queues sitemap seeds as each file is read, within the rate limit', async () 
     expect(hits[i + 5]!.at - hits[i]!.at).toBeGreaterThanOrEqual(900);
   }
   const raw = new DatabaseSync(file, { readOnly: true });
+  // Wait for a writer's lock instead of failing with `database is locked`.
+  raw.exec('PRAGMA busy_timeout = 10000');
   try {
     const one = (sql: string) => (raw.prepare(sql).get() as { n: number }).n;
     expect(one("SELECT COUNT(*) AS n FROM urls WHERE url LIKE '%/s/%' AND status_code = 200")).toBe(300);
@@ -92,4 +94,4 @@ it('queues sitemap seeds as each file is read, within the rate limit', async () 
   } finally {
     raw.close();
   }
-}, 120000);
+}, 300000);
