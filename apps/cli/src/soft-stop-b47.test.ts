@@ -63,9 +63,15 @@ async function untilCrawled(db: string, n: number): Promise<void> {
     await new Promise((r) => setTimeout(r, 100));
     if (!fs.existsSync(db)) continue;
     try {
+      // Closed even when the read throws: a connection left open keeps the
+      // crawl's last close from removing the WAL that checkStopped looks at.
       const p = new ProjectDb(db, { readOnly: true });
-      const total = p.getSummary().total;
-      p.close();
+      let total: number;
+      try {
+        total = p.getSummary().total;
+      } finally {
+        p.close();
+      }
       if (total >= n) return;
     } catch {
       /* not created yet */
