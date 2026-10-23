@@ -110,6 +110,7 @@ export {
 export {
   topWordsBlocks,
   topWordsForUrl,
+  topWordsBlocksAsync,
   type TopWordsBlock,
   type TopWordsBlocksOptions,
 } from './top-words-db.js';
