@@ -87,11 +87,14 @@ function toInt(raw: string | null | undefined): number | null {
 
 // Apache/Nginx combined: ip - - [ts] "METHOD path proto" status bytes "ref" "ua"
 // The request-line group tolerates a missing protocol and odd methods.
+// After the path, `\s[^"]*` (one space, then anything but a quote) accepts the
+// same text as `\s+[^"]*` but has a single way to match, so a line of many
+// spaces cannot backtrack quadratically (B179).
 const COMBINED_RE =
-  /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([A-Z!]+)\s+(\S+)(?:\s+[^"]*)?"\s+(\d{3})\s+(\S+)\s+"([^"]*)"\s+"([^"]*)"/;
+  /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([A-Z!]+)\s+(\S+)(?:\s[^"]*)?"\s+(\d{3})\s+(\S+)\s+"([^"]*)"\s+"([^"]*)"/;
 // Apache common: same, minus the two trailing quoted fields.
 const COMMON_RE =
-  /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([A-Z!]+)\s+(\S+)(?:\s+[^"]*)?"\s+(\d{3})\s+(\S+)/;
+  /^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"([A-Z!]+)\s+(\S+)(?:\s[^"]*)?"\s+(\d{3})\s+(\S+)/;
 
 /**
  * Sniff the dialect from a handful of sample lines. Falls back to
