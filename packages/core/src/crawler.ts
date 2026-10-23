@@ -23,6 +23,14 @@ import {
   type TemplateSet,
 } from '@freecrawl/shared-types';
 import {
+  CrawlTrapWatch,
+  CRAWL_TRAP_META_KEY,
+  describeTrap,
+  isCleanSitemapRead,
+  parseTrapSnapshot,
+  type CrawlTrapOptions,
+} from './crawl-trap-watch.js';
+import {
   type ProjectDb,
   type ProbeWrite,
   EXPENSIVE_ISSUE_DEFINITIONS,
@@ -137,6 +145,8 @@ interface QueueItem {
    * mined out of stylesheets — none of those are gated on storage.
    */
   resourceRow?: 'image' | 'css' | 'js' | 'media';
+  /** Set on resources mined out of a stylesheet: subresources, not pages (B90 does not count them). */
+  mined?: true;
   /**
    * Fetch this URL and record it, but do not follow anything it links to.
    * Set by "Check Links Outside of Start Folder": the point of that
@@ -424,12 +434,18 @@ export interface StartDecision {
 /** Why a crawl ended without doing its job (`Crawler.incomplete`). */
 export type IncompleteReason = 'invalid-pattern' | 'seed' | 'memory' | 'no-urls';
 
+/** Stylesheets, scripts, images and fonts by their file name: subresources, not pages, for the trap watch. */
+const SUBRESOURCE_PATH =
+  /\.(?:css|m?js|map|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot)(?:[?#]|$)/i;
+
 export class Crawler extends EventEmitter {
   private config: CrawlConfig;
   private readonly db: ProjectDb;
   private queue: PQueue;
   private externalQueue: PQueue;
   private seen = new Set<string>();
+  /** Crawl-trap watch (B90): counts each admitted page URL once. */
+  readonly trapWatch: CrawlTrapWatch;
   /** Saved-queue URLs handed over before `start()`; see `enqueueCheckpointed`. */
   private checkpointed: SavedQueueItem[] = [];
   private externalSeen = new Set<string>();
@@ -902,6 +918,8 @@ export class Crawler extends EventEmitter {
        * the whole site again".
        */
       resumeOnly?: boolean;
+      /** Test-only: lower floors of the crawl-trap watch. */
+      trapWatch?: CrawlTrapOptions;
       /** App / CLI version, stored with the crawl's history row. */
       toolVersion?: string;
     } = {},
@@ -910,6 +928,7 @@ export class Crawler extends EventEmitter {
     this.respiderSeeds = opts.respiderSeeds ?? null;
     this.toolVersion = opts.toolVersion ?? null;
     this.resumeOnly = opts.resumeOnly === true;
+    this.trapWatch = new CrawlTrapWatch(opts.trapWatch);
     // The watchdog's operation label doubles as the progress phase shown
     // in the status bar; a new op resets the per-phase counters.
     this.robotsRetryDelaysMs = opts.robotsRetryDelaysMs ?? ROBOTS_RETRY_DELAYS_MS;
@@ -1497,6 +1516,14 @@ export class Crawler extends EventEmitter {
     // keeps only those the earlier part filled too.
     const before = this.db.checksFilled();
     const continued = isRespider || (isSameSite && !isRefresh);
+    // Trap findings describe the whole project: a resume or a re-spider keeps
+    // them (unlike `pageLimitHit` above, which every start wipes); a fresh
+    // crawl or a refresh starts over.
+    if (continued) this.trapWatch.restore(parseTrapSnapshot(this.db.getMeta(CRAWL_TRAP_META_KEY)));
+    else this.db.setMeta(CRAWL_TRAP_META_KEY, '');
+    if (!(this.respiderSeeds === null && (this.config.discoverSitemaps || this.config.seedSitemapUrls.length > 0))) {
+      this.trapWatch.markSettled();
+    }
     // The raw-vs-rendered checks have a verdict only on pages rendered with a
     // hook; a text-mode crawl, or js without Chromium, never compared anything.
     const rendering = this.config.renderingMode === 'js' && !!this.renderUrlHook;
@@ -1733,8 +1760,7 @@ export class Crawler extends EventEmitter {
           // Drop from `seen` first — these URLs were never actually
           // crawled, just stubbed; enqueue's seen-check would reject
           // them otherwise.
-          this.seen.delete(p.url);
-          this.enqueue({ url: p.url, depth: p.depth });
+          this.requeueKnown({ url: p.url, depth: p.depth });
         }
         await this.queue.onIdle();
         await this.externalQueue.onIdle();
@@ -1806,6 +1832,11 @@ export class Crawler extends EventEmitter {
         `Query-string filter: skipped ${this.queryStringsDropped.toLocaleString()} parameterised URL(s)` +
           `${allowed}. Turn on Spider → Crawl Behaviour → "Crawl URLs with Query Strings" to include them.`,
       );
+    }
+    if (this.config.mode === 'spider') {
+      this.trapWatch.markSettled();
+      this.runTrapCheck();
+      await this.persistTrapWatch();
     }
     this.stopMemoryMonitor();
     // Release per-URL dedup sets — at 1M URLs this is ~80–120 MB of string
@@ -3332,6 +3363,8 @@ export class Crawler extends EventEmitter {
 
         // (1) Auto-discovered sitemaps — recorded only.
         let autoEntries: SitemapEntry[] = [];
+        // Both reads clean? Only then the entries are a baseline for the crawl-trap watch (B90).
+        let cleanRead = true;
         let autoFiles: SitemapFileRow[] = [];
         if (this.config.discoverSitemaps) {
           const robots = this.config.respectRobotsTxt ? this.robotsByOrigin.get(origin) : undefined;
@@ -3350,6 +3383,7 @@ export class Crawler extends EventEmitter {
           if (this.stopped) return;
           const res = await fetchSitemaps(roots, fetchOpts);
           if (this.stopped) return;
+          cleanRead = isCleanSitemapRead(res, controller.signal.aborted);
           autoEntries = res.entries;
           autoFiles = res.files;
           if (res.entries.length > 0) {
@@ -3390,6 +3424,7 @@ export class Crawler extends EventEmitter {
             },
           });
           if (this.stopped) return;
+          cleanRead = cleanRead && isCleanSitemapRead(res, controller.signal.aborted);
           seedEntries = res.entries;
           seedFiles = res.files;
           this.emit(
@@ -3402,6 +3437,13 @@ export class Crawler extends EventEmitter {
         // `<loc>` conflicts (ON CONFLICT DO NOTHING keeps the first).
         if (this.stopped) return;
         const merged = [...seedEntries, ...autoEntries];
+        if (cleanRead && !controller.signal.aborted && merged.length > 0) {
+          this.trapWatch.setBaseline(
+            new URL(origin).host,
+            merged.map((e) => normalizeUrl(e.url, undefined, this.urlRewrites) ?? e.url),
+          );
+          this.runTrapCheck();
+        }
         if (merged.length > 0) {
           await this.dbCall<void>('setSitemapUrls', [merged]);
         }
@@ -3410,8 +3452,10 @@ export class Crawler extends EventEmitter {
       } finally {
         deadline.clear();
         this.sitemapAbort = null;
+        this.trapWatch.markSettled();
       }
     } catch (err) {
+      this.trapWatch.markSettled();
       // Aborts during stop() are expected and not user-visible noise.
       if (this.stopped) return;
       this.emit('error', `Sitemap discovery skipped: ${formatFetchError(err)}`);
@@ -3458,8 +3502,7 @@ export class Crawler extends EventEmitter {
       // drop it so enqueue accepts the re-fetch. Anything the live
       // link-follow path reaches first stays deduped: enqueue re-adds it
       // to `seen`, and the backlog's own enqueue then no-ops.
-      this.seen.delete(row.url);
-      this.enqueue({ url: row.url, depth: row.depth });
+      this.requeueKnown({ url: row.url, depth: row.depth });
     }
   }
 
@@ -3474,6 +3517,12 @@ export class Crawler extends EventEmitter {
       ? this.db.getAllUrls()
       : this.db.getUrlsByScope(false)) {
       this.seen.add(url);
+    }
+    // The stored pages are the ones a fresh crawl counted on admission; the
+    // queue below re-admits them through `requeueKnown`, which skips them.
+    if (this.config.mode === 'spider') {
+      for (const url of this.db.getPageUrlsForTrapWatch()) this.trapWatch.observe(url);
+      this.runTrapCheck();
     }
     this.robotsBlocked = new Set(this.db.getRobotsBlockedUrls(!this.config.crawlExternal));
     // Before the saved queue is re-admitted, which counts its own pages.
@@ -3496,8 +3545,7 @@ export class Crawler extends EventEmitter {
     // plus whatever genuinely new links those pages turn up.
     if (this.respiderSeeds !== null) {
       for (const url of this.respiderSeeds) {
-        this.seen.delete(url);
-        this.enqueue({ url, depth: this.db.getUrlDepth(url) ?? 0 });
+        this.requeueKnown({ url, depth: this.db.getUrlDepth(url) ?? 0 });
       }
       return;
     }
@@ -3568,8 +3616,7 @@ export class Crawler extends EventEmitter {
       if (pending.url === seededStartUrl) continue;
       // Drop from `seen` so enqueue accepts it — these URLs are genuinely
       // unfinished work.
-      this.seen.delete(pending.url);
-      this.enqueue({ url: pending.url, depth: pending.depth });
+      this.requeueKnown({ url: pending.url, depth: pending.depth });
     }
 
     // Re-queue any external URLs that were stubbed but never probed.
@@ -4149,8 +4196,49 @@ export class Crawler extends EventEmitter {
   /** Re-queue a specific URL (e.g. user-triggered Re-Spider). */
   requeueUrl(url: string, depth = 0): void {
     if (this.stopped) return;
-    this.seen.delete(url);
-    this.enqueue({ url, depth });
+    this.requeueKnown({ url, depth });
+  }
+
+  /**
+   * The one place a URL is dropped from `seen` to be admitted again (refresh
+   * backlog, resume queue, retry, requeue, manual injection, Re-Spider). A URL
+   * that was in `seen` was already counted by the crawl-trap watch (a stored
+   * page by `hydrateFromDb`, one admitted in this run at its first admission),
+   * so only a URL with no earlier trace is counted here (B90).
+   */
+  private requeueKnown(item: QueueItem): void {
+    const wasCounted = this.seen.delete(item.url);
+    this.enqueue(item, { alreadyCounted: wasCounted });
+  }
+
+  /** Whether an admitted URL is one of the pages the crawl-trap watch counts. */
+  private countsForTrapWatch(item: QueueItem): boolean {
+    if (this.config.mode !== 'spider' || item.resourceRow || item.mined || item.checkOnly) return false;
+    if (SUBRESOURCE_PATH.test(item.url)) return false;
+    // With external crawling on, external pages pass `enqueue` as well.
+    return !this.crawlsExternalPages || isInScope(this.config.startUrl, item.url, this.config.scope);
+  }
+
+  /** Evaluates the trap rules; a finding goes out as a `warn`, R1 as an `info`. */
+  private runTrapCheck(): void {
+    const r = this.trapWatch.check();
+    const found = this.trapWatch.discovered;
+    const listed = this.trapWatch.sitemapUrls;
+    if (r.sitemapShort) {
+      this.emit(
+        'info',
+        `The crawl found ${found.toLocaleString('en-US')} URLs, the sitemap lists ${r.sitemapShort.listed.toLocaleString('en-US')}; the sitemap may cover only part of the site.`,
+      );
+    }
+    for (const f of r.findings) this.emit('warn', describeTrap(f, found, listed));
+    if (r.findings.length > 0 || r.sitemapShort) this.persistTrapWatch();
+  }
+
+  private persistTrapWatch(): Promise<void> {
+    return this.dbCall<void>('setMeta', [
+      CRAWL_TRAP_META_KEY,
+      JSON.stringify(this.trapWatch.snapshot(new Date().toISOString())),
+    ]).catch(() => undefined);
   }
 
   /**
@@ -4177,9 +4265,8 @@ export class Crawler extends EventEmitter {
       return;
     }
     for (const item of items) {
-      this.seen.delete(item.url);
       const row = item.resourceRow;
-      this.enqueue({
+      this.requeueKnown({
         url: item.url,
         depth: item.depth,
         ...(row === 'image' || row === 'css' || row === 'js' || row === 'media'
@@ -4207,9 +4294,8 @@ export class Crawler extends EventEmitter {
     // For manual injection we want re-crawl semantics, so clear the
     // seen flag if present. The DB upsert handles duplicate urls
     // idempotently.
-    this.seen.delete(url);
-    const before = this.seen.size;
-    this.enqueue({ url, depth: 0 });
+    const before = this.seen.size - (this.seen.has(url) ? 1 : 0);
+    this.requeueKnown({ url, depth: 0 });
     return this.seen.size > before;
   }
 
@@ -4410,7 +4496,7 @@ export class Crawler extends EventEmitter {
     );
   }
 
-  private enqueue(item: QueueItem): void {
+  private enqueue(item: QueueItem, opts: { alreadyCounted?: boolean } = {}): void {
     if (this.stopped) return;
     if (this.seen.has(item.url)) return;
     // Already queued. Callers that drop a URL from `seen` to queue it again
@@ -4503,6 +4589,9 @@ export class Crawler extends EventEmitter {
     }
 
     this.seen.add(item.url);
+    if (opts.alreadyCounted !== true && this.countsForTrapWatch(item)) {
+      if (this.trapWatch.observe(item.url)) this.runTrapCheck();
+    }
     if (item.resourceRow) this.resourceAdmitted++;
     if (hostKey !== null && !recounted) {
       this.hostAdmitted.set(hostKey, (this.hostAdmitted.get(hostKey) ?? 0) + 1);
@@ -4635,7 +4724,7 @@ export class Crawler extends EventEmitter {
       const normalized = normalizeUrl(ref, baseUrl, this.urlRewrites);
       if (!normalized || !/^https?:/.test(normalized)) return;
       if (isSameHost(baseUrl, normalized, opts)) {
-        this.enqueue({ url: normalized, depth });
+        this.enqueue({ url: normalized, depth, mined: true });
       }
     };
     let m: RegExpExecArray | null;

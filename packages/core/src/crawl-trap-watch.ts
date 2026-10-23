@@ -83,6 +83,8 @@ export interface CrawlTrapSnapshot {
   sitemapShort?: { found: number; listed: number };
 }
 
+export const CRAWL_TRAP_META_KEY = 'crawlTrapWatch';
+
 const MAX_KEY = 200;
 const MAX_NAMES = 6;
 const VALUES = 64;
@@ -245,6 +247,11 @@ export class CrawlTrapWatch {
   /** URLs counted so far. */
   get discovered(): number {
     return this.n;
+  }
+
+  /** Sitemap URLs of the crawled host, null without a baseline. */
+  get sitemapUrls(): number | null {
+    return this.sitemapTotal;
   }
 
   /** Whether a clean sitemap baseline is set. */
@@ -630,4 +637,41 @@ export function describeTrap(f: TrapFinding, found: number, sitemapUrls: number 
   const path = f.key.split(' ')[0]!;
   const seg = path.slice(path.indexOf('/'));
   return `Possible crawl trap: ${fmt(f.count)} URLs sit in the section ${f.key} (${pct} of the ${fmt(found)} found so far);${sm}.${stop(seg + '/')}${examples}`;
+}
+
+/** Parses the saved meta value; anything unreadable or of another version is null. */
+export function parseTrapSnapshot(raw: string | null | undefined): CrawlTrapSnapshot | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<CrawlTrapSnapshot>;
+    if (v.v !== 1 || !Array.isArray(v.findings)) return null;
+    return v as CrawlTrapSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A sitemap read is a baseline only when every file was read without error,
+ * abort or truncation and at least one file was parsed (B90: a partial read
+ * would make the site look smaller than it is).
+ */
+export function isCleanSitemapRead(
+  res: {
+    truncated: boolean;
+    errors: readonly unknown[];
+    sitemapsParsed: readonly unknown[];
+    sitemapsTried: readonly unknown[];
+    files: readonly { error: string | null; reason: string | null }[];
+  },
+  aborted: boolean,
+): boolean {
+  return (
+    !aborted &&
+    !res.truncated &&
+    res.errors.length === 0 &&
+    res.sitemapsParsed.length > 0 &&
+    res.sitemapsParsed.length === res.sitemapsTried.length &&
+    res.files.every((f) => f.error === null && f.reason === null)
+  );
 }

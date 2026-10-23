@@ -2720,6 +2720,23 @@ export class ProjectDb {
   }
 
   /**
+   * Internal page URLs the crawl-trap watch counts on a resume or refresh:
+   * the rows `countAdmittedPagesByHost` counts, saved queue included (a
+   * queued URL with a row is in `seen`, so the resume's re-queue skips it).
+   */
+  getPageUrlsForTrapWatch(): string[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT url FROM urls WHERE is_external = 0
+             AND content_kind NOT IN ('css', 'js', 'image', 'font')
+             AND (indexability IS NULL OR indexability <> 'non-indexable:robots-blocked')`,
+        )
+        .all() as unknown as { url: string }[]
+    ).map((r) => r.url);
+  }
+
+  /**
    * URLs robots.txt disallows, recorded but never fetched. Seeds the
    * crawler's set of them on a resume, so they do not take page slots.
    * `internalOnly` matches the rows the caller marks as seen.
