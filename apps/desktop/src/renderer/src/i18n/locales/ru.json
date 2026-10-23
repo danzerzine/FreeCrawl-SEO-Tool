@@ -427,6 +427,26 @@
       "truncated": "Показаны первые {{n}} ресурсов, остальные отрезаны.",
       "version": "Lighthouse {{version}}, получено {{date}}",
       "loading": "Загрузка…"
+    },
+    "axe": {
+      "tab": "Доступность (axe)",
+      "empty": "axe-core не нашёл на этой странице нарушений.",
+      "notAudited": "Эту страницу axe-core не проверял. Включите проверку axe-core в настройках (рендеринг JavaScript) и обойдите сайт заново.",
+      "loading": "Загрузка…",
+      "colRule": "Правило",
+      "colImpact": "Влияние",
+      "colElements": "Элементов",
+      "kindViolation": "Нарушение",
+      "kindNeedsReview": "Нужна проверка",
+      "impactCritical": "Критическое",
+      "impactSerious": "Серьёзное",
+      "impactModerate": "Умеренное",
+      "impactMinor": "Незначительное",
+      "impactNone": "Без влияния",
+      "version": "axe-core, WCAG 2.0–2.2, уровни A и AA",
+      "samples": "Примеры элементов",
+      "noSamples": "Для этого правила axe-core не дал примеров элементов.",
+      "truncated": "Показано {{shown}} из {{n}} элементов."
     }
   },
   "filter": {
@@ -1065,6 +1085,7 @@
       "mobileUsability": "Проверка удобства на мобильных",
       "lcpCandidate": "Определение элемента-кандидата LCP",
       "a11yAudit": "Проверка доступности (контраст + фокус)",
+      "axeAudit": "Проверка доступности (axe-core)",
       "consoleErrors": "Ошибки консоли и ресурсы, которые не загрузились",
       "pageScript": "Скрипт страницы (необязательно)",
       "pageScriptTimeoutMs": "Таймаут скрипта страницы (мс)",

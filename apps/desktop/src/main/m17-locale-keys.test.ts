@@ -67,3 +67,58 @@ describe('B41 locale keys', () => {
     expect(ru).toMatch(/^\s*'Lighthouse audits': '(?!Lighthouse audits')[^']+',$/m);
   });
 });
+
+// B40: strings of the axe-core view, the detail rows and the setting.
+const AXE_KEYS = [
+  'settingsPanels.rendering.axeAudit',
+  'detail.axe.tab',
+  'detail.axe.empty',
+  'detail.axe.notAudited',
+  'detail.axe.loading',
+  'detail.axe.colRule',
+  'detail.axe.colImpact',
+  'detail.axe.colElements',
+  'detail.axe.kindViolation',
+  'detail.axe.kindNeedsReview',
+  'detail.axe.impactCritical',
+  'detail.axe.impactSerious',
+  'detail.axe.impactModerate',
+  'detail.axe.impactMinor',
+  'detail.axe.impactNone',
+  'detail.axe.version',
+  'detail.axe.samples',
+  'detail.axe.noSamples',
+  'detail.axe.truncated',
+];
+
+describe('B40 locale keys', () => {
+  it('en and ru carry every key as a string, ru not equal to en', () => {
+    const en = load('en');
+    const ru = load('ru');
+    expect(AXE_KEYS.filter((k) => typeof get(en, k) !== 'string')).toEqual([]);
+    expect(AXE_KEYS.filter((k) => typeof get(ru, k) !== 'string')).toEqual([]);
+    expect(AXE_KEYS.filter((k) => get(ru, k) === get(en, k))).toEqual([]);
+  });
+
+  it('interpolation placeholders match between en and ru', () => {
+    const en = load('en');
+    const ru = load('ru');
+    const ph = (s: unknown) => (String(s).match(/\{\{\w+\}\}/g) ?? []).sort();
+    for (const k of AXE_KEYS) expect(ph(get(ru, k))).toEqual(ph(get(en, k)));
+  });
+
+  it('the label map has the sub-tab, the two detail rows and the three issue labels in Russian', () => {
+    const ru = fs.readFileSync(path.join(dir, '../labels/ru.ts'), 'utf8');
+    for (const label of [
+      'Accessibility (axe)',
+      'Axe violations',
+      'Axe critical/serious',
+      'Axe: Critical / Serious Violations',
+      'Axe: Moderate / Minor Violations',
+      'Axe: Needs Review',
+    ]) {
+      const esc = label.replace(/[/()]/g, '\\$&');
+      expect(ru, label).toMatch(new RegExp(`^\\s*'${esc}': '(?!${esc}')[^']+',$`, 'm'));
+    }
+  });
+});

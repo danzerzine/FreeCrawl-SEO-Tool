@@ -22,6 +22,7 @@ import type {
   SpellingMatchesResult,
 } from '@freecrawl/shared-types';
 import { GridExportButton } from './GridExportButton.js';
+import { AxeView } from './AxeView.js';
 import { LighthouseView } from './LighthouseView.js';
 import { useAppStore } from '../store.js';
 import { diagnoseStatus, type StatusDiagnosis } from '../utils/statusDiagnosis.js';
@@ -58,7 +59,8 @@ type SubTab =
   | 'duplicates'
   | 'analytics'
   | 'spelling'
-  | 'lighthouse';
+  | 'lighthouse'
+  | 'axe';
 
 /**
  * Canonical toolbar strip for every detail-panel sub-tab. Giving each tab the
@@ -153,6 +155,7 @@ const SUB_TABS: { key: SubTab; label: string; disabled?: boolean }[] = [
   { key: 'analytics', label: 'Analytics' },
   { key: 'spelling', label: 'Spelling & Grammar' },
   { key: 'lighthouse', label: 'Lighthouse' },
+  { key: 'axe', label: 'Accessibility (axe)' },
 ];
 
 // Maximum number of URLs we aggregate over in one go. Anything larger is
@@ -178,6 +181,7 @@ const SINGLE_URL_ONLY_TABS: ReadonlySet<SubTab> = new Set([
   'analytics',
   'spelling',
   'lighthouse',
+  'axe',
 ]);
 
 export function BottomDetailPanel() {
@@ -626,6 +630,9 @@ export function BottomDetailPanel() {
           <SpellingView pageUrl={detail.row.url} exportName={exportStem} />
         )}
         {detail && subTab === 'lighthouse' && <LighthouseView pageUrl={detail.row.url} />}
+        {detail && subTab === 'axe' && (
+          <AxeView pageUrl={detail.row.url} audited={detail.row.axeViolations != null} />
+        )}
       </div>
     </div>
   );
@@ -2593,6 +2600,8 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
         ? row.a11yLowContrast
         : null,
     ],
+    ['Axe violations', row.axeViolations ?? null],
+    ['Axe critical/serious', row.axeSerious ?? null],
     ['Console Errors', row.consoleErrors ?? null],
     ['Failed Resources', row.failedResources ?? null],
     [

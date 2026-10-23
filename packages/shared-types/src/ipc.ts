@@ -33,6 +33,7 @@ import type {
   IssueTrend,
   MonitorHistoryRow,
 } from './monitor.js';
+import type { AxeResultRow } from './axe.js';
 import type {
   PagespeedRow,
   PagespeedAuditRow,
@@ -386,6 +387,8 @@ export const IPC = {
   pagespeedQuery: 'pagespeed:query',
   /** B41 — the stored Lighthouse audits of one page (the Lighthouse sub-tab of the detail panel). */
   pagespeedAuditsQuery: 'pagespeed:audits-query',
+  /** B40 — the stored axe-core rules of one page (the Accessibility (axe) sub-tab of the detail panel). */
+  axeQuery: 'axe:query',
   pagespeedRun: 'pagespeed:run',
   pagespeedCancel: 'pagespeed:cancel',
   /** main → renderer: live progress of an in-flight PageSpeed run. */
@@ -1695,6 +1698,21 @@ export interface PagespeedAuditsQueryResult {
   total: number;
 }
 
+/** B40 — stored axe-core rule results, worst impact first. */
+export interface AxeQueryInput {
+  url?: string;
+  impact?: string;
+  ruleId?: string;
+  kind?: 'violation' | 'incomplete';
+  limit: number;
+  offset: number;
+}
+
+export interface AxeQueryResult {
+  rows: AxeResultRow[];
+  total: number;
+}
+
 export interface PagespeedRunInput {
   /** URLs to audit — taken from the candidate rows in the tab. */
   urls: string[];
@@ -2467,6 +2485,8 @@ export interface FreeCrawlApi {
   pagespeedQuery(input: PagespeedQueryInput): Promise<PagespeedQueryResult>;
   /** B41 — the stored Lighthouse audits of a page. */
   pagespeedAuditsQuery(input: PagespeedAuditsQueryInput): Promise<PagespeedAuditsQueryResult>;
+  /** B40 — the stored axe-core rules of a page. */
+  axeQuery(input: AxeQueryInput): Promise<AxeQueryResult>;
   /** Run a PageSpeed Insights audit over the given URLs. Resolves when
    *  the whole run finishes; subscribe to `onPagespeedProgress` for
    *  live progress. */

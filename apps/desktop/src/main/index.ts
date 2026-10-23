@@ -151,6 +151,8 @@ import {
   type UrlCertInfoResult,
   type UrlsQueryInput,
   type UrlsQueryResult,
+  type AxeQueryInput,
+  type AxeQueryResult,
   type PagespeedAuditsQueryInput,
   type PagespeedAuditsQueryResult,
   type PagespeedQueryInput,
@@ -5814,6 +5816,19 @@ function registerIpc(): void {
       );
     },
   );
+
+  // B40: the stored axe-core rules of one page, for the Accessibility (axe) sub-tab.
+  registerHandle(IPC.axeQuery, async (_e, input: AxeQueryInput): Promise<AxeQueryResult> => {
+    const params = {
+      url: input.url,
+      impact: input.impact,
+      ruleId: input.ruleId,
+      kind: input.kind,
+      limit: input.limit,
+      offset: input.offset,
+    };
+    return callReaderOrFallback<AxeQueryResult>('queryAxe', [params], () => getDb().queryAxe(params));
+  });
 
   // Shared PSI batch orchestrator — driven by both the renderer's
   // `pagespeedRun` IPC (which awaits the result) and the MCP bridge's

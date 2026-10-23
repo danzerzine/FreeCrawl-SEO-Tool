@@ -411,6 +411,26 @@
       "truncated": "Showing the first {{n}} resources; the rest were cut.",
       "version": "Lighthouse {{version}}, fetched {{date}}",
       "loading": "Loading…"
+    },
+    "axe": {
+      "tab": "Accessibility (axe)",
+      "empty": "axe-core found no violations on this page.",
+      "notAudited": "This page was not audited by axe-core. Turn on the axe-core audit in Settings, JavaScript rendering, and crawl again.",
+      "loading": "Loading…",
+      "colRule": "Rule",
+      "colImpact": "Impact",
+      "colElements": "Elements",
+      "kindViolation": "Violation",
+      "kindNeedsReview": "Needs review",
+      "impactCritical": "Critical",
+      "impactSerious": "Serious",
+      "impactModerate": "Moderate",
+      "impactMinor": "Minor",
+      "impactNone": "No impact",
+      "version": "axe-core, WCAG 2.0-2.2 A/AA",
+      "samples": "Sample elements",
+      "noSamples": "axe-core gave no sample elements for this rule.",
+      "truncated": "Showing {{shown}} of {{n}} elements."
     }
   },
   "filter": {
@@ -1019,6 +1039,7 @@
       "mobileUsability": "Mobile Usability audit",
       "lcpCandidate": "LCP candidate detection",
       "a11yAudit": "Accessibility audit (contrast + focus)",
+      "axeAudit": "Accessibility audit (axe-core)",
       "consoleErrors": "Console errors and failed resources",
       "pageScript": "Page script (optional)",
       "pageScriptTimeoutMs": "Page script timeout (ms)",

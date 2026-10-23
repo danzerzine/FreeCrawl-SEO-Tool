@@ -127,6 +127,8 @@ import {
   type UrlsQueryInput,
   type UrlsQueryResult,
   type MemoryStats,
+  type AxeQueryInput,
+  type AxeQueryResult,
   type PagespeedAuditsQueryInput,
   type PagespeedAuditsQueryResult,
   type PagespeedQueryInput,
@@ -516,6 +518,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.pagespeedQuery, input),
   pagespeedAuditsQuery: (input: PagespeedAuditsQueryInput): Promise<PagespeedAuditsQueryResult> =>
     ipcRenderer.invoke(IPC.pagespeedAuditsQuery, input),
+  axeQuery: (input: AxeQueryInput): Promise<AxeQueryResult> =>
+    ipcRenderer.invoke(IPC.axeQuery, input),
   pagespeedRun: (input: PagespeedRunInput): Promise<PagespeedRunResult> =>
     ipcRenderer.invoke(IPC.pagespeedRun, input),
   pagespeedCancel: (): Promise<void> => ipcRenderer.invoke(IPC.pagespeedCancel),
