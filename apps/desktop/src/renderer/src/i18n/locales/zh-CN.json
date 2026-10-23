@@ -28,7 +28,11 @@
     "siteWideShare": "返回 200 的 {{base}} 个页面中有 {{pages}} 个",
     "siteSitemapNotCrawled": "站点地图中未抓取的 URL",
     "siteSitemapNotCrawledHint": "这些 URL 在站点地图中，但抓取没有到达：没有内部链接指向它们，或者抓取提前停止。点击打开列表。",
-    "crawlStoppedAtLimit": "抓取在 {{n}} 个页面的上限处停止。"
+    "crawlStoppedAtLimit": "抓取在 {{n}} 个页面的上限处停止。",
+    "siteCrawlTrap": "可能的抓取陷阱",
+    "siteCrawlTrapHint": "抓取在某个模式或栏目中发现的 URL 远多于预期：{{list}}。抓取并未停止。如需限制，请添加排除规则或降低页面上限。",
+    "siteCrawlTrapItem": "{{key}}：{{count}} 个 URL",
+    "siteCrawlTrapItemSitemap": "{{key}}：{{count}} 个 URL，sitemap 中列出 {{expected}} 个"
   },
   "integrations": {
     "intro": "使用你自己的凭据连接外部服务。API 密钥和机密会通过操作系统的安全存储在本地加密保存，绝不会离开这台机器。",

@@ -28,7 +28,11 @@
     "siteWideShare": "{{pages}} of {{base}} pages answered 200",
     "siteSitemapNotCrawled": "Sitemap URLs not crawled",
     "siteSitemapNotCrawledHint": "These URLs are listed in a sitemap but the crawl never reached them: no internal link leads to them, or the crawl stopped first. Click to open the list.",
-    "crawlStoppedAtLimit": "The crawl stopped at its limit of {{n}} pages."
+    "crawlStoppedAtLimit": "The crawl stopped at its limit of {{n}} pages.",
+    "siteCrawlTrap": "Possible crawl trap",
+    "siteCrawlTrapHint": "The crawl found far more URLs in one pattern or section than the site is expected to have: {{list}}. The crawl was not stopped. To cut it off, add an exclude pattern or lower the page limit.",
+    "siteCrawlTrapItem": "{{key}}: {{count}} URLs",
+    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URLs, the sitemap lists {{expected}}"
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",

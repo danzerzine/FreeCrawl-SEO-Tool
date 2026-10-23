@@ -28,7 +28,11 @@
     "siteWideShare": "200 cavabı verən {{base}} səhifədən {{pages}}",
     "siteSitemapNotCrawled": "Sayt xəritəsindəki URL-lər taranmayıb",
     "siteSitemapNotCrawledHint": "Bu URL-lər sayt xəritəsindədir, amma tarama onlara çatmayıb: onlara daxili keçid yoxdur və ya tarama daha əvvəl dayanıb. Siyahını açmaq üçün klikləyin.",
-    "crawlStoppedAtLimit": "Tarama {{n}} səhifəlik limitdə dayandı."
+    "crawlStoppedAtLimit": "Tarama {{n}} səhifəlik limitdə dayandı.",
+    "siteCrawlTrap": "Mümkün tarama tələsi",
+    "siteCrawlTrapHint": "Tarama bir şablonda və ya bölmədə gözləniləndən qat-qat çox URL tapdı: {{list}}. Tarama dayandırılmadı. Onu məhdudlaşdırmaq üçün istisna şablonu əlavə edin və ya səhifə limitini azaldın.",
+    "siteCrawlTrapItem": "{{key}}: {{count}} URL",
+    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URL, sitemap-də {{expected}} var"
   },
   "integrations": {
     "intro": "Xarici xidmətləri öz giriş məlumatlarınızla qoşun. API açarları və sirlər əməliyyat sisteminizin təhlükəsiz anbarı ilə şifrələnərək saxlanılır və heç vaxt bu maşından kənara çıxmır.",

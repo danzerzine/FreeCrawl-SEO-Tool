@@ -28,7 +28,11 @@
     "siteWideShare": "200으로 응답한 {{base}}개 페이지 중 {{pages}}개",
     "siteSitemapNotCrawled": "크롤링되지 않은 사이트맵 URL",
     "siteSitemapNotCrawledHint": "이 URL은 사이트맵에 있지만 크롤링이 도달하지 못했습니다. 내부 링크가 없거나 크롤링이 먼저 멈췄습니다. 클릭하면 목록이 열립니다.",
-    "crawlStoppedAtLimit": "크롤링이 {{n}}페이지 한도에서 멈췄습니다."
+    "crawlStoppedAtLimit": "크롤링이 {{n}}페이지 한도에서 멈췄습니다.",
+    "siteCrawlTrap": "크롤 트랩 가능성",
+    "siteCrawlTrapHint": "크롤링에서 한 패턴 또는 섹션에 예상보다 훨씬 많은 URL이 발견되었습니다: {{list}}. 크롤링은 중단되지 않았습니다. 제한하려면 제외 패턴을 추가하거나 페이지 한도를 낮추세요.",
+    "siteCrawlTrapItem": "{{key}}: URL {{count}}개",
+    "siteCrawlTrapItemSitemap": "{{key}}: URL {{count}}개, 사이트맵에는 {{expected}}개"
   },
   "integrations": {
     "intro": "자신의 자격 증명으로 외부 서비스를 연결하십시오. API 키와 비밀 값은 운영체제의 보안 저장소를 통해 암호화되어 저장되며 이 컴퓨터를 벗어나지 않습니다.",

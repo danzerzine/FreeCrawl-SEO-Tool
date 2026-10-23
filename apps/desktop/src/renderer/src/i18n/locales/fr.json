@@ -28,7 +28,11 @@
     "siteWideShare": "{{pages}} pages sur {{base}} ont répondu 200",
     "siteSitemapNotCrawled": "URL du sitemap non explorées",
     "siteSitemapNotCrawledHint": "Ces URL figurent dans un sitemap, mais l’exploration ne les a pas atteintes : aucun lien interne n’y mène, ou l’exploration s’est arrêtée avant. Cliquez pour ouvrir la liste.",
-    "crawlStoppedAtLimit": "L’exploration s’est arrêtée à sa limite de {{n}} pages."
+    "crawlStoppedAtLimit": "L’exploration s’est arrêtée à sa limite de {{n}} pages.",
+    "siteCrawlTrap": "Piège d’exploration possible",
+    "siteCrawlTrapHint": "L’exploration a trouvé bien plus d’URL que prévu dans un motif ou une section : {{list}}. L’exploration n’a pas été arrêtée. Pour la limiter, ajoutez un motif d’exclusion ou réduisez la limite de pages.",
+    "siteCrawlTrapItem": "{{key}} : {{count}} URL",
+    "siteCrawlTrapItemSitemap": "{{key}} : {{count}} URL, le sitemap en liste {{expected}}"
   },
   "integrations": {
     "intro": "Connectez des services externes avec vos propres identifiants. Les clés d'API et les secrets sont chiffrés au repos via le stockage sécurisé de votre système d'exploitation et ne quittent jamais cette machine.",

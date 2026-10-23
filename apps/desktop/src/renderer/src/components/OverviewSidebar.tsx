@@ -303,6 +303,7 @@ export function OverviewSidebar() {
   const sitemapFindings = overview?.site?.sitemapFindings ?? null;
   const fileUrls = (files: { url: string }[] | undefined) => (files ?? []).map((f) => f.url);
   const stoppedAt = overview?.site?.crawlStoppedAtLimit ?? null;
+  const crawlTraps = overview?.site?.crawlTraps ?? [];
   const sitemapNotices: {
     key: string;
     info: boolean;
@@ -313,6 +314,33 @@ export function OverviewSidebar() {
     note?: string;
     onClick?: () => void;
   }[] = [
+    {
+      key: 'crawlTrap',
+      info: false,
+      items: crawlTraps.flatMap((f) => f.samples.slice(0, 3)).slice(0, 3),
+      count: crawlTraps.length,
+      title: t('sidebar.siteCrawlTrap', { defaultValue: 'Possible crawl trap' }),
+      hint: t('sidebar.siteCrawlTrapHint', {
+        defaultValue:
+          'The crawl found far more URLs in one pattern or section than the site is expected to have: {{list}}. The crawl was not stopped. To cut it off, add an exclude pattern or lower the page limit.',
+        list: crawlTraps
+          .map((f) =>
+            f.expected !== null
+              ? t('sidebar.siteCrawlTrapItemSitemap', {
+                  defaultValue: '{{key}}: {{count}} URLs, the sitemap lists {{expected}}',
+                  key: f.key,
+                  count: f.count,
+                  expected: f.expected,
+                })
+              : t('sidebar.siteCrawlTrapItem', {
+                  defaultValue: '{{key}}: {{count}} URLs',
+                  key: f.key,
+                  count: f.count,
+                }),
+          )
+          .join('; '),
+      }),
+    },
     {
       key: 'overUrls',
       info: false,

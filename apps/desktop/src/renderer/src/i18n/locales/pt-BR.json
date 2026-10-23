@@ -28,7 +28,11 @@
     "siteWideShare": "{{pages}} de {{base}} páginas responderam 200",
     "siteSitemapNotCrawled": "URLs do sitemap não rastreadas",
     "siteSitemapNotCrawledHint": "Essas URLs estão em um sitemap, mas o rastreamento não chegou a elas: nenhum link interno leva a elas ou o rastreamento parou antes. Clique para abrir a lista.",
-    "crawlStoppedAtLimit": "O rastreamento parou no limite de {{n}} páginas."
+    "crawlStoppedAtLimit": "O rastreamento parou no limite de {{n}} páginas.",
+    "siteCrawlTrap": "Possível armadilha de rastreamento",
+    "siteCrawlTrapHint": "O rastreamento encontrou muito mais URLs do que o esperado em um padrão ou seção: {{list}}. O rastreamento não foi interrompido. Para limitá-lo, adicione um padrão de exclusão ou reduza o limite de páginas.",
+    "siteCrawlTrapItem": "{{key}}: {{count}} URLs",
+    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URLs, o sitemap lista {{expected}}"
   },
   "integrations": {
     "intro": "Conecte serviços externos com suas próprias credenciais. As chaves de API e os segredos são criptografados em repouso pelo armazenamento seguro do seu sistema operacional e nunca saem desta máquina.",

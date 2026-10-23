@@ -28,7 +28,11 @@
     "siteWideShare": "{{pages}} pagine su {{base}} hanno risposto 200",
     "siteSitemapNotCrawled": "URL della sitemap non scansionati",
     "siteSitemapNotCrawledHint": "Questi URL sono in una sitemap, ma la scansione non li ha raggiunti: nessun link interno porta a loro, oppure la scansione si è fermata prima. Fai clic per aprire l’elenco.",
-    "crawlStoppedAtLimit": "La scansione si è fermata al limite di {{n}} pagine."
+    "crawlStoppedAtLimit": "La scansione si è fermata al limite di {{n}} pagine.",
+    "siteCrawlTrap": "Possibile trappola di scansione",
+    "siteCrawlTrapHint": "La scansione ha trovato molti più URL del previsto in un pattern o in una sezione: {{list}}. La scansione non è stata fermata. Per limitarla, aggiungi un pattern di esclusione o riduci il limite di pagine.",
+    "siteCrawlTrapItem": "{{key}}: {{count}} URL",
+    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URL, la sitemap ne elenca {{expected}}"
   },
   "integrations": {
     "intro": "Collega servizi esterni con le tue credenziali. Le chiavi API e i segreti sono cifrati a riposo tramite l'archivio sicuro del tuo sistema operativo e non lasciano mai questa macchina.",
