@@ -2420,6 +2420,16 @@ export class ProjectDb {
     );
   }
 
+  /**
+   * The B38 inspection columns exist only after migration 123; a project opened read-only
+   * (the MCP server) is never migrated, so its readers select NULL for them when absent.
+   */
+  private hasInspectionDetails(): boolean {
+    return (this.db.prepare('PRAGMA table_info(gsc_inspection_results)').all() as { name: string }[]).some(
+      (c) => c.name === 'page_fetch_state',
+    );
+  }
+
   /** The silenced issue categories, as a set. Empty when none. */
   getDisabledIssues(): ReadonlySet<UrlCategory> {
     const raw = this.getMeta(DISABLED_ISSUES_META_KEY);
@@ -6490,6 +6500,9 @@ export class ProjectDb {
     const accountId = params.accountId ?? '';
     // The full column projection + row mapper is shared by both the
     // crawled-pages branch and the orphan branch below.
+    // B38 columns: NULL on a file from before migration 123 (read-only open).
+    const details = this.hasInspectionDetails();
+    const d = (col: string): string => (details ? `i.${col}` : 'NULL');
     const selectCols = `u.id AS id, g.clicks AS clicks, g.impressions AS impressions,
                 g.ctr AS ctr, g.position AS position,
                 g.fetched_at AS g_fetched,
@@ -6503,11 +6516,11 @@ export class ProjectDb {
                 i.mobile_verdict AS i_mobile_verdict,
                 i.amp_verdict AS i_amp_verdict,
                 i.rich_results_verdict AS i_rich_results_verdict,
-                i.page_fetch_state AS i_page_fetch_state,
-                i.crawled_as AS i_crawled_as,
-                i.sitemaps_json AS i_sitemaps_json,
-                i.referring_urls_json AS i_referring_urls_json,
-                i.rich_results_json AS i_rich_results_json,
+                ${d('page_fetch_state')} AS i_page_fetch_state,
+                ${d('crawled_as')} AS i_crawled_as,
+                ${d('sitemaps_json')} AS i_sitemaps_json,
+                ${d('referring_urls_json')} AS i_referring_urls_json,
+                ${d('rich_results_json')} AS i_rich_results_json,
                 i.status AS i_status,
                 i.error AS i_error,
                 i.fetched_at AS i_fetched`;
@@ -6648,7 +6661,9 @@ export class ProjectDb {
         // Any item with warnings and none with errors; rows inspected before
         // this version (NULL json) are ignored.
         where.push(
-          `i.status = 'ok' AND i.rich_results_json IS NOT NULL
+          !details
+            ? '0'
+            : `i.status = 'ok' AND i.rich_results_json IS NOT NULL
            AND EXISTS (SELECT 1 FROM json_each(i.rich_results_json) t, json_each(t.value, '$.items') it
                        WHERE json_extract(it.value, '$.warnings') > 0)
            AND NOT EXISTS (SELECT 1 FROM json_each(i.rich_results_json) t, json_each(t.value, '$.items') it
@@ -6746,7 +6761,12 @@ export class ProjectDb {
         `SELECT verdict, coverage_state, robots_txt_state, indexing_state,
                 last_crawl_time, google_canonical, user_canonical,
                 mobile_verdict, amp_verdict, rich_results_verdict,
-                page_fetch_state, crawled_as, sitemaps_json, referring_urls_json, rich_results_json,
+                ${
+                  this.hasInspectionDetails()
+                    ? 'page_fetch_state, crawled_as, sitemaps_json, referring_urls_json, rich_results_json'
+                    : `NULL AS page_fetch_state, NULL AS crawled_as, NULL AS sitemaps_json,
+                NULL AS referring_urls_json, NULL AS rich_results_json`
+                },
                 status, error, fetched_at
          FROM gsc_inspection_results WHERE url = ? AND account_id = ?`,
       )
@@ -7443,8 +7463,11 @@ export class ProjectDb {
 
   /** B39: how many rows of each Webmaster table the host holds. */
   countWebmasterRows(hostId: string): { events: number; excluded: number; links: number } {
-    const one = (t: string, extra = ''): number =>
-      (this.db.prepare(`SELECT COUNT(*) AS c FROM ${t} WHERE host_id = ?${extra}`).get(hostId) as { c: number }).c;
+    const one = (t: string, extra = ''): number => {
+      if (!this.hasTable(t)) return 0;
+      const sql = `SELECT COUNT(*) AS c FROM ${t} WHERE host_id = ?${extra}`;
+      return (this.db.prepare(sql).get(hostId) as { c: number }).c;
+    };
     return {
       events: one('webmaster_events'),
       excluded: one('webmaster_events', " AND event = 'REMOVED_FROM_SEARCH'"),
@@ -7594,6 +7617,7 @@ export class ProjectDb {
 
   /** B37 — stored row count per custom field of one account. */
   ga4CustomFieldRowCounts(accountId = ''): Record<string, number> {
+    if (!this.hasTable('ga4_custom_values')) return {};
     const rows = this.db
       .prepare(
         'SELECT field, COUNT(*) AS c FROM ga4_custom_values WHERE account_id = ? GROUP BY field',
@@ -7604,6 +7628,16 @@ export class ProjectDb {
 
   /** B37 — distinct stored GA4 page URLs (fixed or custom) with no crawled `urls` row. */
   ga4UnmatchedUrlCount(accountId = ''): number {
+    if (!this.hasTable('ga4_custom_values')) {
+      return (
+        this.db
+          .prepare(
+            `SELECT COUNT(*) AS c FROM (SELECT DISTINCT url FROM ga4_results WHERE account_id = ?) g
+             WHERE NOT EXISTS (SELECT 1 FROM urls u WHERE u.url = g.url)`,
+          )
+          .get(accountId) as { c: number }
+      ).c;
+    }
     return (
       this.db
         .prepare(
@@ -7641,7 +7675,7 @@ export class ProjectDb {
     accountId = '',
   ): IterableIterator<{ url: string; statusCode: number | null; custom: { field: string; value: string; sessions: number | null } }> {
     const sel = this.ga4CustomSelection(accountId);
-    if (!sel) return;
+    if (!sel || !this.hasTable('ga4_custom_values')) return;
     const rows = this.db
       .prepare(
         `SELECT v.url AS url, u.status_code AS status_code, v.field AS field, v.value AS value, v.sessions AS sessions
@@ -7673,7 +7707,7 @@ export class ProjectDb {
     fields: string[],
   ): Map<string, Record<string, Ga4CustomValue[]>> {
     const out = new Map<string, Record<string, Ga4CustomValue[]>>();
-    if (urls.length === 0 || fields.length === 0) return out;
+    if (urls.length === 0 || fields.length === 0 || !this.hasTable('ga4_custom_values')) return out;
     const fieldMarks = fields.map(() => '?').join(',');
     for (let i = 0; i < urls.length; i += 400) {
       const chunk = urls.slice(i, i + 400);
