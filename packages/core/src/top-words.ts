@@ -134,7 +134,15 @@ export interface TopWordsOptions {
   n?: 1 | 2 | 3;
   /** Rows with fewer occurrences are left out of `result()`. Default 1 for words, 2 for phrases. */
   minCount?: number;
+  /**
+   * Phrase map limit (default {@link DEFAULT_MAX_GRAMS}); words (n=1) are not capped. When the map
+   * is full, rare phrases are dropped (lossy counting) and the aggregator reports `capped`.
+   */
+  maxGrams?: number;
 }
+
+/** Default phrase map limit of one aggregator (a site, or one section when there are few). */
+export const DEFAULT_MAX_GRAMS = 200_000;
 
 /**
  * Tokenise a string into lowercase words, dropping numbers + punctuation
@@ -176,6 +184,10 @@ export interface TopWordsAggregator {
   add(text: string): void;
   /** Top rows so far, sorted by count. */
   result(): TopWordsRow[];
+  /** True once rare phrases were dropped to stay inside the map limit: counts are approximate. */
+  capped(): boolean;
+  /** Distinct words or phrases held now. */
+  size(): number;
 }
 
 export function createTopWordsAggregator(opts: TopWordsOptions = {}): TopWordsAggregator {
@@ -194,8 +206,42 @@ export function createTopWordsAggregator(opts: TopWordsOptions = {}): TopWordsAg
   const pages = new Map<string, number>();
   const seenInThisPage = new Set<string>();
 
+  const maxGrams = Math.max(4, opts.maxGrams ?? DEFAULT_MAX_GRAMS);
+  let wasPruned = false;
+  // Lossy counting: the count at or below which a prune evicts; it only rises.
+  let threshold = 1;
+
+  /**
+   * Frees at least 25 % of the limit: evicts everything seen `threshold` times or less, and raises
+   * the threshold step by step until the map is at most 75 % full. Adding never stops.
+   */
+  const prune = (): void => {
+    wasPruned = true;
+    const histogram = new Map<number, number>();
+    for (const c of total.values()) histogram.set(c, (histogram.get(c) ?? 0) + 1);
+    const goal = Math.floor(maxGrams * 0.75);
+    const counts = [...histogram.keys()].sort((a, b) => a - b);
+    let left = total.size;
+    for (const c of counts) {
+      if (c > threshold && left <= goal) break;
+      left -= histogram.get(c)!;
+      threshold = Math.max(threshold, c);
+    }
+    for (const [key, c] of total) {
+      if (c > threshold) continue;
+      total.delete(key);
+      pages.delete(key);
+      seenInThisPage.delete(key);
+    }
+  };
+
   const count = (key: string): void => {
-    total.set(key, (total.get(key) ?? 0) + 1);
+    let current = total.get(key);
+    if (current === undefined) {
+      if (n > 1 && total.size >= maxGrams) prune();
+      current = 0;
+    }
+    total.set(key, current + 1);
     if (!seenInThisPage.has(key)) {
       pages.set(key, (pages.get(key) ?? 0) + 1);
       seenInThisPage.add(key);
@@ -218,6 +264,8 @@ export function createTopWordsAggregator(opts: TopWordsOptions = {}): TopWordsAg
         count(tokens.slice(i, i + n).join(' '));
       }
     },
+    capped: () => wasPruned,
+    size: () => total.size,
     result(): TopWordsRow[] {
       return [...total.entries()]
         .filter(([, c]) => c >= minCount)
