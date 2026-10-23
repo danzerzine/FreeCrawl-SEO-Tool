@@ -663,6 +663,12 @@ export interface CrawlUrlRow {
   ogNameAttr: number;
   /** Meta names other than robots and the crawl's bot that say noindex (`bingbot,yandex`); null when none (B75). */
   metaNoindexBots: string | null;
+  /** 1 when following rel=next returns to a page already in the chain; written after the crawl (B82). */
+  paginationLoop: number;
+  /** 1 when the page declares hreflang but its canonical points elsewhere; written after the crawl (B82). */
+  hreflangNotCanonical: number;
+  /** Hreflang alternates (other than the page itself) that are noindex; written after the crawl (B82). */
+  hreflangNoindexTargets: number;
   /** Words in the content area when the crawl had one; null otherwise and in older crawls (B74). */
   mainWordCount: number | null;
   /** Primary language the main-content prose is written in (`tr`, `en`, …); null when unclear. */
@@ -2811,6 +2817,15 @@ export interface BrokenLinkTargetExportRow {
 export interface IssueLongRow {
   url: string;
   issueKey: string;
+}
+
+/** One finding of the `page-signals` export: a page and a module-5 signal it shows (B136). */
+export interface PageSignalRow {
+  url: string;
+  /** The check key, the same string as `IssueLongRow.issueKey`. */
+  signal: UrlCategory;
+  /** The count, bot list, repeated H2 or AMP probe answer behind the signal; empty when there is none. */
+  detail: string;
 }
 
 /**

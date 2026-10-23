@@ -12,6 +12,7 @@ import type {
   CrawlRun,
   CrawlSnapshot,
   IssueLongRow,
+  PageSignalRow,
   IssueInlinkRow,
   SelectedInlinkRow,
   SelectedOutlinkRow,
@@ -112,6 +113,8 @@ import {
   GENERIC_ANCHOR_TEXTS,
   ISSUE_CATEGORIES,
   ISSUE_COUNT_KEY,
+  PAGE_SIGNAL_CHECKS,
+  SIGNAL_CHECKS_ALWAYS_FILLED,
   ISSUE_SOURCES_COUNT_KEY,
   issueCategoriesBySeverity,
   PAGE_ROLLUP_EXCLUDED,
@@ -559,6 +562,10 @@ interface UrlRowDb {
   internal_utm_links: number;
   og_name_attr: number;
   meta_noindex_bots: string | null;
+  /** Written after the crawl (B82); NULL-safe for rows of older builds. */
+  pagination_loop?: number;
+  hreflang_not_canonical?: number;
+  hreflang_noindex_targets?: number;
   main_word_count: number | null;
   /** Primary language the main-content prose is written in. */
   content_lang: string | null;
@@ -10479,6 +10486,81 @@ export class ProjectDb {
   }
 
   /**
+   * The module-5 findings (B136), streamed: one (url, signal, detail) row per
+   * page and signal of `PAGE_SIGNAL_CHECKS`, by signal in sidebar order, then
+   * by URL id. Each signal's pages come from the check's own filter, so the
+   * counts equal the sidebar's and `issues-*.csv`'s. Silenced checks and
+   * checks this project's crawls never filled (`checksFilled`) give nothing.
+   * Memory is the flagged pages' ids (4 bytes each), not a map of every URL:
+   * the url and detail of a page are read by primary key when its row is due.
+   */
+  *iteratePageSignals(): IterableIterator<PageSignalRow> {
+    const disabled = this.getDisabledIssues();
+    const filled = this.checksFilled();
+    const checks = PAGE_SIGNAL_CHECKS.filter(
+      (key) =>
+        !disabled.has(key) &&
+        this.clauseFor(key, disabled) !== null &&
+        (SIGNAL_CHECKS_ALWAYS_FILLED.includes(key) || filled.has(key)),
+    );
+    if (checks.length === 0) return;
+    const listed = this.urlIdsByCategories(checks);
+    const detailColumn: Partial<Record<string, string>> = {
+      'issues:hreflang-outside-head': 'hreflang_outside_head',
+      'issues:title-outside-head': 'title_outside_head',
+      'issues:description-outside-head': 'description_outside_head',
+      'issues:meta-robots-outside-head': 'meta_robots_outside_head',
+      'issues:link-utm-internal': 'internal_utm_links',
+      'issues:noindex-other-bot': 'meta_noindex_bots',
+      'issues:hreflang-noindex-target': 'hreflang_noindex_targets',
+      'issues:h2-duplicate': 'h2_first',
+    };
+    const hasAmpTable = this.hasTable('amp_targets');
+    for (const key of checks) {
+      const ids = listed.get(key)!;
+      if (ids instanceof Error) throw ids;
+      if (ids.length === 0) continue;
+      const column = detailColumn[key];
+      const isAmp = key === 'issues:amp-target-broken' || key === 'issues:amp-target-redirect';
+      const stmt = this.db.prepare(
+        isAmp
+          ? `SELECT u.url AS url,
+                    ${hasAmpTable ? 'a.status_code' : 'NULL'} AS a_status,
+                    ${hasAmpTable ? 'a.redirect_target' : 'NULL'} AS a_redirect,
+                    ${hasAmpTable ? 'a.error' : 'NULL'} AS a_error,
+                    ${hasAmpTable ? 'a.url' : 'NULL'} AS a_url,
+                    t.status_code AS t_status, t.redirect_target AS t_redirect
+               FROM urls u
+               ${hasAmpTable ? 'LEFT JOIN amp_targets a ON a.url = u.amphtml' : ''}
+               LEFT JOIN urls t ON t.url = u.amphtml
+              WHERE u.id = ?`
+          : `SELECT url, ${column ?? "''"} AS detail FROM urls WHERE id = ?`,
+      );
+      for (const id of ids) {
+        const r = stmt.get(id) as Record<string, string | number | null> | undefined;
+        if (!r) continue;
+        let detail: string;
+        if (isAmp) {
+          // The probe's answer; the target's own row when the crawl fetched it anyway.
+          const probed = r.a_url !== null && r.a_url !== undefined;
+          const status = probed ? r.a_status : r.t_status;
+          const redirect = probed ? r.a_redirect : r.t_redirect;
+          detail = [
+            status !== null && status !== undefined ? String(status) : '',
+            redirect ? `-> ${redirect}` : '',
+            probed && r.a_error ? `error: ${r.a_error}` : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+        } else {
+          detail = r.detail === null || r.detail === undefined ? '' : String(r.detail);
+        }
+        yield { url: r.url as string, signal: key, detail };
+      }
+    }
+  }
+
+  /**
    * Every link into every page that has an issue, streamed — the rows of
    * the per-issue "inlinks" export: the `selected-inlinks` rows of the
    * issue's pages (hyperlinks, images, other embeds) plus the issue key.
@@ -13735,6 +13817,9 @@ export class ProjectDb {
     internalUtmLinks: r.internal_utm_links ?? 0,
     ogNameAttr: r.og_name_attr ?? 0,
     metaNoindexBots: r.meta_noindex_bots ?? null,
+    paginationLoop: r.pagination_loop ?? 0,
+    hreflangNotCanonical: r.hreflang_not_canonical ?? 0,
+    hreflangNoindexTargets: r.hreflang_noindex_targets ?? 0,
     mainWordCount: r.main_word_count ?? null,
     contentLang: r.content_lang ?? null,
     langMismatch: (r.lang_mismatch ?? 0) === 1,

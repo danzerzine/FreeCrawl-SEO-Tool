@@ -1,5 +1,7 @@
 import type { AiProvider } from './ai.js';
 import type { SeoProvider } from './seo.js';
+import type { UrlCategory } from './crawl.js';
+import { ISSUE_CATEGORIES } from './issue-catalog.js';
 
 /**
  * Tables the Export dialog can emit that are NOT views over `CrawlUrlRow`.
@@ -22,6 +24,7 @@ export type ExportDatasetKey =
   | 'broken-links'
   | 'broken-links-by-target'
   | 'issues-long'
+  | 'page-signals'
   | 'issue-inlinks'
   | 'selected-inlinks'
   | 'selected-outlinks'
@@ -168,6 +171,11 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
   'issues-long': [
     { key: 'url', header: 'URL' },
     { key: 'issueKey', header: 'Issue' },
+  ],
+  'page-signals': [
+    { key: 'url', header: 'URL' },
+    { key: 'signal', header: 'Signal' },
+    { key: 'detail', header: 'Detail' },
   ],
   'issue-inlinks': [{ key: 'issueKey', header: 'Issue' }, ...LINK_COLUMNS],
   'selected-inlinks': LINK_COLUMNS,
@@ -440,3 +448,31 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
 export function isExportDatasetKey(value: string): value is ExportDatasetKey {
   return Object.prototype.hasOwnProperty.call(EXPORT_DATASET_COLUMNS, value);
 }
+
+/**
+ * The checks of the `page-signals` dataset (B136): the ten with a column of their own
+ * plus eight derived from other columns or tables, in sidebar order.
+ */
+const PAGE_SIGNAL_SET: ReadonlySet<string> = new Set([
+  'issues:hreflang-outside-head',
+  'issues:title-outside-head',
+  'issues:description-outside-head',
+  'issues:meta-robots-outside-head',
+  'issues:og-name-attribute',
+  'issues:link-utm-internal',
+  'issues:noindex-other-bot',
+  'issues:pagination-loop',
+  'issues:hreflang-not-canonical',
+  'issues:hreflang-noindex-target',
+  'issues:url-template-junk',
+  'issues:url-internal-search',
+  'issues:description-has-html',
+  'issues:h2-missing',
+  'issues:h2-duplicate',
+  'issues:amp-target-broken',
+  'issues:amp-target-redirect',
+  'issues:pagination-non-indexable',
+]);
+export const PAGE_SIGNAL_CHECKS: readonly UrlCategory[] = ISSUE_CATEGORIES.filter((c) =>
+  PAGE_SIGNAL_SET.has(c),
+);

@@ -1092,6 +1092,8 @@ export interface BulkExportFile {
   peakRssMb?: number;
   /** Written by the one pass over the urls table with the other category files: `ms` is that pass's time. */
   sharedPass?: true;
+  /** The file is usable but incomplete (the `page-signals` file of a project whose crawls skipped some checks). */
+  warnings?: string[];
 }
 
 export interface BulkExportResult {
