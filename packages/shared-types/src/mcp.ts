@@ -25,6 +25,8 @@
  * open project and run without a prompt, but are still logged in the UI.
  */
 
+import type { AiProvider } from './ai.js';
+
 /** How FreeCrawl talks to one MCP server. */
 export type McpTransport = 'stdio' | 'http';
 
@@ -165,7 +167,7 @@ export type AssistantStopReason =
   | 'max-rounds';
 
 export interface AssistantSendInput {
-  provider: 'openai' | 'anthropic' | 'ollama';
+  provider: AiProvider;
   /** Empty means "use the provider's default model". */
   model?: string;
   /** Full conversation so far, oldest first, ending with the new user

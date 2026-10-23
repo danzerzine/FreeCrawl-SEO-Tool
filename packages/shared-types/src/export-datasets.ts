@@ -358,6 +358,8 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
   'ai:openai': AI,
   'ai:anthropic': AI,
   'ai:ollama': AI,
+  'ai:gemini': AI,
+  'ai:openai-compatible': AI,
   'seo:ahrefs': [
     ...PAGE,
     { key: 'seo.metrics.domainRating', header: 'Domain Rating' },

@@ -10,7 +10,12 @@ import type {
   AiRow,
   IntegrationsState,
 } from '@freecrawl/shared-types';
+import { AI_PROVIDERS } from '@freecrawl/shared-types';
 import { useAppStore } from '../store.js';
+import { AI_PROVIDER_LABEL } from '../components/ai-provider-label.js';
+import { translateLabel } from '../i18n/labels.js';
+
+export { AI_PROVIDER_LABEL };
 
 const TOOLBAR_HEIGHT = 36;
 const PROMPT_PANEL_HEIGHT = 100;
@@ -25,12 +30,6 @@ const DEFAULT_PROMPT =
   'Summarize the page below in 2-3 sentences for an SEO audit.\n\n' +
   'URL: {url}\nTitle: {title}\nMeta description: {description}\nH1: {h1}\n\n' +
   'Body:\n{body}';
-
-const PROVIDER_LABEL: Record<AiProvider, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  ollama: 'Ollama (local)',
-};
 
 type FilterMode = 'all' | 'with-data' | 'without-data' | 'error';
 
@@ -54,7 +53,7 @@ function fmtTokens(a: AiResult): string {
 }
 
 export function AiTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const dataVersion = useAppStore((s) => s.dataVersion);
   const setSelectedUrlId = useAppStore((s) => s.setSelectedUrlId);
   const setSelectedUrlIds = useAppStore((s) => s.setSelectedUrlIds);
@@ -170,7 +169,7 @@ export function AiTab() {
           defaultValue:
             'This will send {{count}} prompts to {{provider}}. Continue?',
           count: urls.length,
-          provider: PROVIDER_LABEL[provider],
+          provider: translateLabel(AI_PROVIDER_LABEL[provider], i18n.language),
         }),
       )
     ) {
@@ -198,6 +197,7 @@ export function AiTab() {
     provider,
     model,
     t,
+    i18n.language,
     reload,
   ]);
 
@@ -252,9 +252,11 @@ export function AiTab() {
             onChange={(e) => setProvider(e.target.value as AiProvider)}
             disabled={running}
           >
-            <option value="openai">{PROVIDER_LABEL.openai}</option>
-            <option value="anthropic">{PROVIDER_LABEL.anthropic}</option>
-            <option value="ollama">{PROVIDER_LABEL.ollama}</option>
+            {AI_PROVIDERS.map((p) => (
+              <option key={p} value={p}>
+                {translateLabel(AI_PROVIDER_LABEL[p], i18n.language)}
+              </option>
+            ))}
           </select>
         </label>
         <input
@@ -323,7 +325,7 @@ export function AiTab() {
           {t('aiTab.notConfigured', {
             defaultValue:
               '{{provider}} is not configured — set its credentials in Settings → Integrations to run prompts.',
-            provider: PROVIDER_LABEL[provider],
+            provider: translateLabel(AI_PROVIDER_LABEL[provider], i18n.language),
           })}
         </div>
       )}

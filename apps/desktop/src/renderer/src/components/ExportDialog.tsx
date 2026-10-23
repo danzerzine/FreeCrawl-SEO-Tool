@@ -155,6 +155,8 @@ const DATASET_TABS: Partial<Record<TabKey, DatasetTab>> = {
       { id: 'openai', label: 'OpenAI', dataset: 'ai:openai' },
       { id: 'anthropic', label: 'Anthropic Claude', dataset: 'ai:anthropic' },
       { id: 'ollama', label: 'Ollama (local LLM)', dataset: 'ai:ollama' },
+      { id: 'gemini', label: 'Google Gemini', dataset: 'ai:gemini' },
+      { id: 'openai-compatible', label: 'OpenAI-compatible service', dataset: 'ai:openai-compatible' },
     ],
   },
   seo: {

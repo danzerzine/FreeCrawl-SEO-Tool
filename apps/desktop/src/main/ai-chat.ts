@@ -30,6 +30,13 @@ import {
   type AnthropicBlock,
 } from './ai-chat-format.js';
 import { apiFetch } from './api-fetch.js';
+import {
+  AiTargetError,
+  emptyReplyMessage,
+  openAiTarget,
+  postChatCompletions,
+  type OpenAiLikeProvider,
+} from './ai-providers.js';
 
 const REQUEST_TIMEOUT_MS = 180_000;
 const MAX_TOKENS = 4096;
@@ -66,7 +73,9 @@ export async function runChatTurn(
 ): Promise<ChatTurnResult> {
   switch (provider) {
     case 'openai':
-      return runOpenAiChat(model, system, messages, tools, signal);
+    case 'gemini':
+    case 'openai-compatible':
+      return runOpenAiChat(provider, model, system, messages, tools, signal);
     case 'anthropic':
       return runAnthropicChat(model, system, messages, tools, signal);
     case 'ollama':
@@ -77,16 +86,13 @@ export async function runChatTurn(
 // ── OpenAI ───────────────────────────────────────────────────────────
 
 async function runOpenAiChat(
+  provider: OpenAiLikeProvider,
   model: string,
   system: string,
   messages: AssistantMessage[],
   tools: ChatTool[],
   signal: AbortSignal,
 ): Promise<ChatTurnResult> {
-  const apiKey = (resolveCredentials('openai')['apiKey'] ?? '').trim();
-  if (!apiKey) {
-    throw new ChatError('No OpenAI API key — paste yours in Settings → Integrations.');
-  }
   const body: Record<string, unknown> = {
     model,
     messages: toOpenAiMessages(system, messages),
@@ -99,16 +105,16 @@ async function runOpenAiChat(
     }));
     body['tool_choice'] = 'auto';
   }
-  const res = await apiFetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-    signal: mergeSignals(signal),
-  });
-  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!res.ok || !json) {
-    const err = (json?.['error'] as { message?: string } | undefined)?.message;
-    throw new ChatError(err ?? `OpenAI API error (HTTP ${res.status})`);
+  let json: Record<string, unknown>;
+  try {
+    const target = openAiTarget(provider);
+    if (!model.trim()) {
+      throw new AiTargetError(`No model name for ${target.label} — enter it in Settings → Integrations.`);
+    }
+    json = await postChatCompletions(target, body, mergeSignals(signal));
+  } catch (err) {
+    if (err instanceof AiTargetError) throw new ChatError(err.message);
+    throw err;
   }
   const choice = (json['choices'] as
     | {
@@ -119,6 +125,7 @@ async function runOpenAiChat(
             function?: { name?: string; arguments?: string };
           }[];
         };
+        finish_reason?: unknown;
       }[]
     | undefined)?.[0];
   const calls: AssistantToolCall[] = (choice?.message?.tool_calls ?? []).map((c, i) => ({
@@ -129,9 +136,12 @@ async function runOpenAiChat(
   const usage = json['usage'] as
     | { prompt_tokens?: number; completion_tokens?: number }
     | undefined;
+  const text = (choice?.message?.content ?? '').trim();
+  const toolCalls = calls.filter((c) => c.name);
+  if (!text && toolCalls.length === 0) throw new ChatError(emptyReplyMessage(choice?.finish_reason));
   return {
-    text: (choice?.message?.content ?? '').trim(),
-    toolCalls: calls.filter((c) => c.name),
+    text,
+    toolCalls,
     tokensIn: usage?.prompt_tokens ?? null,
     tokensOut: usage?.completion_tokens ?? null,
   };

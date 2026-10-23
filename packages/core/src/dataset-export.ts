@@ -1,5 +1,5 @@
 import type { ProjectDb } from '@freecrawl/db';
-import type { ExportDatasetKey, GscRow } from '@freecrawl/shared-types';
+import type { AiProvider, ExportDatasetKey, GscRow } from '@freecrawl/shared-types';
 import { extractVisibleText } from './html-parser.js';
 import { sitemapReconciliationRows } from './sitemap-reconciliation.js';
 
@@ -235,7 +235,7 @@ export function datasetRows(
       if (family === 'ai') {
         return asRecords(
           paged((limit, offset) =>
-            db.queryAi({ limit, offset, provider: provider as 'openai' | 'anthropic' | 'ollama' }),
+            db.queryAi({ limit, offset, provider: provider as AiProvider }),
           ),
         );
       }

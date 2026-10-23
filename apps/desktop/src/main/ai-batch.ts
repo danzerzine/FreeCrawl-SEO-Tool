@@ -39,6 +39,55 @@ export interface AiBatchResult {
   cancelled: boolean;
 }
 
+/** Persist one batch outcome: an ok row, or an error row (empty
+ *  response) so a single bad URL is visible instead of silently missing.
+ *  Extracted from the IPC handler so it can be tested without Electron. */
+export function storeAiResult(
+  db: {
+    upsertAiResult: (
+      url: string,
+      provider: AiProvider,
+      model: string,
+      response: string,
+      tokensIn: number | null,
+      tokensOut: number | null,
+      status: 'ok' | 'error',
+      error: string | null,
+      fetchedAt: string,
+    ) => void;
+  },
+  provider: AiProvider,
+  model: string,
+  outcome: AiBatchOutcome,
+  fetchedAt: string = new Date().toISOString(),
+): void {
+  if (outcome.ok && outcome.output) {
+    db.upsertAiResult(
+      outcome.url,
+      provider,
+      outcome.output.model,
+      outcome.output.text,
+      outcome.output.tokensIn,
+      outcome.output.tokensOut,
+      'ok',
+      null,
+      fetchedAt,
+    );
+  } else {
+    db.upsertAiResult(
+      outcome.url,
+      provider,
+      model,
+      '',
+      null,
+      null,
+      'error',
+      outcome.error ?? 'Unknown error',
+      fetchedAt,
+    );
+  }
+}
+
 export async function runAiBatch(opts: AiBatchOptions): Promise<AiBatchResult> {
   const { provider, model, concurrency, items, isCancelled, onResult, onProgress } = opts;
   const total = items.length;

@@ -364,7 +364,7 @@ import {
   setMenuLangProvider,
   type MenuLang,
 } from './menu-i18n.js';
-import { pickUiLanguage } from '@freecrawl/shared-types';
+import { AI_PROVIDERS, isAiProvider, pickUiLanguage } from '@freecrawl/shared-types';
 import {
   getState as getIntegrationsState,
   setCredentials as setIntegrationCredentials,
@@ -428,7 +428,7 @@ import {
 } from './metrica.js';
 import { listHosts as webmasterListHosts, webmasterDeps, WebmasterError } from './webmaster.js';
 import { pullWebmaster } from './webmaster-pull.js';
-import { runAiBatch, type AiBatchItem } from './ai-batch.js';
+import { runAiBatch, storeAiResult, type AiBatchItem } from './ai-batch.js';
 import { resolveModel, defaultConcurrency } from './ai-providers.js';
 import { runSeoBatch } from './seo-batch.js';
 import * as mcpClient from './mcp-client.js';
@@ -7136,32 +7136,7 @@ function registerIpc(): void {
         isCancelled: () => run.cancelRequested,
         onResult: (outcome) => {
           try {
-            const fetchedAt = new Date().toISOString();
-            if (outcome.ok && outcome.output) {
-              runDb.upsertAiResult(
-                outcome.url,
-                input.provider,
-                outcome.output.model,
-                outcome.output.text,
-                outcome.output.tokensIn,
-                outcome.output.tokensOut,
-                'ok',
-                null,
-                fetchedAt,
-              );
-            } else {
-              runDb.upsertAiResult(
-                outcome.url,
-                input.provider,
-                model,
-                '',
-                null,
-                null,
-                'error',
-                outcome.error ?? 'Unknown error',
-                fetchedAt,
-              );
-            }
+            storeAiResult(runDb, input.provider, model, outcome);
           } catch (err) {
             logger.log(
               'error',
@@ -9319,13 +9294,9 @@ function registerIpc(): void {
         limit?: unknown;
       };
       const provider = typeof i.provider === 'string' ? i.provider : '';
-      if (
-        provider !== 'openai' &&
-        provider !== 'anthropic' &&
-        provider !== 'ollama'
-      ) {
+      if (!isAiProvider(provider)) {
         throw new Error(
-          'ai_run requires `provider` to be one of: openai, anthropic, ollama.',
+          `ai_run requires \`provider\` to be one of: ${AI_PROVIDERS.join(', ')}.`,
         );
       }
       const prompt = typeof i.prompt === 'string' ? i.prompt : '';

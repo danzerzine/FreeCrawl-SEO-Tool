@@ -21,13 +21,12 @@ import type {
   McpServerConfig,
   McpServerStatus,
 } from '@freecrawl/shared-types';
+import { AI_PROVIDERS, isAiProvider } from '@freecrawl/shared-types';
 import { useAppStore } from '../store.js';
+import { AI_PROVIDER_LABEL } from '../components/ai-provider-label.js';
+import { translateLabel } from '../i18n/labels.js';
 
-const PROVIDER_LABEL: Record<AiProvider, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  ollama: 'Ollama (local)',
-};
+export { AI_PROVIDER_LABEL };
 
 const PROVIDER_PREF = 'assistant:provider';
 const MODEL_PREF = 'assistant:model';
@@ -51,7 +50,7 @@ function prettyJson(value: unknown): string {
 }
 
 export function AssistantTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const messages = useAppStore((s) => s.assistantMessages);
   const approvals = useAppStore((s) => s.assistantApprovals);
   const activeCall = useAppStore((s) => s.assistantActiveCall);
@@ -66,7 +65,7 @@ export function AssistantTab() {
 
   const [provider, setProvider] = useState<AiProvider>(() => {
     const saved = window.freecrawl?.prefsGet(PROVIDER_PREF);
-    return saved === 'anthropic' || saved === 'ollama' ? saved : 'openai';
+    return typeof saved === 'string' && isAiProvider(saved) ? saved : 'openai';
   });
   const [model, setModel] = useState<string>(() => {
     const saved = window.freecrawl?.prefsGet(MODEL_PREF);
@@ -197,9 +196,9 @@ export function AssistantTab() {
           value={provider}
           onChange={(e) => setProvider(e.target.value as AiProvider)}
         >
-          {(Object.keys(PROVIDER_LABEL) as AiProvider[]).map((p) => (
+          {AI_PROVIDERS.map((p) => (
             <option key={p} value={p}>
-              {PROVIDER_LABEL[p]}
+              {translateLabel(AI_PROVIDER_LABEL[p], i18n.language)}
             </option>
           ))}
         </select>

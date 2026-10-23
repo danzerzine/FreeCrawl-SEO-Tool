@@ -9,6 +9,7 @@
 import type { ProjectDb } from '@freecrawl/db';
 import {
   GSC_BQ_ACCOUNT,
+  AI_PROVIDERS,
   COMPARE_CATEGORIES,
   type AiProvider,
   type LinkTargetReportKind,
@@ -1032,13 +1033,13 @@ export function buildTools(): Tool[] {
     {
       name: 'query_ai',
       description:
-        'AI batch results per URL for a single provider (openai / anthropic / ollama). Configure provider + run a batch from Settings → AI to populate.',
+        'AI batch results per URL for a single provider (openai / anthropic / ollama / gemini / openai-compatible). Configure provider + run a batch from Settings → AI to populate.',
       inputSchema: {
         type: 'object',
         properties: {
           provider: {
             type: 'string',
-            enum: ['openai', 'anthropic', 'ollama'],
+            enum: [...AI_PROVIDERS],
           },
           search: { type: 'string' },
           filter: {
@@ -2036,7 +2037,7 @@ export function buildTools(): Tool[] {
         properties: {
           integrationId: {
             type: 'string',
-            enum: ['gsc', 'ga4', 'sheets', 'bigquery', 'pagespeed', 'openai', 'anthropic', 'ollama'],
+            enum: ['gsc', 'ga4', 'sheets', 'bigquery', 'pagespeed', 'openai', 'anthropic', 'ollama', 'gemini', 'openai-compatible'],
           },
         },
         required: ['integrationId'],
@@ -2341,13 +2342,13 @@ export function buildTools(): Tool[] {
       requiresDb: false,
       name: 'ai_run',
       description:
-        'Kick off an AI batch over the matched URLs and return immediately (non-blocking). Each page\'s fields can be interpolated into `prompt` via {url}/{title}/{description}/{h1}/{body}. Poll `get_fetch_progress` (kind "ai") and `cancel_fetch` to stop. COSTS REAL MONEY for hosted providers (openai/anthropic) — one API call per matched URL — so scope tightly with `category` + `limit` first. The provider must be configured in Settings → AI. URLs not crawled in this project are skipped (no page context). Results land where `query_ai` reads. Returns `{started, total, truncated, state}`.',
+        'Kick off an AI batch over the matched URLs and return immediately (non-blocking). Each page\'s fields can be interpolated into `prompt` via {url}/{title}/{description}/{h1}/{body}. Poll `get_fetch_progress` (kind "ai") and `cancel_fetch` to stop. COSTS REAL MONEY for hosted providers (openai/anthropic/gemini, or a paid openai-compatible service) — one API call per matched URL — so scope tightly with `category` + `limit` first. The provider must be configured in Settings → AI. URLs not crawled in this project are skipped (no page context). Results land where `query_ai` reads. Returns `{started, total, truncated, state}`.',
       inputSchema: {
         type: 'object',
         properties: {
           provider: {
             type: 'string',
-            enum: ['openai', 'anthropic', 'ollama'],
+            enum: [...AI_PROVIDERS],
           },
           prompt: {
             type: 'string',
