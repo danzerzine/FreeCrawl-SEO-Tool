@@ -717,21 +717,30 @@ export interface ServedHeadSignals {
  * Read the title and the robots/googlebot noindex out of the HTML as the
  * server sent it. Used in JavaScript-rendering mode, where the page is
  * parsed from the rendered DOM, to tell what the scripts changed. A
- * regex pass over `<head>` is enough for these two fields and keeps the
+ * parse of `<head>` alone is enough for these two fields and keeps the
  * second look at the document off the parser's critical path.
  */
 export function readServedHeadSignals(html: string, robotsBot = 'googlebot'): ServedHeadSignals {
   const headEnd = html.search(/<\/head\s*>/i);
   const head = headEnd >= 0 ? html.slice(0, headEnd) : html.slice(0, 200_000);
-  const t = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(head);
-  const title = t?.[1] ? decodeEntities(t[1]).replace(/\s+/g, ' ').trim() || null : null;
+  // Parsed like `parseHtml` (same cheerio backend), so comments are skipped
+  // and a title in an inline <svg> is not the document title (B160).
+  const $ = cheerio.load(head, {
+    xml: false,
+    xmlMode: false,
+    // @ts-expect-error — see parseHtml.
+    _useHtmlParser2: true,
+    decodeEntities: false,
+  });
+  const titleEl = $('title')
+    .filter((_, el) => $(el).closest('svg').length === 0)
+    .first();
+  const title = decodeEntities(titleEl.text()).replace(/\s+/g, ' ').trim() || null;
   let noindex = false;
-  for (const m of head.matchAll(/<meta\b[^>]*>/gi)) {
-    const tag = m[0];
-    const name = /\bname\s*=\s*["']?([^"'\s>]+)/i.exec(tag)?.[1]?.toLowerCase();
+  for (const el of $('meta').toArray()) {
+    const name = ($(el).attr('name') ?? '').trim().toLowerCase();
     if (name !== 'robots' && name !== robotsBot) continue;
-    const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
-    const value = (content?.[1] ?? content?.[2] ?? content?.[3] ?? '').toLowerCase();
+    const value = ($(el).attr('content') ?? '').toLowerCase();
     if (/\bnoindex\b|\bnone\b/.test(value)) {
       noindex = true;
       break;

@@ -141,4 +141,27 @@ describe('render branch: title and noindex against the served HTML (M11 step 0)'
     );
     expect(r.row.jsTitleChanged).toBe(0);
   });
+
+  it('6. a template comment holding a literal <title> does not win over the real served title (B160)', async () => {
+    const url = base + '/t6';
+    const r = await crawl(
+      '/t6',
+      '<html><head><!-- old: <title>Template</title> --><title>\n  Real\n  title </title></head><body></body></html>',
+      fakeRender({ [url]: '<html><head><title>Real title</title></head><body></body></html>' }),
+    );
+    expect(r.row.title).toBe('Real title');
+    expect(r.row.jsTitleChanged).toBe(0);
+  });
+
+  it('7. a commented-out robots meta in the served head is not a served noindex (B160)', async () => {
+    const url = base + '/t7';
+    const r = await crawl(
+      '/t7',
+      '<html><head><title>A</title><!-- <meta name="robots" content="noindex"> --></head><body></body></html>',
+      fakeRender({
+        [url]: '<html><head><title>A</title><meta name="robots" content="noindex"></head><body></body></html>',
+      }),
+    );
+    expect(r.row.jsNoindex).toBe(2);
+  });
 });
