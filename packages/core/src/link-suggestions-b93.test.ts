@@ -355,7 +355,8 @@ describe('linkSuggestions (B93)', () => {
       { id: 3, path: '/common', title: c.common },
     ];
     for (let i = 0; i < 12; i++) pages.push({ id: 4 + i, path: `/f${i}`, title: c.filler(i) });
-    const r = run({ pages }, { minCloseness: 0, perTarget: 20 });
+    // perSource is lifted: every page here is a weak target too, and /t sorts last by url.
+    const r = run({ pages }, { minCloseness: 0, perTarget: 20, perSource: 100 });
     const src = sourcesOf(r, '/t');
     expect(src.indexOf('/rare')).toBeGreaterThanOrEqual(0);
     expect(src.indexOf('/common')).toBeGreaterThanOrEqual(0);
@@ -480,7 +481,7 @@ describe('linkSuggestions (B93)', () => {
       { id: 1, path: '/a1', title: 'Alpine lake swimming spots', outlinks: 200 },
       { id: 2, path: '/a2', title: 'Alpine lake swimming places', outlinks: 200 },
       { id: 3, path: '/z-hub', title: 'Alpine lake swimming guide' },
-      { id: 4, path: '/z-hub2', title: 'Alpine swimming' },
+      { id: 4, path: '/z-hub2', title: 'Alpine hiking trails' },
       { id: 5, path: '/l1', title: 'Cheese rolling' },
       { id: 6, path: '/l2', title: 'Pottery wheels' },
       { id: 7, path: '/l3', title: 'Chess openings' },
