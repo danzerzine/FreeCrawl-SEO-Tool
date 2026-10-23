@@ -504,7 +504,7 @@ const SECTIONS: SectionDef[] = [
     label: 'Integrations',
     icon: Plug,
     keywords:
-      'integrations api key oauth google search console analytics gsc ga4 pagespeed ahrefs moz semrush majestic openai anthropic claude ollama sheets bigquery slack telegram email smtp credentials',
+      'integrations api key oauth google search console analytics gsc ga4 pagespeed ahrefs moz semrush majestic openai anthropic claude ollama gemini openai-compatible lm studio vllm openrouter sheets bigquery slack telegram email smtp credentials',
     group: true,
   },
   // One sub-page per integration, generated from the shared catalog so a

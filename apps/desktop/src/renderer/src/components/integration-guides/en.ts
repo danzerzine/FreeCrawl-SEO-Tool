@@ -205,6 +205,104 @@ export const GUIDES_EN: Record<string, Guide> = {
     ],
     lastReviewed: '2026-06-01',
   },
+  gemini: {
+    intro:
+      "Run a custom prompt for each URL with Google's Gemini models. FreeCrawl talks to Gemini through Google's OpenAI-compatible endpoint (generativelanguage.googleapis.com/v1beta/openai), so one API key from Google AI Studio is all you need. Usage is billed to your own Google account (there is a free tier with low limits).",
+    prereqs: ['A Google account.', 'Optional: a billing account if you go beyond the free tier.'],
+    steps: [
+      {
+        title: 'Open Google AI Studio and sign in',
+        link: { label: 'aistudio.google.com/apikey', url: 'https://aistudio.google.com/apikey' },
+      },
+      {
+        title: 'Click "Create API key"',
+        detail: 'Pick or create a Google Cloud project when asked. The key is shown once on screen; copy it.',
+      },
+      {
+        title: 'Paste it into the "API Key" field of this panel and Save',
+        detail: 'The key is stored encrypted with the operating system keyring and is sent only to generativelanguage.googleapis.com.',
+      },
+      {
+        title: 'Optional: set the model',
+        detail: 'Default is gemini-2.5-flash. Any model name from the AI Studio model list works, e.g. gemini-2.5-pro.',
+      },
+      {
+        title: 'Test in the AI tab',
+        detail: 'Choose "Google Gemini" as provider and run the prompt on one or two URLs first.',
+      },
+    ],
+    troubleshooting: [
+      {
+        problem: '"The model returned an empty reply (output limit reached before any text)"',
+        solution:
+          'Gemini 2.5 models spend part of the output limit on hidden reasoning. Try a shorter prompt or a model without heavy reasoning (gemini-2.5-flash-lite).',
+      },
+      {
+        problem: 'HTTP 429 / quota exceeded',
+        solution: 'The free tier has low per-minute limits. Wait a minute, run fewer URLs at once, or enable billing in Google AI Studio.',
+      },
+      {
+        problem: 'HTTP 400 "API key not valid"',
+        solution: 'The key was pasted with a space or from the wrong project. Create a new key and paste it again.',
+      },
+    ],
+    notes: [
+      "Google marks the OpenAI-compatible endpoint as beta; if a call fails in a way that looks like an API change, check Google's release notes.",
+      'Cost: one API call per URL. Scope the run by category and limit first.',
+    ],
+    lastReviewed: '2026-10-23',
+  },
+  'openai-compatible': {
+    intro:
+      'Use any service that speaks the OpenAI chat API at its own address: LM Studio, vLLM, llama.cpp server, OpenRouter, Together, Groq, or your own gateway. You enter its base URL, an optional key and the model name.',
+    prereqs: [
+      'A running service with an OpenAI-style /chat/completions endpoint.',
+      'Its base URL (usually ending in /v1) and the exact model name it lists.',
+    ],
+    steps: [
+      {
+        title: 'Find the base URL of the service',
+        detail:
+          'Examples:\n• LM Studio: http://localhost:1234/v1\n• vLLM: http://localhost:8000/v1\n• OpenRouter: https://openrouter.ai/api/v1\n\nThe request goes to <base URL>/chat/completions.',
+      },
+      {
+        title: 'Enter the base URL in the "Base URL" field',
+        detail:
+          'https:// is required for services on the internet. Plain http:// is accepted only for this computer (localhost, 127.x) and private networks (10.x, 172.16-31.x, 192.168.x). Do not put a user name or password into the address.',
+      },
+      {
+        title: 'Enter the API key if the service needs one',
+        detail: 'A local server usually needs none: leave the field empty. The key is sent only to the exact address you entered, and redirects to another address are refused.',
+      },
+      {
+        title: 'Enter the model name',
+        detail: 'Exactly as the service lists it (e.g. the loaded model in LM Studio, or "openai/gpt-4o-mini" on OpenRouter). There is no default.',
+      },
+      {
+        title: 'Test in the AI tab',
+        detail: 'Choose "OpenAI-compatible service" as provider and run one URL first. Local servers are slow: the batch runs 2 requests at a time.',
+      },
+    ],
+    troubleshooting: [
+      {
+        problem: '"Couldn\'t reach The OpenAI-compatible service"',
+        solution: 'The server is not running, the port is wrong, or a firewall blocks it. Open the base URL + /models in a browser to check.',
+      },
+      {
+        problem: '"http:// is only allowed for this computer or a private network address"',
+        solution: 'Use the https:// address of the service, or reach it through a private network address.',
+      },
+      {
+        problem: '"the service redirected to another address"',
+        solution: 'The address you entered redirects (for example http to https or to another host). Enter the final address as the Base URL.',
+      },
+    ],
+    notes: [
+      'Desktop only: the command-line tool has no AI features.',
+      'The OpenAI card also has an optional Base URL, for a proxy or gateway in front of OpenAI.',
+    ],
+    lastReviewed: '2026-10-23',
+  },
   pagespeed: {
     intro:
       'Google PageSpeed Insights audits each URL with Lighthouse and returns Performance/SEO/Accessibility/Best-Practices scores + Core Web Vitals (LCP/CLS/INP). A free API key gives you 25,000 audits/day.',

@@ -205,6 +205,104 @@ export const GUIDES_RU: Record<string, Guide> = {
     ],
     lastReviewed: '2026-06-01',
   },
+  gemini: {
+    intro:
+      'Запускайте свой промпт для каждого URL на моделях Google Gemini. FreeCrawl обращается к Gemini через OpenAI-совместимый адрес Google (generativelanguage.googleapis.com/v1beta/openai), поэтому нужен только один ключ API из Google AI Studio. Использование оплачивается с вашего аккаунта Google (есть бесплатный тариф с малыми лимитами).',
+    prereqs: ['Аккаунт Google.', 'По желанию: платёжный аккаунт, если вы выходите за бесплатный тариф.'],
+    steps: [
+      {
+        title: 'Откройте Google AI Studio и войдите',
+        link: { label: 'aistudio.google.com/apikey', url: 'https://aistudio.google.com/apikey' },
+      },
+      {
+        title: 'Нажмите "Create API key"',
+        detail: 'Когда спросят, выберите или создайте проект Google Cloud. Ключ показывается один раз; скопируйте его.',
+      },
+      {
+        title: 'Вставьте его в поле "API Key" этой панели и нажмите Сохранить',
+        detail: 'Ключ хранится в зашифрованном виде в хранилище ключей ОС и отправляется только на generativelanguage.googleapis.com.',
+      },
+      {
+        title: 'По желанию: укажите модель',
+        detail: 'По умолчанию gemini-2.5-flash. Подойдёт любое имя модели из списка AI Studio, например gemini-2.5-pro.',
+      },
+      {
+        title: 'Проверьте во вкладке AI',
+        detail: 'Выберите провайдера "Google Gemini" и сначала запустите промпт на одном-двух URL.',
+      },
+    ],
+    troubleshooting: [
+      {
+        problem: '"The model returned an empty reply (output limit reached before any text)"',
+        solution:
+          'Модели Gemini 2.5 тратят часть лимита ответа на скрытые рассуждения. Сократите промпт или возьмите модель полегче (gemini-2.5-flash-lite).',
+      },
+      {
+        problem: 'HTTP 429 / квота исчерпана',
+        solution: 'У бесплатного тарифа малые лимиты в минуту. Подождите минуту, запускайте меньше URL за раз или включите оплату в Google AI Studio.',
+      },
+      {
+        problem: 'HTTP 400 "API key not valid"',
+        solution: 'Ключ вставлен с пробелом или из другого проекта. Создайте новый ключ и вставьте заново.',
+      },
+    ],
+    notes: [
+      'Google называет OpenAI-совместимый адрес бета-версией; если вызов падает так, будто API изменился, загляните в заметки о релизах Google.',
+      'Стоимость: один вызов API на URL. Сначала ограничьте запуск категорией и лимитом.',
+    ],
+    lastReviewed: '2026-10-23',
+  },
+  'openai-compatible': {
+    intro:
+      'Подключайте любой сервис, который понимает чат-API OpenAI по своему адресу: LM Studio, vLLM, сервер llama.cpp, OpenRouter, Together, Groq или свой шлюз. Вы вводите его базовый адрес, ключ (необязательно) и имя модели.',
+    prereqs: [
+      'Работающий сервис с OpenAI-подобным адресом /chat/completions.',
+      'Его базовый адрес (обычно оканчивается на /v1) и точное имя модели из его списка.',
+    ],
+    steps: [
+      {
+        title: 'Найдите базовый адрес сервиса',
+        detail:
+          'Примеры:\n• LM Studio: http://localhost:1234/v1\n• vLLM: http://localhost:8000/v1\n• OpenRouter: https://openrouter.ai/api/v1\n\nЗапрос уходит на <базовый адрес>/chat/completions.',
+      },
+      {
+        title: 'Введите адрес в поле "Base URL"',
+        detail:
+          'Для сервисов в интернете нужен https://. Обычный http:// принимается только для этого компьютера (localhost, 127.x) и частных сетей (10.x, 172.16-31.x, 192.168.x). Не вписывайте имя пользователя и пароль в адрес.',
+      },
+      {
+        title: 'Введите ключ API, если сервис его требует',
+        detail: 'Локальному серверу обычно ключ не нужен: оставьте поле пустым. Ключ уходит только на введённый адрес, а перенаправления на другой адрес отклоняются.',
+      },
+      {
+        title: 'Введите имя модели',
+        detail: 'Точно так, как его показывает сервис (например, загруженная модель в LM Studio или "openai/gpt-4o-mini" в OpenRouter). Значения по умолчанию нет.',
+      },
+      {
+        title: 'Проверьте во вкладке AI',
+        detail: 'Выберите провайдера "OpenAI-compatible service" и сначала запустите один URL. Локальные серверы медленные: пакет идёт по 2 запроса одновременно.',
+      },
+    ],
+    troubleshooting: [
+      {
+        problem: '"Couldn\'t reach The OpenAI-compatible service"',
+        solution: 'Сервер не запущен, неверный порт или его блокирует файрвол. Откройте в браузере базовый адрес + /models и проверьте.',
+      },
+      {
+        problem: '"http:// is only allowed for this computer or a private network address"',
+        solution: 'Используйте адрес сервиса с https:// или подключайтесь по адресу из частной сети.',
+      },
+      {
+        problem: '"the service redirected to another address"',
+        solution: 'Введённый адрес перенаправляет (например, с http на https или на другой хост). Впишите конечный адрес как Base URL.',
+      },
+    ],
+    notes: [
+      'Только в приложении: в командной строке функций AI нет.',
+      'У карточки OpenAI тоже есть необязательное поле Base URL, для прокси или шлюза перед OpenAI.',
+    ],
+    lastReviewed: '2026-10-23',
+  },
   pagespeed: {
     intro:
       'Google PageSpeed Insights проверяет каждый URL через Lighthouse и возвращает оценки Производительность/SEO/Доступность/Лучшие практики + Core Web Vitals (LCP/CLS/INP). Бесплатный ключ API даёт 25 000 проверок/день.',
