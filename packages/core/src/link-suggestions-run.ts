@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import type { LinkSuggestionInput, LinkSuggestionResult } from '@freecrawl/shared-types';
@@ -34,6 +35,7 @@ export function runLinkSuggestionsInWorker(
     }
     const worker = new Worker(opts.workerPath ?? LINK_SUGGESTIONS_WORKER_PATH, {
       workerData: { file, input, internals: opts.internals },
+      resourceLimits: { maxYoungGenerationSizeMb: 24, maxOldGenerationSizeMb: oldLimitMb(file) },
     });
     let settled = false;
     const finish = (fn: () => void): void => {
@@ -57,6 +59,22 @@ export function runLinkSuggestionsInWorker(
       finish(() => reject(new Error(`link-suggestions worker exited with code ${code}`))),
     );
   });
+}
+
+/**
+ * Heap caps of the worker. Row blocks, token arrays and key strings die young; with V8's default
+ * limits they pile up as RSS (1.49 GB at 1M URLs, 0.83 GB with the caps). The old-generation cap
+ * grows with the project file (about 8 KB per URL, live heap about 300 bytes per URL) so a bigger
+ * crawl is not killed by it.
+ */
+function oldLimitMb(file: string): number {
+  let mb = 0;
+  try {
+    mb = fs.statSync(file).size / 1048576;
+  } catch {
+    /* the worker reports the missing file */
+  }
+  return Math.min(4096, Math.max(600, Math.round(mb / 12)));
 }
 
 function abortError(): Error {
