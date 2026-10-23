@@ -663,3 +663,62 @@ describe('a refresh of a stored project does not count what is not a page', () =
     db.close();
   }, 180_000);
 });
+
+describe('a Re-Spider takes the stored sitemap as baseline only if that read was clean (acceptance r2 B1)', () => {
+  let server: Server;
+  let base: string;
+  const floors = { r2Count: 300, r3Count: 300, r1Count: 600, checkEvery: 100 };
+  const news = Array.from({ length: 800 }, (_, i) => `/news/n${i}`);
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const u = new URL(req.url ?? '/', 'http://x');
+      const html = (b: string): void =>
+        void res.writeHead(200, { 'content-type': 'text/html' }).end(`<html><head><title>${u.pathname} page title long enough</title></head><body>${b}</body></html>`);
+      const xml = (b: string): void => void res.writeHead(200, { 'content-type': 'application/xml' }).end(`<?xml version="1.0"?>${b}`);
+      const host = req.headers.host;
+      if (u.pathname === '/robots.txt' || u.pathname === '/sitemap_index.xml') return void res.writeHead(404).end();
+      if (u.pathname === '/sitemap.xml') {
+        return xml(
+          `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>http://${host}/sm-pages.xml</loc></sitemap><sitemap><loc>http://${host}/sm-news.xml</loc></sitemap></sitemapindex>`,
+        );
+      }
+      if (u.pathname === '/sm-news.xml') return void res.writeHead(500).end();
+      if (u.pathname === '/sm-pages.xml') {
+        const loc = Array.from({ length: 20 }, (_, i) => `<url><loc>http://${host}/about/a${i}</loc></url>`).join('');
+        return xml(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${loc}</urlset>`);
+      }
+      if (u.pathname === '/') return html(news.map((n) => `<a href="${n}">n</a>`).join(' '));
+      html(`<p>${'page '.repeat(40)}${u.pathname}</p>`);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+  afterAll(() => void server.close());
+
+  it('a sitemap file that failed leaves no baseline: the Re-Spider warns nothing the fresh crawl did not', async () => {
+    const db = new ProjectDb(join(dir, 'unclean.seoproject'));
+    const make = (opts: ConstructorParameters<typeof Crawler>[2] = {}): { c: Crawler; w: string[] } => {
+      const c = quiet(
+        new Crawler({ ...baseConfig(`${base}/`), maxConcurrency: 8, maxDepth: 2, maxUrls: 2000, discoverSitemaps: true }, db, {
+          trapWatch: { floors },
+          ...opts,
+        }),
+      );
+      const w: string[] = [];
+      c.on('warn', (m: string) => /Possible crawl trap/.test(m) && w.push(m));
+      return { c, w };
+    };
+    const first = make();
+    await first.c.start();
+    expect(first.c.trapWatch.hasBaseline).toBe(false);
+    expect(first.w).toEqual([]);
+
+    const again = make({ respiderSeeds: [`${base}/`] });
+    await again.c.start();
+    expect(again.w).toEqual([]);
+    expect(db.getOverviewCounts().site?.crawlTraps ?? []).toEqual([]);
+    expect(again.c.trapWatch.hasBaseline).toBe(false);
+    db.close();
+  }, 120_000);
+});

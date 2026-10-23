@@ -3447,6 +3447,11 @@ export class Crawler extends EventEmitter {
             merged.map((e) => normalizeUrl(e.url, undefined, this.urlRewrites) ?? e.url),
           );
           this.runTrapCheck();
+          void this.persistTrapWatch();
+        } else if (merged.length > 0) {
+          // Stored below, but not a baseline for a later Re-Spider: the read was partial.
+          this.trapWatch.markSitemapUnclean();
+          void this.persistTrapWatch();
         }
         if (merged.length > 0) {
           await this.dbCall<void>('setSitemapUrls', [merged]);
@@ -3536,9 +3541,9 @@ export class Crawler extends EventEmitter {
       // A fresh crawl has none stored: its own count grows from zero and the 2x escape must work.
       if (stored > 0) this.trapWatch.awaitBaseline();
       // No sitemap read follows (a Re-Spider, or a start with sitemaps off): the sitemap stored
-      // by the earlier crawl is the baseline, else the no-baseline rule would judge the stored
+      // by the earlier crawl is the baseline when that read was clean (flag in the trap meta), else the no-baseline rule would judge the stored
       // counts alone and call a pattern the sitemap lists in full a trap.
-      if (stored > 0 && this.trapWatch.isSettled && !this.trapWatch.hasBaseline) {
+      if (stored > 0 && this.trapWatch.isSettled && !this.trapWatch.hasBaseline && this.trapWatch.sitemapClean) {
         const listed: string[] = [];
         for (const r of this.db.iterateSitemapUrls()) {
           listed.push(normalizeUrl(r.url, undefined, this.urlRewrites) ?? r.url);

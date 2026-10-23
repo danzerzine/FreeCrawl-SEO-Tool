@@ -81,6 +81,8 @@ export interface CrawlTrapSnapshot {
   sitemapUrls: number | null;
   findings: TrapFinding[];
   sitemapShort?: { found: number; listed: number };
+  /** The last sitemap read was clean, so the stored sitemap URLs may serve as a baseline; absent (older file) = not clean. */
+  sitemapClean?: boolean;
 }
 
 const MAX_KEY = 200;
@@ -227,6 +229,8 @@ export class CrawlTrapWatch {
   private sSection = new Map<string, number>();
   private sPattern = new Map<string, number>();
   private settled = false;
+  /** The last sitemap read behind the stored `sitemap_urls` was clean (persisted in the snapshot). */
+  private cleanSitemap = false;
   /** Stored counts were loaded and the sitemap is still to be re-read: no no-baseline R2 until it is in. */
   private awaitingBaseline = false;
 
@@ -257,6 +261,16 @@ export class CrawlTrapWatch {
   /** Whether a clean sitemap baseline is set. */
   get hasBaseline(): boolean {
     return this.sitemapTotal !== null;
+  }
+
+  /** Whether the last sitemap read was clean: stored sitemap URLs are a valid baseline only then. */
+  get sitemapClean(): boolean {
+    return this.cleanSitemap;
+  }
+
+  /** The sitemap read just finished was not clean (failed file, truncation, abort): stored URLs are no baseline. */
+  markSitemapUnclean(): void {
+    this.cleanSitemap = false;
   }
 
   /** Whether the sitemap read is over (or there is none): no-baseline findings need the full floor from then on. */
@@ -309,6 +323,7 @@ export class CrawlTrapWatch {
     }
     this.settled = true;
     this.awaitingBaseline = false;
+    this.cleanSitemap = seen.size > 0;
     if (seen.size === 0) {
       this.baselineHost = null;
       this.sitemapTotal = null;
@@ -328,6 +343,7 @@ export class CrawlTrapWatch {
     this.findings = prev.findings.slice(0, MAX_FINDINGS);
     for (const f of prev.findings) this.markFired(f);
     if (prev.sitemapShort) this.short = prev.sitemapShort;
+    this.cleanSitemap = prev.sitemapClean === true;
   }
 
   snapshot(at: string): CrawlTrapSnapshot {
@@ -337,6 +353,7 @@ export class CrawlTrapWatch {
       discovered: this.n,
       sitemapUrls: this.sitemapTotal,
       findings: this.findings,
+      sitemapClean: this.cleanSitemap,
       ...(this.short ? { sitemapShort: this.short } : {}),
     };
   }
