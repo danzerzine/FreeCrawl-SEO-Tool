@@ -11,6 +11,11 @@ export function daysToPull(plan: GscBqPlanView): number {
   return plan.parts.reduce((sum, p) => sum + p.days, 0);
 }
 
+/** The 1-based part a run is pulling: `done` counts the parts finished, so the next one is `done + 1`. */
+export function pullingPart(done: number, total: number): number {
+  return Math.min(done + 1, total);
+}
+
 export interface PullGate {
   /** The Pull button is enabled. */
   canPull: boolean;

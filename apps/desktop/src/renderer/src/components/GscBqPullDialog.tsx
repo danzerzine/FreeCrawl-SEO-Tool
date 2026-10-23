@@ -6,6 +6,7 @@ import {
   daysToPull,
   needsFreshPlan,
   pullGate,
+  pullingPart,
   type GscBqPlanView,
   type GscBqProgress,
   type GscBqRunResult,
@@ -237,7 +238,7 @@ export function GscBqPullDialog({
           <Loader2 size={12} className="animate-spin text-blue-400" />
           {t('gscBq.running', {
             defaultValue: 'Pulling part {{done}} of {{total}}…',
-            done: progress?.done ?? 0,
+            done: pullingPart(progress?.done ?? 0, progress?.total ?? plan?.parts.length ?? 0),
             total: progress?.total ?? plan?.parts.length ?? 0,
           })}
         </div>

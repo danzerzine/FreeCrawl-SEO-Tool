@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { GscBqPlanView } from '@freecrawl/shared-types';
-import { daysToPull, needsFreshPlan, pullGate } from '@freecrawl/shared-types';
+import { daysToPull, needsFreshPlan, pullGate, pullingPart } from '@freecrawl/shared-types';
 
 const plan = (over: Partial<GscBqPlanView> = {}): GscBqPlanView => ({
   planId: 'p1',
@@ -106,5 +106,23 @@ describe('coverage label (review r1)', () => {
     }
     const en = JSON.parse(fs.readFileSync(path.join(dir, 'en.json'), 'utf8')).gscBq.overCap as string;
     expect(en).not.toMatch(/continued/);
+  });
+});
+
+describe('the progress line names the part being pulled (review r1)', () => {
+  it('counts parts from 1: nothing done yet is part 1, the last one never passes the total', () => {
+    expect(pullingPart(0, 3)).toBe(1);
+    expect(pullingPart(1, 3)).toBe(2);
+    expect(pullingPart(3, 3)).toBe(3);
+    expect(pullingPart(0, 0)).toBe(0);
+  });
+
+  it('the dialog shows that number, not the count of finished parts', () => {
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../renderer/src/components/GscBqPullDialog.tsx'),
+      'utf8',
+    );
+    expect(src).toMatch(/done:\s*pullingPart\(/);
+    expect(src).not.toMatch(/done:\s*progress\?\.done/);
   });
 });
