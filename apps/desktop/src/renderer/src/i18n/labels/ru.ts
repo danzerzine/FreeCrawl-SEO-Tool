@@ -207,6 +207,8 @@ export const RU_LABELS: Record<string, string> = {
   'Canonical Outside <head>': 'Canonical вне <head>',
   'Hreflang Outside <head>': 'Hreflang вне <head>',
   'Title Outside <head>': 'Title вне <head>',
+  'Yes': 'Да',
+  'No': 'Нет',
   'Description Outside <head>': 'Description вне <head>',
   'Meta Robots Outside <head>': 'Meta robots вне <head>',
   'Template Junk in URL': 'Мусор шаблона в URL',

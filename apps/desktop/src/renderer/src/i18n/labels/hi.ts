@@ -207,6 +207,8 @@ export const HI_LABELS: Record<string, string> = {
   'Canonical Outside <head>': 'Canonical <head> के बाहर',
   'Hreflang Outside <head>': 'Hreflang <head> के बाहर',
   'Title Outside <head>': 'Title <head> के बाहर',
+  'Yes': 'हाँ',
+  'No': 'नहीं',
   'Description Outside <head>': 'Description <head> के बाहर',
   'Meta Robots Outside <head>': 'Meta robots <head> के बाहर',
   'Template Junk in URL': 'URL में टेम्पलेट का कचरा',

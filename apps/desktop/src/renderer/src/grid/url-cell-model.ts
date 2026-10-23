@@ -1,4 +1,4 @@
-import type { CrawlUrlRow } from '@freecrawl/shared-types';
+import { urlSignalCell, type CrawlUrlRow, type YesNoUrlColumn } from '@freecrawl/shared-types';
 import type { ColumnSpec } from '../tabs/columns.js';
 import { translateLabel } from '../i18n/labels.js';
 import { getTheme, subscribeTheme } from '../theme.js';
@@ -296,6 +296,13 @@ export function cellText(row: CrawlUrlRow, spec: ColumnSpec, lang: string): stri
   if (spec.kind === 'indexability-status') {
     const label = indexabilityStatusLabel(row.indexability);
     return label === '' ? '' : translateLabel(label, lang);
+  }
+
+  // Module-5 page signals (B136): Yes / No, blank outside the check's scope. The grid has
+  // no `checksFilled` of the project, so an old project shows No where the export is blank.
+  if (spec.kind === 'yes-no') {
+    const v = urlSignalCell(row, spec.key as YesNoUrlColumn, 'labels');
+    return v === null ? '' : translateLabel(String(v), lang);
   }
 
   // Custom-extraction column holds a `{ruleName: value}` JSON map. Showing

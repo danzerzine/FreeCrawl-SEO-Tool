@@ -207,6 +207,8 @@ export const KO_LABELS: Record<string, string> = {
   'Canonical Outside <head>': '<head> 밖의 canonical',
   'Hreflang Outside <head>': '<head> 밖의 hreflang',
   'Title Outside <head>': '<head> 밖의 title',
+  'Yes': '예',
+  'No': '아니요',
   'Description Outside <head>': '<head> 밖의 description',
   'Meta Robots Outside <head>': '<head> 밖의 meta robots',
   'Template Junk in URL': 'URL의 템플릿 잔여물',

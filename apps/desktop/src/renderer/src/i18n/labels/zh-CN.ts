@@ -206,6 +206,8 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Canonical Outside <head>': 'Canonical 位于 <head> 之外',
   'Hreflang Outside <head>': 'Hreflang 位于 <head> 之外',
   'Title Outside <head>': 'Title 位于 <head> 之外',
+  'Yes': '是',
+  'No': '否',
   'Description Outside <head>': 'Description 位于 <head> 之外',
   'Meta Robots Outside <head>': 'Meta robots 位于 <head> 之外',
   'Template Junk in URL': 'URL 中的模板残留',

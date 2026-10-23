@@ -713,4 +713,26 @@ export const TR_INFO_TIPS: Record<string, string> = {
     "Bir tıklama ve kısa bir bekleme için 5000, uzun bir listeyi kaydırmak için 15000.",
   ["Effective inlinks are the other pages that really link to a page: each page counts once however often it links, links from menus and footers count too, redirects to it are counted once, and links to itself are left out. A page with few of them is hard for visitors and search engines to find. Closeness (0-100) says how much a candidate page and the weak page talk about the same things, judged by the rare words in their titles, headings and descriptions. A source is only listed if it does not link to the page yet."]:
     "Etkin gelen bağlantılar, bir sayfaya gerçekten bağlanan diğer sayfalardır: her sayfa kaç bağlantı verirse versin bir kez sayılır, menü ve altbilgi bağlantıları da sayılır, ona yönlenen yönlendirmeler bir kez sayılır ve sayfanın kendine verdiği bağlantılar dışarıda bırakılır. Az bağlantısı olan bir sayfayı ziyaretçilerin ve arama motorlarının bulması zordur. Yakınlık (0-100), aday sayfa ile zayıf sayfanın aynı konulardan ne kadar söz ettiğini gösterir; başlıklardaki, alt başlıklardaki ve açıklamalardaki nadir sözcüklere bakılarak hesaplanır. Bir kaynak, o sayfaya henüz bağlanmıyorsa listelenir.",
+  ["The page has hreflang link tags inside the body, where search engines ignore them: move them into the head."]:
+    "Sayfada hreflang bağlantı etiketleri body içinde yer alıyor ve arama motorları bunları yok sayar: etiketleri head içine taşıyın.",
+  ["The page has a title tag inside the body, outside the head: keep one title in the head and remove the others."]:
+    "Sayfada body içinde, head dışında bir title etiketi var: head içinde tek bir title bırakın, diğerlerini kaldırın.",
+  ["The page has a meta description inside the body, outside the head: move it into the head."]:
+    "Sayfada body içinde, head dışında bir meta açıklaması var: onu head içine taşıyın.",
+  ["The page has a meta robots tag inside the body: move it into the head so the directive is read reliably."]:
+    "Sayfada body içinde bir meta robots etiketi var: yönergenin güvenilir okunması için head içine taşıyın.",
+  ["An OpenGraph tag is written with name= instead of the property= that OpenGraph asks for: change the attribute to property."]:
+    "Bir OpenGraph etiketi OpenGraph'in istediği property= yerine name= ile yazılmış: özniteliği property olarak değiştirin.",
+  ["The page links to its own site with utm_ parameters, which start a new analytics session on every click: remove the parameters from internal links."]:
+    "Sayfa kendi sitesine utm_ parametreleriyle bağlanıyor ve her tıklama analitikte yeni bir oturum başlatıyor: iç bağlantılardan parametreleri kaldırın.",
+  ["Meta tags for search engines other than Google (such as bingbot or yandex) tell them not to index the page: check that this is intended."]:
+    "Google dışındaki arama motorlarına (bingbot veya yandex gibi) yönelik meta etiketleri sayfayı dizinlememelerini söylüyor: bunun bilinçli olduğunu kontrol edin.",
+  ["Following rel=next from this page leads back to a page already in the chain, so the series never ends: fix the next link of the last page."]:
+    "Bu sayfadan rel=next takip edildiğinde zincirde zaten olan bir sayfaya dönülüyor ve seri hiç bitmiyor: son sayfanın next bağlantısını düzeltin.",
+  ["The page declares hreflang but its canonical points to another URL, and Google reads hreflang only on canonical pages: align the canonical and the hreflang set."]:
+    "Sayfa hreflang bildiriyor ancak canonical'ı başka bir URL'yi gösteriyor ve Google hreflang'i yalnızca canonical sayfalarda okur: canonical ile hreflang kümesini hizalayın.",
+  ["An hreflang alternate of this page (other than itself) is noindex: remove it from the hreflang set or make it indexable."]:
+    "Bu sayfanın bir hreflang alternatifi (sayfanın kendisi dışında) noindex: onu hreflang kümesinden çıkarın veya dizinlenebilir yapın.",
+  ["Yes, No"]:
+    "Evet, Hayır",
 };

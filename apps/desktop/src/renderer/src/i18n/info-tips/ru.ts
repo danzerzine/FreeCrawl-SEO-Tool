@@ -746,4 +746,26 @@ export const RU_INFO_TIPS: Record<string, string> = {
     "Включите, чтобы найти сторонние и трекинговые cookie по страницам; для обычных обходов оставьте выключенным.",
   ["Effective inlinks are the other pages that really link to a page: each page counts once however often it links, links from menus and footers count too, redirects to it are counted once, and links to itself are left out. A page with few of them is hard for visitors and search engines to find. Closeness (0-100) says how much a candidate page and the weak page talk about the same things, judged by the rare words in their titles, headings and descriptions. A source is only listed if it does not link to the page yet."]:
     "Действующие входящие ссылки — это ссылки с других страниц, которые действительно ведут на страницу: каждая страница считается один раз, сколько бы ссылок она ни ставила; ссылки из меню и подвала тоже считаются, ссылки через редирект считаются один раз, а ссылки на саму себя не учитываются. Страницу, на которую почти никто не ссылается, трудно найти посетителям и поисковикам. Близость (0–100) показывает, насколько страница-кандидат и слабая страница говорят об одном и том же; считается по редким словам в заголовках, подзаголовках и описаниях. Источник попадает в список, только если ещё не ссылается на эту страницу.",
+  ["The page has hreflang link tags inside the body, where search engines ignore them: move them into the head."]:
+    "На странице теги hreflang стоят в body, где поисковики их игнорируют: перенесите их в head.",
+  ["The page has a title tag inside the body, outside the head: keep one title in the head and remove the others."]:
+    "На странице есть тег title внутри body, вне head: оставьте один title в head, остальные уберите.",
+  ["The page has a meta description inside the body, outside the head: move it into the head."]:
+    "Мета-описание стоит внутри body, вне head: перенесите его в head.",
+  ["The page has a meta robots tag inside the body: move it into the head so the directive is read reliably."]:
+    "Тег meta robots стоит внутри body: перенесите его в head, чтобы директиву читали надёжно.",
+  ["An OpenGraph tag is written with name= instead of the property= that OpenGraph asks for: change the attribute to property."]:
+    "OpenGraph-тег записан через name=, а OpenGraph требует property=: замените атрибут на property.",
+  ["The page links to its own site with utm_ parameters, which start a new analytics session on every click: remove the parameters from internal links."]:
+    "Страница ссылается на свой сайт с параметрами utm_, и каждый клик начинает новую сессию в аналитике: уберите параметры из внутренних ссылок.",
+  ["Meta tags for search engines other than Google (such as bingbot or yandex) tell them not to index the page: check that this is intended."]:
+    "Мета-теги для поисковиков, кроме Google (например, bingbot или yandex), запрещают индексировать страницу: проверьте, что так и задумано.",
+  ["Following rel=next from this page leads back to a page already in the chain, so the series never ends: fix the next link of the last page."]:
+    "Если идти по rel=next с этой страницы, вернёшься на страницу, которая уже была в цепочке, и серия не кончается: исправьте ссылку next на последней странице.",
+  ["The page declares hreflang but its canonical points to another URL, and Google reads hreflang only on canonical pages: align the canonical and the hreflang set."]:
+    "Страница объявляет hreflang, но её canonical указывает на другой URL, а Google читает hreflang только на канонических страницах: согласуйте canonical и набор hreflang.",
+  ["An hreflang alternate of this page (other than itself) is noindex: remove it from the hreflang set or make it indexable."]:
+    "Альтернатива hreflang этой страницы (не она сама) закрыта noindex: уберите её из набора hreflang или откройте для индексации.",
+  ["Yes, No"]:
+    "Да, Нет",
 };

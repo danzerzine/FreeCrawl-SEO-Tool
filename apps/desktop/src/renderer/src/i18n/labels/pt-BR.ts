@@ -208,6 +208,8 @@ export const PT_BR_LABELS: Record<string, string> = {
   'Canonical Outside <head>': 'Canonical fora do <head>',
   'Hreflang Outside <head>': 'Hreflang fora do <head>',
   'Title Outside <head>': 'Title fora do <head>',
+  'Yes': 'Sim',
+  'No': 'Não',
   'Description Outside <head>': 'Description fora do <head>',
   'Meta Robots Outside <head>': 'Meta robots fora do <head>',
   'Template Junk in URL': 'Restos de template na URL',

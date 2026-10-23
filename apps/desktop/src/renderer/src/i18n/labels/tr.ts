@@ -206,6 +206,8 @@ export const TR_LABELS: Record<string, string> = {
   'Canonical Outside <head>': 'Canonical <head> Dışında',
   'Hreflang Outside <head>': 'Hreflang <head> Dışında',
   'Title Outside <head>': 'Title <head> Dışında',
+  'Yes': 'Evet',
+  'No': 'Hayır',
   'Description Outside <head>': 'Description <head> Dışında',
   'Meta Robots Outside <head>': 'Meta Robots <head> Dışında',
   'Template Junk in URL': 'URL’de Şablon Artığı',

@@ -215,6 +215,8 @@ export const AZ_LABELS: Record<string, string> = {
   'Canonical Outside <head>': 'Canonical <head> xaricində',
   'Hreflang Outside <head>': 'Hreflang <head> xaricində',
   'Title Outside <head>': 'Title <head> xaricində',
+  'Yes': 'Bəli',
+  'No': 'Xeyr',
   'Description Outside <head>': 'Description <head> xaricində',
   'Meta Robots Outside <head>': 'Meta robots <head> xaricində',
   'Template Junk in URL': 'URL-də şablon zibili',
