@@ -6665,7 +6665,8 @@ export class ProjectDb {
     const allowed = ['gsc_results', 'ga4_results'];
     if (!allowed.includes(table)) return '';
     const row = this.db
-      .prepare(`SELECT account_id FROM ${table} ORDER BY fetched_at DESC LIMIT 1`)
+      // 'bq' is the BigQuery-export pseudo account (B91): read only through `gscReadAccount`.
+      .prepare(`SELECT account_id FROM ${table} WHERE account_id <> 'bq' ORDER BY fetched_at DESC LIMIT 1`)
       .get() as { account_id: string } | undefined;
     return row?.account_id ?? '';
   }

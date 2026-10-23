@@ -185,7 +185,7 @@ import {
   type GscIntegrationSettings,
   type Ga4IntegrationSettings,
   type GoogleAccount,
-  defaultGscSettings,
+  mergeGscSettings,
   mergeGa4Settings,
   type Ga4ListPropertiesResult,
   type Ga4FetchInput,
@@ -404,6 +404,13 @@ import {
 import { planInspection, runGscInspection, uniqueInspectUrls } from './gsc-inspect-run.js';
 import { exportCategoryToSheets } from './sheets-export.js';
 import { exportCategoryToBigQuery } from './bigquery-export.js';
+import {
+  gscCrawlNewUrlCandidates,
+  gscExportContext,
+  gscReadAccount,
+  gscTabQuery,
+  type GscReadEnv,
+} from './gsc-account.js';
 import { listProperties as ga4ListProperties, getMetadata as ga4GetMetadata } from './ga4.js';
 import { ga4FetchFromBridge, ga4FetchFromDesktop, type Ga4EntryEnv } from './ga4-pull.js';
 import {
@@ -5496,7 +5503,7 @@ function registerIpc(): void {
       // one Metrica counter.
       const args: [number, string, string, string] = [
         limit ?? 1000,
-        resolveGoogleAccount('gsc'),
+        gscReadAccount(gscReadEnv()),
         resolveGoogleAccount('ga4'),
         resolveMetricaSettings().counterId,
       ];
@@ -6513,14 +6520,9 @@ function registerIpc(): void {
   registerHandle(
     IPC.gscCrawlNewUrls,
     async (): Promise<GscCrawlNewUrlsResult> => {
-      const settings = resolveGscSettings();
       const runSession = currentSession();
       try {
-        const orphans = getDb().gscOrphanUrls({
-          matchSlash: settings.matchSlash,
-          matchCase: settings.matchCase,
-          accountId: resolveGoogleAccount('gsc'),
-        });
+        const orphans = gscCrawlNewUrlCandidates(gscReadEnv(), getDb());
         const hasActiveCrawl = runSession.activeCrawler?.isRunning === true;
         if (orphans.length > 0) await launchRespider(runSession, orphans);
         return {
@@ -6543,33 +6545,23 @@ function registerIpc(): void {
   );
   registerHandle(
     IPC.gscQuery,
-    async (_e, input: GscQueryInput): Promise<GscQueryResult> => {
-      const accountId = resolveGoogleAccount('gsc', input.accountId);
+    async (_e, input: GscQueryInput): Promise<GscQueryResult> =>
       // Same URL-matching options the orphan/fetch path uses, so the table
-      // join attaches GSC data to slash/case variants consistently.
-      const gscSettings = resolveGscSettings();
-      const params = {
-        limit: input.limit,
-        offset: input.offset,
-        search: input.search,
-        filter: input.filter,
-        accountId,
-        matchSlash: gscSettings.matchSlash,
-        matchCase: gscSettings.matchCase,
-      };
-      const result = await callReaderOrFallback<{
-        rows: GscQueryResult['rows'];
-        total: number;
-      }>('queryGsc', [params], () => getDb().queryGsc(params));
-      let meta: GscFetchMeta | null = null;
-      try {
-        const raw = getDb().getMeta(googleMetaKey('gscFetchMeta', accountId));
-        if (raw) meta = JSON.parse(raw) as GscFetchMeta;
-      } catch {
-        /* no / corrupt meta — render without the context line */
-      }
-      return { rows: result.rows, total: result.total, meta };
-    },
+      // join attaches GSC data to slash/case variants consistently. The
+      // account is the BigQuery one when the project's source is BigQuery.
+      gscTabQuery(
+        {
+          ...gscReadEnv(),
+          queryGsc: (params) =>
+            callReaderOrFallback<{ rows: GscQueryResult['rows']; total: number }>(
+              'queryGsc',
+              [params],
+              () => getDb().queryGsc(params),
+            ),
+          getMeta: (key) => getDb().getMeta(key),
+        },
+        input,
+      ),
   );
 
   // V1 Faz 7 — Google Analytics 4. Same shape as GSC: list properties,
@@ -7592,7 +7584,7 @@ function registerIpc(): void {
       // with what the Search Console / GA4 / Metrica tabs are showing.
       const args: [string, string, string, string, undefined, string] = [
         url,
-        resolveGoogleAccount('gsc'),
+        gscReadAccount(gscReadEnv()),
         resolveGoogleAccount('ga4'),
         resolveMetricaSettings().counterId,
         undefined,
@@ -8344,10 +8336,15 @@ function registerIpc(): void {
 
   /** Resolve the effective GSC settings (defaults + stored overrides). */
   function resolveGscSettings(): GscIntegrationSettings {
+    return mergeGscSettings(readIntegrationSettings('gsc'));
+  }
+
+  /** What every Search Console reader needs to pick its account (B91): the settings and the OAuth resolution. */
+  function gscReadEnv(): GscReadEnv {
     return {
-      ...defaultGscSettings(),
-      ...(readIntegrationSettings('gsc') ?? {}),
-    } as GscIntegrationSettings;
+      settings: resolveGscSettings(),
+      resolveGoogleAccount: (_id, requested) => resolveGoogleAccount('gsc', requested),
+    };
   }
 
   /** Resolve the effective GA4 settings (defaults + stored overrides). */
@@ -8383,14 +8380,11 @@ function registerIpc(): void {
    *  GA4, Metrica) read with — the same resolution the tabs' query handlers use,
    *  so an exported sheet matches what the tab shows. */
   function datasetExportContext(): DatasetExportContext {
-    const gsc = resolveGscSettings();
     return {
-      gscAccountId: resolveGoogleAccount('gsc'),
+      ...gscExportContext(gscReadEnv()),
       ga4AccountId: resolveGoogleAccount('ga4'),
       metricaCounterId: resolveMetricaSettings().counterId,
       webmasterHostId: resolveWebmasterSettings().hostId,
-      gscMatchSlash: gsc.matchSlash,
-      gscMatchCase: gsc.matchCase,
     };
   }
 

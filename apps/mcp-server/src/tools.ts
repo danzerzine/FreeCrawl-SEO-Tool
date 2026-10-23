@@ -8,6 +8,7 @@
 
 import type { ProjectDb } from '@freecrawl/db';
 import {
+  GSC_BQ_ACCOUNT,
   COMPARE_CATEGORIES,
   type AiProvider,
   type LinkTargetReportKind,
@@ -128,7 +129,10 @@ function integrationSettings(db: ProjectDb, id: string): Record<string, unknown>
  * with no saved choice falls back to the account of its latest pull.
  */
 function savedGoogleAccount(db: ProjectDb, id: 'gsc' | 'ga4'): string {
-  const saved = integrationSettings(db, id)['accountId'];
+  const settings = integrationSettings(db, id);
+  // B91: with the BigQuery source the Search Console rows are the 'bq' ones, linked account or not.
+  if (id === 'gsc' && settings['source'] === 'bigquery') return GSC_BQ_ACCOUNT;
+  const saved = settings['accountId'];
   if (typeof saved === 'string' && saved) return saved;
   return db.latestGoogleAccountId(id === 'gsc' ? 'gsc_results' : 'ga4_results');
 }
