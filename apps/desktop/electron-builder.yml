@@ -47,6 +47,10 @@ extraResources:
     to: "playwright-browsers"
     filter:
       - "**/*"
+  # axe-core (B40) is MPL-2.0 and ships unmodified inside node_modules; its licence also sits
+  # in the notices folder next to the app, where a user looks for it.
+  - from: "../../node_modules/axe-core/LICENSE"
+    to: "notice/axe-core-LICENSE.txt"
 win:
   target:
     - target: nsis
