@@ -5738,6 +5738,8 @@ export class Crawler extends EventEmitter {
       // crawler doesn't care which one runs as long as the result
       // shape matches.
       this.setOp(`crawl:parse:${item.url}`);
+      // B45: only a 2xx page; the check runs inside the parse (the worker pool, when there is one).
+      const checkMarkup = this.config.markupValidation === true && statusCode >= 200 && statusCode < 300;
       const parsed = await this.parsePage(parseBody, item.url, {
         includeSubdomains: this.config.scope === 'all-subdomains',
         cdnHosts: this.config.cdnHosts,
@@ -5748,10 +5750,10 @@ export class Crawler extends EventEmitter {
         robotsBot: robotsMetaBot(robotsUserAgentToken(this.config.userAgent)),
         templateSet: this.templateSet ?? undefined,
         collectShingles: this.templateLearn,
-        // B45: only a 2xx page; the check runs inside the parse (the worker pool, when there is one).
-        markupValidation: this.config.markupValidation === true && statusCode >= 200 && statusCode < 300,
+        markupValidation: checkMarkup,
         // With a render, parseBody is Chromium's rewritten DOM; the check wants what the server sent.
-        markupSource: parseBody !== body ? body : undefined,
+        // Only when the check runs, so the served body is not copied to the worker for nothing.
+        markupSource: checkMarkup && parseBody !== body ? body : undefined,
       });
       // Hashes ride with the page to its write, so a set frozen meanwhile
       // can be applied there (B98). A missed content area has no fingerprint.

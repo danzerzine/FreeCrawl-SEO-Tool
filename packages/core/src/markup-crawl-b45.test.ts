@@ -8,6 +8,7 @@ import { DEFAULT_CRAWL_CONFIG } from '@freecrawl/shared-types';
 import { compareCrawls } from './compare.js';
 import { Crawler } from './crawler.js';
 import { fakeRender } from './fake-render.test-support.js';
+import { parseHtml } from './html-parser.js';
 
 // B45: a crawl of a local 4-page site: a clean home, a page with a repeated id, a page without doctype, a 404.
 const PAGES: Record<string, string> = {
@@ -144,6 +145,45 @@ describe('crawl with --render and the markup check (B45)', () => {
     const row = db.getUrlById(db.getUrlIdByUrl(url)!)!;
     expect(row.markupErrors).toBeGreaterThan(0);
     expect(JSON.parse(row.markupCodes!)).toHaveProperty('duplicate-attribute');
+    db.close();
+  }, 30_000);
+
+  it('with the check off the served body is not handed to the parse as markupSource', async () => {
+    const url = base + 'broken';
+    const clean =
+      '<!DOCTYPE html><html><head><title>Broken</title></head><body><p class="a">x</p></body></html>';
+    const db = new ProjectDb(join(dir, `p${n++}.seoproject`));
+    const seen: Array<{ markupValidation?: boolean; markupSource?: string }> = [];
+    const c = new Crawler(
+      {
+        ...DEFAULT_CRAWL_CONFIG,
+        startUrl: url,
+        renderingMode: 'js',
+        maxConcurrency: 1,
+        markupValidation: false,
+        discoverSitemaps: false,
+        checkExternalLinks: false,
+        probeTlsCerts: false,
+        probeManifestJson: false,
+        probeSocialImages: false,
+        probeImageSizes: false,
+      },
+      db,
+      {
+        renderUrl: fakeRender({ [url]: clean }),
+        parseHtml: (html, pageUrl, o) => {
+          seen.push({ markupValidation: o?.markupValidation, markupSource: o?.markupSource });
+          return Promise.resolve(parseHtml(html, pageUrl, o));
+        },
+      },
+    );
+    c.on('error', () => {});
+    await c.start();
+    expect(seen.length).toBeGreaterThan(0);
+    for (const o of seen) {
+      expect(o.markupValidation).toBe(false);
+      expect(o.markupSource).toBeUndefined();
+    }
     db.close();
   }, 30_000);
 });
