@@ -5058,11 +5058,14 @@ function RenderingPanel({ form, update }: PanelProps) {
             example="On for accessibility / WCAG audits."
           />
           <Bool
-            label={t('settingsPanels.rendering.axeAudit', { defaultValue: 'Accessibility audit (axe-core)' })}
+            label={t('settingsPanels.rendering.axeAudit', { defaultValue: 'Accessibility audit with axe-core (WCAG 2.2 A/AA)' })}
             checked={form.jsAxeAudit}
             onChange={(v) => update('jsAxeAudit', v)}
             hint=""
-            info="Runs the axe-core accessibility engine on every rendered page (WCAG 2.0 to 2.2, levels A and AA) and stores each violated rule with its impact, the number of elements and up to three samples. Surfaces the three Axe issue filters and the Accessibility (axe) tab of the detail panel. Adds about a second per page and needs JavaScript rendering. Rules axe cannot decide are listed as Needs Review and never counted as issues."
+            info={t('settingsPanels.rendering.axeAuditHelp', {
+              defaultValue:
+                'Runs the axe-core accessibility engine on every rendered page (WCAG 2.0 to 2.2, levels A and AA) and stores each violated rule with its impact, the number of elements and up to three samples. Surfaces the three Axe issue filters and the Accessibility (axe) tab of the detail panel. Needs JavaScript rendering; slower per page and adds several KB per page to the project. Rules axe cannot decide are listed as Needs Review and never counted as issues.',
+            })}
             example="On for accessibility / WCAG audits; off for plain speed crawls."
           />
           <Bool
