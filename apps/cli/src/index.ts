@@ -64,6 +64,7 @@ import {
   unwrapCrawlConfig,
   PDF_MAX_RUN_BYTES,
   runExportItems,
+  type TopWordsBlocksOptions,
   runExportSet,
   listExportSets,
   saveExportSet,
@@ -311,6 +312,11 @@ export options:
                         in errors and on stderr (exit 1); exit 2 when none is in the project.
   --config <file>     With --what pdfs: crawl config to take the user agent and headers from
   --max-bytes <n>     With --what pdfs: stop downloading after n bytes in all (default 2 GB)
+  --ngram <1|2|3>      With dataset:top-words: words (1) or 2-3 word phrases. Default 1.
+  --word-locale <l>    With dataset:top-words: stopword list: en, ru, tr or all (default all).
+  --by-section        With dataset:top-words: one block per folder of the site (see --section-depth); the memory cap is shared between sections, so rare phrases may be dropped.
+  --section-depth <n>  With --by-section: folder depth, 1 or 2 (default 1).
+  --with-bodies        With dataset:top-words: also read stored page bodies (slower; needs bodies saved by the crawl).
   --save-set <name>   Save --what (and --raw-headers) in the project as a named export set, replacing
                         one of the same name; writes no files. The desktop scheduler can run it too.
   --set <name>        Run a saved export set instead of --what (exit 2 if the project has none of that name)
@@ -357,6 +363,11 @@ function parseCliArgs() {
       'work-dir': { type: 'string' },
       render: { type: 'boolean' },
       'max-bytes': { type: 'string' },
+      ngram: { type: 'string' },
+      'word-locale': { type: 'string' },
+      'by-section': { type: 'boolean' },
+      'section-depth': { type: 'string' },
+      'with-bodies': { type: 'boolean' },
       'page-script': { type: 'string' },
       axe: { type: 'boolean' },
       concurrency: { type: 'string' },
@@ -559,6 +570,13 @@ async function main(): Promise<void> {
       rawHeaders: Boolean(values['raw-headers']),
       configPath: values.config,
       maxBytes: values['max-bytes'],
+      topWords: {
+        ngram: values.ngram,
+        wordLocale: values['word-locale'],
+        bySection: Boolean(values['by-section']),
+        sectionDepth: values['section-depth'],
+        withBodies: Boolean(values['with-bodies']),
+      },
       json: Boolean(values.json),
     });
     process.exit(exitCode);
@@ -2260,6 +2278,8 @@ async function runExport(opts: {
   configPath: string | undefined;
   /** `--max-bytes`: whole-run cap of `--what pdfs`. */
   maxBytes: string | undefined;
+  /** B84: flags of `--what dataset:top-words`, as typed. */
+  topWords: TopWordsFlags;
   json: boolean;
 }): Promise<number> {
   const print = (outcome: ExportOutcome, error: string | null): void => {
@@ -2307,7 +2327,9 @@ async function runExport(opts: {
   const maxBytes = parseNumeric('max-bytes', opts.maxBytes, PDF_MAX_RUN_BYTES);
   let items: ExportItem[];
   let selectedUrls: string[] = [];
+  let topWords: TopWordsBlocksOptions;
   try {
+    topWords = parseTopWordsFlags(opts.topWords);
     // `--urls` alone means just the selected links; `--what` adds to them.
     // A `--set` is looked up once the project is open.
     items =
@@ -2384,6 +2406,7 @@ async function runExport(opts: {
       toolVersion: cliVersion(),
       onProgress: progressLine,
       outcome,
+      topWords,
     };
     // Before the run, so the folder's manifest.json lists it too.
     if (missing.length > 0) {
@@ -2407,6 +2430,42 @@ async function runExport(opts: {
   } finally {
     project.dispose();
   }
+}
+
+/** The B84 flags of `export` as typed on the command line. */
+interface TopWordsFlags {
+  ngram: string | undefined;
+  wordLocale: string | undefined;
+  bySection: boolean;
+  sectionDepth: string | undefined;
+  withBodies: boolean;
+}
+
+/** Validate `--ngram`, `--word-locale`, `--by-section`, `--section-depth`, `--with-bodies`; throws the exit-2 message. */
+function parseTopWordsFlags(f: TopWordsFlags): TopWordsBlocksOptions {
+  const out: TopWordsBlocksOptions = {};
+  if (f.ngram !== undefined) {
+    if (f.ngram !== '1' && f.ngram !== '2' && f.ngram !== '3') {
+      throw new Error(`--ngram must be 1, 2 or 3 (got "${f.ngram}").`);
+    }
+    out.n = Number(f.ngram) as 1 | 2 | 3;
+  }
+  if (f.wordLocale !== undefined) {
+    if (f.wordLocale !== 'en' && f.wordLocale !== 'ru' && f.wordLocale !== 'tr' && f.wordLocale !== 'all') {
+      throw new Error(`--word-locale must be en, ru, tr or all (got "${f.wordLocale}").`);
+    }
+    out.locale = f.wordLocale;
+  }
+  if (f.sectionDepth !== undefined) {
+    if (!f.bySection) throw new Error('--section-depth needs --by-section.');
+    if (f.sectionDepth !== '1' && f.sectionDepth !== '2') {
+      throw new Error(`--section-depth must be 1 or 2 (got "${f.sectionDepth}").`);
+    }
+    out.sectionDepth = Number(f.sectionDepth);
+  }
+  if (f.bySection) out.bySection = true;
+  if (f.withBodies) out.withBodies = true;
+  return out;
 }
 
 /** `export --list-sets` and `export --save-set <name> --what <list>`. */
