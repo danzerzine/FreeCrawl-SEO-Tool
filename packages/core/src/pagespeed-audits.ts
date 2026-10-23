@@ -28,7 +28,10 @@ function num(v: unknown): number | null {
 }
 
 /** Savings in ms: the audit's own total, else the largest metric saving, else its duration. */
-function savingsMsOf(audit: Record<string, unknown>, details: Record<string, unknown>): number | null {
+function savingsMsOf(
+  audit: Record<string, unknown>,
+  details: Record<string, unknown>,
+): number | null {
   const overall = num(details['overallSavingsMs']);
   if (overall !== null) return overall;
   const metric = audit['metricSavings'];
@@ -151,7 +154,10 @@ function allRows(details: Record<string, unknown>): PagespeedAuditItem[] {
 
 /** Savings in bytes: the audit's own total, else the sum of its rows' `wastedBytes` (Lighthouse 13
  *  insights carry no total), else unknown (`null`, never 0). */
-function savingsBytesOf(details: Record<string, unknown>, rows: PagespeedAuditItem[]): number | null {
+function savingsBytesOf(
+  details: Record<string, unknown>,
+  rows: PagespeedAuditItem[],
+): number | null {
   const overall = num(details['overallSavingsBytes']);
   if (overall !== null) return overall;
   let sum: number | null = null;

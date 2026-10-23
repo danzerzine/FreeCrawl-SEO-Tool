@@ -371,7 +371,7 @@ import {
   serializeConfigWithEncryptedSecrets,
   parseConfigWithEncryptedSecrets,
 } from './config-secrets.js';
-import { runPagespeedBatch, type PagespeedBatchItem } from './pagespeed.js';
+import { runPagespeedBatch, storePagespeedResult, type PagespeedBatchItem } from './pagespeed.js';
 import { runCruxBatch, type CruxBatchItem } from './crux.js';
 import {
   runSpellingBatch,
@@ -5859,7 +5859,7 @@ function registerIpc(): void {
         isCancelled: () => run.cancelRequested,
         onResult: (url, strategy, metrics) => {
           try {
-            runDb.upsertPagespeedResult(url, strategy, metrics);
+            storePagespeedResult(runDb, url, strategy, metrics);
           } catch (err) {
             logger.log(
               'error',

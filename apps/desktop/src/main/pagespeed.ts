@@ -17,7 +17,9 @@
  *     drives this on-demand against a user-selected subset, never the
  *     whole crawl.
  */
-import type { PagespeedMetrics, PagespeedStrategy } from '@freecrawl/shared-types';
+import { parsePagespeedAudits } from '@freecrawl/core';
+import type { ProjectDb } from '@freecrawl/db';
+import type { PagespeedAudits, PagespeedMetrics, PagespeedStrategy } from '@freecrawl/shared-types';
 import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from 'undici';
 import * as logger from './logger.js';
 
@@ -68,7 +70,20 @@ function createPsiDispatcher(): Dispatcher {
 
 const psiDispatcher = createPsiDispatcher();
 
-function errorMetrics(fetchedAt: string, message: string): PagespeedMetrics {
+/** What one audit run yields: the metrics row, plus the Lighthouse audits of a successful run (B41). */
+export type PagespeedFetchResult = PagespeedMetrics & { audits?: PagespeedAudits };
+
+/**
+ * The key rides in the request URL, and Google's and undici's error texts repeat that URL, so no
+ * message may be stored or logged before this has stripped `key=` (B41 R10) and the key itself.
+ */
+function scrubKey(message: string, apiKey?: string): string {
+  let out = message.replace(/[?&]key=[^&\s"]*/g, '');
+  if (apiKey) out = out.split(apiKey).join('');
+  return out;
+}
+
+function errorMetrics(fetchedAt: string, message: string, apiKey?: string): PagespeedFetchResult {
   return {
     performance: null,
     lcp: null,
@@ -80,7 +95,7 @@ function errorMetrics(fetchedAt: string, message: string): PagespeedMetrics {
     maxPotentialFid: null,
     inp: null,
     status: 'error',
-    error: message,
+    error: scrubKey(message, apiKey),
     fetchedAt,
   };
 }
@@ -125,7 +140,9 @@ export async function fetchPagespeedAudit(
   url: string,
   strategy: PagespeedStrategy,
   apiKey: string | undefined,
-): Promise<PagespeedMetrics> {
+  /** `endpoint` points the request at a local fake server in tests; default is Google's. */
+  opts: { endpoint?: string } = {},
+): Promise<PagespeedFetchResult> {
   const fetchedAt = new Date().toISOString();
   const params = new URLSearchParams({
     url,
@@ -135,7 +152,7 @@ export async function fetchPagespeedAudit(
   if (apiKey) params.set('key', apiKey);
 
   try {
-    const res = await undiciFetch(`${PSI_ENDPOINT}?${params.toString()}`, {
+    const res = await undiciFetch(`${opts.endpoint ?? PSI_ENDPOINT}?${params.toString()}`, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: { Accept: 'application/json' },
       // Use PSI's own long-poll dispatcher, NOT the crawler's global one
@@ -152,15 +169,16 @@ export async function fetchPagespeedAudit(
       return errorMetrics(
         fetchedAt,
         apiErr?.message ?? `PageSpeed API returned HTTP ${res.status}`,
+        apiKey,
       );
     }
     if (!json) {
-      return errorMetrics(fetchedAt, 'PageSpeed API returned an empty response');
+      return errorMetrics(fetchedAt, 'PageSpeed API returned an empty response', apiKey);
     }
 
     const lhr = json['lighthouseResult'] as Record<string, unknown> | undefined;
     if (!lhr) {
-      return errorMetrics(fetchedAt, 'No Lighthouse result in PageSpeed response');
+      return errorMetrics(fetchedAt, 'No Lighthouse result in PageSpeed response', apiKey);
     }
     const audits = (lhr['audits'] as Record<string, unknown>) ?? {};
     const categories = lhr['categories'] as
@@ -184,6 +202,7 @@ export async function fetchPagespeedAudit(
       status: 'ok',
       error: null,
       fetchedAt,
+      audits: parsePagespeedAudits(json),
     };
   } catch (err) {
     // `AbortSignal.timeout` rejects with a DOMException, which is not
@@ -210,8 +229,19 @@ export async function fetchPagespeedAudit(
           ? `${err.message} (${cause.message})`
           : err.message
         : String(err);
-    return errorMetrics(fetchedAt, message);
+    return errorMetrics(fetchedAt, message, apiKey);
   }
+}
+
+/** Writes one finished run: the metrics row, and the audits of a successful run in the same transaction. */
+export function storePagespeedResult(
+  db: Pick<ProjectDb, 'upsertPagespeedResult'>,
+  url: string,
+  strategy: PagespeedStrategy,
+  result: PagespeedFetchResult,
+): void {
+  const { audits, ...metrics } = result;
+  db.upsertPagespeedResult(url, strategy, metrics, audits);
 }
 
 /** One (url, strategy) audit unit of work. */
@@ -230,8 +260,10 @@ export interface PagespeedBatchOptions {
   onResult: (
     url: string,
     strategy: PagespeedStrategy,
-    metrics: PagespeedMetrics,
+    metrics: PagespeedFetchResult,
   ) => void;
+  /** Tests only: a local fake of the PSI endpoint. */
+  endpoint?: string;
   /** Live progress — `currentUrl` is the URL just about to be audited. */
   onProgress: (done: number, total: number, currentUrl: string | null) => void;
 }
@@ -250,7 +282,7 @@ export interface PagespeedBatchResult {
 export async function runPagespeedBatch(
   opts: PagespeedBatchOptions,
 ): Promise<PagespeedBatchResult> {
-  const { items, apiKey, isCancelled, onResult, onProgress } = opts;
+  const { items, apiKey, isCancelled, onResult, onProgress, endpoint } = opts;
   const total = items.length;
   let done = 0;
   let completed = 0;
@@ -293,6 +325,7 @@ export async function runPagespeedBatch(
         item.url,
         item.strategy,
         apiKey,
+        { endpoint },
       );
       try {
         onResult(item.url, item.strategy, metrics);
