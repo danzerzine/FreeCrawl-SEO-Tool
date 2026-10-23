@@ -12,6 +12,7 @@ import type {
   DiscoveredLink,
   Indexability,
   SitemapFileRow,
+  AxeAudit,
 } from '@freecrawl/shared-types';
 import {
   EXTERNAL_NO_ANSWER_CONFIRMED,
@@ -837,6 +838,9 @@ export class Crawler extends EventEmitter {
   private pageScriptWarned = false;
   /** A render cut off by its limit or the watchdog was reported (once per crawl). */
   private renderLimitWarned = false;
+  /** axe-core runs of this crawl (B40 R15): pages audited, their total ms, pages where axe did not finish. */
+  private axeStats = { pages: 0, ms: 0, failed: 0 };
+  private axeWarned = false;
 
   /**
    * The raw-vs-rendered signals reader (B33): a worker request when the host
@@ -5480,6 +5484,10 @@ export class Crawler extends EventEmitter {
         | { ok: boolean; overflowPx: number; hasViewportMeta: boolean }
         | null = null;
       let renderSpaRoutes: string[] = [];
+      // axe-core (B40): `renderAxeAsked` = a render was tried with the option on, so a missing
+      // result clears the page's old one (R8); `renderAxe` = this render's result.
+      const renderAxeAsked = this.config.jsRender.axeAudit;
+      let renderAxe: AxeAudit | null = null;
       let renderA11y:
         | {
             lowContrast: number;
@@ -5490,16 +5498,14 @@ export class Crawler extends EventEmitter {
             tapTargetsSampled: number;
           }
         | null = null;
-      if (
-        this.config.renderingMode === 'js' &&
-        this.renderUrlHook &&
-        statusCode < 400
-      ) {
+      const renderingTried =
+        this.config.renderingMode === 'js' && !!this.renderUrlHook && statusCode < 400;
+      if (renderingTried) {
         this.setOp(`crawl:render:${item.url}`);
-        if (hasPageScript(this.config.jsRender.pageScript)) {
-          // The body is read and a render with a page script will run: the fetch
-          // and response-time timers must not cut it off. The render has its own
-          // limit inside renderUrl; Stop still aborts through the controller.
+        if (hasPageScript(this.config.jsRender.pageScript) || this.config.jsRender.axeAudit) {
+          // The body is read and a render with a page script or an axe-core run will
+          // go on: the fetch and response-time timers must not cut it off (B40 R6a).
+          // The render has its own limit inside renderUrl; Stop still aborts through the controller.
           clearTimeout(timeout);
           if (respTimeTimer) clearTimeout(respTimeTimer);
         }
@@ -5563,6 +5569,10 @@ export class Crawler extends EventEmitter {
             if (renderRes.lcp) renderLcp = renderRes.lcp;
             if (renderRes.mobileUsability) renderMobile = renderRes.mobileUsability;
             if (renderRes.a11y) renderA11y = renderRes.a11y;
+            if (renderAxeAsked) {
+              renderAxe = renderRes.axe ?? null;
+              if (renderRes.axeMs !== undefined) this.countAxeRun(item.url, renderRes.axe ?? null, renderRes.axeMs);
+            }
           }
         } catch (err) {
           if (controller.signal.aborted) throw err;
@@ -6028,6 +6038,11 @@ export class Crawler extends EventEmitter {
         }
         if (renderA11y) {
           persistOps.push(this.dbCall<void>('setUrlA11y', [urlId, renderA11y]));
+        }
+        // axe-core: a result replaces the old one; with the option on and no result the old
+        // one is cleared (a stale result must not sit beside a fresh DOM). Option off: untouched.
+        if (renderAxeAsked && renderingTried) {
+          persistOps.push(this.dbCall<void>('setUrlAxe', [urlId, renderAxe]));
         }
         if (persistOps.length > 0) {
           const results = await Promise.allSettled(persistOps);
@@ -6869,6 +6884,29 @@ export class Crawler extends EventEmitter {
    */
   private emitProgressFinal(): void {
     this.emitProgressNow();
+    this.reportAxeStats();
+  }
+
+  /** One result of an axe-core run (B40 R15): counted, and the first failure is named. */
+  private countAxeRun(url: string, axe: AxeAudit | null, ms: number): void {
+    if (axe) {
+      this.axeStats.pages++;
+      this.axeStats.ms += ms;
+      return;
+    }
+    this.axeStats.failed++;
+    if (!this.axeWarned) {
+      this.axeWarned = true;
+      this.emit('warn', `axe-core did not finish on ${url} (page stored without an axe result; further pages are counted in the final line)`);
+    }
+  }
+
+  /** The cost line for the PC measurement and for users; said once, then the counters restart. */
+  private reportAxeStats(): void {
+    const { pages, ms, failed } = this.axeStats;
+    if (pages + failed === 0) return;
+    this.axeStats = { pages: 0, ms: 0, failed: 0 };
+    this.emit('info', `axe-core: ${pages} pages, avg ${pages > 0 ? Math.round(ms / pages) : 0} ms, ${failed} failed`);
   }
 
   private emitProgressNow(): void {

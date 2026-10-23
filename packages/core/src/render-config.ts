@@ -112,6 +112,8 @@ export interface RenderHookResult {
   consoleLog?: ConsoleLog;
   /** axe-core result of the page (B40); null/unset when axe was off, skipped or did not finish. */
   axe?: AxeAudit | null;
+  /** How long the axe-core run took (ms); set whenever axe was attempted, also when it failed. */
+  axeMs?: number;
 }
 
 export type RenderHook = (
@@ -139,6 +141,7 @@ export function renderHookFields(res: RenderResult): RenderHookResult {
     scriptResult: res.scriptResult,
     renderedHtmlPreScript: res.renderedHtmlPreScript,
     axe: res.axe ?? null,
+    axeMs: res.axeMs,
   };
 }
 

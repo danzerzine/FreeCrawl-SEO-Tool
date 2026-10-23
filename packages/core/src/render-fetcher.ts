@@ -132,6 +132,8 @@ export interface RenderResult {
   a11y?: A11yAudit | null;
   /** axe-core result from `detectAxe` (B40) — null when axe was skipped or did not finish. */
   axe?: AxeAudit | null;
+  /** How long the axe run took (ms); set whenever axe was attempted, also when it failed. */
+  axeMs?: number;
   /**
    * Absolute URLs the page navigated to client-side during this render
    * (`history.pushState` / `replaceState` / `popstate` / `hashchange`),

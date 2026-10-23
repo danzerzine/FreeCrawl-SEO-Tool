@@ -26,7 +26,8 @@ export async function runMobilePass(
   // With a page script the crawler has cleared its fetch and response-time
   // timers, so each call here carries its own limit (a call without one is
   // cut off by those timers as before).
-  const limitMs = hasPageScript(config.jsRender.pageScript)
+  // The same holds with the axe-core audit on (B40 R6a).
+  const limitMs = hasPageScript(config.jsRender.pageScript) || config.jsRender.axeAudit
     ? (opts.limitMs ?? timeoutMs + RENDER_LIMIT_MARGIN_MS)
     : undefined;
   if (config.jsRender.mobileScreenshot && opts.screenshotPath) {
