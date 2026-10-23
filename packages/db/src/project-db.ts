@@ -1721,12 +1721,18 @@ const LINK_TARGET_REPORT_SQL: Record<LinkTargetReportInput['report'], string> = 
  * `reset()` (Clear, a crawl of another site, a new project's first crawl)
  * keeps them: the monitoring rules and the alert channels turned on (B88d),
  * and the silenced checks the desktop copies in just before the crawl
- * starts (B96: the first crawl of a new site wiped that copy).
+ * starts (B96: the first crawl of a new site wiped that copy). Same for the
+ * other settings the desktop writes at crawl start: duplicate-URL switch,
+ * SEO thresholds, the saved crawl config and the start URL.
  */
 const META_KEYS_KEPT_BY_RESET = [
   'monitorRules',
   'monitorChannels',
   DISABLED_ISSUES_META_KEY,
+  DEDUPE_PRE_NORMALIZE_META_KEY,
+  SEO_THRESHOLDS_META_KEY,
+  'lastCrawlConfig',
+  'lastStartUrl',
 ] as const;
 
 /** Internal, crawled, indexable HTML pages with a 2xx answer: what an XML sitemap lists. */
