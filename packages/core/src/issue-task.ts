@@ -62,6 +62,15 @@ export function evidenceColumnsFor(category: string): string[] {
   return DEFAULT_COLUMNS;
 }
 
+const URL_COLUMNS = new Set(['url', 'canonicalResolved']);
+/** Free text from the page; only these are cut, a cut URL would point nowhere. */
+const CUT_COLUMNS = new Set(['title', 'h1']);
+const CUT_AT = 200;
+
+function stripUserinfo(url: string): string {
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#@]*@/i, '$1');
+}
+
 function findCheck(category: string): { group: string; def: IssueCheckDef } | undefined {
   for (const g of ISSUE_GROUPS) {
     const def = g.items.find((i) => i.category === category);
@@ -107,13 +116,18 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
   if (advice) sections.push({ heading: 'How to fix', text: fillThresholdLabel(advice, th) });
 
   const cols = evidenceColumnsFor(input.category);
-  const cell = (v: string | number | null | undefined) => (v == null ? '' : String(v));
+  const cell = (col: string, v: string | number | null | undefined) => {
+    let t = v == null ? '' : String(v).replace(/\r\n|\r|\n/g, ' ');
+    if (URL_COLUMNS.has(col)) t = stripUserinfo(t);
+    else if (CUT_COLUMNS.has(col) && t.length > CUT_AT) t = t.slice(0, CUT_AT - 1) + '…';
+    return t;
+  };
   sections.push({
     heading: 'Affected',
     text: `${total} URL${total === 1 ? '' : 's'}, first ${input.rows.length} shown`,
     table: {
       header: ['URL', ...cols],
-      rows: input.rows.map((r) => [r.url, ...cols.map((c) => cell(r.evidence[c]))]),
+      rows: input.rows.map((r) => [cell('url', r.url), ...cols.map((c) => cell(c, r.evidence[c]))]),
     },
   });
   sections.push({ heading: 'Found by', text: `FreeCrawl crawl of ${site} on ${date}` });
@@ -130,8 +144,14 @@ function mdText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function mdCell(v: string): string {
-  return v === '' ? '' : `\`${v}\``;
+/** Inline code span: fence longer than any backtick run inside, padded at edge backticks. */
+function mdCell(raw: string): string {
+  if (raw === '') return '';
+  const v = raw.replace(/\\(?=\|)/g, '\\\\').replace(/\|/g, '\\|');
+  const longest = Math.max(0, ...(v.match(/`+/g) ?? []).map((r) => r.length));
+  const fence = '`'.repeat(longest + 1);
+  const pad = v.startsWith('`') || v.endsWith('`') ? ' ' : '';
+  return `${fence}${pad}${v}${pad}${fence}`;
 }
 
 export function toMarkdown(task: IssueTask): string {
