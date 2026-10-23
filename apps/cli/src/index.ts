@@ -5,6 +5,7 @@ import { basename, resolve } from 'node:path';
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { mergeCrawlConfig } from './crawl-config.js';
 import { readListSource } from './list-source.js';
+import { runSerp } from './serp.js';
 import {
   COMPARE_CATEGORIES,
   DEFAULT_CRAWL_CONFIG,
@@ -119,6 +120,10 @@ Usage:
                                                   FREECRAWL_WEBHOOK_URL, FREECRAWL_SMTP_URL + FREECRAWL_ALERT_EMAIL_TO.
                                                   --json: {ok, startUrl, finishedAt, baseline, results: [...], notified: [...]}.
                                                   In CI run the crawl first, then check.
+  freecrawl serp <file|-> [--out <csv>] [--json] [--limits <json>]   Check titles/descriptions from a list against Google snippet limits; nothing is fetched.
+                                                  Input: CSV/TSV with a title/description header (url optional) or lines title<TAB>description.
+                                                  --limits: JSON with SeoThresholds keys. Duplicates ignore case and outer spaces (the crawl's
+                                                  duplicate-title issue is exact). Exit 0 even when rows fail, 2 on bad input.
   freecrawl analyze-logs <access.log> [more.log …] [--project file]
                                                   Parse one or more server access logs (Apache / Nginx / IIS / custom), detect bots,
                                                   and merge the aggregates into a project for crawl × log analysis
@@ -391,6 +396,7 @@ function parseCliArgs() {
       config: { type: 'string' },
       db: { type: 'string' },
       out: { type: 'string' },
+      limits: { type: 'string' },
       'raw-headers': { type: 'boolean' },
       json: { type: 'boolean' },
       project: { type: 'string' },
@@ -526,6 +532,16 @@ async function main(): Promise<void> {
       json: Boolean(values.json),
     });
     process.exit(exitCode);
+  }
+  if (positionals[0] === 'serp') {
+    process.exit(
+      runSerp({
+        file: positionals[1],
+        out: values.out === undefined ? undefined : resolve(values.out),
+        json: Boolean(values.json),
+        limits: values.limits === undefined ? undefined : resolve(values.limits),
+      }),
+    );
   }
   if (positionals[0] === 'analyze-logs') {
     if (!positionals[1]) {

@@ -309,3 +309,14 @@ export {
   type TelegramConfig,
 } from './monitor/notify.js';
 export { parsePagespeedAudits } from './pagespeed-audits.js';
+export {
+  checkSerpRows,
+  parseSerpInput,
+  serpRowsToCsv,
+  SERP_CSV_COLUMNS,
+  SERP_MAX_ROWS,
+  type SerpFlags,
+  type SerpInputRow,
+  type SerpRowResult,
+  type SerpStatus,
+} from './serp-check.js';
