@@ -317,3 +317,13 @@ export {
   SERP_CSV_COLUMNS,
   SERP_MAX_ROWS,
 } from './serp-check.js';
+export {
+  buildIssueTask,
+  toMarkdown,
+  toBasecampHtml,
+  evidenceColumnsFor,
+  type IssueTask,
+  type IssueTaskSection,
+  type IssueTaskRow,
+  type BuildIssueTaskInput,
+} from './issue-task.js';
