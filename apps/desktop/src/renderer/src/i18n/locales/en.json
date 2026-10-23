@@ -2791,5 +2791,28 @@
     "pull": "Pull",
     "rebuild": "Rebuild",
     "failed": "Failed"
+  },
+  "issueTask": {
+    "title": "Create task from issue",
+    "loading": "Building the task…",
+    "titleLabel": "Task title",
+    "noteLabel": "Your note (optional)",
+    "notePlaceholder": "Context for whoever picks this up",
+    "previewLabel": "Exact text that will be sent",
+    "viewMarkdown": "GitHub / .md (Markdown)",
+    "viewBasecamp": "Basecamp (HTML)",
+    "copyMarkdown": "Copy Markdown",
+    "copied": "Markdown copied.",
+    "saveMd": "Save .md",
+    "saved": "Saved to {{path}}",
+    "sendGithub": "Send to GitHub",
+    "sendBasecamp": "Send to Basecamp",
+    "goesTo": "Goes to {{where}}",
+    "notConfigured": "Not set up: Settings → Integrations",
+    "alreadySent": "Already sent in this session; sending again makes a second task.",
+    "created": "Task created:",
+    "mayHaveBeenCreated": "The task may have been created anyway. Check the tracker before sending again.",
+    "button": "Create task…",
+    "buttonTitle": "Turn this issue into a task for GitHub or Basecamp"
   }
 }

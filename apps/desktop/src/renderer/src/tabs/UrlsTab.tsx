@@ -45,6 +45,7 @@ import { DuplicatesGroupedView } from '../components/DuplicatesGroupedView.js';
 import { UrlTreeView } from '../components/UrlTreeView.js';
 import { ErrorBoundary } from '../components/ErrorBoundary.js';
 import { ExportDialog } from '../components/ExportDialog.js';
+import { IssueTaskDialog } from '../components/IssueTaskDialog.js';
 import { InfoTip } from '../components/InfoTip.js';
 import { translateLabel } from '../i18n/labels.js';
 import {
@@ -191,6 +192,7 @@ export function UrlsTab() {
   const viewStateRef = useRef({ search, sortBy, sortDir, filter });
   viewStateRef.current = { search, sortBy, sortDir, filter };
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [issueTaskOpen, setIssueTaskOpen] = useState(false);
   /** View mode toggle — list (flat virtual table), tree (URL-path
    *  hierarchy), or cluster (Duplicates-tab-only near-duplicate cluster
    *  grouping). Per-tab + persisted across mounts via prefs. */
@@ -1399,6 +1401,23 @@ export function UrlsTab() {
           <Download className="h-3.5 w-3.5" />
           <span>{t('urlsTab.export', { defaultValue: 'Export' })}</span>
         </button>
+        {activeCategory.startsWith('issues:') && (
+          <button
+            type="button"
+            data-testid="issue-task-open"
+            onClick={() => setIssueTaskOpen(true)}
+            disabled={lazy.total === 0}
+            className={clsx(
+              'inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] transition',
+              lazy.total === 0
+                ? 'cursor-not-allowed border-surface-800 text-surface-600'
+                : 'border-surface-700 text-surface-300 hover:bg-surface-800',
+            )}
+            title={t('issueTask.buttonTitle', { defaultValue: 'Turn this issue into a task for GitHub or Basecamp' })}
+          >
+            <span>{t('issueTask.button', { defaultValue: 'Create task…' })}</span>
+          </button>
+        )}
       </div>
 
       {viewMode === 'tree' ? (
@@ -1645,6 +1664,12 @@ export function UrlsTab() {
         onClose={() => setFilterDialogOpen(false)}
         onApply={(f) => setFilter(f)}
       />
+
+      <ErrorBoundary context="IssueTaskDialog">
+        {issueTaskOpen && activeCategory.startsWith('issues:') && (
+          <IssueTaskDialog open={issueTaskOpen} category={activeCategory} onClose={() => setIssueTaskOpen(false)} />
+        )}
+      </ErrorBoundary>
 
       <ErrorBoundary context="ExportDialog">
         {exportDialogOpen && (

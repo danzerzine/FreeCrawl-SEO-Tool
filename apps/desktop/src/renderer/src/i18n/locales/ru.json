@@ -2883,5 +2883,28 @@
     "pull": "Загрузить",
     "rebuild": "Пересобрать",
     "failed": "Не удалось"
+  },
+  "issueTask": {
+    "title": "Создать задачу из проблемы",
+    "loading": "Собираем задачу…",
+    "titleLabel": "Заголовок задачи",
+    "noteLabel": "Ваша заметка (необязательно)",
+    "notePlaceholder": "Контекст для того, кто возьмёт задачу",
+    "previewLabel": "Точный текст, который уйдёт",
+    "viewMarkdown": "GitHub / .md (Markdown)",
+    "viewBasecamp": "Basecamp (HTML)",
+    "copyMarkdown": "Копировать Markdown",
+    "copied": "Markdown скопирован.",
+    "saveMd": "Сохранить .md",
+    "saved": "Сохранено в {{path}}",
+    "sendGithub": "Отправить в GitHub",
+    "sendBasecamp": "Отправить в Basecamp",
+    "goesTo": "Уйдёт в {{where}}",
+    "notConfigured": "Не настроено: Настройки → Интеграции",
+    "alreadySent": "В этой сессии уже отправлено; повторная отправка создаст вторую задачу.",
+    "created": "Задача создана:",
+    "mayHaveBeenCreated": "Возможно, задача всё же создалась. Проверьте трекер, прежде чем отправлять снова.",
+    "button": "Создать задачу…",
+    "buttonTitle": "Превратить эту проблему в задачу для GitHub или Basecamp"
   }
 }

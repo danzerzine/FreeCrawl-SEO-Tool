@@ -28,7 +28,9 @@ function missing(fields: Record<string, string | undefined>, id: string): string
   const gone = Object.entries(fields)
     .filter(([, v]) => !v?.trim())
     .map(([k]) => k);
-  return gone.length ? `${id} is not set up: fill ${gone.join(', ')} in Settings → Integrations.` : null;
+  return gone.length
+    ? `${id} is not set up: fill ${gone.join(', ')} in Settings → Integrations.`
+    : null;
 }
 
 /** Stored credentials of an integration → the config a core sender takes, defaults applied, test mode checked. */
@@ -53,7 +55,11 @@ export function resolveTrackerConfig(
     target === 'github'
       ? missing({ token: get('token'), owner: get('owner'), repo: get('repo') }, 'GitHub')
       : missing(
-          { accessToken: get('accessToken'), accountId: get('accountId'), todolistId: get('todolistId') },
+          {
+            accessToken: get('accessToken'),
+            accountId: get('accountId'),
+            todolistId: get('todolistId'),
+          },
           'Basecamp',
         );
   if (gone) return { ok: false, message: gone };
@@ -62,7 +68,13 @@ export function resolveTrackerConfig(
   return target === 'github'
     ? {
         ok: true,
-        cfg: { apiBase, token: get('token'), owner: get('owner'), repo: get('repo'), userAgent: TRACKER_USER_AGENT },
+        cfg: {
+          apiBase,
+          token: get('token'),
+          owner: get('owner'),
+          repo: get('repo'),
+          userAgent: TRACKER_USER_AGENT,
+        },
       }
     : {
         ok: true,

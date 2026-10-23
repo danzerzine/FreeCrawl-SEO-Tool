@@ -889,4 +889,8 @@ export const RU_LABELS: Record<string, string> = {
   'Unused JS Bytes': 'Неиспользуемый JS, байт',
   'Unused CSS': 'Неиспользуемый CSS',
   'Unused JS': 'Неиспользуемый JS',
+  'Create a fine-grained personal access token for the one repository with Repository permissions → Issues: Read and write. Nothing is sent until you press Send in the task preview.':
+    'Создайте токен доступа (fine-grained) для одного репозитория с правом Repository permissions → Issues: Read and write. Ничего не уходит, пока вы не нажмёте «Отправить» в предпросмотре задачи.',
+  'Paste an OAuth access token. Basecamp tokens expire every 2 weeks: when a send says the token expired, paste a new one here. The account ID and the to-do list ID are the numbers in the to-do list URL. Nothing is sent until you press Send in the task preview.':
+    'Вставьте OAuth-токен доступа. Токены Basecamp живут 2 недели: когда отправка скажет, что токен истёк, вставьте сюда новый. ID аккаунта и ID списка дел — это числа в адресе списка дел. Ничего не уходит, пока вы не нажмёте «Отправить» в предпросмотре задачи.',
 };

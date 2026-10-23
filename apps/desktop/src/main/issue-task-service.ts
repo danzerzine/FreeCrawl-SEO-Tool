@@ -49,7 +49,9 @@ export interface IssueTaskDeps {
   pickSavePath(defaultName: string): Promise<string | null>;
 }
 
-const ISSUE_CATEGORIES = new Set<string>(ISSUE_GROUPS.flatMap((g) => g.items.map((i) => i.category)));
+const ISSUE_CATEGORIES = new Set<string>(
+  ISSUE_GROUPS.flatMap((g) => g.items.map((i) => i.category)),
+);
 
 function whereOf(target: IssueTaskTarget, creds: Record<string, string>): string {
   return target === 'github'
@@ -67,8 +69,11 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
   const inFlight = new Set<string>();
   const key = (target: IssueTaskTarget, category: string) => `${target}|${category}`;
 
-  async function build(input: IssueTaskPreviewInput): Promise<{ task: IssueTask; total: number } | string> {
-    if (!ISSUE_CATEGORIES.has(input.category)) return 'Pick one of the Issues checks to make a task.';
+  async function build(
+    input: IssueTaskPreviewInput,
+  ): Promise<{ task: IssueTask; total: number } | string> {
+    if (!ISSUE_CATEGORIES.has(input.category))
+      return 'Pick one of the Issues checks to make a task.';
     const src = await deps.loadSource(input.category);
     const cols = evidenceColumnsFor(input.category);
     const task = buildIssueTask({
