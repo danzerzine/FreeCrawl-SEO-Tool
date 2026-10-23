@@ -56,6 +56,12 @@ export function mergeCrawlConfig(
     };
   }
 
+  // axe-core (B40) audits rendered pages only: without rendering it does nothing.
+  if (config.jsRender.axeAudit && config.renderingMode !== 'js') {
+    notes.push('--axe needs JavaScript rendering (add --render or set renderingMode "js"): no accessibility audit runs.');
+    config.jsRender.axeAudit = false;
+  }
+
   // An active profile wins over `proxyUrl` in the crawler, so `--proxy`
   // would do nothing against a settings file that selected one.
   if (flags.proxyUrl !== undefined && config.proxyProfileActive.trim()) {

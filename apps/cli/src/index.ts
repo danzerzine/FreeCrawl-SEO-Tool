@@ -144,6 +144,9 @@ Options:
   --page-script <file>  With --render: run the JavaScript in <file> once on every rendered page after it
                         loaded (click "Load more", scroll); what it returns is stored in Extracted Data
                         under $script. Also set as jsRender.pageScript in --config
+  --axe               With --render: run the axe-core accessibility audit on every rendered page
+                        (WCAG 2.0-2.2 A/AA, about a second per page); stored per page and exported
+                        as dataset:axe-violations. Also jsRender.axeAudit in --config. Off by default
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
   --user-agent <str>  Custom User-Agent string
@@ -355,6 +358,7 @@ function parseCliArgs() {
       render: { type: 'boolean' },
       'max-bytes': { type: 'string' },
       'page-script': { type: 'string' },
+      axe: { type: 'boolean' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
       'night-rps': { type: 'string' },
@@ -618,8 +622,13 @@ async function main(): Promise<void> {
       ? { memoryLimitMb: parsePositiveInt('memory-limit', values['memory-limit']) }
       : {}),
     ...(values.render ? { renderingMode: 'js' as const } : {}),
-    ...(pageScriptText !== undefined
-      ? { jsRender: { pageScript: pageScriptText } as CrawlConfig['jsRender'] }
+    ...(pageScriptText !== undefined || values.axe
+      ? {
+          jsRender: {
+            ...(pageScriptText !== undefined ? { pageScript: pageScriptText } : {}),
+            ...(values.axe ? { axeAudit: true } : {}),
+          } as CrawlConfig['jsRender'],
+        }
       : {}),
     ...(values.concurrency !== undefined
       ? { maxConcurrency: parseNumeric('concurrency', values.concurrency, DEFAULT_CRAWL_CONFIG.maxConcurrency) }
