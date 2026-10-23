@@ -9978,15 +9978,28 @@ export class ProjectDb {
       );
   }
 
-  /** Persist mobile-usability audit verdict + raw overflow / viewport-meta flag. */
+  /**
+   * Persist mobile-usability audit verdict + raw overflow / viewport-meta flag.
+   * `null` (audit asked for, no result) puts the never-audited defaults back (B162).
+   */
   setUrlMobileUsability(
     urlId: number,
     audit: {
       ok: boolean;
       overflowPx: number;
       hasViewportMeta: boolean;
-    },
+    } | null,
   ): void {
+    if (audit === null) {
+      this.db
+        .prepare(
+          `UPDATE urls
+             SET mobile_usable = -1, mobile_overflow_px = 0, mobile_viewport_meta = -1
+           WHERE id = ?`,
+        )
+        .run(urlId);
+      return;
+    }
     this.db
       .prepare(
         `UPDATE urls
@@ -10008,6 +10021,7 @@ export class ProjectDb {
    * focus outline) for a URL. Called from the JS-render path when the
    * a11y audit is enabled. Stores the low-contrast element count and a
    * 0/1 focus-suppression flag; NULL stays for pages never audited.
+   * `null` (audit asked for, no result) clears the four columns to NULL (B162).
    */
   setUrlA11y(
     urlId: number,
@@ -10018,8 +10032,19 @@ export class ProjectDb {
       smallFont?: number;
       tapTargetsSmall?: number;
       tapTargetsSampled?: number;
-    },
+    } | null,
   ): void {
+    if (audit === null) {
+      this.db
+        .prepare(
+          `UPDATE urls
+             SET a11y_low_contrast = NULL, a11y_focus_suppressed = NULL,
+                 a11y_small_font = NULL, a11y_tap_targets_small = NULL
+           WHERE id = ?`,
+        )
+        .run(urlId);
+      return;
+    }
     this.db
       .prepare(
         `UPDATE urls

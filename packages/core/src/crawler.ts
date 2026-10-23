@@ -6201,12 +6201,15 @@ export class Crawler extends EventEmitter {
         if (renderLcp) {
           persistOps.push(this.dbCall<void>('setUrlLcpCandidate', [urlId, renderLcp]));
         }
-        if (renderMobile) {
+        // A render tried with the option on and no result clears the old values (B162): the
+        // stored DOM is the static one now, and a stale audit must not count as checked.
+        // Option off: untouched.
+        if (renderMobile || (renderingTried && this.config.jsRender.mobileUsability)) {
           persistOps.push(
             this.dbCall<void>('setUrlMobileUsability', [urlId, renderMobile]),
           );
         }
-        if (renderA11y) {
+        if (renderA11y || (renderingTried && this.config.jsRender.a11yAudit)) {
           persistOps.push(this.dbCall<void>('setUrlA11y', [urlId, renderA11y]));
         }
         // axe-core: a result replaces the old one; with the option on and no result the old
