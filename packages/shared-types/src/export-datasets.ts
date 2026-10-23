@@ -34,6 +34,7 @@ export type ExportDatasetKey =
   | 'page-text'
   | 'pagespeed'
   | 'pagespeed-audits'
+  | 'axe-violations'
   | 'crux'
   | 'spelling'
   | 'search-console'
@@ -253,6 +254,19 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'resourcesJson', header: 'Resources JSON' },
     { key: 'lighthouseVersion', header: 'Lighthouse Version' },
     { key: 'fetchedAt', header: 'Fetched At' },
+  ],
+  // B40: one row per page x axe-core rule (violation, or needs-review when axe could not decide).
+  'axe-violations': [
+    { key: 'url', header: 'URL' },
+    { key: 'ruleId', header: 'Rule' },
+    { key: 'kind', header: 'Kind' },
+    { key: 'impact', header: 'Impact' },
+    { key: 'help', header: 'Help' },
+    { key: 'helpUrl', header: 'Help URL' },
+    { key: 'tags', header: 'WCAG Tags' },
+    { key: 'nodes', header: 'Elements' },
+    { key: 'firstSelector', header: 'First Selector' },
+    { key: 'firstHtml', header: 'First HTML' },
   ],
   crux: [...PAGE, ...cruxColumns('phone', 'Phone'), ...cruxColumns('desktop', 'Desktop')],
   spelling: [

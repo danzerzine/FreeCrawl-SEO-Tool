@@ -86,6 +86,8 @@ const EMPTY_DATASET_REASONS: Partial<Record<ExportDatasetKey, string>> = {
     'No sitemap URLs are stored in this project (no sitemap was read, or the ones read held no URLs), so there is nothing to compare the crawl with.',
   'analytics-custom':
     'No custom GA4 fields came back in the last pull: choose fields in the GA4 settings and fetch again.',
+  'axe-violations':
+    'No axe-core results are stored: turn on the axe-core audit in Settings, JS rendering, and crawl again (pages crawled before it existed have none).',
   'pagespeed-audits':
     'No Lighthouse audits are stored: run PageSpeed from the PageSpeed tab (pages tested before this export existed need a re-run).',
   webmaster:

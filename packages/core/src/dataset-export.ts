@@ -160,6 +160,24 @@ export function datasetRows(
             };
         })(),
       );
+    case 'axe-violations':
+      return asRecords(
+        (function* () {
+          for (const row of paged((limit, offset) => db.queryAxe({ limit, offset })))
+            yield {
+              url: row.url,
+              ruleId: row.ruleId,
+              kind: row.kind === 'violation' ? 'violation' : 'needs-review',
+              impact: row.impact,
+              help: row.help,
+              helpUrl: row.helpUrl,
+              tags: row.tags.join(','),
+              nodes: row.nodes,
+              firstSelector: row.samples[0]?.target ?? null,
+              firstHtml: row.samples[0]?.html ?? null,
+            };
+        })(),
+      );
     case 'crux':
       return asRecords(paged((limit, offset) => db.queryCrux({ limit, offset })));
     case 'spelling':
