@@ -77,7 +77,6 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
   const ready = preview?.ok ? preview : null;
   /** The shown text is the text of the current edits (the debounced preview has caught up). */
   const inSync = ready !== null && previewedKey === JSON.stringify([category, titleEdit, note]);
-  const edits = { category, ...(titleEdit !== null ? { title: titleEdit } : {}), note };
 
   const copy = async () => {
     if (!ready) return;
@@ -86,8 +85,9 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
   };
 
   const save = async () => {
+    if (!ready || !inSync) return;
     try {
-      const r = await window.freecrawl.issueTaskSave(edits);
+      const r = await window.freecrawl.issueTaskSave({ category, previewId: ready.previewId });
       if (r.ok) {
         setStatus({
           kind: 'info',
@@ -290,7 +290,7 @@ export function IssueTaskDialog({ open, category, onClose }: IssueTaskDialogProp
           <button
             type="button"
             onClick={() => void save()}
-            disabled={!ready}
+            disabled={!ready || !inSync}
             className="rounded border border-surface-700 px-2.5 py-1 text-[11px] text-surface-300 hover:bg-surface-800 disabled:cursor-not-allowed disabled:text-surface-600"
           >
             {t('issueTask.saveMd', { defaultValue: 'Save .md' })}

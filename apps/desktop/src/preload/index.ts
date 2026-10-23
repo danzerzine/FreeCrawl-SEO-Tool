@@ -16,6 +16,7 @@ import {
   type IssueTaskPreviewInput,
   type IssueTaskPreviewResult,
   type IssueTaskSaveResult,
+  type IssueTaskSaveInput,
   type IssueTaskSendInput,
   type IssueTaskSendResult,
   type ExportCsvResult,
@@ -329,7 +330,7 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.issueTaskPreview, input),
   issueTaskSend: (input: IssueTaskSendInput): Promise<IssueTaskSendResult> =>
     ipcRenderer.invoke(IPC.issueTaskSend, input),
-  issueTaskSave: (input: IssueTaskPreviewInput): Promise<IssueTaskSaveResult> =>
+  issueTaskSave: (input: IssueTaskSaveInput): Promise<IssueTaskSaveResult> =>
     ipcRenderer.invoke(IPC.issueTaskSave, input),
   exportCsv: (input: ExportCsvInput): Promise<ExportCsvResult> =>
     ipcRenderer.invoke(IPC.exportCsv, input),

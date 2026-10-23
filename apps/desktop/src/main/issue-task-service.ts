@@ -17,6 +17,7 @@ import {
   type IssueTaskPreviewInput,
   type IssueTaskPreviewResult,
   type IssueTaskSaveResult,
+  type IssueTaskSaveInput,
   type IssueTaskSendInput,
   type IssueTaskSendResult,
   type IssueTaskTarget,
@@ -106,7 +107,7 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
   const secrets = () =>
     (['github', 'basecamp'] as const).flatMap((t) => {
       const c = deps.credentials(INTEGRATION_ID[t]);
-      return [c['token'] ?? '', c['accessToken'] ?? ''];
+      return [(c['token'] ?? '').trim(), (c['accessToken'] ?? '').trim()];
     });
   const fail = (e: unknown) => ({ ok: false as const, message: scrubbed(e, secrets()) });
   const key = (target: IssueTaskTarget, category: string) => `${target}|${category}`;
@@ -206,7 +207,7 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
         }
         return {
           ok: false,
-          message: res.message,
+          message: scrubbed(res.message, secrets()),
           ...(res.mayHaveBeenCreated ? { mayHaveBeenCreated: true } : {}),
         };
       } catch (e) {
@@ -216,13 +217,15 @@ export function createIssueTaskService(deps: IssueTaskDeps) {
       }
     },
 
-    async save(input: IssueTaskPreviewInput): Promise<IssueTaskSaveResult> {
+    async save(input: IssueTaskSaveInput): Promise<IssueTaskSaveResult> {
       try {
-        const built = await build(input);
-        if (typeof built === 'string') return { ok: false, message: built };
+        if (!last || last.id !== input.previewId || last.category !== input.category) {
+          return { ok: false, message: 'The text changed since you read it. Review the new preview, then save.' };
+        }
+        const task = last.task;
         const file = await deps.pickSavePath(`${input.category.replace(/[^a-z0-9-]+/gi, '-')}.md`);
         if (!file) return { ok: false, message: 'Cancelled.', cancelled: true };
-        await writeFile(file, toMarkdown(built.task), 'utf8');
+        await writeFile(file, toMarkdown(task), 'utf8');
         return { ok: true, filePath: file };
       } catch (e) {
         return fail(e);

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -195,14 +195,51 @@ describe('issue task service: save', () => {
     const dir = mkdtempSync(join(tmpdir(), 'm21-save-'));
     const file = join(dir, 'task.md');
     const svc = createIssueTaskService(deps({ pickSavePath: async () => file }));
-    const r = await svc.save({ category: CATEGORY, note: 'N' });
+    const r = await svc.save({ category: CATEGORY, previewId: await previewId(svc, { category: CATEGORY, note: 'N' }) });
     expect(r).toEqual({ ok: true, filePath: file });
     expect(readFileSync(file, 'utf8')).toContain('N');
   });
 
+  it('saves the previewed task even when the project changed after the preview', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'm21-save2-'));
+    const file = join(dir, 'task.md');
+    let calls = 0;
+    const svc = createIssueTaskService(
+      deps({
+        pickSavePath: async () => file,
+        loadSource: async () => {
+          calls++;
+          return (calls === 1
+            ? SOURCE
+            : { ...SOURCE, rows: [{ url: 'https://shop.example.test/NEW', statusCode: 200 }] }) as never;
+        },
+      }),
+    );
+    const p = await svc.preview({ category: CATEGORY });
+    if (!p.ok) throw new Error(p.message);
+    expect(await svc.save({ category: CATEGORY, previewId: p.previewId })).toEqual({ ok: true, filePath: file });
+    const text = readFileSync(file, 'utf8');
+    expect(text).toBe(p.markdown);
+    expect(text).not.toContain('/NEW');
+  });
+
+  it('refuses a stale preview id and writes nothing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'm21-save3-'));
+    const file = join(dir, 'task.md');
+    const svc = createIssueTaskService(deps({ pickSavePath: async () => file }));
+    const first = await previewId(svc);
+    await previewId(svc, { category: CATEGORY, title: 'Edited later' });
+    const r = await svc.save({ category: CATEGORY, previewId: first });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.message).toMatch(/changed/);
+    expect(existsSync(file)).toBe(false);
+  });
+
   it('writes nothing when the user cancels', async () => {
     const svc = createIssueTaskService(deps());
-    expect(await svc.save({ category: CATEGORY })).toMatchObject({ ok: false, cancelled: true });
+    expect(
+      await svc.save({ category: CATEGORY, previewId: await previewId(svc) }),
+    ).toMatchObject({ ok: false, cancelled: true });
   });
 });
 
@@ -244,15 +281,16 @@ describe('issue task service: what was previewed is what is sent', () => {
 });
 
 describe('issue task service: errors come back as results', () => {
-  it('a throwing source gives {ok:false} for preview and save, with the token scrubbed', async () => {
+  it('a throwing source or save dialog gives {ok:false}, with the token scrubbed', async () => {
     const { creds } = await github();
     const boom = async (): Promise<never> => {
       throw new Error(`disk full ${GOOD_GITHUB_TOKEN}`);
     };
-    const svc = createIssueTaskService(deps({ creds, loadSource: boom }));
+    const bad = createIssueTaskService(deps({ creds, loadSource: boom }));
+    const ok = createIssueTaskService(deps({ creds, pickSavePath: boom }));
     for (const r of [
-      await svc.preview({ category: CATEGORY }),
-      await svc.save({ category: CATEGORY }),
+      await bad.preview({ category: CATEGORY }),
+      await ok.save({ category: CATEGORY, previewId: await previewId(ok) }),
     ]) {
       expect(r.ok).toBe(false);
       if (!r.ok) {
@@ -266,7 +304,7 @@ describe('issue task service: errors come back as results', () => {
     const svc = createIssueTaskService(
       deps({ pickSavePath: async () => join(mkdtempSync(join(tmpdir(), 'm21-w-')), 'no', 'such', 'dir.md') }),
     );
-    const r = await svc.save({ category: CATEGORY });
+    const r = await svc.save({ category: CATEGORY, previewId: await previewId(svc) });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.cancelled).toBeUndefined();
   });
@@ -278,6 +316,28 @@ describe('issue task service: errors come back as results', () => {
     );
     const r = await svc.send({ category: CATEGORY, target: 'github', previewId: await previewId(svc) });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('issue task service: token scrub on the send path', () => {
+  it('scrubs a token that the config trims, also one stored with surrounding spaces', async () => {
+    const other = 'bc-secret-token-123456';
+    const svc = createIssueTaskService(
+      deps({
+        creds: {
+          'github-tasks': { token: GOOD_GITHUB_TOKEN, owner: 'o', repo: 'r', apiBase: 'http://127.0.0.1:1' },
+          'basecamp-tasks': { accessToken: `  ${other}  ` },
+        },
+        fetch: async () =>
+          ({ status: 500, text: async () => JSON.stringify({ message: `upstream echoed ${other}` }) }) as never,
+      }),
+    );
+    const r = await svc.send({ category: CATEGORY, target: 'github', previewId: await previewId(svc) });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.message).toContain('upstream echoed');
+      expect(r.message).not.toContain(other);
+    }
   });
 });
 

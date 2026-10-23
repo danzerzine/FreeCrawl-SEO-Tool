@@ -744,6 +744,13 @@ export interface IssueTaskSendInput {
   previewId: string;
 }
 
+/** Saves the task of the last preview, like Send: the id quotes the preview the user read. */
+export interface IssueTaskSaveInput {
+  category: UrlCategory;
+  /** `previewId` of the preview the user read. */
+  previewId: string;
+}
+
 export type IssueTaskSendResult =
   | { ok: true; url: string }
   | { ok: false; message: string; mayHaveBeenCreated?: boolean };
@@ -2468,7 +2475,7 @@ export interface FreeCrawlApi {
   urlsQuery(input: UrlsQueryInput): Promise<UrlsQueryResult>;
   issueTaskPreview(input: IssueTaskPreviewInput): Promise<IssueTaskPreviewResult>;
   issueTaskSend(input: IssueTaskSendInput): Promise<IssueTaskSendResult>;
-  issueTaskSave(input: IssueTaskPreviewInput): Promise<IssueTaskSaveResult>;
+  issueTaskSave(input: IssueTaskSaveInput): Promise<IssueTaskSaveResult>;
   urlDetailGet(input: UrlDetailInput): Promise<UrlDetail | null>;
   urlSourceGet(input: UrlSourceInput): Promise<UrlSourceResult>;
   urlPageImages(input: UrlPageImagesInput): Promise<UrlPageImagesResult>;

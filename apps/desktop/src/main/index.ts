@@ -62,6 +62,7 @@ import {
   type CrawlSummary,
   type ExportCsvInput,
   type IssueTaskPreviewInput,
+  type IssueTaskSaveInput,
   type IssueTaskSendInput,
   type ExportCsvResult,
   type ExportJsonInput,
@@ -10358,7 +10359,7 @@ function registerIpc(): void {
   });
   registerHandle(IPC.issueTaskPreview, (_e, input: IssueTaskPreviewInput) => issueTasks.preview(input));
   registerHandle(IPC.issueTaskSend, (_e, input: IssueTaskSendInput) => issueTasks.send(input));
-  registerHandle(IPC.issueTaskSave, (_e, input: IssueTaskPreviewInput) => issueTasks.save(input));
+  registerHandle(IPC.issueTaskSave, (_e, input: IssueTaskSaveInput) => issueTasks.save(input));
 
   registerHandle(
     IPC.exportJson,
