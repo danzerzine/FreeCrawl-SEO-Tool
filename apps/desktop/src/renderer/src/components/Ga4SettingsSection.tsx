@@ -180,7 +180,8 @@ function CustomFieldPicker({
   };
 
   useEffect(() => {
-    void load(false);
+    // The field list is refreshed each time the picker opens (spec B37), so a stale pick shows.
+    void load(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.property, settings.accountId]);
 
