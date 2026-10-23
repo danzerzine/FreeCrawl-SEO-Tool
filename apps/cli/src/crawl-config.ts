@@ -56,19 +56,27 @@ export function mergeCrawlConfig(
     };
   }
 
-  // The cookie list (B43) is read from a rendered page: without rendering there is nothing to list.
-  if (config.jsRender.cookieList && config.renderingMode !== 'js') {
-    return { kind: 'error', message: '--cookie-list needs --render' };
-  }
-
-  // Coverage (B44) is measured in the browser: without rendering there is nothing to measure.
-  if (config.jsRender.coverage && config.renderingMode !== 'js') {
-    return { kind: 'error', message: '--coverage needs --render' };
+  // The cookie list (B43) is read from a rendered page, coverage (B44) is measured in the browser:
+  // without rendering there is nothing to list or measure. A typed flag is an error; the same
+  // option in a --config file (the desktop saves it whatever the mode) is a note and switched off.
+  const typed = (flags.jsRender ?? {}) as Partial<CrawlConfig['jsRender']>;
+  for (const [key, flag] of [
+    ['cookieList', '--cookie-list'],
+    ['coverage', '--coverage'],
+  ] as const) {
+    if (!config.jsRender[key] || config.renderingMode === 'js') continue;
+    if (typed[key]) return { kind: 'error', message: `${flag} needs --render` };
+    notes.push(
+      `${flag} needs JavaScript rendering (add --render or set renderingMode "js"): it is switched off.`,
+    );
+    config.jsRender[key] = false;
   }
 
   // axe-core (B40) audits rendered pages only: without rendering it does nothing.
   if (config.jsRender.axeAudit && config.renderingMode !== 'js') {
-    notes.push('--axe needs JavaScript rendering (add --render or set renderingMode "js"): no accessibility audit runs.');
+    notes.push(
+      '--axe needs JavaScript rendering (add --render or set renderingMode "js"): no accessibility audit runs.',
+    );
     config.jsRender.axeAudit = false;
   }
 
