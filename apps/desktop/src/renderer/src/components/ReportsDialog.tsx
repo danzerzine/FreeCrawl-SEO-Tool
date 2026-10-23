@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store.js';
+import { cloudSizes } from '../utils/topWordsCloud.js';
 import type {
   PagesPerDirectoryRow,
   StatusCodeHistogramRow,
@@ -64,6 +65,8 @@ type ReportKind =
   | 'mobile-parity';
 
 interface ReportRow {
+  /** Unique React key when `key` repeats (the same phrase in two sections). */
+  id?: string;
   /** Display key (directory path / status code / depth label). */
   key: string;
   /** Optional column shown left-of-key (e.g. status-class label). */
@@ -197,6 +200,15 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
   const [kind, setKind] = useState<ReportKind>('pages-per-dir');
   const [depth, setDepth] = useState(1);
   const [includeBody, setIncludeBody] = useState(false);
+  // Top Words (B84): words or phrases, whole site or by section, list or cloud.
+  const [topN, setTopN] = useState<1 | 2 | 3>(1);
+  const [topLocale, setTopLocale] = useState<'all' | 'en' | 'ru' | 'tr'>('all');
+  const [topBySection, setTopBySection] = useState(false);
+  /** '' = every section. */
+  const [topSection, setTopSection] = useState('');
+  const [topSections, setTopSections] = useState<string[]>([]);
+  const [topView, setTopView] = useState<'list' | 'cloud'>('list');
+  const [topCapped, setTopCapped] = useState(false);
   const [templateLinks, setTemplateLinks] = useState<TemplateLinkFilter>('include');
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -277,10 +289,10 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
     'sitemap-orphans': 'URL',
     'orphan-cross-source': 'URL',
     'server-headers': t('reports.keyServer', { defaultValue: 'Server' }),
-    'top-words': t('reports.keyWord', { defaultValue: 'Word' }),
+    'top-words': topN === 1 ? t('reports.keyWord', { defaultValue: 'Word' }) : t('reports.keyPhrase', { defaultValue: 'Phrase' }),
     'pages-over-link-limit': 'URL',
     'mobile-parity': 'URL',
-  }), [t]);
+  }), [t, topN]);
 
   useEffect(() => {
     if (!open) return;
@@ -566,11 +578,28 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
           if (!cancelled)
             setRows(r.map((x: ServerHeaderRow) => ({ key: x.server, count: x.count })));
         } else if (kind === 'top-words') {
-          const r = await window.freecrawl.reportsTopWords({ limit: 100, minLength: 3, includeBody });
+          const blocks = await window.freecrawl.reportsTopWordsBlocks({
+            limit: 100,
+            minLength: 3,
+            includeBody,
+            n: topN,
+            locale: topLocale,
+            bySection: topBySection && topSection === '',
+            ...(topBySection && topSection !== '' ? { section: topSection } : {}),
+          });
+          if (!cancelled) {
+            setTopCapped(blocks.some((b) => b.capped));
+            if (topBySection && topSection === '') setTopSections(blocks.map((b) => b.section));
+          }
+          const r = blocks.flatMap((b) =>
+            b.rows.map((x: TopWordsRow) => ({ ...x, section: b.scope === 'site' ? '' : b.section })),
+          );
           if (!cancelled)
             setRows(
-              r.map((x: TopWordsRow) => ({
+              r.map((x: TopWordsRow & { section: string }) => ({
                 key: x.word,
+                id: `${x.section}\u0000${x.word}`,
+                badge: x.section || undefined,
                 // Bar metric is total occurrence count so the loudest
                 // terms spike visually. Page-coverage is shown beside it
                 // so the user can spot "high count, narrow coverage" =
@@ -636,7 +665,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, kind, depth, maxLinksPerPage, includeBody, orphanApplied, templateLinks, t]);
+  }, [open, kind, depth, maxLinksPerPage, includeBody, topN, topLocale, topBySection, topSection, orphanApplied, templateLinks, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -729,6 +758,69 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
               </span>
             </label>
           )}
+          {kind === 'top-words' && (
+            <>
+              <label className="flex items-center gap-1.5" title={t('reports.ngrams', { defaultValue: 'N-grams' })}>
+                <span className="text-surface-400">{t('reports.wordsPhrases', { defaultValue: 'Words / Phrases' })}</span>
+                <select
+                  className="rounded border border-surface-700 bg-surface-950 px-2 py-0.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
+                  value={topN}
+                  onChange={(e) => setTopN(Number.parseInt(e.target.value, 10) as 1 | 2 | 3)}
+                >
+                  <option value={1}>{t('reports.ngramWords', { defaultValue: 'Words' })}</option>
+                  <option value={2}>{t('reports.ngramPhrases2', { defaultValue: '2-word phrases' })}</option>
+                  <option value={3}>{t('reports.ngramPhrases3', { defaultValue: '3-word phrases' })}</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5">
+                <span className="text-surface-400">{t('reports.stopLocale', { defaultValue: 'Language of stop words' })}</span>
+                <select
+                  className="rounded border border-surface-700 bg-surface-950 px-2 py-0.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
+                  value={topLocale}
+                  onChange={(e) => setTopLocale(e.target.value as 'all' | 'en' | 'ru' | 'tr')}
+                >
+                  <option value="all">{t('reports.stopLocaleAll', { defaultValue: 'All' })}</option>
+                  <option value="en">{t('reports.stopLocaleEn', { defaultValue: 'English' })}</option>
+                  <option value="ru">{t('reports.stopLocaleRu', { defaultValue: 'Russian' })}</option>
+                  <option value="tr">{t('reports.stopLocaleTr', { defaultValue: 'Turkish' })}</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5">
+                <span className="text-surface-400">{t('reports.section', { defaultValue: 'Section' })}</span>
+                <select
+                  className="rounded border border-surface-700 bg-surface-950 px-2 py-0.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
+                  value={topBySection ? (topSection === '' ? '*' : topSection) : ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTopBySection(v !== '');
+                    setTopSection(v === '*' || v === '' ? '' : v);
+                  }}
+                >
+                  <option value="">{t('reports.wholeSite', { defaultValue: 'Whole site' })}</option>
+                  <option value="*">{t('reports.allSections', { defaultValue: 'All sections' })}</option>
+                  {topSections.filter((x) => x !== '(other)').map((x) => (
+                    <option key={x} value={x}>{x}</option>
+                  ))}
+                </select>
+              </label>
+              <span className="flex items-center gap-1">
+                {(['list', 'cloud'] as const).map((v) => (
+                  <button
+                    key={v}
+                    className={`rounded border px-2 py-0.5 ${topView === v ? 'border-blue-500 text-surface-100' : 'border-surface-700 text-surface-400 hover:bg-surface-800'}`}
+                    onClick={() => setTopView(v)}
+                  >
+                    {v === 'list' ? t('reports.viewList', { defaultValue: 'List' }) : t('reports.viewCloud', { defaultValue: 'Cloud' })}
+                  </button>
+                ))}
+              </span>
+              {topCapped && (
+                <span className="text-amber-400">
+                  {t('reports.topWordsCapped', { defaultValue: 'Approximate: rare phrases were dropped to stay within memory.' })}
+                </span>
+              )}
+            </>
+          )}
           {kind === 'orphan-cross-source' && (
             <label className="flex items-center gap-1.5">
               <span className="text-surface-400">
@@ -807,7 +899,21 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
                   : t('reports.noData', { defaultValue: 'No data — run a crawl first.' })}
             </div>
           )}
-          {rows.length > 0 && (
+          {rows.length > 0 && kind === 'top-words' && topView === 'cloud' && (
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 leading-tight">
+              {cloudSizes(rows).map((px, i) => (
+                <span
+                  key={rows[i]!.id ?? rows[i]!.key}
+                  className="text-surface-100"
+                  style={{ fontSize: `${px}px` }}
+                  title={`${rows[i]!.badge ? rows[i]!.badge + ': ' : ''}${rows[i]!.valueLabel ?? rows[i]!.count}`}
+                >
+                  {rows[i]!.key}
+                </span>
+              ))}
+            </div>
+          )}
+          {rows.length > 0 && !(kind === 'top-words' && topView === 'cloud') && (
             <div className="w-full">
               <div className="sticky top-0 z-10 flex bg-surface-900 text-surface-400">
                 <div className="w-2/3 py-1 pr-3 text-left font-medium">{keyLabels[kind]}</div>
@@ -822,7 +928,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
                   const sharePct = total > 0 ? ((r.count / total) * 100).toFixed(1) : '0.0';
                   return (
                     <div
-                      key={r.key}
+                      key={r.id ?? r.key}
                       data-index={vi.index}
                       ref={rowVirtualizer.measureElement}
                       className="absolute left-0 top-0 flex w-full border-b border-surface-900 hover:bg-surface-900/50"
