@@ -341,6 +341,18 @@ const HARD_TRANSPORT_ERROR_RE =
   /ENOTFOUND|EAI_AGAIN|ENODATA|ESERVFAIL|ECONNREFUSED|UND_ERR_CONNECT_TIMEOUT/;
 /** Pause before the one retry of an external URL that got no answer at network level. */
 const NO_ANSWER_RETRY_PAUSE_MS = 1_500;
+
+/** Thrown inside a request chain when Stop cuts a rate wait short (B150). */
+class GateStopped extends Error {}
+
+/** Lower-case hostname, the key of a foreign host's rate clock ('' if `url` has none). */
+function hostKey(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
 /** Near-duplicate clusters over 50 pages named one per line in the crawl log; the rest are counted. */
 const LARGE_CLUSTERS_LOGGED = 10;
 /*
@@ -508,6 +520,8 @@ export class Crawler extends EventEmitter {
   private robotsCrawlDelayMs = 0;
   /** Monotonic dispatch clock for the maxRps gate (see acquireRateSlot). */
   private nextDispatchAt = 0;
+  /** Next free request slot (epoch ms) per foreign hostname, for external-link checks (B150). */
+  private extNextAt = new Map<string, number>();
   private progressTimer: NodeJS.Timeout | null = null;
   private memoryWatchdogTimer: NodeJS.Timeout | null = null;
   /** Periodic post-crawl-style recompute of expensive issue counters
@@ -3705,6 +3719,83 @@ export class Crawler extends EventEmitter {
     return this.config.crawlExternal && this.config.checkExternalLinks;
   }
 
+  /** Who answers for the rate of a request to `url`: a foreign host, an out-of-scope page of the start host, or the crawl's own scope. */
+  private externalGateKind(url: string): 'foreign' | 'stub' | 'scope' {
+    const same = isSameHost(this.config.startUrl, url, {
+      includeSubdomains: this.config.scope === 'all-subdomains',
+      cdnHosts: this.config.cdnHosts,
+    });
+    if (!same) return 'foreign';
+    return isInScope(this.config.startUrl, url, this.config.scope) ? 'scope' : 'stub';
+  }
+
+  /** Ms until a foreign host's next free slot (0 = free now); books nothing. */
+  private peekExternalWait(host: string): number {
+    const maxRps = nightAwareMaxRps(this.config, new Date());
+    if (maxRps <= 0) return 0;
+    return Math.max(0, (this.extNextAt.get(host) ?? 0) - Date.now());
+  }
+
+  /**
+   * Reserve the next slot of a foreign host's clock and return the ms to wait.
+   * Same arithmetic as `acquireRateSlot`, read and write in one synchronous
+   * step so concurrent probes get distinct slots. `maxRps <= 0` = unlimited.
+   */
+  private bookExternalSlot(host: string): number {
+    const maxRps = nightAwareMaxRps(this.config, new Date());
+    if (maxRps <= 0) return 0;
+    const now = Date.now();
+    if (this.extNextAt.size > 1024) {
+      for (const [h, at] of this.extNextAt) if (at <= now) this.extNextAt.delete(h);
+    }
+    const scheduled = Math.max(now, this.extNextAt.get(host) ?? 0);
+    this.extNextAt.set(host, scheduled + 1000 / maxRps);
+    return scheduled - now;
+  }
+
+  private requeueExternal(url: string): void {
+    this.externalQueue.add(() => this.probeExternal(url)).catch((err: unknown) => {
+      this.emit('error', `External probe error: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
+
+  private requeueAmpTarget(url: string): void {
+    this.externalQueue.add(() => this.probeAmpTarget(url)).catch((err: unknown) => {
+      this.emit('error', `AMP probe error: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
+
+  /**
+   * Entry gate of an external probe (B150). 'booked': the first request holds
+   * a slot of its foreign host. 'free': not a foreign host, the chain gates
+   * itself. 'done': stopped, or the probe went back to the queue.
+   */
+  private async enterExternalGate(url: string, requeue: () => void): Promise<'booked' | 'free' | 'done'> {
+    if (this.externalGateKind(url) !== 'foreign') return 'free';
+    const host = hostKey(url);
+    if (!host) return 'free';
+    // Starvation guard: a probe whose host line is more than 1 s away steps
+    // back when other work waits, so the workers do not all sit in one host's
+    // line while other hosts starve. The condition is `externalQueue.size > 0`
+    // and counts queued probes of the SAME host too: with a single busy host
+    // the waiting workers go back to the queue every 250 ms (a cheap no-op
+    // cycle, no slot booked) until their slot is within 1 s.
+    if (this.peekExternalWait(host) > 1000 && this.externalQueue.size > 0) {
+      await this.untilStopped(sleep(250));
+      if (this.stopped) return 'done';
+      requeue();
+      return 'done';
+    }
+    const wait = this.bookExternalSlot(host);
+    if (wait > 0) await this.untilStopped(sleep(wait));
+    if (this.stopped) return 'done';
+    if (this.paused || this.memoryAutoPaused) {
+      requeue();
+      return 'done';
+    }
+    return 'booked';
+  }
+
   private async probeExternal(url: string): Promise<void> {
     if (this.stopped) return;
 
@@ -3725,7 +3816,12 @@ export class Crawler extends EventEmitter {
       return;
     }
 
-    const { res, err, confirmedNoAnswer, responseTimeMs } = await this.requestStatus(url);
+    const entry = await this.enterExternalGate(url, () => this.requeueExternal(url));
+    if (entry === 'done') return;
+    const { res, err, confirmedNoAnswer, responseTimeMs, aborted } = await this.requestStatus(url, {
+      prebooked: entry === 'booked',
+    });
+    if (aborted) return;
     if (res) {
       const botBlock = detectBotProtection(res.status, res.headers);
       await this.dbCall<void>('updateExternalProbe', [
@@ -3757,7 +3853,29 @@ export class Crawler extends EventEmitter {
    * a browser UA, a relaxed TLS check, one retry on no answer) before an
    * error stands. Shared by the external-link probe and the AMP probe (B24).
    */
-  private async requestStatus(url: string): Promise<{
+  private async requestStatus(
+    url: string,
+    opts: { prebooked?: boolean } = {},
+  ): Promise<{
+    res?: Awaited<ReturnType<typeof undiciFetch>>;
+    err?: unknown;
+    confirmedNoAnswer: boolean;
+    responseTimeMs: number;
+    /** Stop cut a rate wait short: nothing was asked, nothing may be stored. */
+    aborted?: boolean;
+  }> {
+    try {
+      return await this.requestStatusChain(url, opts.prebooked === true);
+    } catch (e) {
+      if (e instanceof GateStopped) return { confirmedNoAnswer: false, responseTimeMs: 0, aborted: true };
+      throw e;
+    }
+  }
+
+  private async requestStatusChain(
+    url: string,
+    firstBooked: boolean,
+  ): Promise<{
     res?: Awaited<ReturnType<typeof undiciFetch>>;
     err?: unknown;
     confirmedNoAnswer: boolean;
@@ -3772,6 +3890,11 @@ export class Crawler extends EventEmitter {
     const probeAuth = inScope ? this.config.auth : undefined;
     const probeHeaders = inScope ? this.config.customHeaders : {};
 
+    const kind = this.externalGateKind(url);
+    const host = hostKey(url);
+    // Time spent waiting for a rate slot inside the chain: not the link's response time.
+    let gateWaitedMs = 0;
+    let slotInHand = firstBooked;
     const t0 = Date.now();
     const cfgUa = this.resolveUserAgent(url);
 
@@ -3784,6 +3907,25 @@ export class Crawler extends EventEmitter {
       ua: string,
       dispatcher?: Dispatcher,
     ): Promise<{ res?: Awaited<ReturnType<typeof undiciFetch>>; err?: unknown }> => {
+      // Every request to a foreign host takes a slot of its host's clock; an
+      // out-of-scope page of the start host takes the global one. The wait
+      // comes before the timeout timer, so it never counts against it.
+      if (slotInHand) {
+        slotInHand = false;
+      } else if (kind === 'foreign' && host) {
+        const wait = this.bookExternalSlot(host);
+        if (wait > 0) {
+          const w0 = Date.now();
+          await this.untilStopped(sleep(wait));
+          gateWaitedMs += Date.now() - w0;
+          if (this.stopped) throw new GateStopped();
+        }
+      } else if (kind === 'stub') {
+        const w0 = Date.now();
+        await this.acquireRateSlot();
+        gateWaitedMs += Date.now() - w0;
+        if (this.stopped) throw new GateStopped();
+      }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.config.requestTimeoutMs);
       try {
@@ -3902,7 +4044,7 @@ export class Crawler extends EventEmitter {
       }
     }
 
-    const responseTimeMs = Date.now() - t0;
+    const responseTimeMs = Math.max(0, Date.now() - t0 - gateWaitedMs);
     try {
       await res?.body?.cancel();
     } catch {
@@ -3940,9 +4082,15 @@ export class Crawler extends EventEmitter {
     if (!inScope && isPrivateHost(url) && !isPrivateHost(this.config.startUrl)) {
       return notRequested('Skipped: private/internal address (SSRF guard)');
     }
-    await this.acquireRateSlot();
-    if (this.stopped) return;
-    const { res, err, confirmedNoAnswer } = await this.requestStatus(url);
+    if (this.externalGateKind(url) === 'foreign') {
+      const entry = await this.enterExternalGate(url, () => this.requeueAmpTarget(url));
+      if (entry === 'done') return;
+    } else {
+      await this.acquireRateSlot();
+      if (this.stopped) return;
+    }
+    const { res, err, confirmedNoAnswer, aborted } = await this.requestStatus(url, { prebooked: true });
+    if (aborted) return;
     await this.dbCall<void>('setAmpTarget', [
       {
         url,
