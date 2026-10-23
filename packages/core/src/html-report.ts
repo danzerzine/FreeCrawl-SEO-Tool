@@ -365,17 +365,17 @@ const SEVERITY_FALLBACK: Record<IssueDef['severity'], string> = {
   info: 'Informational — worth tidying when the affected template is next touched.',
 };
 
-/** Report severity word of one check, when the report lists it (M21 task builder). */
+/** Report severity word of one check, when the report lists it (used by the issue task builder). */
 export function issueReportSeverity(key: string): IssueDef['severity'] | undefined {
   return ISSUES.find((d) => d.key === key)?.severity;
 }
 
-/** Hand-written fix advice of one check (raw, with `{{…}}` placeholders), if any (M21, B12). */
+/** Hand-written fix advice of one check (raw, with `{{…}}` placeholders), if any. */
 export function issueAdvice(key: string): string | undefined {
   return (RECOMMENDATIONS as Record<string, string | undefined>)[key];
 }
 
-/** Why-it-matters line per report severity (M21 task builder). */
+/** Why-it-matters line per report severity (used by the issue task builder). */
 export function severityFallback(severity: IssueDef['severity']): string {
   return SEVERITY_FALLBACK[severity];
 }

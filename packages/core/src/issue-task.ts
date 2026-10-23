@@ -26,6 +26,25 @@ export interface BuildIssueTaskInput {
   crawledAt: string;
   maxUrls?: number;
   maxBodyChars?: number;
+  /** The user's title and note; they count toward the body cap. */
+  title?: string;
+  note?: string;
+  /**
+   * Rows of the check's by-target report (link targets with their linking
+   * pages) for the checks counted by target. Without them such a check lists
+   * the pages that contain the flagged links.
+   */
+  targets?: { rows: IssueTaskTargetRow[] };
+}
+
+/** One row of a by-target link report, as the task needs it. */
+export interface IssueTaskTargetRow {
+  targetUrl: string;
+  statusCode: number | null;
+  /** End of the redirect chain; null when the target does not redirect. */
+  finalUrl: string | null;
+  sourcePages: number;
+  sampleSourceUrl: string | null;
 }
 
 export interface IssueTaskSection {
@@ -52,6 +71,7 @@ const EVIDENCE_BY_PREFIX: [string, string[]][] = [
   ['issues:meta-', ['metaDescriptionLength']],
   ['issues:h1-', ['h1', 'h1Count']],
   ['issues:canonical-', ['canonicalResolved']],
+  ['issues:redirect-', ['statusCode', 'redirectTarget']],
   ['issues:response-', ['responseTimeMs']],
   ['issues:ttfb-', ['ttfbMs']],
 ];
@@ -62,7 +82,7 @@ export function evidenceColumnsFor(category: string): string[] {
   return DEFAULT_COLUMNS;
 }
 
-const URL_COLUMNS = new Set(['url', 'canonicalResolved']);
+const URL_COLUMNS = new Set(['url', 'canonicalResolved', 'redirectTarget', 'targetUrl', 'finalUrl', 'sampleSourceUrl']);
 /** Free text from the page; only these are cut, a cut URL would point nowhere. */
 const CUT_COLUMNS = new Set(['title', 'h1']);
 const CUT_AT = 200;
@@ -101,7 +121,12 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
     (n, k) => n + ((input.counts.issues as Record<string, number>)[k] ?? 0),
     0,
   );
-  const total = input.totalUrls ?? counted;
+  const byTarget = def.byTarget;
+  const withTargets = byTarget?.report !== undefined && input.targets !== undefined;
+  // A check counted by target shows the sidebar count when the targets are listed.
+  const total = withTargets ? counted : (input.totalUrls ?? counted);
+  const unit = withTargets ? 'linked URL' : byTarget ? 'page' : 'URL';
+  const plural = (n: number) => `${unit}${n === 1 ? '' : 's'}`;
   const site = host(input.siteUrl);
   const date = input.crawledAt.slice(0, 10);
 
@@ -121,32 +146,48 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
   const advice = single ? issueAdvice(single) : undefined;
   if (advice) head.push({ heading: 'How to fix', text: fillThresholdLabel(advice, th) });
 
-  const cols = evidenceColumnsFor(input.category);
+  const cols = byTarget ? [] : evidenceColumnsFor(input.category);
   const cell = (col: string, v: string | number | null | undefined) => {
     let t = v == null ? '' : String(v).replace(/\r\n|\r|\n/g, ' ');
     if (URL_COLUMNS.has(col)) t = stripUserinfo(t);
     else if (CUT_COLUMNS.has(col) && t.length > CUT_AT) t = t.slice(0, CUT_AT - 1) + '…';
     return t;
   };
-  const allRows = input.rows.map((r) => [
-    cell('url', r.url),
-    ...cols.map((c) => cell(c, r.evidence[c])),
-  ]);
+  const showFinal = withTargets && byTarget?.report === 'redirect-inlinks';
+  const header = withTargets
+    ? ['Target URL', 'Status', ...(showFinal ? ['Redirects to'] : []), 'Linking pages', 'Example linking page']
+    : byTarget
+      ? ['Page with the link']
+      : ['URL', ...cols];
+  const allRows = withTargets
+    ? input.targets!.rows.map((r) => [
+        cell('targetUrl', r.targetUrl),
+        cell('statusCode', r.statusCode),
+        ...(showFinal ? [cell('finalUrl', r.finalUrl)] : []),
+        cell('sourcePages', r.sourcePages),
+        cell('sampleSourceUrl', r.sampleSourceUrl),
+      ])
+    : input.rows.map((r) => [cell('url', r.url), ...cols.map((c) => cell(c, r.evidence[c]))]);
   const exportName = input.category;
-  const title = `[${site}] ${group}: ${label} (${total} URL${total === 1 ? '' : 's'})`;
+  const title =
+    input.title?.trim() || `[${site}] ${group}: ${label} (${total} ${plural(total)})`;
+  const note = input.note?.trim();
 
   const assemble = (shown: number): IssueTask => {
     const more = Math.max(0, total - shown);
     const affected: IssueTaskSection = {
       heading: 'Affected',
-      text: `${total} URL${total === 1 ? '' : 's'}, first ${shown} shown`,
-      table: { header: ['URL', ...cols], rows: allRows.slice(0, shown) },
+      text: byTarget && !withTargets
+        ? `${total} ${plural(total)} that contain${total === 1 ? 's' : ''} the flagged links, first ${shown} shown`
+        : `${total} ${plural(total)}, first ${shown} shown`,
+      table: { header, rows: allRows.slice(0, shown) },
     };
     if (more > 0) {
-      affected.note = `and ${more} more URL${more === 1 ? '' : 's'} not listed (full list: FreeCrawl export \`${exportName}\` from the crawl of ${site}, ${date})`;
+      affected.note = `and ${more} more ${plural(more)} not listed (full list: FreeCrawl export \`${exportName}\` from the crawl of ${site}, ${date})`;
     }
     return {
       title,
+      ...(note ? { note } : {}),
       sections: [
         ...head,
         affected,
@@ -181,7 +222,7 @@ function mdText(s: string): string {
 /** Inline code span: fence longer than any backtick run inside, padded at edge backticks. */
 function mdCell(raw: string): string {
   if (raw === '') return '';
-  const v = raw.replace(/\\(?=\|)/g, '\\\\').replace(/\|/g, '\\|');
+  const v = raw.replace(/\|/g, '\\|');
   const longest = Math.max(0, ...(v.match(/`+/g) ?? []).map((r) => r.length));
   const fence = '`'.repeat(longest + 1);
   const pad = v.startsWith('`') || v.endsWith('`') ? ' ' : '';

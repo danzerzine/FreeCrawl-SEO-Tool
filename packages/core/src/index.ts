@@ -325,6 +325,7 @@ export {
   type IssueTask,
   type IssueTaskSection,
   type IssueTaskRow,
+  type IssueTaskTargetRow,
   type BuildIssueTaskInput,
 } from './issue-task.js';
 export {

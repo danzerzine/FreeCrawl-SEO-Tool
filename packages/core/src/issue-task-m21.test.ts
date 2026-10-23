@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { OverviewCounts } from '@freecrawl/shared-types';
 import { DEFAULT_SEO_THRESHOLDS } from '@freecrawl/shared-types';
-import { buildIssueTask, toBasecampHtml, toMarkdown, type BuildIssueTaskInput } from './issue-task.js';
+import {
+  buildIssueTask,
+  evidenceColumnsFor,
+  toBasecampHtml,
+  toMarkdown,
+  type BuildIssueTaskInput,
+} from './issue-task.js';
 
 function counts(issues: Record<string, number>): BuildIssueTaskInput['counts'] {
   return { issues, thresholds: DEFAULT_SEO_THRESHOLDS } as unknown as Pick<
@@ -43,14 +49,15 @@ describe('buildIssueTask: title-missing', () => {
   });
 });
 
-// Splits a GFM table row at unescaped pipes (a backslash escapes the next char).
+// Splits a GFM table row at unescaped pipes.
 function cells(line: string): string[] {
   const out: string[] = [];
   let cur = '';
   const body = line.trim().replace(/^\|/, '').replace(/\|$/, '');
   for (let i = 0; i < body.length; i++) {
     const c = body[i]!;
-    if (c === '\\' && i + 1 < body.length) {
+    // GFM: only a backslash right before a pipe escapes it, however many backslashes precede.
+    if (c === '\\' && body[i + 1] === '|') {
       cur += c + body[++i];
     } else if (c === '|') {
       out.push(cur.trim());
@@ -99,7 +106,7 @@ describe('escaping crawled values', () => {
     expect(md).toContain('`line one line two`');
     expect(md).toContain('`` `lead tick @x ``');
     expect(md).toContain('`` trail tick` ``');
-    expect(md).toContain('`a\\\\\\|b`');
+    expect(md).toContain('`a\\\\|b`');
     expect(md).toContain('````has ``` run````');
     // no @ or # outside code spans in the table
     for (const l of tableLines(md).slice(2)) {
@@ -260,5 +267,121 @@ describe('toBasecampHtml', () => {
     );
     expect(toBasecampHtml(t).length).toBeLessThanOrEqual(9000);
     expect(toMarkdown(t).length).toBeLessThanOrEqual(9000);
+  });
+});
+
+describe('link checks counted by target', () => {
+  const pages = (over: Partial<BuildIssueTaskInput> = {}) =>
+    buildIssueTask(
+      input({
+        category: 'issues:anchor-text-generic',
+        counts: counts({ anchorTextGeneric: 4, anchorTextGenericPages: 9 }),
+        rows: [{ url: 'https://example.com/a', evidence: { statusCode: 200, indexability: 'Indexable' } }],
+        totalUrls: 9,
+        ...over,
+      }),
+    );
+
+  it('labels the list as pages that contain the flagged links and drops the default evidence', () => {
+    const md = toMarkdown(pages());
+    expect(md).toContain('9 pages that contain the flagged links, first 1 shown');
+    expect(md).toContain('| Page with the link |');
+    expect(md).not.toMatch(/statusCode|indexability|Indexable/);
+    expect(pages().title).toContain('(9 pages)');
+  });
+
+  const targets = {
+    total: 2,
+    rows: [
+      {
+        targetUrl: 'https://example.com/old',
+        statusCode: 301,
+        finalUrl: 'https://example.com/new',
+        sourcePages: 17,
+        sampleSourceUrl: 'https://example.com/blog',
+      },
+      {
+        targetUrl: 'https://user:pw@example.com/old2',
+        statusCode: 302,
+        finalUrl: null,
+        sourcePages: 3,
+        sampleSourceUrl: null,
+      },
+    ],
+  };
+
+  it('names the bad link targets from the by-target report, and the count is the sidebar count', () => {
+    const t = buildIssueTask(
+      input({
+        category: 'issues:internal-link-to-redirect',
+        counts: counts({ internalLinkToRedirect: 2, internalLinkToRedirectPages: 20 }),
+        rows: [],
+        targets,
+      }),
+    );
+    const md = toMarkdown(t);
+    expect(t.title).toBe('[example.com] Links: Internal Link → Redirect (2 linked URLs)');
+    expect(md).toContain('2 linked URLs, first 2 shown');
+    expect(md).toMatch(/\| Target URL \| Status \| Redirects to \| Linking pages \|/);
+    expect(md).toContain('`https://example.com/old`');
+    expect(md).toContain('`https://example.com/new`');
+    expect(md).toContain('`17`');
+    expect(md).not.toContain('user:pw');
+    expect(toBasecampHtml(t)).toContain('<th>Linking pages</th>');
+  });
+
+  it('broken internal links name the failing target with its status', () => {
+    const t = buildIssueTask(
+      input({
+        category: 'issues:broken-links-internal',
+        counts: counts({ brokenLinksInternal: 2, brokenLinksInternalLinks: 40 }),
+        rows: [],
+        targets: { ...targets, rows: [{ ...targets.rows[0]!, statusCode: 404, finalUrl: null }] },
+      }),
+    );
+    const md = toMarkdown(t);
+    expect(md).toContain('`404`');
+    expect(md).not.toContain('Redirects to');
+    expect(t.title).toContain('(2 linked URLs)');
+  });
+});
+
+describe('redirect evidence', () => {
+  it('redirect checks list the status code and the redirect target, userinfo stripped', () => {
+    expect(evidenceColumnsFor('issues:redirect-chain')).toEqual(['statusCode', 'redirectTarget']);
+    const md = toMarkdown(
+      buildIssueTask(
+        input({
+          category: 'issues:redirect-chain',
+          counts: counts({ redirectChain: 1 }),
+          rows: [
+            {
+              url: 'https://example.com/a',
+              evidence: { statusCode: 301, redirectTarget: 'https://u:pw@example.com/b' },
+            },
+          ],
+        }),
+      ),
+    );
+    expect(md).toMatch(/\| URL \| statusCode \| redirectTarget \|/);
+    expect(md).toContain('`https://example.com/b`');
+    expect(md).not.toContain('u:pw');
+  });
+});
+
+describe('the user note is inside the body cap', () => {
+  it('a long note and a custom title shrink the URL list instead of overflowing', () => {
+    const rows = Array.from({ length: 200 }, (_, i) => ({
+      url: `https://example.com/page-${i}`,
+      evidence: { title: '', titleLength: 0, statusCode: 200 },
+    }));
+    const t = buildIssueTask(
+      input({ rows, totalUrls: 200, counts: counts({ titleMissing: 200 }), maxBodyChars: 6000, note: 'N'.repeat(3000), title: 'Mine' }),
+    );
+    expect(t.title).toBe('Mine');
+    expect(toMarkdown(t).length).toBeLessThanOrEqual(6000);
+    expect(toBasecampHtml(t).length).toBeLessThanOrEqual(6000);
+    expect(t.moreUrls).toBeGreaterThan(0);
+    expect(toMarkdown(t)).toContain('NNNN');
   });
 });
