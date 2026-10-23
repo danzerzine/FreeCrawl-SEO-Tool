@@ -30,7 +30,7 @@ describe('latestCrawlTime: the crawl date a task states', () => {
     db.close();
   });
 
-  it('is the finish time of the newest crawl run, not today and not a URL time', () => {
+  it('is the newer of the newest run finish and the newest URL fetch', () => {
     const db = new ProjectDb(join(dir, 'done.seoproject'));
     db.upsertUrl({ url: 'https://example.test/a', depth: 0 });
     raw(db).prepare("UPDATE urls SET crawled_at = '2026-09-05 10:00:00'").run();
@@ -38,6 +38,17 @@ describe('latestCrawlTime: the crawl date a task states', () => {
     for (const finishedAt of ['2026-08-01T00:00:00.000Z', '2026-09-03T12:00:00.000Z']) {
       db.appendCrawlRun({ finishedAt, startUrl: 'https://example.test/', mode: 'spider', durationMs: 1, toolVersion: null, snapshot });
     }
+    // URLs fetched after the last finished run (cleared and re-crawled, stopped): the URL time wins.
+    expect(db.latestCrawlTime()).toBe('2026-09-05 10:00:00');
+    db.close();
+  });
+
+  it('is the finish time of the newest run when it is newer than every URL fetch', () => {
+    const db = new ProjectDb(join(dir, 'done2.seoproject'));
+    db.upsertUrl({ url: 'https://example.test/a', depth: 0 });
+    raw(db).prepare("UPDATE urls SET crawled_at = '2026-09-03 10:00:00'").run();
+    const snapshot = { counts: {} } as never;
+    db.appendCrawlRun({ finishedAt: '2026-09-03T12:00:00.000Z', startUrl: 'https://example.test/', mode: 'spider', durationMs: 1, toolVersion: null, snapshot });
     expect(db.latestCrawlTime()).toBe('2026-09-03T12:00:00.000Z');
     db.close();
   });

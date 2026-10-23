@@ -2076,17 +2076,25 @@ export class ProjectDb {
   }
 
   /**
-   * When the project was last crawled: the newest history row's finish time,
-   * else the newest URL fetch time (a first crawl still running). Null for an
-   * empty project.
+   * When the project was last crawled: the later (as UTC instants) of the
+   * newest history row's finish time and the newest URL fetch time. History
+   * rows are added only when a crawl finishes unstopped and survive Clear, so
+   * a stopped or running re-crawl has URL times newer than the last row.
+   * Null for an empty project.
    */
   latestCrawlTime(): string | null {
     const run = this.db.prepare('SELECT finished_at FROM crawl_runs ORDER BY id DESC LIMIT 1').get() as
       | { finished_at: string }
       | undefined;
-    if (run?.finished_at) return run.finished_at;
     const row = this.db.prepare('SELECT MAX(crawled_at) AS t FROM urls').get() as { t: string | null };
-    return row.t;
+    const finished = run?.finished_at || null;
+    if (!finished || !row.t) return finished ?? row.t;
+    // crawled_at is `YYYY-MM-DD HH:MM:SS` in UTC (CURRENT_TIMESTAMP); finished_at is ISO.
+    const urlMs = Date.parse(`${row.t.replace(' ', 'T')}Z`);
+    const runMs = Date.parse(finished);
+    if (Number.isNaN(urlMs)) return finished;
+    if (Number.isNaN(runMs)) return row.t;
+    return urlMs > runMs ? row.t : finished;
   }
 
   /**
