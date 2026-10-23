@@ -10,6 +10,7 @@ export * from './project.js';
 export * from './bridge.js';
 export * from './integrations.js';
 export * from './pagespeed.js';
+export * from './pagespeed-view.js';
 export * from './crux.js';
 export * from './spelling.js';
 export * from './google.js';

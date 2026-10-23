@@ -22,6 +22,7 @@ import type {
   SpellingMatchesResult,
 } from '@freecrawl/shared-types';
 import { GridExportButton } from './GridExportButton.js';
+import { LighthouseView } from './LighthouseView.js';
 import { useAppStore } from '../store.js';
 import { diagnoseStatus, type StatusDiagnosis } from '../utils/statusDiagnosis.js';
 import {
@@ -56,7 +57,8 @@ type SubTab =
   | 'screenshot'
   | 'duplicates'
   | 'analytics'
-  | 'spelling';
+  | 'spelling'
+  | 'lighthouse';
 
 /**
  * Canonical toolbar strip for every detail-panel sub-tab. Giving each tab the
@@ -150,6 +152,7 @@ const SUB_TABS: { key: SubTab; label: string; disabled?: boolean }[] = [
   { key: 'duplicates', label: 'Duplicates' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'spelling', label: 'Spelling & Grammar' },
+  { key: 'lighthouse', label: 'Lighthouse' },
 ];
 
 // Maximum number of URLs we aggregate over in one go. Anything larger is
@@ -174,6 +177,7 @@ const SINGLE_URL_ONLY_TABS: ReadonlySet<SubTab> = new Set([
   'duplicates',
   'analytics',
   'spelling',
+  'lighthouse',
 ]);
 
 export function BottomDetailPanel() {
@@ -621,6 +625,7 @@ export function BottomDetailPanel() {
         {detail && subTab === 'spelling' && (
           <SpellingView pageUrl={detail.row.url} exportName={exportStem} />
         )}
+        {detail && subTab === 'lighthouse' && <LighthouseView pageUrl={detail.row.url} />}
       </div>
     </div>
   );

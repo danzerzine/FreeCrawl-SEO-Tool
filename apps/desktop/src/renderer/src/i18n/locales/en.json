@@ -395,7 +395,23 @@
     "headersReconstructedNote": "Reconstructed from active crawl config — actual values may have differed if config changed since crawl.",
     "headersCapturedNote": "Captured at crawl time.",
     "noResponseHeaders": "No response headers captured for this URL.",
-    "noRequestHeaders": "No request headers — config may be empty."
+    "noRequestHeaders": "No request headers — config may be empty.",
+    "lighthouse": {
+      "tab": "Lighthouse",
+      "empty": "No Lighthouse data for this page. Run PageSpeed from the PageSpeed tab.",
+      "colSavings": "Est. savings",
+      "colSavingsMs": "Est. savings (ms)",
+      "colSavingsKb": "Est. savings (KB)",
+      "colAudit": "Audit",
+      "colValue": "Value",
+      "kindOpportunity": "Opportunity",
+      "kindInsight": "Insight",
+      "kindDiagnostic": "Diagnostic",
+      "noResources": "Lighthouse lists no resources for this audit.",
+      "truncated": "Showing the first {{n}} resources; the rest were cut.",
+      "version": "Lighthouse {{version}}, fetched {{date}}",
+      "loading": "Loading…"
+    }
   },
   "filter": {
     "title": "Advanced Table Search",
@@ -1725,7 +1741,11 @@
     "firstN": "(first {{n}})",
     "auditing": "Auditing: {{url}}",
     "emptyNoData": "No internal HTML pages crawled yet — run a crawl, then select pages to audit.",
-    "emptyNoMatch": "No pages match the current filter."
+    "emptyNoMatch": "No pages match the current filter.",
+    "colOpportunities": "Opportunities",
+    "colTopSaving": "Top saving (ms)",
+    "savingsOverlap": "Savings overlap; do not add them up.",
+    "rerunHint": "Re-run to see opportunities for pages tested before."
   },
   "cruxTab": {
     "title": "Chrome UX Report",

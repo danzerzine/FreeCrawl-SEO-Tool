@@ -414,6 +414,8 @@ export const RU_LABELS: Record<string, string> = {
   Outlinks: 'Исходящие ссылки',
   'Link Score': 'Оценка ссылок',
   'Spelling & Grammar': 'Орфография и грамматика',
+  Lighthouse: 'Lighthouse',
+  'Lighthouse audits': 'Аудиты Lighthouse',
   'Spelling/Grammar Issues': 'Проблемы орфографии/грамматики',
   Spelling: 'Орфография',
   'Title 1': 'Заголовок 1',

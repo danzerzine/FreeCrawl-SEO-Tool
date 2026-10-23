@@ -377,7 +377,7 @@ export function PageSpeedTab() {
           {t('pagespeedTab.colStatus', { defaultValue: 'Status' })}
         </div>
         {/* Mobile group */}
-        <div className="flex w-[218px] flex-col border-r border-surface-800">
+        <div className="flex w-[342px] flex-col border-r border-surface-800">
           <div className="flex h-[22px] items-center justify-center gap-1 border-b border-surface-800 bg-surface-900/80 text-surface-300">
             <Smartphone size={11} />
             {t('pagespeedTab.groupMobile', { defaultValue: 'Mobile' })}
@@ -387,10 +387,16 @@ export function PageSpeedTab() {
             <div className="w-[60px]">{t('pagespeedTab.colLcp', { defaultValue: 'LCP' })}</div>
             <div className="w-[56px]">{t('pagespeedTab.colInp', { defaultValue: 'INP' })}</div>
             <div className="w-[52px]">{t('pagespeedTab.colCls', { defaultValue: 'CLS' })}</div>
+            <div className="w-[52px]" title={t('pagespeedTab.savingsOverlap', { defaultValue: 'Savings overlap; do not add them up.' })}>
+              {t('pagespeedTab.colOpportunities', { defaultValue: 'Opportunities' })}
+            </div>
+            <div className="w-[72px]" title={t('pagespeedTab.savingsOverlap', { defaultValue: 'Savings overlap; do not add them up.' })}>
+              {t('pagespeedTab.colTopSaving', { defaultValue: 'Top saving (ms)' })}
+            </div>
           </div>
         </div>
         {/* Desktop group */}
-        <div className="flex w-[218px] flex-col border-r border-surface-800">
+        <div className="flex w-[342px] flex-col border-r border-surface-800">
           <div className="flex h-[22px] items-center justify-center gap-1 border-b border-surface-800 bg-surface-900/80 text-surface-300">
             <Monitor size={11} />
             {t('pagespeedTab.groupDesktop', { defaultValue: 'Desktop' })}
@@ -400,6 +406,12 @@ export function PageSpeedTab() {
             <div className="w-[60px]">{t('pagespeedTab.colLcp', { defaultValue: 'LCP' })}</div>
             <div className="w-[56px]">{t('pagespeedTab.colInp', { defaultValue: 'INP' })}</div>
             <div className="w-[52px]">{t('pagespeedTab.colCls', { defaultValue: 'CLS' })}</div>
+            <div className="w-[52px]" title={t('pagespeedTab.savingsOverlap', { defaultValue: 'Savings overlap; do not add them up.' })}>
+              {t('pagespeedTab.colOpportunities', { defaultValue: 'Opportunities' })}
+            </div>
+            <div className="w-[72px]" title={t('pagespeedTab.savingsOverlap', { defaultValue: 'Savings overlap; do not add them up.' })}>
+              {t('pagespeedTab.colTopSaving', { defaultValue: 'Top saving (ms)' })}
+            </div>
           </div>
         </div>
         <div className="flex w-[96px] flex-col justify-end px-2 pb-1 text-right">
@@ -480,6 +492,12 @@ export function PageSpeedTab() {
                 n: PAGE_SIZE.toLocaleString(),
               })}
         </span>
+        <span className="truncate text-surface-500">
+          {t('pagespeedTab.savingsOverlap', { defaultValue: 'Savings overlap; do not add them up.' })}{' '}
+          {t('pagespeedTab.rerunHint', {
+            defaultValue: 'Re-run to see opportunities for pages tested before.',
+          })}
+        </span>
         {running && psProgress?.currentUrl && (
           <span className="truncate text-surface-500">
             {t('pagespeedTab.auditing', {
@@ -533,7 +551,31 @@ function classifyError(message: string | null | undefined): string {
   return 'ERR';
 }
 
-function StrategyCells({ m }: { m: PagespeedMetrics | null }) {
+/** Opportunities and top saving (B41). A zero count is a dash: pages tested before the audits were
+ *  stored read the same as clean ones, and "0" would claim the page is clean. */
+function AuditCells({ count, topMs }: { count: number; topMs: number | null }) {
+  const has = count > 0;
+  return (
+    <>
+      <MetricCell text={has ? String(count) : '—'} cls={has ? 'text-surface-200' : 'text-surface-700'} width={52} />
+      <MetricCell
+        text={topMs !== null && topMs > 0 ? String(Math.round(topMs)) : '—'}
+        cls={topMs !== null && topMs > 0 ? 'text-surface-200' : 'text-surface-700'}
+        width={72}
+      />
+    </>
+  );
+}
+
+function StrategyCells({
+  m,
+  count,
+  topMs,
+}: {
+  m: PagespeedMetrics | null;
+  count: number;
+  topMs: number | null;
+}) {
   if (!m) {
     return (
       <>
@@ -541,6 +583,8 @@ function StrategyCells({ m }: { m: PagespeedMetrics | null }) {
         <MetricCell text="—" cls="text-surface-700" width={60} />
         <MetricCell text="—" cls="text-surface-700" width={56} />
         <MetricCell text="—" cls="text-surface-700" width={52} />
+        <MetricCell text="—" cls="text-surface-700" width={52} />
+        <MetricCell text="—" cls="text-surface-700" width={72} />
       </>
     );
   }
@@ -548,7 +592,7 @@ function StrategyCells({ m }: { m: PagespeedMetrics | null }) {
     const label = classifyError(m.error);
     return (
       <div
-        className="flex w-[218px] shrink-0 cursor-help items-center justify-center gap-1 text-red-400"
+        className="flex w-[342px] shrink-0 cursor-help items-center justify-center gap-1 text-red-400"
         title={m.error ?? 'Audit failed'}
       >
         <span className="font-semibold">{label}</span>
@@ -579,6 +623,7 @@ function StrategyCells({ m }: { m: PagespeedMetrics | null }) {
         cls={cwvClass(m.cls, 0.1, 0.25)}
         width={52}
       />
+      <AuditCells count={count} topMs={topMs} />
     </>
   );
 }
@@ -637,8 +682,8 @@ function PageSpeedRow({
       <div className={`w-[54px] shrink-0 text-center tabular-nums ${statusCls}`}>
         {status ?? '—'}
       </div>
-      <StrategyCells m={row.mobile} />
-      <StrategyCells m={row.desktop} />
+      <StrategyCells m={row.mobile} count={row.mobileOpportunityCount} topMs={row.mobileTopSavingsMs} />
+      <StrategyCells m={row.desktop} count={row.desktopOpportunityCount} topMs={row.desktopTopSavingsMs} />
       <div className="w-[96px] shrink-0 truncate px-2 text-right text-surface-500">
         {lastRun ? relativeTime(lastRun) : '—'}
       </div>
