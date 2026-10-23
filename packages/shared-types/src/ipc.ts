@@ -2189,6 +2189,11 @@ export interface GscBqPlanPart {
 export interface GscBqPlanInput {
   /** Drop the saved BigQuery data (and its ledger) first: the source changed, or «Rebuild». */
   reset?: boolean;
+  /**
+   * «Rebuild»: plan the full range as if the ledger were empty, writing nothing. Running that plan
+   * resets and pulls in one step, and only when it fits the cap.
+   */
+  dryReset?: boolean;
 }
 
 /** What a pull would do, for the plan dialog (B91). */
@@ -2213,6 +2218,8 @@ export interface GscBqPlanView {
   billedSoFar: number;
   overCap: boolean;
   needsReset: boolean;
+  /** A dry-reset plan: running it drops the saved BigQuery data first. */
+  rebuild: boolean;
   canRun: boolean;
 }
 

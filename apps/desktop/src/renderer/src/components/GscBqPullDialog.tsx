@@ -63,27 +63,41 @@ export function GscBqPullDialog({
 
   useEffect(() => window.freecrawl.onGscBqProgress((p) => setProgress(p)), []);
 
+  /** Rebuild: show the full-range cost as if nothing were saved; nothing is dropped until Pull. */
+  const previewRebuild = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await window.freecrawl.gscBqPlan({ dryReset: true });
+      if (res.plan) setPlan(res.plan);
+      setError(res.ok ? null : (res.error ?? failed));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [failed]);
+
   const run = useCallback(
-    async (recordEmpty: boolean, rebuild = false) => {
+    async (recordEmpty: boolean) => {
       if (!plan || running) return;
       setRunning(true);
       setResult(null);
       setProgress(null);
       try {
         let planId = plan.planId;
-        if (needsFreshPlan(plan, { recordEmpty, rebuild })) {
-          // A plan is single-use. The saved data is dropped only now, on the explicit Pull (box
-          // ticked) or Rebuild; «record empty months» re-plans without dropping anything.
-          const drop = plan.needsReset || rebuild;
-          const fresh = await window.freecrawl.gscBqPlan(drop ? { reset: true } : {});
+        if (needsFreshPlan(plan, { recordEmpty })) {
+          // A plan is single-use. A changed source is planned as a dry reset: nothing is dropped
+          // here, the run resets only when this plan fits the cap. «Record empty months» just
+          // re-plans.
+          const fresh = await window.freecrawl.gscBqPlan(plan.needsReset ? { dryReset: true } : {});
           if (!fresh.ok || !fresh.plan) {
             setError(fresh.error ?? failed);
             return;
           }
           setPlan(fresh.plan);
           planId = fresh.plan.planId;
-          // A rebuilt plan is shown first when it cannot start (over the cap): raising the cap and
-          // pulling again continues from the empty ledger.
+          // Over the cap: the plan is shown and nothing was dropped.
           if (fresh.plan.overCap || fresh.plan.parts.length === 0) return;
         }
         const res = await window.freecrawl.gscBqRun({ planId, recordEmpty });
@@ -244,7 +258,7 @@ export function GscBqPullDialog({
                   : t('common.cancel', { defaultValue: 'Cancel' })}
               </button>
               {!result && gate.canRebuild && (
-                <button type="button" className={btn} onClick={() => void run(false, true)}>
+                <button type="button" className={btn} onClick={() => void previewRebuild()}>
                   {t('gscBq.rebuild', { defaultValue: 'Rebuild' })}
                 </button>
               )}

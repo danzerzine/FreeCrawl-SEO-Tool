@@ -82,6 +82,8 @@ export interface PullPlan {
   overCap: boolean;
   /** The saved data came from another property, dataset or search type: reset before pulling. */
   needsReset: boolean;
+  /** Planned as a rebuild: the run drops the saved BigQuery data first. */
+  rebuild: boolean;
   canRun: boolean;
   /** `epoch_version` per covered day, kept for the ledger. */
   coverage: Map<string, number>;
@@ -114,13 +116,15 @@ export async function buildBqPlan(args: {
   settings: GscIntegrationSettings;
   /** The data project in effect (the setting, or the BigQuery integration's project). */
   dataProject: string;
+  /** Plan as if the ledger were empty, writing nothing (Rebuild). */
+  ignoreLedger?: boolean;
 }): Promise<PullPlan> {
   const { client, db, settings } = args;
   if (!settings.property) throw new BqError('other', 'No Search Console property is set: type the exact site_url (sc-domain:example.com or the URL prefix).');
   const { location } = await client.preflight();
   const coverage = await client.exportCoverage(location);
   const sourceKey = bqSourceKey(args.dataProject, settings.bqDataset, settings.property, settings.searchType);
-  const ledger = readLedger(db);
+  const ledger = args.ignoreLedger ? null : readLedger(db);
   // Nothing recorded under another key (an empty run with a wrong type) changes key freely.
   const needsReset = ledger !== null && ledger.sourceKey !== sourceKey && ledger.doneRanges.length > 0;
   const range = resolveBqRange(settings, coverage);
@@ -155,6 +159,7 @@ export async function buildBqPlan(args: {
     exportBilled: client.lastQueryBilled(),
     overCap,
     needsReset,
+    rebuild: args.ignoreLedger === true,
     canRun: !needsReset && !overCap && parts.length > 0,
     coverage,
   };

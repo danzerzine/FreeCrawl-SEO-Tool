@@ -64,6 +64,7 @@ function view(plan: PullPlan, planId: string): GscBqPlanView {
     billedSoFar: plan.billedSoFar,
     overCap: plan.overCap,
     needsReset: plan.needsReset,
+    rebuild: plan.rebuild,
     canRun: plan.canRun,
   };
 }
@@ -101,6 +102,7 @@ export async function gscBqPlanEntry(env: BqEntryEnv, input: GscBqPlanInput): Pr
       db: env.db,
       settings: env.settings,
       dataProject: env.settings.bqDataProject || env.projectId,
+      ignoreLedger: input.dryReset === true && !input.reset,
     });
     env.slot.plan = plan;
     env.slot.planId = env.newPlanId();
@@ -126,6 +128,11 @@ export async function gscBqRunEntry(env: BqEntryEnv, input: GscBqRunInput): Prom
   if (plan.overCap) return none('The estimate is above the byte cap: raise the cap or shorten the range.');
   if (plan.parts.length === 0) return none('Nothing to pull: every exported day in the range is already saved.');
   slot.plan = null;
+  // A rebuild drops the saved data only here, with the cost known and inside the cap (checked above).
+  if (plan.rebuild) {
+    resetBigQuery(env.db);
+    env.onChanged();
+  }
   slot.active = true;
   slot.cancelRequested = false;
   const total = plan.parts.length;

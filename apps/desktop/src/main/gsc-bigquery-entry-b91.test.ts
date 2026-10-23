@@ -98,6 +98,53 @@ describe('BigQuery pull entries (B91)', () => {
     }
   });
 
+  describe('Rebuild is a dry reset (review r1 Medium)', () => {
+    const lastCall = async (rows: FakeUrlRow[]) => {
+      await fake.close();
+      fake = await startFakeBigQuery({
+        rows,
+        exportLog: ['2026-08-01', '2026-09-01'].map((d) => ({ namespace: 'searchdata_url_impression', date: d, epoch: 0 })),
+        bytesPerDay: 60 * MIB,
+      });
+    };
+    const rows = ['2026-08-01', '2026-09-01'].map((d): FakeUrlRow => ({ date: d, site: SITE, type: 'WEB', url: `https://ex.test/${d}`, clicks: 1, impressions: 10, sumPosition: 10 }));
+
+    it('over the cap: planning the rebuild and trying to run it drops nothing', async () => {
+      await lastCall(rows);
+      const aug = env({ dateRange: 'custom', startDate: '2026-08-01', endDate: '2026-08-31', bqMaxGiB: 0.1 });
+      const first = await gscBqPlanEntry(aug.e, {});
+      expect((await gscBqRunEntry(aug.e, { planId: first.plan!.planId })).ok).toBe(true);
+      expect(bqRows()).toBe(1);
+      const before = db.getMeta('gscBqRun');
+
+      const all = env({ dateRange: 'all', bqMaxGiB: 0.1 }, newBqSlot());
+      const dry = await gscBqPlanEntry(all.e, { dryReset: true });
+      expect(dry.ok).toBe(true);
+      expect(dry.plan).toMatchObject({ rebuild: true, overCap: true, canRun: false });
+      expect(dry.plan!.parts).toHaveLength(2); // the full range, as if the ledger were empty
+      expect(bqRows()).toBe(1);
+      expect(db.getMeta('gscBqRun')).toBe(before);
+      const run = await gscBqRunEntry(all.e, { planId: dry.plan!.planId });
+      expect(run.ok).toBe(false);
+      expect(bqRows()).toBe(1);
+      expect(db.getMeta('gscBqRun')).toBe(before);
+    });
+
+    it('within the cap: the run resets and pulls in one step', async () => {
+      await lastCall(rows);
+      const aug = env({ dateRange: 'custom', startDate: '2026-08-01', endDate: '2026-08-31', bqMaxGiB: 10 });
+      const first = await gscBqPlanEntry(aug.e, {});
+      await gscBqRunEntry(aug.e, { planId: first.plan!.planId });
+      const all = env({ dateRange: 'all', bqMaxGiB: 10 }, newBqSlot());
+      const dry = await gscBqPlanEntry(all.e, { dryReset: true });
+      expect(dry.plan).toMatchObject({ rebuild: true, overCap: false, canRun: true });
+      expect(bqRows()).toBe(1);
+      const run = await gscBqRunEntry(all.e, { planId: dry.plan!.planId });
+      expect(run).toMatchObject({ ok: true, partsDone: 2, stopped: null });
+      expect(bqRows()).toBe(2);
+    });
+  });
+
   it('a run without a plan on screen (unknown id) starts nothing', async () => {
     const { e } = env();
     const res = await gscBqRunEntry(e, { planId: 'made-up' });

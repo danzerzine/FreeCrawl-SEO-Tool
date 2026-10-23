@@ -28,17 +28,14 @@ export function pullGate(plan: GscBqPlanView | null, reset: boolean): PullGate {
     // `canRun` is false whenever the saved data must be reset first, so it cannot gate that case.
     canPull: hasParts && !plan.overCap && (!plan.needsReset || reset),
     upToDate: !hasParts && !plan.needsReset,
-    canRebuild: !plan.needsReset && plan.revisedDays.length > 0,
+    canRebuild: !plan.needsReset && !plan.rebuild && plan.revisedDays.length > 0,
   };
 }
 
 /**
- * A plan is single-use (the run consumes it), so a second run, a reset or a rebuild needs a new one;
- * only the first plain Pull runs the plan that is on screen.
+ * A plan is single-use (the run consumes it), so a second run or a reset needs a new one; the first
+ * plain Pull runs the plan on screen, a Rebuild plan included (it resets only when it runs).
  */
-export function needsFreshPlan(
-  plan: GscBqPlanView,
-  o: { recordEmpty: boolean; rebuild: boolean },
-): boolean {
-  return plan.needsReset || o.rebuild || o.recordEmpty;
+export function needsFreshPlan(plan: GscBqPlanView, o: { recordEmpty: boolean }): boolean {
+  return plan.needsReset || o.recordEmpty;
 }

@@ -22,6 +22,7 @@ const plan = (over: Partial<GscBqPlanView> = {}): GscBqPlanView => ({
   billedSoFar: 0,
   overCap: false,
   needsReset: false,
+  rebuild: false,
   canRun: true,
   ...over,
 });
@@ -70,13 +71,14 @@ describe('GscBqPullDialog rules (review r1)', () => {
     expect(pullGate(plan({ revisedDays: ['2026-10-01'] }), false).canRebuild).toBe(true);
     expect(pullGate(plan(), false).canRebuild).toBe(false);
     expect(pullGate(plan({ revisedDays: ['2026-10-01'], needsReset: true }), false).canRebuild).toBe(false);
+    expect(pullGate(plan({ revisedDays: ['2026-10-01'], rebuild: true }), false).canRebuild).toBe(false); // already previewed
   });
 
-  it('record-empty, rebuild and reset all run on a fresh plan; a plain first Pull on the one shown', () => {
-    expect(needsFreshPlan(plan(), { recordEmpty: false, rebuild: false })).toBe(false);
-    expect(needsFreshPlan(plan(), { recordEmpty: true, rebuild: false })).toBe(true);
-    expect(needsFreshPlan(plan(), { recordEmpty: false, rebuild: true })).toBe(true);
-    expect(needsFreshPlan(plan({ needsReset: true }), { recordEmpty: false, rebuild: false })).toBe(true);
+  it('record-empty and reset run on a fresh plan; a Rebuild plan runs as shown; a plain first Pull on the one shown', () => {
+    expect(needsFreshPlan(plan(), { recordEmpty: false })).toBe(false);
+    expect(needsFreshPlan(plan(), { recordEmpty: true })).toBe(true);
+    expect(needsFreshPlan(plan({ rebuild: true }), { recordEmpty: false })).toBe(false);
+    expect(needsFreshPlan(plan({ needsReset: true }), { recordEmpty: false })).toBe(true);
   });
 });
 
