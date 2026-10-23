@@ -4,11 +4,12 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { ProjectDb } from '@freecrawl/db';
 import { EXPORT_DATASET_COLUMNS, type AxeAudit } from '@freecrawl/shared-types';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { datasetRows, readCell } from './dataset-export.js';
 import { CLI_EXPORT_DATASETS } from './export-items.js';
 
 const A = 'https://ex.test/a';
+const B = 'https://ex.test/b';
 
 const audit: AxeAudit = {
   version: '4.14.0',
@@ -36,7 +37,7 @@ beforeEach(() => {
   const file = path.join(dir, 'p.seoproject');
   new ProjectDb(file).close();
   const raw = new DatabaseSync(file);
-  raw.exec(`INSERT INTO urls (id, url, is_external, content_kind, status_code) VALUES (1,'${A}',0,'html',200)`);
+  raw.exec(`INSERT INTO urls (id, url, is_external, content_kind, status_code) VALUES (1,'${A}',0,'html',200), (2,'${B}',0,'html',200)`);
   raw.close();
   db = new ProjectDb(file);
   db.setUrlAxe(1, audit);
@@ -54,12 +55,45 @@ describe('B40 R14: dataset axe-violations', () => {
     const rows = [...datasetRows(db, 'axe-violations', {})].map((r) =>
       EXPORT_DATASET_COLUMNS['axe-violations'].map((c) => readCell(r, c.key)),
     );
-    // Read in key order (page, rule); worst-first is the UI reader's order. Compare as a set.
-    rows.sort((x, y) => String(x[2]).localeCompare(String(y[2])) * -1);
+    // Key order (page, rule, kind), compared as emitted: no sorting here.
     expect(rows).toEqual([
+      [A, 'color-contrast', 'needs-review', 'serious', 'Elements must meet contrast', 'https://x/cc', 'wcag2aa', 1, null, null],
       [A, 'image-alt', 'violation', 'critical', 'Images must have alternative text',
         'https://dequeuniversity.com/rules/axe/4.14/image-alt', 'wcag2a,wcag111', 3, 'img.hero', '<img class="hero" src="a.png">'],
-      [A, 'color-contrast', 'needs-review', 'serious', 'Elements must meet contrast', 'https://x/cc', 'wcag2aa', 1, null, null],
+    ]);
+  });
+
+  it('emits rows in key order (url, rule, kind) through iterateAxeResults, not in the UI worst-first order', () => {
+    const rule = (id: string, impact: 'minor' | 'critical', nodes: number) => ({
+      id, impact, help: id, helpUrl: null, tags: [], nodes, samples: [],
+    });
+    // Key order: (A,aaa,incomplete) (A,bbb,violation) (B,ccc,violation).
+    // Worst-first (kind, impact, nodes DESC, url, rule): ccc, bbb, aaa. The two orders differ.
+    db.setUrlAxe(1, {
+      version: '4.14.0',
+      violations: [rule('bbb', 'minor', 1)],
+      incomplete: [rule('aaa', 'minor', 1)],
+      violationsTotal: 1,
+      seriousTotal: 0,
+    } as unknown as AxeAudit);
+    db.setUrlAxe(2, {
+      version: '4.14.0',
+      violations: [rule('ccc', 'critical', 9)],
+      incomplete: [],
+      violationsTotal: 1,
+      seriousTotal: 1,
+    } as unknown as AxeAudit);
+    expect(db.queryAxe({ limit: 10, offset: 0 }).rows.map((r) => r.ruleId)).toEqual(['ccc', 'bbb', 'aaa']);
+
+    const iterate = vi.spyOn(db, 'iterateAxeResults');
+    const queryAxe = vi.spyOn(db, 'queryAxe');
+    const out = [...datasetRows(db, 'axe-violations', {})].map((r) => [readCell(r, 'url'), readCell(r, 'ruleId'), readCell(r, 'kind')]);
+    expect(iterate).toHaveBeenCalledTimes(1);
+    expect(queryAxe).not.toHaveBeenCalled();
+    expect(out).toEqual([
+      [A, 'aaa', 'needs-review'],
+      [A, 'bbb', 'violation'],
+      [B, 'ccc', 'violation'],
     ]);
   });
 
