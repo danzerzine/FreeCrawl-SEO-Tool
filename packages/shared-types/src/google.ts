@@ -160,8 +160,16 @@ export type GscPreset =
   | 'rich-result-warnings';
 
 /** Date-range presets for a GSC pull. `16m` is the API's 16-month max;
- *  `custom` uses the explicit `startDate` / `endDate`. */
-export type GscDateRange = '7d' | '28d' | '90d' | '16m' | 'custom';
+ *  `custom` uses the explicit `startDate` / `endDate`; `all` (BigQuery source
+ *  only) means every day the bulk export holds. */
+export type GscDateRange = '7d' | '28d' | '90d' | '16m' | 'custom' | 'all';
+/** Where Search Console numbers come from: the Search Analytics API, or the
+ *  user's own BigQuery bulk export (B91). */
+export type GscSource = 'api' | 'bigquery';
+/** `gsc_results.account_id` of rows pulled from the BigQuery bulk export. */
+export const GSC_BQ_ACCOUNT = 'bq';
+export const GSC_BQ_MAX_GIB_MIN = 0.1;
+export const GSC_BQ_MAX_GIB_MAX = 1000;
 /** Device dimension filter — API values (or `all` for no filter). */
 export type GscDeviceFilter = 'all' | 'DESKTOP' | 'MOBILE' | 'TABLET';
 /** Search-appearance type the metrics are pulled for. */
@@ -219,6 +227,14 @@ export interface GscIntegrationSettings {
   /** SF: "Crawl New URLs Discovered In Google Search Console" — after a
    *  pull, feed GSC URLs that aren't in the crawl into the crawler. */
   crawlNewUrls: boolean;
+  /** B91: `api` (default) or `bigquery`. With `bigquery` every GSC reader reads the `'bq'` rows. */
+  source: GscSource;
+  /** B91: project that holds the export dataset; '' = the BigQuery integration's project. */
+  bqDataProject: string;
+  /** B91: export dataset (Search Console names it `searchconsole*`). */
+  bqDataset: string;
+  /** B91: hard cap on bytes billed for one pull, in GiB (0.1 to 1000). */
+  bqMaxGiB: number;
 }
 
 /** Factory for the default GSC settings (a fresh object each call so the
@@ -240,7 +256,26 @@ export function defaultGscSettings(): GscIntegrationSettings {
     limitMaxResults: true,
     maxResults: 100000,
     crawlNewUrls: false,
+    source: 'api',
+    bqDataProject: '',
+    bqDataset: 'searchconsole',
+    bqMaxGiB: 10,
   };
+}
+
+/** Defaults + a stored settings blob; missing or invalid B91 keys read as the defaults, the cap is clamped. */
+export function mergeGscSettings(raw: Record<string, unknown> | null | undefined): GscIntegrationSettings {
+  const merged = { ...defaultGscSettings(), ...(raw ?? {}) } as GscIntegrationSettings;
+  if (merged.source !== 'api' && merged.source !== 'bigquery') merged.source = 'api';
+  merged.bqDataProject = typeof merged.bqDataProject === 'string' ? merged.bqDataProject.trim() : '';
+  merged.bqDataset =
+    typeof merged.bqDataset === 'string' && merged.bqDataset.trim() ? merged.bqDataset.trim() : 'searchconsole';
+  const cap = Number(merged.bqMaxGiB);
+  merged.bqMaxGiB =
+    typeof merged.bqMaxGiB === 'number' && Number.isFinite(cap)
+      ? Math.min(GSC_BQ_MAX_GIB_MAX, Math.max(GSC_BQ_MAX_GIB_MIN, cap))
+      : 10;
+  return merged;
 }
 
 /** Metadata describing the most recent GSC pull for the active project. */
@@ -253,6 +288,12 @@ export interface GscFetchMeta {
   fetchedAt: string;
   /** Number of page rows Search Console returned. */
   rowCount: number;
+  /** B91: `bigquery` for the bulk-export pull; absent = the API. */
+  source?: GscSource;
+  /** B91: bytes billed by BigQuery over all parts pulled. */
+  bytesBilled?: number;
+  /** B91: days inside the pulled range that the export did not hold (yet). */
+  gapDays?: number;
 }
 
 /** One Google Analytics 4 property the connected account can read. */
