@@ -83,12 +83,24 @@ const header = (r: StubRequest, name: string): string => String(r.headers[name] 
 /** GitHub: 403 without User-Agent, 415 without a JSON content type, 401 on a wrong token. */
 export function startGithubStub(owner: string, repo: string): Promise<TrackerStub> {
   return start((r) => {
-    if (!header(r, 'user-agent')) return { status: 403, body: { message: 'Request forbidden by administrative rules. Please make sure your request has a User-Agent header.' } };
-    if (r.method !== 'POST' || r.path !== `/repos/${owner}/${repo}/issues`) return { status: 404, body: { message: 'Not Found' } };
-    if (header(r, 'authorization') !== `Bearer ${GOOD_GITHUB_TOKEN}`) return { status: 401, body: { message: 'Bad credentials' } };
-    if (!header(r, 'content-type').startsWith('application/json')) return { status: 415, body: { message: 'Unsupported Media Type' } };
-    if (!header(r, 'accept').includes('application/vnd.github+json')) return { status: 415, body: { message: 'bad Accept' } };
-    if (header(r, 'x-github-api-version') !== '2022-11-28') return { status: 400, body: { message: 'bad api version' } };
+    if (!header(r, 'user-agent'))
+      return {
+        status: 403,
+        body: {
+          message:
+            'Request forbidden by administrative rules. Please make sure your request has a User-Agent header.',
+        },
+      };
+    if (r.method !== 'POST' || r.path !== `/repos/${owner}/${repo}/issues`)
+      return { status: 404, body: { message: 'Not Found' } };
+    if (header(r, 'authorization') !== `Bearer ${GOOD_GITHUB_TOKEN}`)
+      return { status: 401, body: { message: 'Bad credentials' } };
+    if (!header(r, 'content-type').startsWith('application/json'))
+      return { status: 415, body: { message: 'Unsupported Media Type' } };
+    if (!header(r, 'accept').includes('application/vnd.github+json'))
+      return { status: 415, body: { message: 'bad Accept' } };
+    if (header(r, 'x-github-api-version') !== '2022-11-28')
+      return { status: 400, body: { message: 'bad api version' } };
     return { status: 201, body: GITHUB_CREATED };
   });
 }
@@ -96,10 +108,17 @@ export function startGithubStub(owner: string, repo: string): Promise<TrackerStu
 /** Basecamp: 400 without a User-Agent of the form `Name (contact)`, 415 without JSON, 401 on a wrong token. */
 export function startBasecampStub(accountId: string, todolistId: string): Promise<TrackerStub> {
   return start((r) => {
-    if (!/\(.+\)/.test(header(r, 'user-agent'))) return { status: 400, body: { error: 'Bad Request: User-Agent header with name and contact required' } };
-    if (header(r, 'authorization') !== `Bearer ${GOOD_BASECAMP_TOKEN}`) return { status: 401, body: { error: 'Unauthorized' } };
-    if (!header(r, 'content-type').startsWith('application/json')) return { status: 415, body: { error: 'Unsupported Media Type' } };
-    if (r.method !== 'POST' || r.path !== `/${accountId}/todolists/${todolistId}/todos.json`) return { status: 404, body: { error: 'Not Found' } };
+    if (!/\(.+\)/.test(header(r, 'user-agent')))
+      return {
+        status: 400,
+        body: { error: 'Bad Request: User-Agent header with name and contact required' },
+      };
+    if (header(r, 'authorization') !== `Bearer ${GOOD_BASECAMP_TOKEN}`)
+      return { status: 401, body: { error: 'Unauthorized' } };
+    if (!header(r, 'content-type').startsWith('application/json'))
+      return { status: 415, body: { error: 'Unsupported Media Type' } };
+    if (r.method !== 'POST' || r.path !== `/${accountId}/todolists/${todolistId}/todos.json`)
+      return { status: 404, body: { error: 'Not Found' } };
     return { status: 201, body: BASECAMP_CREATED };
   });
 }

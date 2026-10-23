@@ -44,7 +44,9 @@ function checkBase(apiBase: string): { base: string } | { error: string } {
     return { error: 'The tracker API address is not a valid URL.' };
   }
   if (u.protocol !== 'https:' && !(u.protocol === 'http:' && LOOPBACK.has(u.hostname))) {
-    return { error: 'The tracker API address must use https (http is allowed only for localhost).' };
+    return {
+      error: 'The tracker API address must use https (http is allowed only for localhost).',
+    };
   }
   return { base: apiBase.replace(/\/+$/, '') };
 }
@@ -63,7 +65,8 @@ function detailOf(body: string, secrets: string[]): string {
   let text = body;
   try {
     const j = JSON.parse(body) as { message?: unknown; error?: unknown; errors?: unknown };
-    const msg = typeof j.message === 'string' ? j.message : typeof j.error === 'string' ? j.error : '';
+    const msg =
+      typeof j.message === 'string' ? j.message : typeof j.error === 'string' ? j.error : '';
     const errs = Array.isArray(j.errors) ? ` ${JSON.stringify(j.errors)}` : '';
     if (msg) text = msg + errs;
   } catch {
@@ -140,12 +143,29 @@ export async function sendGithubIssue(
     const html = pickUrl(res.body, 'html_url');
     return html
       ? { ok: true, url: html }
-      : { ok: false, status, message: 'GitHub created the issue but sent no link; check the repository.', mayHaveBeenCreated: true };
+      : {
+          ok: false,
+          status,
+          message: 'GitHub created the issue but sent no link; check the repository.',
+          mayHaveBeenCreated: true,
+        };
   }
   const detail = detailOf(res.body, [cfg.token]);
-  if (status === 401) return { ok: false, status, message: 'GitHub rejected the token (401); paste a valid one in Settings → Integrations.' };
-  if (status === 410) return { ok: false, status, message: 'Issues are disabled in this repository.' };
-  if (status >= 500) return { ok: false, status, message: `GitHub error ${status}: ${detail}; ${MAY_EXIST}.`, mayHaveBeenCreated: true };
+  if (status === 401)
+    return {
+      ok: false,
+      status,
+      message: 'GitHub rejected the token (401); paste a valid one in Settings → Integrations.',
+    };
+  if (status === 410)
+    return { ok: false, status, message: 'Issues are disabled in this repository.' };
+  if (status >= 500)
+    return {
+      ok: false,
+      status,
+      message: `GitHub error ${status}: ${detail}; ${MAY_EXIST}.`,
+      mayHaveBeenCreated: true,
+    };
   return { ok: false, status, message: `GitHub answered ${status}: ${detail}` };
 }
 
@@ -187,10 +207,21 @@ export async function sendBasecampTodo(
     const app = pickUrl(res.body, 'app_url');
     return app
       ? { ok: true, url: app }
-      : { ok: false, status, message: 'Basecamp created the to-do but sent no link; check the to-do list.', mayHaveBeenCreated: true };
+      : {
+          ok: false,
+          status,
+          message: 'Basecamp created the to-do but sent no link; check the to-do list.',
+          mayHaveBeenCreated: true,
+        };
   }
   if (status === 401) return { ok: false, status, message: BASECAMP_TOKEN_EXPIRED };
   const detail = detailOf(res.body, [cfg.accessToken]);
-  if (status >= 500) return { ok: false, status, message: `Basecamp error ${status}: ${detail}; ${MAY_EXIST}.`, mayHaveBeenCreated: true };
+  if (status >= 500)
+    return {
+      ok: false,
+      status,
+      message: `Basecamp error ${status}: ${detail}; ${MAY_EXIST}.`,
+      mayHaveBeenCreated: true,
+    };
   return { ok: false, status, message: `Basecamp answered ${status}: ${detail}` };
 }

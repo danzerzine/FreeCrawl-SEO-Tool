@@ -97,7 +97,10 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
   const th = input.counts.thresholds;
   const label = fillThresholdLabel(def.label, th);
   const keys = Array.isArray(def.count) ? (def.count as string[]) : [def.count as string];
-  const counted = keys.reduce((n, k) => n + ((input.counts.issues as Record<string, number>)[k] ?? 0), 0);
+  const counted = keys.reduce(
+    (n, k) => n + ((input.counts.issues as Record<string, number>)[k] ?? 0),
+    0,
+  );
   const total = input.totalUrls ?? counted;
   const site = host(input.siteUrl);
   const date = input.crawledAt.slice(0, 10);
@@ -125,7 +128,10 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
     else if (CUT_COLUMNS.has(col) && t.length > CUT_AT) t = t.slice(0, CUT_AT - 1) + '…';
     return t;
   };
-  const allRows = input.rows.map((r) => [cell('url', r.url), ...cols.map((c) => cell(c, r.evidence[c]))]);
+  const allRows = input.rows.map((r) => [
+    cell('url', r.url),
+    ...cols.map((c) => cell(c, r.evidence[c])),
+  ]);
   const exportName = input.category;
   const title = `[${site}] ${group}: ${label} (${total} URL${total === 1 ? '' : 's'})`;
 
@@ -141,7 +147,11 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
     }
     return {
       title,
-      sections: [...head, affected, { heading: 'Found by', text: `FreeCrawl crawl of ${site} on ${date}` }],
+      sections: [
+        ...head,
+        affected,
+        { heading: 'Found by', text: `FreeCrawl crawl of ${site} on ${date}` },
+      ],
       moreUrls: more,
       truncated: more > 0,
     };
@@ -208,7 +218,10 @@ export function toBasecampHtml(task: IssueTask): string {
   const out: string[] = [];
   if (task.note) out.push(`<div>${htmlText(task.note)}</div>`);
   for (const s of task.sections) {
-    out.push(`<div><strong>${htmlText(s.heading)}</strong></div>`, `<div>${htmlText(s.text)}</div>`);
+    out.push(
+      `<div><strong>${htmlText(s.heading)}</strong></div>`,
+      `<div>${htmlText(s.text)}</div>`,
+    );
     if (s.table) {
       const { header, rows } = s.table;
       out.push(
