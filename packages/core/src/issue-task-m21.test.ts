@@ -148,3 +148,66 @@ describe('static texts', () => {
     expect(md).not.toMatch(/<head>|<body>|<title>/);
   });
 });
+
+describe('sections', () => {
+  it('maps a check outside the report list to its severity line and omits missing advice', () => {
+    const md = toMarkdown(
+      buildIssueTask(
+        input({ category: 'issues:title-single-word', counts: counts({ titleSingleWord: 4 }) }),
+      ),
+    );
+    expect(md).toContain('## Why it matters');
+    expect(md).toContain('Review and correct where practical');
+    expect(md).not.toContain('How to fix');
+  });
+
+  it('shows advice whole and fills threshold placeholders', () => {
+    const t = buildIssueTask(
+      input({ category: 'issues:title-too-long', counts: counts({ titleTooLong: 9 }) }),
+    );
+    expect(t.title).toBe('[example.com] Page Titles: Over 60 Characters (9 URLs)');
+    const md = toMarkdown(t);
+    expect(md).toContain(
+      'Trim titles to about 60 characters so they are not truncated in results; front-load the primary keyword.',
+    );
+    expect(md).not.toContain('{{');
+  });
+});
+
+describe('cap', () => {
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      url: `https://example.com/page-${i}`,
+      evidence: { title: '', titleLength: 0 },
+    }));
+
+  it('lists at most maxUrls rows and says how many are left, without CSV wording', () => {
+    const t = buildIssueTask(input({ counts: counts({ titleMissing: 2000 }), rows: many(500), totalUrls: 2000 }));
+    const md = toMarkdown(t);
+    expect(tableLines(md)).toHaveLength(2 + 200);
+    expect(t.moreUrls).toBe(1800);
+    expect(t.truncated).toBe(true);
+    expect(md).toContain('2000 URLs, first 200 shown');
+    expect(md).toContain(
+      'and 1800 more URLs not listed (full list: FreeCrawl export `issues:title-missing` from the crawl of example.com, 2026-10-20)',
+    );
+    expect(md).not.toMatch(/csv/i);
+  });
+
+  it('keeps the body within maxBodyChars', () => {
+    const t = buildIssueTask(
+      input({ counts: counts({ titleMissing: 2000 }), rows: many(500), totalUrls: 2000, maxBodyChars: 4000 }),
+    );
+    const md = toMarkdown(t);
+    expect(md.length).toBeLessThanOrEqual(4000);
+    expect(tableLines(md).length).toBeLessThan(2 + 200);
+    expect(t.moreUrls).toBe(2000 - (tableLines(md).length - 2));
+  });
+
+  it('adds no "more" line when everything fits', () => {
+    const t = buildIssueTask(input());
+    expect(t.moreUrls).toBe(0);
+    expect(t.truncated).toBe(false);
+    expect(toMarkdown(t)).not.toContain('not listed');
+  });
+});

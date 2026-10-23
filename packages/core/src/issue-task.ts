@@ -66,6 +66,9 @@ const URL_COLUMNS = new Set(['url', 'canonicalResolved']);
 /** Free text from the page; only these are cut, a cut URL would point nowhere. */
 const CUT_COLUMNS = new Set(['title', 'h1']);
 const CUT_AT = 200;
+const DEFAULT_MAX_URLS = 200;
+/** GitHub's issue body limit is not in the REST docs; this is a safe value. */
+const DEFAULT_MAX_BODY_CHARS = 60_000;
 
 function stripUserinfo(url: string): string {
   return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#@]*@/i, '$1');
@@ -99,7 +102,7 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
   const site = host(input.siteUrl);
   const date = input.crawledAt.slice(0, 10);
 
-  const sections: IssueTaskSection[] = [
+  const head: IssueTaskSection[] = [
     {
       heading: 'What this check means',
       text: `FreeCrawl check "${group}: ${label}" flags the URLs listed below.`,
@@ -111,9 +114,9 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
     const s = ISSUE_SEVERITY[input.category];
     sev = s === 'critical' ? 'error' : s === 'warning' ? 'warn' : s === 'info' ? 'info' : undefined;
   }
-  if (sev) sections.push({ heading: 'Why it matters', text: severityFallback(sev) });
+  if (sev) head.push({ heading: 'Why it matters', text: severityFallback(sev) });
   const advice = single ? issueAdvice(single) : undefined;
-  if (advice) sections.push({ heading: 'How to fix', text: fillThresholdLabel(advice, th) });
+  if (advice) head.push({ heading: 'How to fix', text: fillThresholdLabel(advice, th) });
 
   const cols = evidenceColumnsFor(input.category);
   const cell = (col: string, v: string | number | null | undefined) => {
@@ -122,22 +125,40 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
     else if (CUT_COLUMNS.has(col) && t.length > CUT_AT) t = t.slice(0, CUT_AT - 1) + '…';
     return t;
   };
-  sections.push({
-    heading: 'Affected',
-    text: `${total} URL${total === 1 ? '' : 's'}, first ${input.rows.length} shown`,
-    table: {
-      header: ['URL', ...cols],
-      rows: input.rows.map((r) => [cell('url', r.url), ...cols.map((c) => cell(c, r.evidence[c]))]),
-    },
-  });
-  sections.push({ heading: 'Found by', text: `FreeCrawl crawl of ${site} on ${date}` });
+  const allRows = input.rows.map((r) => [cell('url', r.url), ...cols.map((c) => cell(c, r.evidence[c]))]);
+  const exportName = input.category;
+  const title = `[${site}] ${group}: ${label} (${total} URL${total === 1 ? '' : 's'})`;
 
-  return {
-    title: `[${site}] ${group}: ${label} (${total} URL${total === 1 ? '' : 's'})`,
-    sections,
-    moreUrls: 0,
-    truncated: false,
+  const assemble = (shown: number): IssueTask => {
+    const more = Math.max(0, total - shown);
+    const affected: IssueTaskSection = {
+      heading: 'Affected',
+      text: `${total} URL${total === 1 ? '' : 's'}, first ${shown} shown`,
+      table: { header: ['URL', ...cols], rows: allRows.slice(0, shown) },
+    };
+    if (more > 0) {
+      affected.note = `and ${more} more URL${more === 1 ? '' : 's'} not listed (full list: FreeCrawl export \`${exportName}\` from the crawl of ${site}, ${date})`;
+    }
+    return {
+      title,
+      sections: [...head, affected, { heading: 'Found by', text: `FreeCrawl crawl of ${site} on ${date}` }],
+      moreUrls: more,
+      truncated: more > 0,
+    };
   };
+
+  // Largest row count within maxUrls whose rendered body fits maxBodyChars.
+  const maxUrls = input.maxUrls ?? DEFAULT_MAX_URLS;
+  const maxChars = input.maxBodyChars ?? DEFAULT_MAX_BODY_CHARS;
+  const fits = (n: number) => toMarkdown(assemble(n)).length <= maxChars;
+  let lo = 0;
+  let hi = Math.min(maxUrls, allRows.length);
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid - 1;
+  }
+  return assemble(lo);
 }
 
 function mdText(s: string): string {
