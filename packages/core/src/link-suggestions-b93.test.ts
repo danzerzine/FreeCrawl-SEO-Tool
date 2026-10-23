@@ -105,7 +105,8 @@ function run(
   if (fx) build(fx);
   const db = new ProjectDb(file);
   try {
-    return linkSuggestions(db, input, internals);
+    // 16 bits keep the fixtures cheap; the product table is 24 bits (a test below covers that).
+    return linkSuggestions(db, input, { termBits: 16, ...internals });
   } finally {
     db.close();
   }
@@ -574,12 +575,67 @@ describe('linkSuggestions (B93)', () => {
     expect(plain!.degraded).toBe(false);
   });
 
-  it('marks truncated when more weak pages exist than maxTargets', () => {
+  it('cuts at maxTargets without calling the result truncated (only the time budget does)', () => {
     const pages: Page[] = [];
     for (let i = 0; i < 10; i++) pages.push({ id: i + 1, path: `/p${i}`, title: `Subject ${uniq(i)}` });
     const r = run({ pages }, { maxTargets: 4 });
     expect(r!.targets).toBe(4);
-    expect(r!.truncated).toBe(true);
+    expect(r!.truncated).toBe(false);
+  });
+
+  it('works with the 24-bit term table of the spec', () => {
+    const r = run(
+      {
+        pages: [
+          { id: 1, path: '/t', title: 'Espresso machine guide' },
+          { id: 2, path: '/s', title: 'Espresso machine care' },
+        ],
+      },
+      {},
+      { termBits: 24 },
+    );
+    expect(sourcesOf(r, '/t')).toEqual(['/s']);
+  });
+
+  // M4: the already-links read keeps to eligible sources and one id per source
+  it('reads already-links from eligible sources only, each once, however often they link', () => {
+    const pages: Page[] = [{ id: 1, path: '/t', title: 'Espresso machine guide' }];
+    const links: Link[] = [];
+    for (let i = 0; i < 40; i++) {
+      pages.push({ id: 10 + i, path: `/e${i}`, title: `Topic ${uniq(i)}` });
+      links.push({ from: 10 + i, to: '/t', rel: 'nofollow' }, { from: 10 + i, to: '/t', pos: 'footer' });
+    }
+    pages.push({ id: 100, path: '/noindex', indexability: 'non-indexable:noindex' });
+    pages.push({ id: 101, path: '/gone', status: 404 });
+    links.push({ from: 100, to: '/t' }, { from: 101, to: '/t' });
+    build({ pages, links });
+    const db = new ProjectDb(file);
+    try {
+      const ids = [...db.linkSuggestionLinkers([abs('/t')])];
+      expect(ids.length).toBe(40);
+      expect(new Set(ids).size).toBe(40);
+      expect(ids.every((id) => id >= 10 && id < 50)).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('a page every other page links with nofollow gets no suggestion, and the others still do', () => {
+    const pages: Page[] = [
+      { id: 1, path: '/login', title: 'Sign in to your account' },
+      { id: 2, path: '/espresso', title: 'Espresso machine guide' },
+      { id: 3, path: '/espresso-care', title: 'Espresso machine care' },
+    ];
+    const links: Link[] = [{ from: 3, to: '/login', rel: 'nofollow' }];
+    for (let i = 0; i < 30; i++) {
+      pages.push({ id: 10 + i, path: `/x${i}`, title: `Account ${uniq(i)} sign in` });
+      links.push({ from: 10 + i, to: '/login', rel: 'nofollow' });
+    }
+    const r = run({ pages, links }, { maxInlinks: 0 });
+    const login = rowsOf(r, '/login');
+    expect(login.every((x) => !['/espresso-care'].includes((x.sourceUrl ?? '').replace(BASE, '')))).toBe(true);
+    expect(sourcesOf(r, '/login').some((s) => /^\/x\d+$/.test(s))).toBe(false);
+    expect(sourcesOf(r, '/espresso')).toEqual(['/espresso-care']);
   });
 
   // 11e

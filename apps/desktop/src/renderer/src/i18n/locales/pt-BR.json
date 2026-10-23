@@ -563,7 +563,7 @@
       "exportCsv": "Exportar CSV",
       "summary": "{{targets}} páginas com poucos links, {{without}} sem sugestão",
       "notComputed": "Não calculado. Antes, execute um rastreamento que conte os links de entrada.",
-      "truncated": "Resultado parcial: há mais páginas fracas do que as analisadas, ou o tempo acabou.",
+      "truncated": "Resultado parcial: o tempo acabou, então só uma parte das páginas fracas foi analisada.",
       "degraded": "Site muito grande: só as palavras mais distintivas foram comparadas.",
       "oneHop": "Os destinos finais dos redirecionamentos não foram calculados; os links foram seguidos apenas por um redirecionamento.",
       "empty": "Nenhuma página com tão poucos links.",

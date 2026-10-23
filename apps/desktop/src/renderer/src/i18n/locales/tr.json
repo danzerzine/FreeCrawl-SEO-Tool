@@ -546,7 +546,7 @@
       "exportCsv": "CSV dışa aktar",
       "summary": "Az bağlantılı {{targets}} sayfa, önerisiz {{without}}",
       "notComputed": "Hesaplanmadı. Önce gelen bağlantıları sayan bir tarama çalıştırın.",
-      "truncated": "Kısmi sonuç: bakılandan daha fazla zayıf sayfa var ya da süre doldu.",
+      "truncated": "Kısmi sonuç: süre doldu, bu yüzden zayıf sayfaların yalnızca bir kısmına bakıldı.",
       "degraded": "Çok büyük site: yalnızca en ayırt edici sözcükler karşılaştırıldı.",
       "oneHop": "Yönlendirme sonları hesaplanmadı; bağlantılar yalnızca bir yönlendirme boyunca izlendi.",
       "empty": "Bu kadar az bağlantılı sayfa yok.",

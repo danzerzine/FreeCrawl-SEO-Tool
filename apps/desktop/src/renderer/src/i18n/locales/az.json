@@ -546,7 +546,7 @@
       "exportCsv": "CSV ixrac et",
       "summary": "Keçidi az olan {{targets}} səhifə, təklifsiz: {{without}}",
       "notComputed": "Hesablanmayıb. Əvvəlcə daxil olan keçidləri sayan tarama işə salın.",
-      "truncated": "Qismən nəticə: baxılandan çox zəif səhifə var və ya vaxt bitdi.",
+      "truncated": "Qismən nəticə: vaxt limiti bitdi, ona görə yalnız bir hissə zəif səhifəyə baxıldı.",
       "degraded": "Çox böyük sayt: yalnız ən səciyyəvi sözlər müqayisə edildi.",
       "oneHop": "Yönləndirmə sonları hesablanmayıb, keçidlər yalnız bir yönləndirmə boyunca izlənildi.",
       "empty": "Bu qədər az keçidi olan səhifə yoxdur.",

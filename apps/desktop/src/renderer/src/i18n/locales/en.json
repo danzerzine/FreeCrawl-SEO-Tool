@@ -617,7 +617,7 @@
       "exportCsv": "Export CSV",
       "summary": "{{targets}} pages with few links, {{without}} without a suggestion",
       "notComputed": "Not computed. Run a crawl that counts inlinks first.",
-      "truncated": "Partial result: more weak pages exist than were looked at, or the time limit was reached.",
+      "truncated": "Partial result: the time limit was reached, so only some of the weak pages were looked at.",
       "degraded": "Very large site: only the most distinctive words were compared.",
       "oneHop": "Redirect ends were not computed, so links were followed through one redirect only.",
       "empty": "No pages with so few links.",

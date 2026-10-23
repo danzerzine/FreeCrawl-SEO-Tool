@@ -10784,21 +10784,26 @@ export class ProjectDb {
     }>;
   }
 
-  /** Every stored link (any rel, type or position) to one of `urls`: `{ source page id, target URL }`. */
-  linkSuggestionLinkers(urls: readonly string[]): { fromId: number; toUrl: string }[] {
-    const out: { fromId: number; toUrl: string }[] = [];
+  /**
+   * Ids of the eligible source pages (same scope as {@link linkSuggestionPages}) that have any
+   * stored link (any rel, type or position) to one of `urls`, each id once per URL block. A link
+   * from a noindex, redirecting or external page is no reason to hide a suggestion, so those rows
+   * are not read at all; streamed, so a page that every page links with nofollow stays cheap.
+   */
+  *linkSuggestionLinkers(urls: readonly string[]): Iterable<number> {
     const BLOCK = 500;
     for (let i = 0; i < urls.length; i += BLOCK) {
       const part = urls.slice(i, i + BLOCK);
-      const rows = this.db
-        .prepare(
-          `SELECT from_url_id AS fromId, to_url AS toUrl FROM links
-            WHERE to_url IN (${part.map(() => '?').join(',')})`,
-        )
-        .all(...part) as unknown as { fromId: number; toUrl: string }[];
-      for (const r of rows) out.push(r);
+      const stmt = this.db.prepare(
+        `SELECT DISTINCT l.from_url_id AS fromId FROM links l
+          WHERE l.to_url IN (${part.map(() => '?').join(',')})
+            AND EXISTS (SELECT 1 FROM urls WHERE urls.id = l.from_url_id
+                          AND ${INDEXABLE_HTML_SCOPE} AND indexability = 'indexable')`,
+      );
+      for (const r of stmt.iterate(...part) as unknown as Iterable<{ fromId: number }>) {
+        yield r.fromId;
+      }
     }
-    return out;
   }
 
   /** Title and H1 of the given pages, for the rows a report keeps. */

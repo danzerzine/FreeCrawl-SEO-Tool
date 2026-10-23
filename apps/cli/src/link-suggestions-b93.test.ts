@@ -52,11 +52,11 @@ describe('B93 CLI: dataset:link-suggestions', () => {
     expect(lines.length).toBe(4);
   });
 
-  it('prints truncated as a stderr warning and exits 0', () => {
+  it('a cut at --max-targets is not a warning: only the time budget makes a result truncated', () => {
     seed(true);
     const r = run('--what', 'dataset:link-suggestions', '--max-targets', '1', '--out', out);
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stderr).toMatch(/Warning: .*truncated/);
+    expect(r.stderr).not.toMatch(/truncated/);
   });
 
   it.each([

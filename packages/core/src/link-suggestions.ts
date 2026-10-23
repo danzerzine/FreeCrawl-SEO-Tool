@@ -16,6 +16,8 @@ export interface LinkSuggestionInternals {
   maxPostings?: number;
   /** Terms with a document frequency above this are dropped (default max(2% of pages, 50)). */
   dfCut?: number;
+  /** Width of the term-hash table in bits (default 24, as the spec says; tests use fewer to stay cheap). */
+  termBits?: number;
   /** Filled while running. */
   stats?: { maxListWalked: number; listsSkipped: number };
 }
@@ -41,7 +43,6 @@ const DEFAULT_MAX_POSTINGS = 60_000_000;
 const ANCHOR_MAX = 80;
 const SUFFIX_SEPARATORS = [' | ', ' - ', ' — '];
 const SUFFIX_MAP_LIMIT = 50_000;
-const LINKER_BATCH = 500;
 
 function clamp(v: number | undefined, def: number, lo: number, hi: number): number {
   if (v === undefined || !Number.isFinite(v)) return def;
@@ -279,7 +280,7 @@ export function linkSuggestions(
   }
 
   // ---- 4. Term index: hashes reduced to the table size, pruned, then CSR postings ----
-  const bits = E < 250_000 ? 22 : 24;
+  const bits = clamp(internals.termBits, 24, 8, 24);
   const shift = 32 - bits;
   const size = 1 << bits;
   const tH = termH.buf;
@@ -383,7 +384,7 @@ export function linkSuggestions(
     urls[a]! < urls[b]! ? -1 : urls[a]! > urls[b]! ? 1 : 0;
   weak.sort((a, b) => eff[a]! - eff[b]! || scoreDesc(a, b) || cmpUrl(a, b));
   const targetList = weak.slice(0, maxTargets);
-  let truncated = weak.length > maxTargets;
+  let truncated = false;
 
   const reverse = new Map<string, string[]>();
   for (const [from, to] of foldMap) {
@@ -396,6 +397,7 @@ export function linkSuggestions(
   const scratch = new Float32Array(E);
   const touched = new Int32Array(E);
   const linkedMark = new Uint8Array(E);
+  const marked = new Int32Array(E);
   const spent = new Uint8Array(E);
   const used = new Int32Array(E);
   const srcOk = new Uint8Array(E);
@@ -409,35 +411,27 @@ export function linkSuggestions(
     outlinksArr[a.idx]! - outlinksArr[b.idx]! ||
     cmpUrl(a.idx, b.idx);
 
-  outer: for (let b0 = 0; b0 < targetList.length; b0 += LINKER_BATCH) {
-    const batch = targetList.slice(b0, b0 + LINKER_BATCH);
-    // Who links each target already (any link, also through a redirect), for the whole batch.
-    const queryUrls: string[] = [];
-    for (const t of batch) {
-      queryUrls.push(urls[t]!);
-      const via = reverse.get(urls[t]!);
-      if (via) queryUrls.push(...via);
-    }
-    const linkers = new Map<number, number[]>();
-    for (const l of db.linkSuggestionLinkers(queryUrls)) {
-      const s = l.fromId < idToIdx.length ? idToIdx[l.fromId]! : -1;
-      if (s < 0) continue;
-      const t = fold(l.toUrl);
-      if (t < 0) continue;
-      const list = linkers.get(t);
-      if (list) list.push(s);
-      else linkers.set(t, [s]);
-    }
-
-    for (const t of batch) {
+  {
+    for (const t of targetList) {
       if (performance.now() - clock >= budgetMs) {
         truncated = true;
-        break outer;
+        break;
       }
       const chosen: Candidate[] = [];
       picks.push({ target: t, chosen });
-      const mine = linkers.get(t);
-      if (mine) for (const s of mine) linkedMark[s] = 1;
+      // Who links this target already (any link, also through a redirect): streamed into a mark
+      // array, never held as objects, so a page every other page links with nofollow costs O(E).
+      const queryUrls = [urls[t]!, ...(reverse.get(urls[t]!) ?? [])];
+      let mine = 0;
+      for (const fromId of db.linkSuggestionLinkers(queryUrls)) {
+        const s = fromId < idToIdx.length ? idToIdx[fromId]! : -1;
+        if (s < 0 || linkedMark[s] === 1) continue;
+        linkedMark[s] = 1;
+        marked[mine++] = s;
+      }
+      const unmark = (): void => {
+        for (let n = 0; n < mine; n++) linkedMark[marked[n]!] = 0;
+      };
 
       // The target's terms, most informative first.
       const tt: { h: number; w: number; idf: number }[] = [];
@@ -446,7 +440,7 @@ export function linkSuggestions(
       }
       tt.sort((a, b) => b.idf - a.idf || b.w - a.w);
       if (tt.length === 0 || norm[t] === 0) {
-        if (mine) for (const s of mine) linkedMark[s] = 0;
+        unmark();
         continue;
       }
 
@@ -502,7 +496,7 @@ export function linkSuggestions(
         top = pick();
       }
       for (let n = 0; n < nt; n++) scratch[touched[n]!] = 0;
-      if (mine) for (const s of mine) linkedMark[s] = 0;
+      unmark();
 
       for (const c of top) {
         chosen.push(c);

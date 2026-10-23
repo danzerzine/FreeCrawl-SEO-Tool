@@ -563,7 +563,7 @@
       "exportCsv": "Exporter en CSV",
       "summary": "{{targets}} pages peu liées, {{without}} sans suggestion",
       "notComputed": "Non calculé. Lancez d’abord un crawl qui compte les liens entrants.",
-      "truncated": "Résultat partiel : il y a plus de pages faibles que celles examinées, ou le temps est écoulé.",
+      "truncated": "Résultat partiel : le temps est écoulé, seule une partie des pages faibles a été examinée.",
       "degraded": "Très grand site : seuls les mots les plus distinctifs ont été comparés.",
       "oneHop": "Les destinations finales des redirections n’ont pas été calculées ; les liens n’ont été suivis que sur une redirection.",
       "empty": "Aucune page avec si peu de liens.",
