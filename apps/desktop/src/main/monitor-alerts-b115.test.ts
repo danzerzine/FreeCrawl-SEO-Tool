@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { ProjectDb } from '@freecrawl/db';
+import { ProjectDb, buildCrawlSnapshot } from '@freecrawl/db';
+import { compareHasChanges, type CompareSummary } from '@freecrawl/core';
 import { alertAfterCrawl, saveAlertsConfig } from './monitor-alerts.js';
 
 /**
@@ -58,7 +59,14 @@ afterEach(() => {
 afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 const dir = mkdtempSync(join(tmpdir(), 'b115-'));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+const opened: ProjectDb[] = [];
+afterAll(() => {
+  // Close the SQLite handles first: an open file blocks rmSync on Windows.
+  for (const db of opened) {
+    try { db.close(); } catch { /* already closed */ }
+  }
+  rmSync(dir, { recursive: true, force: true });
+});
 
 const FOOTER = 'Changes: added 2.';
 const MORE_404 = { name: 'More 404s', metric: 'status.404', vs: 'previous' as const, op: '>' as const, value: 0 };
@@ -68,10 +76,22 @@ let n = 0;
 /** A project with two finished crawls of the same (empty) site: no rule can fire on equal counts. */
 function project(config: { rules: (typeof MORE_404)[]; channels: ('email' | 'slack')[] }): ProjectDb {
   const db = new ProjectDb(join(dir, `p${n++}.seoproject`));
+  opened.push(db);
   saveAlertsConfig(db, config);
   for (const finishedAt of ['2026-10-01T00:00:00.000Z', '2026-10-02T00:00:00.000Z']) {
     db.recordCrawlRun({ finishedAt, startUrl: START, mode: 'spider', durationMs: 1, toolVersion: 't' });
   }
+  return db;
+}
+
+/** Like project(), but the newer crawl has one URL more, so a 'urls.total went up' rule fires. */
+function firingProject(): ProjectDb {
+  const db = project({ rules: [{ ...MORE_404, name: 'More URLs', metric: 'urls.total' }], channels: ['email'] });
+  const snap = buildCrawlSnapshot(db, {});
+  db.appendCrawlRun({
+    finishedAt: '2026-10-03T00:00:00.000Z', startUrl: START, mode: 'spider', durationMs: 1, toolVersion: 't',
+    snapshot: { ...snap, summary: { ...snap.summary, total: (snap.summary.total ?? 0) + 1 } },
+  });
   return db;
 }
 
@@ -124,5 +144,44 @@ describe('change summary without a fired rule (B115)', () => {
     expect(await alertAfterCrawl(db, deps(null), { footer: FOOTER })).toEqual([]);
     expect(await alertAfterCrawl(db, deps({ smtpUrl: `smtp://127.0.0.1:0`, to: '' }), { footer: FOOTER })).toEqual([]);
     expect(mails).toHaveLength(0);
+  });
+
+  it('rule fired + summary: exactly ONE alert mail (not summary-only), carrying both the alert and the footer', async () => {
+    const db = firingProject();
+    const out = await alertAfterCrawl(db, deps(), { footer: FOOTER, footerChanged: true });
+    expect(mails).toHaveLength(1);
+    expect(out.map((d) => [d.channel, d.ok])).toEqual([['email', true]]);
+    expect(mails[0]!.data).toContain('FreeCrawl alert for');
+    expect(mails[0]!.data).not.toContain('change summary for');
+    expect(mails[0]!.data).toContain('More URLs');
+    expect(mails[0]!.data).toContain(FOOTER);
+  });
+
+  it('rule fired, comparison found nothing: the alert mail still goes, once', async () => {
+    const db = firingProject();
+    await alertAfterCrawl(db, deps(), { footer: 'Changes: none.', footerChanged: false });
+    expect(mails).toHaveLength(1);
+    expect(mails[0]!.data).toContain('FreeCrawl alert for');
+  });
+});
+
+describe('compareHasChanges decides footerChanged (B115)', () => {
+  const quiet = { counts: { added: 0, removed: 0, changed: 0 }, issueChanges: {} } as unknown as CompareSummary;
+
+  it('no counts and no changed checks: false, so a quiet comparison gives no mail', async () => {
+    expect(compareHasChanges(quiet)).toBe(false);
+    const db = project({ rules: [MORE_404], channels: ['email'] });
+    expect(await alertAfterCrawl(db, deps(), { footer: 'Changes: none.', footerChanged: compareHasChanges(quiet) })).toEqual([]);
+    expect(mails).toHaveLength(0);
+  });
+
+  it('a URL count or a changed check: true, and the summary is mailed', async () => {
+    const byCount = { ...quiet, counts: { added: 2, removed: 0, changed: 0 } } as unknown as CompareSummary;
+    const byCheck = { ...quiet, issueChanges: { 'title-missing': {} } } as unknown as CompareSummary;
+    expect(compareHasChanges(byCount)).toBe(true);
+    expect(compareHasChanges(byCheck)).toBe(true);
+    const db = project({ rules: [MORE_404], channels: ['email'] });
+    await alertAfterCrawl(db, deps(), { footer: FOOTER, footerChanged: compareHasChanges(byCount) });
+    expect(mails).toHaveLength(1);
   });
 });
