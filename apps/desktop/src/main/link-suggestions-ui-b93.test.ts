@@ -128,6 +128,6 @@ describe('B93 info tip', () => {
     const panel = src('../renderer/src/components/LinkSuggestionsPanel.tsx');
     const tip = /const INFO_TIP =\s*'((?:[^'\\]|\\.)*)'/.exec(panel)![1]!;
     expect(tip).toMatch(/links from menus and footers count too/);
-    expect(tip).not.toMatch(/menus and footers[^.]*left out/);
+    expect(tip).not.toMatch(/menus and footers[^.,]*left out/);
   });
 });

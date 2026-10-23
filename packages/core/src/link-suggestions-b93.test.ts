@@ -439,7 +439,7 @@ describe('linkSuggestions (B93)', () => {
     }
     const stats: NonNullable<LinkSuggestionInternals['stats']> = { maxListWalked: 0, listsSkipped: 0 };
     const started = Date.now();
-    const r = run({ pages }, { minCloseness: 0, maxTargets: 50 }, { postingCap: 200, dfCut: 5000, stats });
+    const r = run({ pages }, { minCloseness: 0, maxTargets: 50 }, { postingCap: 200, dfCut: 5000, stats, termBits: 24 });
     expect(Date.now() - started).toBeLessThan(30_000);
     expect(stats.listsSkipped).toBeGreaterThan(0);
     expect(stats.maxListWalked).toBeLessThanOrEqual(200);
