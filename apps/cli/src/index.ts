@@ -153,6 +153,7 @@ Options:
   --axe               With --render: run the axe-core accessibility audit on every rendered page
                         (WCAG 2.0-2.2 A/AA, about a second per page); stored per page and exported
                         as dataset:axe-violations. Also jsRender.axeAudit in --config. Off by default
+  --cookie-list       With --render: list the cookies each page sets or tries to set while loading (name, domain, flags, set by header or script), up to 100 per page. Values are never stored; HttpOnly cookies set by scripts cannot exist and are seen only from headers.
   --markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags, unclosed elements…). Parses every page twice more.
   --concurrency <n>   Max parallel requests (default: ${DEFAULT_CRAWL_CONFIG.maxConcurrency})
   --rps <n>           Max requests per second (default: ${DEFAULT_CRAWL_CONFIG.maxRps})
@@ -290,7 +291,7 @@ export options:
                                     crawled HTML page with a verdict: ok, not fetched, redirect,
                                     lastmod differs, ...; needs a crawl that read a sitemap), crawl-queue, broken-links, broken-links-by-target,
                                     response-headers, images, pagespeed, pagespeed-audits (one row per
-                                    page x device x Lighthouse audit), axe-violations (one row per
+                                    page x device x Lighthouse audit), cookies (one row per page x cookie; needs a crawl with --cookie-list), axe-violations (one row per
                                     page x axe-core rule; needs a crawl with --axe), crux, spelling, ai:<provider>,
                                     seo:<provider>
                                     (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies
@@ -376,6 +377,7 @@ function parseCliArgs() {
       'with-bodies': { type: 'boolean' },
       'page-script': { type: 'string' },
       axe: { type: 'boolean' },
+      'cookie-list': { type: 'boolean' },
       'markup-check': { type: 'boolean' },
       concurrency: { type: 'string' },
       rps: { type: 'string' },
@@ -659,11 +661,12 @@ async function main(): Promise<void> {
       : {}),
     ...(values.render ? { renderingMode: 'js' as const } : {}),
     ...(values['markup-check'] ? { markupValidation: true } : {}),
-    ...(pageScriptText !== undefined || values.axe
+    ...(pageScriptText !== undefined || values.axe || values['cookie-list']
       ? {
           jsRender: {
             ...(pageScriptText !== undefined ? { pageScript: pageScriptText } : {}),
             ...(values.axe ? { axeAudit: true } : {}),
+            ...(values['cookie-list'] ? { cookieList: true } : {}),
           } as CrawlConfig['jsRender'],
         }
       : {}),

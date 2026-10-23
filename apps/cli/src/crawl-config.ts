@@ -56,6 +56,11 @@ export function mergeCrawlConfig(
     };
   }
 
+  // The cookie list (B43) is read from a rendered page: without rendering there is nothing to list.
+  if (config.jsRender.cookieList && config.renderingMode !== 'js') {
+    return { kind: 'error', message: '--cookie-list needs --render' };
+  }
+
   // axe-core (B40) audits rendered pages only: without rendering it does nothing.
   if (config.jsRender.axeAudit && config.renderingMode !== 'js') {
     notes.push('--axe needs JavaScript rendering (add --render or set renderingMode "js"): no accessibility audit runs.');

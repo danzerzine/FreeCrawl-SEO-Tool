@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { translateLabel } from '../i18n/labels.js';
-import { DEFAULT_SEO_THRESHOLDS, webmasterReasonFallback } from '@freecrawl/shared-types';
+import { DEFAULT_SEO_THRESHOLDS, parseCookiesJson, webmasterReasonFallback } from '@freecrawl/shared-types';
 import type {
   Ga4CustomValue,
   CrawlConfig,
@@ -588,11 +588,16 @@ export function BottomDetailPanel() {
           />
         )}
         {detail && subTab === 'cookies' && (
-          <CookiesView
-            row={detail.row}
-            headers={detail.headers}
-            exportName={exportStem}
-          />
+          <div className="flex h-full flex-col">
+            <RenderedCookieList row={detail.row} />
+            <div className="min-h-0 flex-1">
+              <CookiesView
+                row={detail.row}
+                headers={detail.headers}
+                exportName={exportStem}
+              />
+            </div>
+          </div>
         )}
         {detail && subTab === 'structured-data' && (
           <StructuredDataView
@@ -1552,6 +1557,66 @@ function markupCodesText(json: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/** Cookies a rendered page set or tried to set (B43), from the row's `cookiesJson`; no values are stored, so there is no value column. Nothing when the list was not collected. */
+function RenderedCookieList({ row }: { row: CrawlUrlRow }) {
+  const { t } = useTranslation();
+  const cookies = parseCookiesJson(row.cookiesJson);
+  if (row.cookiesJson == null || cookies.length === 0) return null;
+  const total = row.cookiesTotal ?? cookies.length;
+  return (
+    <div className="max-h-48 overflow-auto border-b border-surface-800 bg-surface-900 px-3 py-1.5 text-[11px] text-surface-300">
+      <div className="mb-1 text-surface-500">
+        {t('cookies.recordedTitle', { defaultValue: 'Cookies seen while rendering' })}
+        {total > cookies.length
+          ? ` — ${t('cookies.recordedShowing', {
+              defaultValue: 'Showing {{shown}} of {{total}} cookies',
+              shown: cookies.length,
+              total,
+            })}`
+          : ''}
+      </div>
+      <table className="w-full text-left">
+        <thead className="text-surface-500">
+          <tr>
+            <th className="pr-3 font-normal">Name</th>
+            <th className="pr-3 font-normal">Domain</th>
+            <th className="pr-3 font-normal">Path</th>
+            <th className="pr-3 font-normal">Secure</th>
+            <th className="pr-3 font-normal">HttpOnly</th>
+            <th className="pr-3 font-normal">SameSite</th>
+            <th className="pr-3 font-normal">Expires</th>
+            <th className="font-normal">Set by</th>
+          </tr>
+        </thead>
+        <tbody className="font-mono">
+          {cookies.map((c, i) => (
+            <tr key={i}>
+              <td className="pr-3 break-all">{c.n}</td>
+              <td className="pr-3">{c.d}</td>
+              <td className="pr-3">{c.p}</td>
+              <td className="pr-3">{c.s === null ? '' : c.s === 1 ? '✓' : ''}</td>
+              <td className="pr-3">{c.h === 1 ? '✓' : ''}</td>
+              <td className="pr-3">{c.ss ?? ''}</td>
+              <td className="pr-3">
+                {c.e === null
+                  ? ''
+                  : c.e < 0
+                    ? t('cookies.session', { defaultValue: 'session' })
+                    : new Date(c.e * 1000).toISOString().slice(0, 10)}
+              </td>
+              <td>
+                {c.by === 'script'
+                  ? t('cookies.setByScript', { defaultValue: 'script' })
+                  : t('cookies.setByHeader', { defaultValue: 'header' })}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /** Console errors and failed resources of the render (B35), from the row's `consoleLog`; nothing when it is empty. */
@@ -2618,6 +2683,8 @@ function NameValueView({ row, exportName }: { row: CrawlUrlRow; exportName: stri
     ['Console Errors', row.consoleErrors ?? null],
     ['Markup Errors', row.markupErrors ?? null],
     ['Markup Error Codes', markupCodesText(row.markupCodes)],
+    ['Cookies', row.cookiesTotal ?? null],
+    ['Cookies Truncated', row.cookiesTruncated ?? null],
     ['Failed Resources', row.failedResources ?? null],
     [
       'Focus Outline Suppressed',

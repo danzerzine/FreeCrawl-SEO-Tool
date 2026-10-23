@@ -877,4 +877,7 @@ export const RU_LABELS: Record<string, string> = {
   'Duplicate id Attributes': 'Повторяющиеся атрибуты id',
   'Markup Errors': 'Ошибки разметки',
   'Markup Error Codes': 'Коды ошибок разметки',
+  // B43: cookie list
+  'Cookies Truncated': 'Cookie: список обрезан',
+  'Cookies JSON': 'Cookie (JSON)',
 };

@@ -721,6 +721,12 @@ export const RU_INFO_TIPS: Record<string, string> = {
   ["Leave off for speed; on to find broken markup and repeated ids."]:
     "Оставьте выключенным ради скорости; включите, чтобы найти сломанную разметку и повторяющиеся id.",
   // B43: cookie list
+  ["How many cookies the page set or tried to set while it loaded, from Set-Cookie headers and from scripts: 0 none, empty when not listed. Needs Settings → Rendering → List the cookies each page sets."]:
+    "Сколько cookie страница поставила или пыталась поставить при загрузке: из заголовков Set-Cookie и из скриптов. 0 — ни одной, пусто — список не собирали. Нужна настройка «Настройки → Рендеринг → Список cookie каждой страницы».",
+  ["1 when the page set more cookies than the list holds (100 cookies or 32 KB), so the list and the export show only the first ones; the Cookies count is still the true number."]:
+    "1, если страница поставила больше cookie, чем помещается в список (100 штук или 32 КБ): в списке и выгрузке только первые, а колонка «Cookie» показывает настоящее число.",
+  ["The cookie list behind Cookies, as JSON: name, domain, path, flags, expiry and whether a header or a script set it. Never the values. Empty when not listed."]:
+    "Список cookie, из которого сложена колонка «Cookie», в виде JSON: имя, домен, путь, флаги, срок и кто поставил — заголовок или скрипт. Значений cookie здесь нет никогда. Пусто, если список не собирали.",
   ["Lists the cookies each page sets or tries to set while it loads, from Set-Cookie headers and from scripts (the browser may have refused some), up to 100 per page; separate from the header counts. Values are never stored. A script cannot set HttpOnly, so HttpOnly cookies appear only when they came in a header. Cookies written by workers are not seen. Needs JavaScript rendering."]:
     "Перечисляет cookie, которые каждая страница ставит или пытается поставить при загрузке: из заголовков Set-Cookie и из скриптов (браузер мог часть отклонить), до 100 на страницу; отдельно от подсчёта по заголовкам. Значения не сохраняются. Скрипт не может поставить HttpOnly, поэтому HttpOnly-cookie видны только из заголовков. Cookie из воркеров не видны. Нужен режим JavaScript.",
   ["On to find third-party and tracking cookies per page; off for plain crawls."]:

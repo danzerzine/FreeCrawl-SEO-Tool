@@ -29,6 +29,7 @@ export type ExportDatasetKey =
   | 'sitemap-files'
   | 'sitemap-reconciliation'
   | 'crawl-queue'
+  | 'cookies'
   | 'response-headers'
   | 'page-html'
   | 'page-text'
@@ -229,6 +230,20 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'url', header: 'URL' },
     { key: 'depth', header: 'Depth' },
     { key: 'seedUrl', header: 'Seed URL' },
+  ],
+  cookies: [
+    { key: 'url', header: 'URL' },
+    { key: 'name', header: 'Cookie' },
+    { key: 'domain', header: 'Domain' },
+    { key: 'path', header: 'Path' },
+    { key: 'secure', header: 'Secure' },
+    { key: 'httpOnly', header: 'HttpOnly' },
+    { key: 'sameSite', header: 'SameSite' },
+    { key: 'expires', header: 'Expires' },
+    { key: 'setBy', header: 'Set By' },
+    { key: 'thirdParty', header: 'Third Party' },
+    { key: 'pageCookiesTotal', header: 'Page Cookies Total' },
+    { key: 'pageCookiesTruncated', header: 'Page Cookies Truncated' },
   ],
   pagespeed: [
     ...PAGE,

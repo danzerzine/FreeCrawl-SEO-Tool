@@ -1,6 +1,7 @@
 import type { ProjectDb } from '@freecrawl/db';
 import type { AiProvider, ExportDatasetKey, GscRow } from '@freecrawl/shared-types';
 import { extractVisibleText } from './html-parser.js';
+import { registrableDomain } from './url-utils.js';
 import { sitemapReconciliationRows } from './sitemap-reconciliation.js';
 import { topWordsBlocks, type TopWordsBlocksOptions } from './top-words-db.js';
 
@@ -128,6 +129,39 @@ function* flattenInspection(rows: Iterable<GscRow>): Generator<Record<string, un
   }
 }
 
+const IP_HOST = /^(\d{1,3}(\.\d{1,3}){3}|\[.*\])$/;
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+/** Cross-site by registrable domain; an IP or a bare host only matches itself. */
+function isThirdPartyCookie(cookieDomain: string, pageUrl: string): boolean {
+  const page = hostOf(pageUrl).toLowerCase();
+  const dom = cookieDomain.toLowerCase();
+  if (!page || !dom) return false;
+  if (IP_HOST.test(page) || IP_HOST.test(dom) || !page.includes('.') || !dom.includes('.')) {
+    return page !== dom;
+  }
+  return registrableDomain(page) !== registrableDomain(dom);
+}
+
+/** One row per cookie of a page's list: expires as ISO text, 'session' or empty. */
+function* cookieRows(db: ProjectDb): Iterable<Record<string, unknown>> {
+  for (const c of db.iterateCookies()) {
+    yield {
+      ...c,
+      expires:
+        c.expires === null ? null : c.expires < 0 ? 'session' : new Date(c.expires * 1000).toISOString(),
+      thirdParty: isThirdPartyCookie(c.domain, c.url),
+    };
+  }
+}
+
 export function datasetRows(
   db: ProjectDb,
   dataset: ExportDatasetKey,
@@ -169,6 +203,8 @@ export function datasetRows(
             yield { ...f, warnings: f.warnings.join(' | ') };
         })(),
       );
+    case 'cookies':
+      return asRecords(cookieRows(db));
     case 'crawl-queue':
       return asRecords(db.iterateCrawlQueue());
     case 'pagespeed':

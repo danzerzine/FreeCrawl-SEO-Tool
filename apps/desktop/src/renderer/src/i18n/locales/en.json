@@ -1225,7 +1225,13 @@
     "emptySuffix": "response headers).",
     "emptyNote": "Note: only first-party cookies set by the page itself are listed here. Cookies set by third-party scripts (analytics, ads) are set in the browser at runtime and are not visible to a static crawler.",
     "cookiesSet": "cookies set",
-    "missing": "{{n}} missing"
+    "missing": "{{n}} missing",
+    "recordedTitle": "Cookies seen while rendering",
+    "recordedShowing": "Showing {{shown}} of {{total}} cookies",
+    "setByHeader": "header",
+    "setByScript": "script",
+    "session": "session",
+    "thirdParty": "third party"
   },
   "duplicates": {
     "notInCluster": "This URL is not part of a near-duplicate cluster. Clusters are grouped around a representative page by a crawl with duplicate analysis on; to widen what counts as a near-duplicate, adjust the thresholds in Settings → Duplicates and crawl again.",
