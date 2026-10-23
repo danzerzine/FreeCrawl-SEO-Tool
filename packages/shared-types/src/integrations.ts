@@ -351,7 +351,8 @@ export const INTEGRATIONS: IntegrationDef[] = [
       },
     ],
     helpUrl: 'https://cloud.google.com/iam/docs/service-accounts-create',
-    setupHint: 'Create a service account in Google Cloud Console with BigQuery Data Editor role, generate a JSON key, and paste it here along with the project ID.',
+    setupHint:
+      'Create a service account in Google Cloud Console with BigQuery Data Editor role, generate a JSON key, and paste it here along with the project ID. To read your Search Console bulk export from BigQuery (Settings → Search Console → source BigQuery), also give that service account "BigQuery Data Viewer" on the Search Console dataset and "BigQuery Job User" on the billing project. FreeCrawl only reads that dataset.',
   },
 
   // ---- Alert channels (Settings → Alerts) ----

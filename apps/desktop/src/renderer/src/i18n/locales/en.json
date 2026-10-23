@@ -2047,7 +2047,18 @@
     "matchCase": "Match Uppercase & Lowercase URLs",
     "limitMaxResults": "Limit Max Results",
     "crawlNewUrls": "Crawl New URLs Discovered In Google Search Console",
-    "crawlNewUrlsHint": "After each Search Console pull, URLs that appear in GSC but were not found by the crawl are added to the crawl queue."
+    "crawlNewUrlsHint": "After each Search Console pull, URLs that appear in GSC but were not found by the crawl are added to the crawl queue.",
+    "source": "Data source",
+    "sourceApi": "Search Console API",
+    "sourceBigQuery": "BigQuery bulk export",
+    "bqProperty": "Property (exactly as in the export)",
+    "bqDataProject": "Project with the export",
+    "bqDataProjectPlaceholder": "blank = the BigQuery project",
+    "bqDataset": "Dataset",
+    "bqMaxGiB": "Billing cap (GiB)",
+    "bqHint": "Reads your own Search Console bulk export in BigQuery with the BigQuery service account (Data Viewer and Job User). Each pull shows the estimated bytes first and stops at the cap.",
+    "bqIgnored": "Not applied to this source: device, country and query filters, and the row limit. Other settings below still apply.",
+    "rangeAll": "Everything exported"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2716,5 +2727,23 @@
     "truncated": "Exported {{rows}} of {{total}} rows (Google Sheets holds at most 10 million cells).",
     "empty": "Nothing to export: this table has no rows.",
     "rejected": "Rows rejected by BigQuery: {{rejectedCount}}. First error: {{error}}"
+  },
+  "gscBq": {
+    "title": "Pull from BigQuery",
+    "buttonTitle": "Pull Search Console data from your BigQuery bulk export. Shows the estimated cost first.",
+    "contextLine": "Data from your BigQuery export",
+    "planning": "Checking the export (dry run, no cost)…",
+    "range": "Range: {{start}} to {{end}}",
+    "coverage": "{{covered}} days already pulled, {{missing}} days to pull in {{parts}} parts.",
+    "revised": "{{n}} pulled days were revised by Google since. Rebuild to include them.",
+    "estimate": "Estimated read: {{gib}} GiB ({{share}}% of the free 1 TB a month). Cap: {{cap}} GiB; billed so far: {{billed}} GiB.",
+    "overCap": "The estimate is above the cap; the pull will stop at the cap and can be continued after raising it in Settings.",
+    "needsReset": "The settings changed since the saved data was pulled. Drop the saved BigQuery data and pull again.",
+    "upToDate": "Nothing new to pull.",
+    "running": "Pulling part {{done}} of {{total}}…",
+    "result": "{{done}} parts pulled, {{skipped}} already there. Billed: {{billed}} GiB.",
+    "stop": "Stop",
+    "recordEmpty": "Record empty months and continue",
+    "pull": "Pull"
   }
 }

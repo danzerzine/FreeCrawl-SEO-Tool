@@ -2012,7 +2012,18 @@
     "matchCase": "Corresponder URLs em maiúsculas e minúsculas",
     "limitMaxResults": "Limitar o número máximo de resultados",
     "crawlNewUrls": "Rastrear as URLs novas descobertas no Google Search Console",
-    "crawlNewUrlsHint": "Depois de cada download do Search Console, as URLs que aparecem no GSC mas não foram encontradas pelo rastreamento são adicionadas à fila de rastreamento."
+    "crawlNewUrlsHint": "Depois de cada download do Search Console, as URLs que aparecem no GSC mas não foram encontradas pelo rastreamento são adicionadas à fila de rastreamento.",
+    "source": "Fonte dos dados",
+    "sourceApi": "API do Search Console",
+    "sourceBigQuery": "Exportação em massa para o BigQuery",
+    "bqProperty": "Propriedade (exatamente como na exportação)",
+    "bqDataProject": "Projeto com a exportação",
+    "bqDataProjectPlaceholder": "vazio = o projeto do BigQuery",
+    "bqDataset": "Conjunto de dados",
+    "bqMaxGiB": "Limite de cobrança (GiB)",
+    "bqHint": "Lê a sua própria exportação em massa do Search Console no BigQuery com a conta de serviço do BigQuery (Data Viewer e Job User). Cada importação mostra antes os bytes estimados e para no limite.",
+    "bqIgnored": "Não se aplicam a esta fonte: os filtros de dispositivo, país e consulta e o limite de linhas. As demais configurações abaixo continuam valendo.",
+    "rangeAll": "Tudo o que foi exportado"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2596,5 +2607,23 @@
     "truncated": "Foram exportadas {{rows}} de {{total}} linhas (o Google Sheets comporta no máximo 10 milhões de células).",
     "empty": "Não há nada para exportar: esta tabela não tem linhas.",
     "rejected": "Linhas rejeitadas pelo BigQuery: {{rejectedCount}}. Primeiro erro: {{error}}"
+  },
+  "gscBq": {
+    "title": "Importar do BigQuery",
+    "buttonTitle": "Importa dados do Search Console da sua exportação em massa do BigQuery. Mostra antes o custo estimado.",
+    "contextLine": "Dados da sua exportação do BigQuery",
+    "planning": "Verificando a exportação (simulação, sem custo)…",
+    "range": "Período: {{start}} a {{end}}",
+    "coverage": "{{covered}} dias já importados, {{missing}} dias a importar em {{parts}} partes.",
+    "revised": "O Google revisou {{n}} dias já importados. Reconstrua para incluí-los.",
+    "estimate": "Leitura estimada: {{gib}} GiB ({{share}}% do 1 TB gratuito por mês). Limite: {{cap}} GiB; cobrado até agora: {{billed}} GiB.",
+    "overCap": "A estimativa passa do limite; a importação vai parar no limite e pode continuar depois de aumentá-lo nas Configurações.",
+    "needsReset": "As configurações mudaram desde que os dados salvos foram importados. Apague os dados salvos do BigQuery e importe de novo.",
+    "upToDate": "Nada novo para importar.",
+    "running": "Importando a parte {{done}} de {{total}}…",
+    "result": "{{done}} partes importadas, {{skipped}} já estavam. Cobrado: {{billed}} GiB.",
+    "stop": "Parar",
+    "recordEmpty": "Registrar os meses vazios e continuar",
+    "pull": "Importar"
   }
 }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { TabExportButton } from '../components/TabExportButton.js';
 import { Loader2, Search, RefreshCw, Plus } from 'lucide-react';
 import { InfoTip } from '../components/InfoTip.js';
+import { GscBqPullDialog } from '../components/GscBqPullDialog.js';
 import {
   defaultGscSettings,
   type GoogleAccount,
@@ -41,16 +42,40 @@ const FILTER_PRESETS: { value: GscPreset; labelKey: string; label: string }[] = 
   { value: 'all', labelKey: 'gscTab.presetAll', label: 'All' },
   { value: 'clicks-above-0', labelKey: 'gscTab.presetClicks', label: 'Clicks Above 0' },
   { value: 'without-data', labelKey: 'gscTab.presetNoData', label: 'No Search Analytics Data' },
-  { value: 'non-indexable-with-data', labelKey: 'gscTab.presetNonIndexableData', label: 'Non-Indexable with Search Analytics Data' },
+  {
+    value: 'non-indexable-with-data',
+    labelKey: 'gscTab.presetNonIndexableData',
+    label: 'Non-Indexable with Search Analytics Data',
+  },
   { value: 'orphan', labelKey: 'gscTab.presetOrphan', label: 'Orphan URLs' },
   { value: 'not-on-google', labelKey: 'gscTab.presetNotOnGoogle', label: 'URL is Not on Google' },
-  { value: 'indexable-not-indexed', labelKey: 'gscTab.presetIndexableNotIndexed', label: 'Indexable URL Not Indexed' },
-  { value: 'on-google-with-issues', labelKey: 'gscTab.presetOnGoogleIssues', label: 'URL is on Google But Has Issues' },
-  { value: 'canonical-mismatch', labelKey: 'gscTab.presetCanonical', label: 'User-Declared Canonical Not Selected' },
-  { value: 'not-mobile-friendly', labelKey: 'gscTab.presetMobile', label: 'Page is Not Mobile Friendly' },
+  {
+    value: 'indexable-not-indexed',
+    labelKey: 'gscTab.presetIndexableNotIndexed',
+    label: 'Indexable URL Not Indexed',
+  },
+  {
+    value: 'on-google-with-issues',
+    labelKey: 'gscTab.presetOnGoogleIssues',
+    label: 'URL is on Google But Has Issues',
+  },
+  {
+    value: 'canonical-mismatch',
+    labelKey: 'gscTab.presetCanonical',
+    label: 'User-Declared Canonical Not Selected',
+  },
+  {
+    value: 'not-mobile-friendly',
+    labelKey: 'gscTab.presetMobile',
+    label: 'Page is Not Mobile Friendly',
+  },
   { value: 'amp-invalid', labelKey: 'gscTab.presetAmp', label: 'AMP URL Invalid' },
   { value: 'rich-result-invalid', labelKey: 'gscTab.presetRich', label: 'Rich Result Invalid' },
-  { value: 'rich-result-warnings', labelKey: 'gscTab.presetRichWarnings', label: 'Rich Result Warnings Only' },
+  {
+    value: 'rich-result-warnings',
+    labelKey: 'gscTab.presetRichWarnings',
+    label: 'Rich Result Warnings Only',
+  },
 ];
 
 /** Average-position bands → cell colour (lower is better). */
@@ -96,6 +121,9 @@ export function SearchConsoleTab() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<GscPreset>('all');
   const [connecting, setConnecting] = useState(false);
+  /** B91: the project reads Search Console data from the user's BigQuery export, not the API. */
+  const [fromBigQuery, setFromBigQuery] = useState(false);
+  const [bqDialog, setBqDialog] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [inspecting, setInspecting] = useState(false);
   const [inspectProgress, setInspectProgress] = useState<GscInspectProgress | null>(null);
@@ -126,9 +154,7 @@ export function SearchConsoleTab() {
     setSites(res.sites);
     setProperty((prev) =>
       // Keep the current property only if the account can still see it.
-      prev && res.sites.some((s) => s.siteUrl === prev)
-        ? prev
-        : (res.sites[0]?.siteUrl ?? ''),
+      prev && res.sites.some((s) => s.siteUrl === prev) ? prev : (res.sites[0]?.siteUrl ?? ''),
     );
   }, []);
 
@@ -171,7 +197,11 @@ export function SearchConsoleTab() {
         setDateRange(s.dateRange);
         if (s.property) setProperty(s.property);
         const configured = integrations['gsc']?.configured ?? false;
-        if (!configured) {
+        setFromBigQuery(s.source === 'bigquery');
+        if (s.source === 'bigquery') {
+          // No Google sign-in is needed: the BigQuery service account reads the export.
+          setStage('ready');
+        } else if (!configured) {
           setStage('unconfigured');
         } else if (!auth.connected) {
           setStage('disconnected');
@@ -252,10 +282,7 @@ export function SearchConsoleTab() {
   /** Unlink the account currently selected in the toolbar. With several
    *  linked, the tab stays usable and falls back to the next one. */
   const disconnect = useCallback(async () => {
-    const next = await window.freecrawl.googleAuthRevoke(
-      'gsc',
-      accountId || undefined,
-    );
+    const next = await window.freecrawl.googleAuthRevoke('gsc', accountId || undefined);
     setAuthState(next);
     setAccounts(next.accounts);
     setSites([]);
@@ -392,9 +419,7 @@ export function SearchConsoleTab() {
         <div className="text-[13px] font-semibold text-rose-300">
           {t('common.loadFailedTitle', { defaultValue: "Couldn't load this view" })}
         </div>
-        {error && (
-          <div className="max-w-md break-words text-[11px] text-surface-500">{error}</div>
-        )}
+        {error && <div className="max-w-md break-words text-[11px] text-surface-500">{error}</div>}
         <button
           type="button"
           className="mt-1 rounded border border-surface-700 px-3 py-1 text-[12px] text-surface-200 hover:bg-surface-800"
@@ -444,9 +469,7 @@ export function SearchConsoleTab() {
           {connecting && <Loader2 size={13} className="animate-spin" />}
           {t('gscTab.connect', { defaultValue: 'Connect with Google' })}
         </button>
-        {error && (
-          <div className="mt-3 max-w-md text-[11px] text-red-400">{error}</div>
-        )}
+        {error && <div className="mt-3 max-w-md text-[11px] text-red-400">{error}</div>}
       </GateMessage>
     );
   }
@@ -493,7 +516,21 @@ export function SearchConsoleTab() {
 
         <div className="ml-auto flex items-center gap-2">
           <TabExportButton tab="search-console" disabled={total === 0} />
-          {accounts.length > 1 && (
+          {fromBigQuery && (
+            <button
+              type="button"
+              onClick={() => setBqDialog(true)}
+              className="inline-flex h-6 shrink-0 items-center whitespace-nowrap gap-1.5 rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500"
+              title={t('gscBq.buttonTitle', {
+                defaultValue:
+                  'Pull Search Console data from your BigQuery bulk export. Shows the estimated cost first.',
+              })}
+            >
+              <RefreshCw size={12} />
+              {t('gscBq.title', { defaultValue: 'Pull from BigQuery' })}
+            </button>
+          )}
+          {!fromBigQuery && accounts.length > 1 && (
             <select
               className="h-6 max-w-[170px] rounded border border-surface-700 bg-surface-950 px-1.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
               value={accountId}
@@ -511,70 +548,78 @@ export function SearchConsoleTab() {
               ))}
             </select>
           )}
-          <select
-            className="h-6 max-w-[200px] rounded border border-surface-700 bg-surface-950 px-1.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
-            value={property}
-            onChange={(e) => setProperty(e.target.value)}
-            disabled={fetching || sites.length === 0}
-            title={property}
-          >
-            {sites.length === 0 && (
-              <option value="">
-                {t('gscTab.noProperties', { defaultValue: 'No properties' })}
-              </option>
-            )}
-            {sites.map((s) => (
-              <option key={s.siteUrl} value={s.siteUrl}>
-                {s.siteUrl}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-6 rounded border border-surface-700 bg-surface-950 px-1.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
-            value={dateRange}
-            onChange={(e) => changeDateRange(e.target.value as GscDateRange)}
-            disabled={fetching}
-            title={t('gscTab.dateRangeTitle', {
-              defaultValue:
-                'Date range for the pull. Full dimension filters live in Settings → Integrations → Google Search Console.',
-            })}
-          >
-            <option value="7d">{t('gscTab.days7', { defaultValue: 'Last 7 days' })}</option>
-            <option value="28d">{t('gscTab.days28', { defaultValue: 'Last 28 days' })}</option>
-            <option value="90d">{t('gscTab.days90', { defaultValue: 'Last 90 days' })}</option>
-            <option value="16m">{t('gscTab.days16m', { defaultValue: 'Last 16 months' })}</option>
-            <option value="custom">{t('gscTab.daysCustom', { defaultValue: 'Custom (Settings)' })}</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => void runFetch()}
-            disabled={fetching || inspecting || !property}
-            className="inline-flex h-6 shrink-0 items-center whitespace-nowrap gap-1.5 rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-surface-700 disabled:text-surface-500"
-          >
-            {fetching ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <RefreshCw size={12} />
-            )}
-            {t('gscTab.fetch', { defaultValue: 'Fetch' })}
-          </button>
-          <button
-            type="button"
-            onClick={openInspect}
-            disabled={inspecting || fetching || !property || rows.length === 0}
-            className="inline-flex h-6 shrink-0 items-center whitespace-nowrap gap-1.5 rounded border border-surface-700 bg-surface-800 px-2.5 text-[11px] font-medium text-surface-200 hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
-            title={t('gscTab.inspectTooltip', {
-              defaultValue:
-                'Run URL Inspection on the top {{n}} loaded pages (quota: 2 000/day per property)',
-              n: INSPECT_BATCH,
-            })}
-          >
-            {inspecting && <Loader2 size={12} className="animate-spin" />}
-            {t('gscTab.inspect', {
-              defaultValue: 'Inspect (top {{n}})',
-              n: INSPECT_BATCH,
-            })}
-          </button>
+          {!fromBigQuery && (
+            <>
+              <select
+                className="h-6 max-w-[200px] rounded border border-surface-700 bg-surface-950 px-1.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
+                value={property}
+                onChange={(e) => setProperty(e.target.value)}
+                disabled={fetching || sites.length === 0}
+                title={property}
+              >
+                {sites.length === 0 && (
+                  <option value="">
+                    {t('gscTab.noProperties', { defaultValue: 'No properties' })}
+                  </option>
+                )}
+                {sites.map((s) => (
+                  <option key={s.siteUrl} value={s.siteUrl}>
+                    {s.siteUrl}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-6 rounded border border-surface-700 bg-surface-950 px-1.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none"
+                value={dateRange}
+                onChange={(e) => changeDateRange(e.target.value as GscDateRange)}
+                disabled={fetching}
+                title={t('gscTab.dateRangeTitle', {
+                  defaultValue:
+                    'Date range for the pull. Full dimension filters live in Settings → Integrations → Google Search Console.',
+                })}
+              >
+                <option value="7d">{t('gscTab.days7', { defaultValue: 'Last 7 days' })}</option>
+                <option value="28d">{t('gscTab.days28', { defaultValue: 'Last 28 days' })}</option>
+                <option value="90d">{t('gscTab.days90', { defaultValue: 'Last 90 days' })}</option>
+                <option value="16m">
+                  {t('gscTab.days16m', { defaultValue: 'Last 16 months' })}
+                </option>
+                <option value="custom">
+                  {t('gscTab.daysCustom', { defaultValue: 'Custom (Settings)' })}
+                </option>
+              </select>
+              <button
+                type="button"
+                onClick={() => void runFetch()}
+                disabled={fetching || inspecting || !property}
+                className="inline-flex h-6 shrink-0 items-center whitespace-nowrap gap-1.5 rounded bg-blue-600 px-2.5 text-[11px] font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-surface-700 disabled:text-surface-500"
+              >
+                {fetching ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={12} />
+                )}
+                {t('gscTab.fetch', { defaultValue: 'Fetch' })}
+              </button>
+              <button
+                type="button"
+                onClick={openInspect}
+                disabled={inspecting || fetching || !property || rows.length === 0}
+                className="inline-flex h-6 shrink-0 items-center whitespace-nowrap gap-1.5 rounded border border-surface-700 bg-surface-800 px-2.5 text-[11px] font-medium text-surface-200 hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title={t('gscTab.inspectTooltip', {
+                  defaultValue:
+                    'Run URL Inspection on the top {{n}} loaded pages (quota: 2 000/day per property)',
+                  n: INSPECT_BATCH,
+                })}
+              >
+                {inspecting && <Loader2 size={12} className="animate-spin" />}
+                {t('gscTab.inspect', {
+                  defaultValue: 'Inspect (top {{n}})',
+                  n: INSPECT_BATCH,
+                })}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -617,11 +662,7 @@ export function SearchConsoleTab() {
               disabled={crawlingNew}
               className="ml-auto inline-flex items-center gap-1 rounded bg-amber-600/80 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-amber-600 disabled:opacity-50"
             >
-              {crawlingNew ? (
-                <Loader2 size={11} className="animate-spin" />
-              ) : (
-                <Plus size={11} />
-              )}
+              {crawlingNew ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
               {t('gscTab.crawlNewUrls', {
                 defaultValue: 'Crawl {{n}} new URLs',
                 n: newUrls.count,
@@ -633,22 +674,32 @@ export function SearchConsoleTab() {
 
       {/* Context line — connection + last pull */}
       <div className="flex items-center gap-2 border-b border-surface-800 bg-surface-900/20 px-3 py-1 text-[10px] text-surface-500">
-        <span>
-          {t('gscTab.connectedAs', {
-            defaultValue: 'Connected as {{email}}',
-            email:
-              accounts.find((a) => a.accountId === accountId)?.email ??
-              authState?.email ??
-              'Google account',
-          })}
-        </span>
-        <button
-          type="button"
-          onClick={() => void disconnect()}
-          className="text-surface-500 underline decoration-dotted hover:text-surface-300"
-        >
-          {t('gscTab.disconnect', { defaultValue: 'Disconnect' })}
-        </button>
+        {fromBigQuery ? (
+          <span>
+            {t('gscBq.contextLine', {
+              defaultValue: 'Data from your BigQuery export',
+            })}
+          </span>
+        ) : (
+          <>
+            <span>
+              {t('gscTab.connectedAs', {
+                defaultValue: 'Connected as {{email}}',
+                email:
+                  accounts.find((a) => a.accountId === accountId)?.email ??
+                  authState?.email ??
+                  'Google account',
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() => void disconnect()}
+              className="text-surface-500 underline decoration-dotted hover:text-surface-300"
+            >
+              {t('gscTab.disconnect', { defaultValue: 'Disconnect' })}
+            </button>
+          </>
+        )}
         {meta && (
           <span className="ml-auto">
             {t('gscTab.metaLine', {
@@ -690,18 +741,23 @@ export function SearchConsoleTab() {
                   n: inspectResult.remaining,
                 })
               : inspectResult.stopMessage
-              ? t('gscTab.inspectStopped', {
-                  defaultValue: 'Inspection stopped: {{message}} {{n}} pages were not inspected.',
-                  message: inspectResult.stopMessage,
-                  n: inspectResult.remaining,
-                })
-              : t('gscTab.inspectDone', {
-                  defaultValue: '{{inspected}} inspected, {{skipped}} skipped (inspected in the last 24 hours), {{failed}} failed.',
-                  inspected: inspectResult.inspected,
-                  skipped: inspectResult.skipped,
-                  failed: inspectResult.failed,
-                })}
+                ? t('gscTab.inspectStopped', {
+                    defaultValue: 'Inspection stopped: {{message}} {{n}} pages were not inspected.',
+                    message: inspectResult.stopMessage,
+                    n: inspectResult.remaining,
+                  })
+                : t('gscTab.inspectDone', {
+                    defaultValue:
+                      '{{inspected}} inspected, {{skipped}} skipped (inspected in the last 24 hours), {{failed}} failed.',
+                    inspected: inspectResult.inspected,
+                    skipped: inspectResult.skipped,
+                    failed: inspectResult.failed,
+                  })}
         </div>
+      )}
+
+      {bqDialog && (
+        <GscBqPullDialog onClose={() => setBqDialog(false)} onDone={() => void reload()} />
       )}
 
       {inspectDialog && (
@@ -765,26 +821,49 @@ export function SearchConsoleTab() {
         style={{ height: HEADER_HEIGHT }}
       >
         <div className="flex-1 px-2">{t('gscTab.colUrl', { defaultValue: 'URL' })}</div>
-        <div className="w-[54px] shrink-0 text-center">{t('gscTab.colStatus', { defaultValue: 'Status' })}</div>
+        <div className="w-[54px] shrink-0 text-center">
+          {t('gscTab.colStatus', { defaultValue: 'Status' })}
+        </div>
         <div className="flex w-[64px] shrink-0 items-center justify-center gap-1">
           {t('gscTab.colVerdict', { defaultValue: 'Index' })}
           <InfoTip
             info={
-              "Google's index status, pulled from the URL Inspection API — not the Fetch button. Click \"Inspect (top 100)\" to fill this column; Fetch only pulls clicks / impressions / position."
+              'Google\'s index status, pulled from the URL Inspection API — not the Fetch button. Click "Inspect (top 100)" to fill this column; Fetch only pulls clicks / impressions / position.'
             }
-            example={'PASS = indexed · FAIL = not indexed · PART/NEU = discovered but not yet indexed'}
+            example={
+              'PASS = indexed · FAIL = not indexed · PART/NEU = discovered but not yet indexed'
+            }
           />
         </div>
-        <div className="w-[64px] shrink-0 text-right" title={t('gscTab.colSitemapsTip', { defaultValue: 'Sitemaps Google lists for this page; not a complete list' })}>
+        <div
+          className="w-[64px] shrink-0 text-right"
+          title={t('gscTab.colSitemapsTip', {
+            defaultValue: 'Sitemaps Google lists for this page; not a complete list',
+          })}
+        >
           {t('gscTab.colSitemaps', { defaultValue: 'Sitemaps' })}
         </div>
-        <div className="w-[76px] shrink-0 text-right">{t('gscTab.colLinkedFrom', { defaultValue: 'Linked from' })}</div>
-        <div className="w-[130px] shrink-0 px-2">{t('gscTab.colRich', { defaultValue: 'Rich results' })}</div>
-        <div className="w-[72px] shrink-0 text-right">{t('gscTab.colClicks', { defaultValue: 'Clicks' })}</div>
-        <div className="w-[92px] shrink-0 text-right">{t('gscTab.colImpr', { defaultValue: 'Impressions' })}</div>
-        <div className="w-[64px] shrink-0 text-right">{t('gscTab.colCtr', { defaultValue: 'CTR' })}</div>
-        <div className="w-[72px] shrink-0 text-right">{t('gscTab.colPos', { defaultValue: 'Position' })}</div>
-        <div className="w-[88px] shrink-0 px-2 text-right">{t('gscTab.colFetched', { defaultValue: 'Fetched' })}</div>
+        <div className="w-[76px] shrink-0 text-right">
+          {t('gscTab.colLinkedFrom', { defaultValue: 'Linked from' })}
+        </div>
+        <div className="w-[130px] shrink-0 px-2">
+          {t('gscTab.colRich', { defaultValue: 'Rich results' })}
+        </div>
+        <div className="w-[72px] shrink-0 text-right">
+          {t('gscTab.colClicks', { defaultValue: 'Clicks' })}
+        </div>
+        <div className="w-[92px] shrink-0 text-right">
+          {t('gscTab.colImpr', { defaultValue: 'Impressions' })}
+        </div>
+        <div className="w-[64px] shrink-0 text-right">
+          {t('gscTab.colCtr', { defaultValue: 'CTR' })}
+        </div>
+        <div className="w-[72px] shrink-0 text-right">
+          {t('gscTab.colPos', { defaultValue: 'Position' })}
+        </div>
+        <div className="w-[88px] shrink-0 px-2 text-right">
+          {t('gscTab.colFetched', { defaultValue: 'Fetched' })}
+        </div>
       </div>
 
       {/* Body */}
@@ -904,7 +983,10 @@ function GscDataRow({
         {status ?? '—'}
       </div>
       <div className="w-[64px] shrink-0 text-center">
-        <VerdictBadge verdict={row.inspection?.verdict ?? null} title={row.inspection?.coverageState ?? null} />
+        <VerdictBadge
+          verdict={row.inspection?.verdict ?? null}
+          title={row.inspection?.coverageState ?? null}
+        />
       </div>
       <div
         className="w-[64px] shrink-0 text-right tabular-nums text-surface-300"
@@ -919,7 +1001,10 @@ function GscDataRow({
       <div className="w-[76px] shrink-0 text-right tabular-nums text-surface-300">
         {insp?.referringCount != null ? insp.referringCount.toLocaleString() : ''}
       </div>
-      <div className="w-[130px] shrink-0 truncate px-2 text-surface-300" title={richSummary(insp?.richResults)}>
+      <div
+        className="w-[130px] shrink-0 truncate px-2 text-surface-300"
+        title={richSummary(insp?.richResults)}
+      >
         {richSummary(insp?.richResults)}
       </div>
       <div className="w-[72px] shrink-0 text-right tabular-nums text-surface-200">
@@ -957,13 +1042,7 @@ function richSummary(types: GscRichResultType[] | null | undefined): string {
     .join(', ');
 }
 
-function VerdictBadge({
-  verdict,
-  title,
-}: {
-  verdict: string | null;
-  title: string | null;
-}) {
+function VerdictBadge({ verdict, title }: { verdict: string | null; title: string | null }) {
   if (!verdict) return <span className="text-surface-700">—</span>;
   const cls =
     verdict === 'PASS'
@@ -1003,9 +1082,7 @@ function GateMessage({
   return (
     <div className="flex h-full items-center justify-center bg-surface-950 px-6">
       <div className="max-w-md text-center">
-        <div className="mb-1.5 text-[13px] font-semibold text-surface-200">
-          {title}
-        </div>
+        <div className="mb-1.5 text-[13px] font-semibold text-surface-200">{title}</div>
         <div className="text-[11px] leading-relaxed text-surface-500">{body}</div>
         {children}
       </div>

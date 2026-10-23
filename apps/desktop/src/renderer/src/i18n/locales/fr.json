@@ -2012,7 +2012,18 @@
     "matchCase": "Faire correspondre les URL en majuscules et en minuscules",
     "limitMaxResults": "Limiter le nombre maximal de résultats",
     "crawlNewUrls": "Explorer les nouvelles URL découvertes dans Google Search Console",
-    "crawlNewUrlsHint": "Après chaque téléchargement Search Console, les URL présentes dans GSC mais non trouvées par l'exploration sont ajoutées à la file d'exploration."
+    "crawlNewUrlsHint": "Après chaque téléchargement Search Console, les URL présentes dans GSC mais non trouvées par l'exploration sont ajoutées à la file d'exploration.",
+    "source": "Source des données",
+    "sourceApi": "API Search Console",
+    "sourceBigQuery": "Export en masse vers BigQuery",
+    "bqProperty": "Propriété (exactement comme dans l’export)",
+    "bqDataProject": "Projet contenant l’export",
+    "bqDataProjectPlaceholder": "vide = le projet BigQuery",
+    "bqDataset": "Jeu de données",
+    "bqMaxGiB": "Plafond de facturation (Gio)",
+    "bqHint": "Lit votre propre export en masse de Search Console dans BigQuery avec le compte de service BigQuery (Data Viewer et Job User). Chaque récupération affiche d’abord les octets estimés et s’arrête au plafond.",
+    "bqIgnored": "Non appliqués à cette source : les filtres appareil, pays et requête, et la limite de lignes. Les autres réglages ci-dessous restent actifs.",
+    "rangeAll": "Tout ce qui est exporté"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2596,5 +2607,23 @@
     "truncated": "{{rows}} lignes exportées sur {{total}} (Google Sheets accepte au maximum 10 millions de cellules).",
     "empty": "Rien à exporter : ce tableau n'a aucune ligne.",
     "rejected": "Lignes rejetées par BigQuery : {{rejectedCount}}. Première erreur : {{error}}"
+  },
+  "gscBq": {
+    "title": "Récupérer depuis BigQuery",
+    "buttonTitle": "Récupère les données Search Console depuis votre export en masse BigQuery. Affiche d’abord le coût estimé.",
+    "contextLine": "Données de votre export BigQuery",
+    "planning": "Vérification de l’export (simulation, sans coût)…",
+    "range": "Période : {{start}} à {{end}}",
+    "coverage": "{{covered}} jours déjà récupérés, {{missing}} jours à récupérer en {{parts}} parties.",
+    "revised": "Google a révisé {{n}} jours déjà récupérés. Reconstruisez pour les inclure.",
+    "estimate": "Lecture estimée : {{gib}} Gio ({{share}} % du 1 To gratuit par mois). Plafond : {{cap}} Gio ; facturé jusqu’ici : {{billed}} Gio.",
+    "overCap": "L’estimation dépasse le plafond ; la récupération s’arrêtera au plafond et pourra reprendre après l’avoir relevé dans les réglages.",
+    "needsReset": "Les réglages ont changé depuis la récupération des données enregistrées. Supprimez les données BigQuery enregistrées et récupérez à nouveau.",
+    "upToDate": "Rien de nouveau à récupérer.",
+    "running": "Récupération de la partie {{done}} sur {{total}}…",
+    "result": "{{done}} parties récupérées, {{skipped}} déjà présentes. Facturé : {{billed}} Gio.",
+    "stop": "Arrêter",
+    "recordEmpty": "Noter les mois vides et continuer",
+    "pull": "Récupérer"
   }
 }

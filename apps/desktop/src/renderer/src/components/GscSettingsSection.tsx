@@ -70,6 +70,8 @@ export function GscSettingsSection() {
     } as Record<string, unknown>);
   };
 
+  const isBq = settings.source === 'bigquery';
+
   const selectCls =
     'h-6 rounded border border-surface-700 bg-surface-950 px-1.5 text-[11px] text-surface-100 focus:border-blue-500 focus:outline-none';
   const inputCls =
@@ -81,8 +83,101 @@ export function GscSettingsSection() {
         {t('gscSettings.title', { defaultValue: 'Search Console Settings' })}
       </div>
 
+      {/* ── Source ─────────────────────────────────────────────── */}
+      <div className="mb-3">
+        <div className="mb-1 text-[10px] font-medium text-surface-300">
+          {t('gscSettings.source', { defaultValue: 'Data source' })}
+        </div>
+        <select
+          className={selectCls}
+          value={settings.source}
+          onChange={(e) => update('source', e.target.value as GscIntegrationSettings['source'])}
+        >
+          <option value="api">
+            {t('gscSettings.sourceApi', { defaultValue: 'Search Console API' })}
+          </option>
+          <option value="bigquery">
+            {t('gscSettings.sourceBigQuery', { defaultValue: 'BigQuery bulk export' })}
+          </option>
+        </select>
+      </div>
+
+      {isBq && (
+        <div className="mb-3 space-y-1.5">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-surface-500">
+              {t('gscSettings.bqProperty', { defaultValue: 'Property (exactly as in the export)' })}
+            </span>
+            <input
+              type="text"
+              className={inputCls}
+              value={settings.property}
+              placeholder="sc-domain:example.com"
+              onChange={(e) => update('property', e.target.value.trim())}
+              spellCheck={false}
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-surface-500">
+                {t('gscSettings.bqDataProject', { defaultValue: 'Project with the export' })}
+              </span>
+              <input
+                type="text"
+                className={inputCls}
+                value={settings.bqDataProject}
+                placeholder={t('gscSettings.bqDataProjectPlaceholder', {
+                  defaultValue: 'blank = the BigQuery project',
+                })}
+                onChange={(e) => update('bqDataProject', e.target.value.trim())}
+                spellCheck={false}
+              />
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-surface-500">
+                {t('gscSettings.bqDataset', { defaultValue: 'Dataset' })}
+              </span>
+              <input
+                type="text"
+                className={inputCls}
+                value={settings.bqDataset}
+                onChange={(e) => update('bqDataset', e.target.value.trim())}
+                spellCheck={false}
+              />
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-[11px] text-surface-200">
+            <span>{t('gscSettings.bqMaxGiB', { defaultValue: 'Billing cap (GiB)' })}</span>
+            <input
+              type="number"
+              min={0.1}
+              max={1000}
+              step={1}
+              className={`${inputCls} w-20`}
+              value={settings.bqMaxGiB}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) update('bqMaxGiB', Math.min(1000, Math.max(0.1, n)));
+              }}
+            />
+          </label>
+          <p className="text-[10px] leading-relaxed text-surface-500">
+            {t('gscSettings.bqHint', {
+              defaultValue:
+                'Reads your own Search Console bulk export in BigQuery with the BigQuery service account (Data Viewer and Job User). Each pull shows the estimated bytes first and stops at the cap.',
+            })}
+          </p>
+          <p className="text-[10px] leading-relaxed text-amber-300/80">
+            {t('gscSettings.bqIgnored', {
+              defaultValue:
+                'Not applied to this source: device, country and query filters, and the row limit. Other settings below still apply.',
+            })}
+          </p>
+        </div>
+      )}
+
       {/* ── Account ────────────────────────────────────────────── */}
-      {accounts.length > 1 && (
+      {!isBq && accounts.length > 1 && (
         <div className="mb-3">
           <div className="mb-1 text-[10px] font-medium text-surface-300">
             {t('gscSettings.account', { defaultValue: 'Account' })}
@@ -115,15 +210,10 @@ export function GscSettingsSection() {
             className={selectCls}
             value={settings.dateRange}
             onChange={(e) =>
-              update(
-                'dateRange',
-                e.target.value as GscIntegrationSettings['dateRange'],
-              )
+              update('dateRange', e.target.value as GscIntegrationSettings['dateRange'])
             }
           >
-            <option value="7d">
-              {t('gscSettings.range7', { defaultValue: 'Last 7 days' })}
-            </option>
+            <option value="7d">{t('gscSettings.range7', { defaultValue: 'Last 7 days' })}</option>
             <option value="28d">
               {t('gscSettings.range28', { defaultValue: 'Last 28 days' })}
             </option>
@@ -133,6 +223,11 @@ export function GscSettingsSection() {
             <option value="16m">
               {t('gscSettings.range16m', { defaultValue: 'Last 16 months' })}
             </option>
+            {isBq && (
+              <option value="all">
+                {t('gscSettings.rangeAll', { defaultValue: 'Everything exported' })}
+              </option>
+            )}
             <option value="custom">
               {t('gscSettings.rangeCustom', { defaultValue: 'Custom' })}
             </option>
@@ -165,34 +260,31 @@ export function GscSettingsSection() {
           {t('gscSettings.dimensionFilter', { defaultValue: 'Dimension Filter' })}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-surface-500">
-              {t('gscSettings.device', { defaultValue: 'Device' })}
-            </span>
-            <select
-              className={selectCls}
-              value={settings.deviceFilter}
-              onChange={(e) =>
-                update(
-                  'deviceFilter',
-                  e.target.value as GscIntegrationSettings['deviceFilter'],
-                )
-              }
-            >
-              <option value="all">
-                {t('gscSettings.deviceAll', { defaultValue: 'All' })}
-              </option>
-              <option value="DESKTOP">
-                {t('gscSettings.deviceDesktop', { defaultValue: 'Desktop' })}
-              </option>
-              <option value="MOBILE">
-                {t('gscSettings.deviceMobile', { defaultValue: 'Mobile' })}
-              </option>
-              <option value="TABLET">
-                {t('gscSettings.deviceTablet', { defaultValue: 'Tablet' })}
-              </option>
-            </select>
-          </label>
+          {!isBq && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-surface-500">
+                {t('gscSettings.device', { defaultValue: 'Device' })}
+              </span>
+              <select
+                className={selectCls}
+                value={settings.deviceFilter}
+                onChange={(e) =>
+                  update('deviceFilter', e.target.value as GscIntegrationSettings['deviceFilter'])
+                }
+              >
+                <option value="all">{t('gscSettings.deviceAll', { defaultValue: 'All' })}</option>
+                <option value="DESKTOP">
+                  {t('gscSettings.deviceDesktop', { defaultValue: 'Desktop' })}
+                </option>
+                <option value="MOBILE">
+                  {t('gscSettings.deviceMobile', { defaultValue: 'Mobile' })}
+                </option>
+                <option value="TABLET">
+                  {t('gscSettings.deviceTablet', { defaultValue: 'Tablet' })}
+                </option>
+              </select>
+            </label>
+          )}
           <label className="flex flex-col gap-0.5">
             <span className="text-[10px] text-surface-500">
               {t('gscSettings.type', { defaultValue: 'Search Type' })}
@@ -201,24 +293,13 @@ export function GscSettingsSection() {
               className={selectCls}
               value={settings.searchType}
               onChange={(e) =>
-                update(
-                  'searchType',
-                  e.target.value as GscIntegrationSettings['searchType'],
-                )
+                update('searchType', e.target.value as GscIntegrationSettings['searchType'])
               }
             >
-              <option value="web">
-                {t('gscSettings.typeWeb', { defaultValue: 'Web' })}
-              </option>
-              <option value="image">
-                {t('gscSettings.typeImage', { defaultValue: 'Image' })}
-              </option>
-              <option value="video">
-                {t('gscSettings.typeVideo', { defaultValue: 'Video' })}
-              </option>
-              <option value="news">
-                {t('gscSettings.typeNews', { defaultValue: 'News' })}
-              </option>
+              <option value="web">{t('gscSettings.typeWeb', { defaultValue: 'Web' })}</option>
+              <option value="image">{t('gscSettings.typeImage', { defaultValue: 'Image' })}</option>
+              <option value="video">{t('gscSettings.typeVideo', { defaultValue: 'Video' })}</option>
+              <option value="news">{t('gscSettings.typeNews', { defaultValue: 'News' })}</option>
               <option value="discover">
                 {t('gscSettings.typeDiscover', { defaultValue: 'Discover' })}
               </option>
@@ -227,79 +308,81 @@ export function GscSettingsSection() {
               </option>
             </select>
           </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-surface-500">
-              {t('gscSettings.country', { defaultValue: 'Country' })}
-            </span>
-            <input
-              type="text"
-              className={inputCls}
-              value={settings.countryFilter}
-              placeholder={t('gscSettings.countryPlaceholder', {
-                defaultValue: 'e.g. usa (ISO code) — blank for all',
-              })}
-              onChange={(e) =>
-                update('countryFilter', e.target.value.trim().toLowerCase())
-              }
-              spellCheck={false}
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-surface-500">
-              {t('gscSettings.queryFilter', { defaultValue: 'Search Query' })}
-            </span>
-            <div className="flex gap-1">
-              <select
-                className={selectCls}
-                value={settings.queryFilterMode}
-                onChange={(e) =>
-                  update(
-                    'queryFilterMode',
-                    e.target.value as GscIntegrationSettings['queryFilterMode'],
-                  )
-                }
-              >
-                <option value="none">
-                  {t('gscSettings.queryNone', { defaultValue: 'None' })}
-                </option>
-                <option value="contains">
-                  {t('gscSettings.queryContains', { defaultValue: 'Contains' })}
-                </option>
-                <option value="notContains">
-                  {t('gscSettings.queryNotContains', {
-                    defaultValue: "Doesn't contain",
-                  })}
-                </option>
-                <option value="equals">
-                  {t('gscSettings.queryEquals', { defaultValue: 'Equals' })}
-                </option>
-                <option value="notEquals">
-                  {t('gscSettings.queryNotEquals', {
-                    defaultValue: "Doesn't equal",
-                  })}
-                </option>
-                <option value="includingRegex">
-                  {t('gscSettings.queryRegex', { defaultValue: 'Matches regex' })}
-                </option>
-                <option value="excludingRegex">
-                  {t('gscSettings.queryNotRegex', {
-                    defaultValue: "Doesn't match regex",
-                  })}
-                </option>
-              </select>
+          {!isBq && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-surface-500">
+                {t('gscSettings.country', { defaultValue: 'Country' })}
+              </span>
               <input
                 type="text"
-                className={`${inputCls} min-w-0 flex-1`}
-                value={settings.queryFilterValue}
-                disabled={settings.queryFilterMode === 'none'}
-                placeholder={t('gscSettings.queryValuePlaceholder', {
-                  defaultValue: 'Query…',
+                className={inputCls}
+                value={settings.countryFilter}
+                placeholder={t('gscSettings.countryPlaceholder', {
+                  defaultValue: 'e.g. usa (ISO code) — blank for all',
                 })}
-                onChange={(e) => update('queryFilterValue', e.target.value)}
+                onChange={(e) => update('countryFilter', e.target.value.trim().toLowerCase())}
                 spellCheck={false}
               />
-            </div>
-          </label>
+            </label>
+          )}
+          {!isBq && (
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-surface-500">
+                {t('gscSettings.queryFilter', { defaultValue: 'Search Query' })}
+              </span>
+              <div className="flex gap-1">
+                <select
+                  className={selectCls}
+                  value={settings.queryFilterMode}
+                  onChange={(e) =>
+                    update(
+                      'queryFilterMode',
+                      e.target.value as GscIntegrationSettings['queryFilterMode'],
+                    )
+                  }
+                >
+                  <option value="none">
+                    {t('gscSettings.queryNone', { defaultValue: 'None' })}
+                  </option>
+                  <option value="contains">
+                    {t('gscSettings.queryContains', { defaultValue: 'Contains' })}
+                  </option>
+                  <option value="notContains">
+                    {t('gscSettings.queryNotContains', {
+                      defaultValue: "Doesn't contain",
+                    })}
+                  </option>
+                  <option value="equals">
+                    {t('gscSettings.queryEquals', { defaultValue: 'Equals' })}
+                  </option>
+                  <option value="notEquals">
+                    {t('gscSettings.queryNotEquals', {
+                      defaultValue: "Doesn't equal",
+                    })}
+                  </option>
+                  <option value="includingRegex">
+                    {t('gscSettings.queryRegex', { defaultValue: 'Matches regex' })}
+                  </option>
+                  <option value="excludingRegex">
+                    {t('gscSettings.queryNotRegex', {
+                      defaultValue: "Doesn't match regex",
+                    })}
+                  </option>
+                </select>
+                <input
+                  type="text"
+                  className={`${inputCls} min-w-0 flex-1`}
+                  value={settings.queryFilterValue}
+                  disabled={settings.queryFilterMode === 'none'}
+                  placeholder={t('gscSettings.queryValuePlaceholder', {
+                    defaultValue: 'Query…',
+                  })}
+                  onChange={(e) => update('queryFilterValue', e.target.value)}
+                  spellCheck={false}
+                />
+              </div>
+            </label>
+          )}
         </div>
       </div>
 
@@ -331,33 +414,32 @@ export function GscSettingsSection() {
               defaultValue: 'Match Uppercase & Lowercase URLs',
             })}
           </label>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 text-[11px] text-surface-200">
+          {!isBq && (
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-[11px] text-surface-200">
+                <input
+                  type="checkbox"
+                  className="accent-blue-500"
+                  checked={settings.limitMaxResults}
+                  onChange={(e) => update('limitMaxResults', e.target.checked)}
+                />
+                {t('gscSettings.limitMaxResults', {
+                  defaultValue: 'Limit Max Results',
+                })}
+              </label>
               <input
-                type="checkbox"
-                className="accent-blue-500"
-                checked={settings.limitMaxResults}
-                onChange={(e) => update('limitMaxResults', e.target.checked)}
+                type="number"
+                min={1}
+                step={1000}
+                className={`${inputCls} w-24`}
+                value={settings.maxResults}
+                disabled={!settings.limitMaxResults}
+                onChange={(e) =>
+                  update('maxResults', Math.max(1, Math.floor(Number(e.target.value) || 0)))
+                }
               />
-              {t('gscSettings.limitMaxResults', {
-                defaultValue: 'Limit Max Results',
-              })}
-            </label>
-            <input
-              type="number"
-              min={1}
-              step={1000}
-              className={`${inputCls} w-24`}
-              value={settings.maxResults}
-              disabled={!settings.limitMaxResults}
-              onChange={(e) =>
-                update(
-                  'maxResults',
-                  Math.max(1, Math.floor(Number(e.target.value) || 0)),
-                )
-              }
-            />
-          </div>
+            </div>
+          )}
           <label className="flex items-center gap-2 text-[11px] text-surface-200">
             <input
               type="checkbox"

@@ -1950,7 +1950,18 @@
     "matchCase": "대문자와 소문자 URL을 같게 취급",
     "limitMaxResults": "최대 결과 수 제한",
     "crawlNewUrls": "Google Search Console에서 새로 발견한 URL 크롤",
-    "crawlNewUrlsHint": "Search Console에서 가져올 때마다, GSC에는 있지만 크롤에서 찾지 못한 URL이 크롤 큐에 추가됩니다."
+    "crawlNewUrlsHint": "Search Console에서 가져올 때마다, GSC에는 있지만 크롤에서 찾지 못한 URL이 크롤 큐에 추가됩니다.",
+    "source": "데이터 소스",
+    "sourceApi": "Search Console API",
+    "sourceBigQuery": "BigQuery 대량 내보내기",
+    "bqProperty": "속성(내보내기와 정확히 동일하게)",
+    "bqDataProject": "내보내기가 있는 프로젝트",
+    "bqDataProjectPlaceholder": "비워 두면 BigQuery 프로젝트",
+    "bqDataset": "데이터세트",
+    "bqMaxGiB": "과금 한도(GiB)",
+    "bqHint": "BigQuery 서비스 계정(Data Viewer 및 Job User)으로 내 Search Console 대량 내보내기를 BigQuery에서 읽습니다. 가져올 때마다 예상 바이트를 먼저 보여 주고 한도에서 멈춥니다.",
+    "bqIgnored": "이 소스에는 적용되지 않음: 기기, 국가, 검색어 필터와 행 수 제한. 아래의 나머지 설정은 그대로 적용됩니다.",
+    "rangeAll": "내보낸 전체"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2504,5 +2515,23 @@
     "truncated": "전체 {{total}}행 중 {{rows}}행을 내보냈습니다 (Google Sheets는 셀을 최대 1,000만 개까지 담을 수 있습니다).",
     "empty": "내보낼 내용이 없습니다. 이 표에 행이 없습니다.",
     "rejected": "BigQuery가 거부한 행: {{rejectedCount}}개. 첫 번째 오류: {{error}}"
+  },
+  "gscBq": {
+    "title": "BigQuery에서 가져오기",
+    "buttonTitle": "BigQuery 대량 내보내기에서 Search Console 데이터를 가져옵니다. 먼저 예상 비용을 보여 줍니다.",
+    "contextLine": "BigQuery 내보내기의 데이터",
+    "planning": "내보내기 확인 중(시험 실행, 무료)…",
+    "range": "기간: {{start}} ~ {{end}}",
+    "coverage": "{{covered}}일은 이미 가져왔고, {{missing}}일을 {{parts}}개 구간으로 가져옵니다.",
+    "revised": "Google이 이미 가져온 {{n}}일을 이후에 수정했습니다. 포함하려면 다시 빌드하세요.",
+    "estimate": "예상 읽기량: {{gib}} GiB(월 무료 1TB의 {{share}}%). 한도: {{cap}} GiB, 지금까지 청구: {{billed}} GiB.",
+    "overCap": "예상치가 한도를 넘습니다. 한도에서 멈추며, 설정에서 한도를 올린 뒤 이어서 가져올 수 있습니다.",
+    "needsReset": "저장된 데이터를 가져온 뒤 설정이 바뀌었습니다. 저장된 BigQuery 데이터를 지우고 다시 가져오세요.",
+    "upToDate": "새로 가져올 것이 없습니다.",
+    "running": "{{total}}개 중 {{done}}번째 구간 가져오는 중…",
+    "result": "{{done}}개 구간을 가져왔고 {{skipped}}개는 이미 있었습니다. 청구: {{billed}} GiB.",
+    "stop": "중지",
+    "recordEmpty": "빈 달을 기록하고 계속",
+    "pull": "가져오기"
   }
 }

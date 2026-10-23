@@ -2012,7 +2012,18 @@
     "matchCase": "Fai corrispondere gli URL in maiuscolo e minuscolo",
     "limitMaxResults": "Limita il numero massimo di risultati",
     "crawlNewUrls": "Scansiona i nuovi URL individuati in Google Search Console",
-    "crawlNewUrlsHint": "Dopo ogni download da Search Console, gli URL presenti in GSC ma non trovati dalla scansione vengono aggiunti alla coda di scansione."
+    "crawlNewUrlsHint": "Dopo ogni download da Search Console, gli URL presenti in GSC ma non trovati dalla scansione vengono aggiunti alla coda di scansione.",
+    "source": "Origine dei dati",
+    "sourceApi": "API di Search Console",
+    "sourceBigQuery": "Esportazione in blocco su BigQuery",
+    "bqProperty": "Proprietà (esattamente come nell’esportazione)",
+    "bqDataProject": "Progetto con l’esportazione",
+    "bqDataProjectPlaceholder": "vuoto = il progetto BigQuery",
+    "bqDataset": "Dataset",
+    "bqMaxGiB": "Limite di fatturazione (GiB)",
+    "bqHint": "Legge la tua esportazione in blocco di Search Console in BigQuery con l’account di servizio BigQuery (Data Viewer e Job User). Ogni scaricamento mostra prima i byte stimati e si ferma al limite.",
+    "bqIgnored": "Non applicati a questa origine: i filtri per dispositivo, paese e query e il limite di righe. Le altre impostazioni qui sotto restano attive.",
+    "rangeAll": "Tutto ciò che è esportato"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2596,5 +2607,23 @@
     "truncated": "Esportate {{rows}} righe su {{total}} (Google Sheets contiene al massimo 10 milioni di celle).",
     "empty": "Niente da esportare: questa tabella non ha righe.",
     "rejected": "Righe rifiutate da BigQuery: {{rejectedCount}}. Primo errore: {{error}}"
+  },
+  "gscBq": {
+    "title": "Scarica da BigQuery",
+    "buttonTitle": "Scarica i dati di Search Console dalla tua esportazione in blocco su BigQuery. Mostra prima il costo stimato.",
+    "contextLine": "Dati dalla tua esportazione BigQuery",
+    "planning": "Controllo dell’esportazione (prova, senza costi)…",
+    "range": "Periodo: da {{start}} a {{end}}",
+    "coverage": "{{covered}} giorni già scaricati, {{missing}} giorni da scaricare in {{parts}} parti.",
+    "revised": "Google ha rivisto {{n}} giorni già scaricati. Ricostruisci per includerli.",
+    "estimate": "Lettura stimata: {{gib}} GiB ({{share}}% del 1 TB gratuito al mese). Limite: {{cap}} GiB; fatturato finora: {{billed}} GiB.",
+    "overCap": "La stima supera il limite; lo scaricamento si fermerà al limite e potrà proseguire dopo averlo alzato nelle Impostazioni.",
+    "needsReset": "Le impostazioni sono cambiate dopo lo scaricamento dei dati salvati. Elimina i dati BigQuery salvati e scarica di nuovo.",
+    "upToDate": "Niente di nuovo da scaricare.",
+    "running": "Scaricamento della parte {{done}} di {{total}}…",
+    "result": "{{done}} parti scaricate, {{skipped}} già presenti. Fatturato: {{billed}} GiB.",
+    "stop": "Ferma",
+    "recordEmpty": "Registra i mesi vuoti e continua",
+    "pull": "Scarica"
   }
 }

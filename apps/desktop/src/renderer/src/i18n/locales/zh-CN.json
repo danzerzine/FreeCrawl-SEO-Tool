@@ -1950,7 +1950,18 @@
     "matchCase": "将大写与小写的 URL 视为匹配",
     "limitMaxResults": "限制最大结果数",
     "crawlNewUrls": "抓取在 Google Search Console 中新发现的 URL",
-    "crawlNewUrlsHint": "每次从 Search Console 拉取后，出现在 GSC 但抓取未发现的 URL 会被加入抓取队列。"
+    "crawlNewUrlsHint": "每次从 Search Console 拉取后，出现在 GSC 但抓取未发现的 URL 会被加入抓取队列。",
+    "source": "数据来源",
+    "sourceApi": "Search Console API",
+    "sourceBigQuery": "BigQuery 批量导出",
+    "bqProperty": "资源（与导出中完全一致）",
+    "bqDataProject": "存放导出的项目",
+    "bqDataProjectPlaceholder": "留空 = BigQuery 项目",
+    "bqDataset": "数据集",
+    "bqMaxGiB": "计费上限（GiB）",
+    "bqHint": "用 BigQuery 服务账号（Data Viewer 和 Job User）读取你自己在 BigQuery 中的 Search Console 批量导出。每次拉取前先显示预计字节数，到上限即停止。",
+    "bqIgnored": "本来源不适用：设备、国家和查询词筛选，以及行数限制。下方其他设置仍然有效。",
+    "rangeAll": "导出的全部数据"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2504,5 +2515,23 @@
     "truncated": "已导出 {{total}} 行中的 {{rows}} 行（Google Sheets 最多容纳 1000 万个单元格）。",
     "empty": "没有可导出的内容：此表没有行。",
     "rejected": "BigQuery 拒绝的行数：{{rejectedCount}}。第一个错误：{{error}}"
+  },
+  "gscBq": {
+    "title": "从 BigQuery 拉取",
+    "buttonTitle": "从你的 BigQuery 批量导出拉取 Search Console 数据。会先显示预计费用。",
+    "contextLine": "数据来自你的 BigQuery 导出",
+    "planning": "正在检查导出（试运行，不收费）…",
+    "range": "范围：{{start}} 至 {{end}}",
+    "coverage": "已拉取 {{covered}} 天，还需分 {{parts}} 段拉取 {{missing}} 天。",
+    "revised": "Google 之后修订了已拉取的 {{n}} 天。重建即可包含。",
+    "estimate": "预计读取：{{gib}} GiB（占每月免费 1 TB 的 {{share}}%）。上限：{{cap}} GiB；目前已计费：{{billed}} GiB。",
+    "overCap": "预计值超过上限；拉取会在上限处停止，在设置中提高上限后可继续。",
+    "needsReset": "保存的数据拉取之后设置已改变。请删除已保存的 BigQuery 数据后重新拉取。",
+    "upToDate": "没有需要拉取的新数据。",
+    "running": "正在拉取第 {{done}} / {{total}} 段…",
+    "result": "已拉取 {{done}} 段，{{skipped}} 段已存在。已计费：{{billed}} GiB。",
+    "stop": "停止",
+    "recordEmpty": "记录空月份并继续",
+    "pull": "拉取"
   }
 }

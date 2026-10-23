@@ -1981,7 +1981,18 @@
     "matchCase": "Büyük & Küçük Harfli URL'leri Eşleştir",
     "limitMaxResults": "Maks. Sonuç Sınırı",
     "crawlNewUrls": "Google Search Console'da Keşfedilen Yeni URL'leri Crawl Et",
-    "crawlNewUrlsHint": "Her Search Console getirmesinden sonra, GSC'de görünen ama crawl'da bulunamayan URL'ler crawl kuyruğuna eklenir."
+    "crawlNewUrlsHint": "Her Search Console getirmesinden sonra, GSC'de görünen ama crawl'da bulunamayan URL'ler crawl kuyruğuna eklenir.",
+    "source": "Veri kaynağı",
+    "sourceApi": "Search Console API",
+    "sourceBigQuery": "BigQuery toplu dışa aktarma",
+    "bqProperty": "Mülk (dışa aktarmadakiyle aynen)",
+    "bqDataProject": "Dışa aktarmanın bulunduğu proje",
+    "bqDataProjectPlaceholder": "boş = BigQuery projesi",
+    "bqDataset": "Veri kümesi",
+    "bqMaxGiB": "Faturalama sınırı (GiB)",
+    "bqHint": "Kendi Search Console toplu dışa aktarmanızı BigQuery hizmet hesabıyla (Data Viewer ve Job User) okur. Her çekme önce tahmini bayt miktarını gösterir ve sınırda durur.",
+    "bqIgnored": "Bu kaynağa uygulanmaz: cihaz, ülke ve sorgu filtreleri ile satır sınırı. Aşağıdaki diğer ayarlar geçerlidir.",
+    "rangeAll": "Dışa aktarılan her şey"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2550,5 +2561,23 @@
     "truncated": "{{total}} satırdan {{rows}} tanesi aktarıldı (Google Sheets en fazla 10 milyon hücre alır).",
     "empty": "Dışa aktarılacak bir şey yok: bu tabloda satır yok.",
     "rejected": "BigQuery'nin reddettiği satırlar: {{rejectedCount}}. İlk hata: {{error}}"
+  },
+  "gscBq": {
+    "title": "BigQuery’den çek",
+    "buttonTitle": "Search Console verilerini BigQuery toplu dışa aktarmanızdan çeker. Önce tahmini maliyeti gösterir.",
+    "contextLine": "BigQuery dışa aktarmanızdan veri",
+    "planning": "Dışa aktarma kontrol ediliyor (deneme, ücretsiz)…",
+    "range": "Aralık: {{start}} – {{end}}",
+    "coverage": "{{covered}} gün zaten çekildi, {{missing}} gün {{parts}} parçada çekilecek.",
+    "revised": "Google, çekilmiş {{n}} günü sonradan düzeltti. Dahil etmek için yeniden oluşturun.",
+    "estimate": "Tahmini okuma: {{gib}} GiB (aylık ücretsiz 1 TB’ın %{{share}}’i). Sınır: {{cap}} GiB; şimdiye kadar faturalanan: {{billed}} GiB.",
+    "overCap": "Tahmin sınırın üstünde; çekme sınırda duracak ve Ayarlar’da sınır yükseltildikten sonra sürdürülebilir.",
+    "needsReset": "Kayıtlı veriler çekildikten sonra ayarlar değişti. Kayıtlı BigQuery verilerini silip yeniden çekin.",
+    "upToDate": "Çekilecek yeni bir şey yok.",
+    "running": "{{total}} parçadan {{done}}. çekiliyor…",
+    "result": "{{done}} parça çekildi, {{skipped}} zaten vardı. Faturalanan: {{billed}} GiB.",
+    "stop": "Durdur",
+    "recordEmpty": "Boş ayları kaydet ve devam et",
+    "pull": "Çek"
   }
 }

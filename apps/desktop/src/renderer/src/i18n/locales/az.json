@@ -1981,7 +1981,18 @@
     "matchCase": "Böyük və kiçik hərfli URL-ləri eyni say",
     "limitMaxResults": "Maksimum nəticə sayını məhdudlaşdır",
     "crawlNewUrls": "Google Search Console-da tapılan yeni URL-ləri tara",
-    "crawlNewUrlsHint": "Search Console-dan hər endirmədən sonra GSC-də olan, lakin tarama tapmadığı URL-lər tarama növbəsinə əlavə edilir."
+    "crawlNewUrlsHint": "Search Console-dan hər endirmədən sonra GSC-də olan, lakin tarama tapmadığı URL-lər tarama növbəsinə əlavə edilir.",
+    "source": "Məlumat mənbəyi",
+    "sourceApi": "Search Console API",
+    "sourceBigQuery": "BigQuery toplu ixracı",
+    "bqProperty": "Resurs (ixracdakı kimi dəqiq)",
+    "bqDataProject": "İxracın olduğu layihə",
+    "bqDataProjectPlaceholder": "boş = BigQuery layihəsi",
+    "bqDataset": "Verilənlər toplusu",
+    "bqMaxGiB": "Ödəniş limiti (GiB)",
+    "bqHint": "Öz Search Console toplu ixracınızı BigQuery xidmət hesabı (Data Viewer və Job User) ilə oxuyur. Hər yükləmə əvvəlcə təxmini bayt miqdarını göstərir və limitdə dayanır.",
+    "bqIgnored": "Bu mənbəyə tətbiq olunmur: cihaz, ölkə və sorğu filtrləri və sətir limiti. Aşağıdakı digər ayarlar qüvvədədir.",
+    "rangeAll": "İxrac olunan hər şey"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2550,5 +2561,23 @@
     "truncated": "{{total}} sətirdən {{rows}} sətir ixrac edildi (Google Sheets ən çox 10 milyon xana tutur).",
     "empty": "İxrac ediləcək heç nə yoxdur: bu cədvəldə sətir yoxdur.",
     "rejected": "BigQuery-nin rədd etdiyi sətirlər: {{rejectedCount}}. İlk xəta: {{error}}"
+  },
+  "gscBq": {
+    "title": "BigQuery-dən yüklə",
+    "buttonTitle": "Search Console məlumatlarını BigQuery toplu ixracınızdan yükləyir. Əvvəlcə təxmini xərci göstərir.",
+    "contextLine": "BigQuery ixracınızdan məlumat",
+    "planning": "İxrac yoxlanılır (sınaq, pulsuz)…",
+    "range": "Dövr: {{start}} – {{end}}",
+    "coverage": "{{covered}} gün artıq yüklənib, {{missing}} gün {{parts}} hissədə yüklənəcək.",
+    "revised": "Google yüklənmiş {{n}} günü sonradan yenilədi. Daxil etmək üçün yenidən qurun.",
+    "estimate": "Təxmini oxuma: {{gib}} GiB (aylıq pulsuz 1 TB-ın {{share}}%-i). Limit: {{cap}} GiB; indiyədək ödənilən: {{billed}} GiB.",
+    "overCap": "Təxmin limitdən yuxarıdır; yükləmə limitdə dayanacaq və limiti Ayarlarda artırdıqdan sonra davam etdirilə bilər.",
+    "needsReset": "Saxlanmış məlumatlar yüklənəndən sonra ayarlar dəyişib. Saxlanmış BigQuery məlumatlarını silib yenidən yükləyin.",
+    "upToDate": "Yüklənəcək yeni heç nə yoxdur.",
+    "running": "Hissə {{done}} / {{total}} yüklənir…",
+    "result": "{{done}} hissə yükləndi, {{skipped}} artıq var idi. Ödənilən: {{billed}} GiB.",
+    "stop": "Dayandır",
+    "recordEmpty": "Boş ayları qeyd et və davam et",
+    "pull": "Yüklə"
   }
 }

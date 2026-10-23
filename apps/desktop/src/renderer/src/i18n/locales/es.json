@@ -2012,7 +2012,18 @@
     "matchCase": "Hacer coincidir las URL en mayúsculas y minúsculas",
     "limitMaxResults": "Limitar el número máximo de resultados",
     "crawlNewUrls": "Rastrear las URL nuevas descubiertas en Google Search Console",
-    "crawlNewUrlsHint": "Después de cada descarga de Search Console, las URL que aparecen en GSC pero que el rastreo no encontró se añaden a la cola de rastreo."
+    "crawlNewUrlsHint": "Después de cada descarga de Search Console, las URL que aparecen en GSC pero que el rastreo no encontró se añaden a la cola de rastreo.",
+    "source": "Origen de datos",
+    "sourceApi": "API de Search Console",
+    "sourceBigQuery": "Exportación masiva a BigQuery",
+    "bqProperty": "Propiedad (exactamente como en la exportación)",
+    "bqDataProject": "Proyecto con la exportación",
+    "bqDataProjectPlaceholder": "vacío = el proyecto de BigQuery",
+    "bqDataset": "Conjunto de datos",
+    "bqMaxGiB": "Límite de facturación (GiB)",
+    "bqHint": "Lee tu propia exportación masiva de Search Console en BigQuery con la cuenta de servicio de BigQuery (Data Viewer y Job User). Cada descarga muestra primero los bytes estimados y se detiene en el límite.",
+    "bqIgnored": "No se aplican a este origen: los filtros de dispositivo, país y consulta ni el límite de filas. El resto de ajustes sigue activo.",
+    "rangeAll": "Todo lo exportado"
   },
   "ga4Tab": {
     "title": "Google Analytics 4",
@@ -2596,5 +2607,23 @@
     "truncated": "Se exportaron {{rows}} de {{total}} filas (Google Sheets admite como máximo 10 millones de celdas).",
     "empty": "No hay nada que exportar: esta tabla no tiene filas.",
     "rejected": "Filas rechazadas por BigQuery: {{rejectedCount}}. Primer error: {{error}}"
+  },
+  "gscBq": {
+    "title": "Descargar de BigQuery",
+    "buttonTitle": "Descarga datos de Search Console desde tu exportación masiva de BigQuery. Muestra antes el coste estimado.",
+    "contextLine": "Datos de tu exportación de BigQuery",
+    "planning": "Comprobando la exportación (simulación, sin coste)…",
+    "range": "Periodo: {{start}} a {{end}}",
+    "coverage": "{{covered}} días ya descargados, {{missing}} días por descargar en {{parts}} partes.",
+    "revised": "Google revisó {{n}} días ya descargados. Reconstruye para incluirlos.",
+    "estimate": "Lectura estimada: {{gib}} GiB ({{share}}% del 1 TB gratuito al mes). Límite: {{cap}} GiB; facturado hasta ahora: {{billed}} GiB.",
+    "overCap": "La estimación supera el límite; la descarga se detendrá en el límite y podrá continuar tras subirlo en Ajustes.",
+    "needsReset": "Los ajustes cambiaron desde que se descargaron los datos guardados. Borra los datos guardados de BigQuery y descarga de nuevo.",
+    "upToDate": "No hay nada nuevo que descargar.",
+    "running": "Descargando parte {{done}} de {{total}}…",
+    "result": "{{done}} partes descargadas, {{skipped}} ya estaban. Facturado: {{billed}} GiB.",
+    "stop": "Detener",
+    "recordEmpty": "Registrar meses vacíos y continuar",
+    "pull": "Descargar"
   }
 }
