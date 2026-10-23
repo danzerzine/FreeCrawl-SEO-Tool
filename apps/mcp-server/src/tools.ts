@@ -931,6 +931,34 @@ export function buildTools(): Tool[] {
         }),
     },
     {
+      name: 'query_axe',
+      description:
+        'Accessibility findings from axe-core (WCAG 2.0-2.2 A/AA), one row per page x rule, violations first (worst impact first, then most elements), then "needs review" rows (kind incomplete: axe could not decide, not counted as issues): rule id, kind (violation | incomplete), impact (critical | serious | moderate | minor), help text, help URL, WCAG tags, number of elements and up to 3 sample elements (selector, opening markup, how to fix). Only stored when the crawl ran with JS rendering and the axe-core audit on (Settings -> JavaScript rendering, or --render --axe in the CLI); counts per page are also in get_url_detail (axeViolations, axeSerious, axeIncomplete; null = not audited). Filter by url (exact), impact, rule_id and kind.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Exact page URL.' },
+          impact: { type: 'string', enum: ['critical', 'serious', 'moderate', 'minor'] },
+          rule_id: { type: 'string', description: 'E.g. image-alt, color-contrast, button-name.' },
+          kind: { type: 'string', enum: ['violation', 'incomplete'] },
+          limit: { type: 'integer', minimum: 1, maximum: 1000 },
+          offset: { type: 'integer', minimum: 0 },
+        },
+      },
+      handler: (args, db) =>
+        db.queryAxe({
+          limit: clamp(args.limit, 1, 1000, 50),
+          offset: clamp(args.offset, 0, 10_000_000, 0),
+          url: typeof args.url === 'string' && args.url ? args.url : undefined,
+          impact:
+            args.impact === 'critical' || args.impact === 'serious' || args.impact === 'moderate' || args.impact === 'minor'
+              ? args.impact
+              : undefined,
+          ruleId: typeof args.rule_id === 'string' && args.rule_id ? args.rule_id : undefined,
+          kind: args.kind === 'violation' || args.kind === 'incomplete' ? args.kind : undefined,
+        }),
+    },
+    {
       name: 'query_crux',
       description:
         'Chrome UX Report rows: real-user (field) 75th-percentile Core Web Vitals per URL (LCP/INP/CLS/FCP/TTFB) for phone + desktop. Populate via Settings → Integrations → Chrome UX Report, then run a batch from the desktop CrUX tab (or crux_run).',
