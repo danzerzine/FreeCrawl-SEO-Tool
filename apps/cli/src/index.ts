@@ -233,7 +233,7 @@ Options:
                         compare-*.csv files go there too. Changes do not change the exit code.
                         A crawl into an existing --db refreshes or replaces it (see --resume);
                         crawl into a new file to compare a fresh crawl.
-  Crawl exit codes: 0 finished, no URL answered 4xx/5xx; 1 finished with such URLs or an
+  Crawl exit codes: 0 finished, no page of the site answered 4xx/5xx; 1 finished with such pages or an
                         [error] line, or --out / --export-dir / --compare-with failed; 2 bad
                         arguments or a crash; 4 the crawl did not finish (start URL unreachable or
                         4xx/5xx, memory limit, no URLs, bad pattern, nothing fetched), --json
@@ -1153,10 +1153,8 @@ async function main(): Promise<void> {
   const hasErrors =
     !complete ||
     crawlError !== null ||
-    Object.keys(summary.byStatus).some((k) => {
-      const n = Number.parseInt(k, 10);
-      return Number.isFinite(n) && n >= 400;
-    });
+    // Own pages only: a dead external link is a finding, not a failed crawl.
+    db.countOwnErrorUrls() > 0;
 
   if (jsonMode) {
     process.stdout.write(

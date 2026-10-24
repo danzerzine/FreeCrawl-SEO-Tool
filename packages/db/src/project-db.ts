@@ -1638,6 +1638,18 @@ const USAGE_DUPLICATE_ALT_PREDICATE = `iu.is_variant = 0 AND iu.alt IS NOT NULL 
  * spellings ever drifted, the split would silently stop matching and
  * every scoped counter would fall back to the slow path.
  */
+/**
+ * SSL / TLS findings are per host: of a host's crawled HTTPS pages only the
+ * first (lowest id) carries the finding, so a certificate problem shows once
+ * instead of on every page of the host.
+ */
+const SSL_FIRST_PAGE_OF_HOST = `urls.id = (
+  SELECT MIN(u2.id) FROM urls u2
+   WHERE u2.is_external = 0 AND u2.content_kind = 'html' AND u2.url LIKE 'https://%'
+     AND LOWER(SUBSTR(u2.url, 9, INSTR(SUBSTR(u2.url, 9), '/') - 1))
+       = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
+)`;
+
 const INTERNAL_HTML_SCOPE = "is_external = 0 AND content_kind = 'html'";
 
 /**
@@ -2898,6 +2910,17 @@ export class ProjectDb {
         )
         .all() as unknown as { url: string }[]
     ).map((r) => r.url);
+  }
+
+  /** Own pages (not external addresses) that answered 4xx/5xx. */
+  countOwnErrorUrls(): number {
+    return (
+      this.db
+        .prepare(
+          'SELECT COUNT(*) AS c FROM urls WHERE is_external = 0 AND status_code >= 400',
+        )
+        .get() as { c: number }
+    ).c;
   }
 
   countCrawledUrls(): number {
@@ -15499,7 +15522,8 @@ function baseCategoryWhereClause(
                  WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
                    AND hc.days_until_expiry IS NOT NULL
                    AND hc.days_until_expiry < 0
-              )`;
+              )
+              AND ${SSL_FIRST_PAGE_OF_HOST}`;
     case 'issues:ssl-cert-expiring-soon':
       // 30-day warning window — matches Let's Encrypt's reminder cadence
       // and the Mozilla Observatory's "expiring soon" threshold.
@@ -15510,7 +15534,8 @@ function baseCategoryWhereClause(
                    AND hc.days_until_expiry IS NOT NULL
                    AND hc.days_until_expiry >= 0
                    AND hc.days_until_expiry <= 30
-              )`;
+              )
+              AND ${SSL_FIRST_PAGE_OF_HOST}`;
     case 'issues:ssl-protocol-old':
       // TLSv1.0 / TLSv1.1 are deprecated by all major browsers (2020).
       // Sites still negotiating them fail PCI-DSS and many corporate
@@ -15521,7 +15546,8 @@ function baseCategoryWhereClause(
                  WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
                    AND hc.protocol IS NOT NULL
                    AND hc.protocol IN ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2')
-              )`;
+              )
+              AND ${SSL_FIRST_PAGE_OF_HOST}`;
     case 'issues:ssl-signature-weak':
       // SHA-1 / MD5 signature algorithms are cryptographically broken
       // for cert chains. Browsers stopped accepting SHA-1 in 2017 but
@@ -15535,7 +15561,8 @@ function baseCategoryWhereClause(
                      LOWER(hc.signature_algorithm) LIKE '%sha1%'
                      OR LOWER(hc.signature_algorithm) LIKE '%md5%'
                    )
-              )`;
+              )
+              AND ${SSL_FIRST_PAGE_OF_HOST}`;
     case 'issues:hsts-no-preload':
       // HSTS preload (https://hstspreload.org) requires the `preload`
       // directive be present in the header. Pages with HSTS-but-no-

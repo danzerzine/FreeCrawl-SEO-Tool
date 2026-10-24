@@ -17,6 +17,7 @@ let delayMs = 0;
 let with404 = false;
 let crawlDelay = false;
 let brokenLinks = 0;
+let externalDead = false;
 
 beforeEach(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fc-b48-'));
@@ -24,6 +25,7 @@ beforeEach(async () => {
   with404 = false;
   crawlDelay = false;
   brokenLinks = 0;
+  externalDead = false;
   server = http.createServer((req, res) => {
     const url = req.url ?? '/';
     // No robots.txt and no sitemap: the crawl must still count as clean.
@@ -43,6 +45,7 @@ beforeEach(async () => {
     const i = m ? Number(m[1]) : 0;
     const links = [`<a href="/p/${i + 1}">next</a>`];
     if (with404 && i === 0) links.push('<a href="/missing">missing</a>');
+    if (externalDead && i === 0) links.push(`<a href="${base.replace('127.0.0.1', 'localhost')}missing">ext</a>`);
     if (i === 0) for (let k = 0; k < brokenLinks; k++) links.push(`<a href="/gone/${k}">g</a>`);
     setTimeout(() => {
       res.writeHead(200, { 'content-type': 'text/html' });
@@ -82,6 +85,13 @@ describe('exit codes (B48)', () => {
     const r = await crawl([base, '--max', '5', '--json']);
     expect(r.status).toBe(1);
     expect(JSON.parse(r.stdout)).toMatchObject({ complete: true });
+  }, 30000);
+
+  it('a dead external address does not make the exit code 1 (B102)', async () => {
+    externalDead = true;
+    const r = await crawl([base, '--max', '5', '--json']);
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ complete: true, ok: true });
   }, 30000);
 
   it('an unreachable start URL exits 4 and says the crawl did not complete', async () => {
