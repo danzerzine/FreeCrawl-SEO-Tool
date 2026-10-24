@@ -16,6 +16,10 @@ import { Crawler } from './crawler.js';
 const css = `body { color: red; }\n${'/* padding */\n'.repeat(400)}`;
 const page404 = `<html><body>${'missing '.repeat(500)}</body></html>`;
 const image = Buffer.alloc(1234, 7);
+// Compressed answers that do carry Content-Length: it is the compressed size.
+const cssZ = gzipSync(`body { color: blue; }\n${'/* padding */\n'.repeat(900)}`);
+const cssZText = `body { color: blue; }\n${'/* padding */\n'.repeat(900)}`;
+const page404Z = `<html><body>${'absent '.repeat(900)}</body></html>`;
 const chunks = ['a'.repeat(700), 'b'.repeat(800)];
 
 let server: Server;
@@ -30,6 +34,23 @@ beforeAll(async () => {
     if (url === '/a.css') {
       res.writeHead(200, { 'content-type': 'text/css', 'content-encoding': 'gzip' });
       return void res.end(gzipSync(css));
+    }
+    if (url === '/z.css') {
+      res.writeHead(200, {
+        'content-type': 'text/css',
+        'content-encoding': 'gzip',
+        'content-length': String(cssZ.length),
+      });
+      return void res.end(cssZ);
+    }
+    if (url === '/zgone') {
+      const body = gzipSync(page404Z);
+      res.writeHead(404, {
+        'content-type': 'text/html',
+        'content-encoding': 'gzip',
+        'content-length': String(body.length),
+      });
+      return void res.end(body);
     }
     if (url === '/gone') {
       res.writeHead(404, { 'content-type': 'text/html', 'content-encoding': 'gzip' });
@@ -50,6 +71,7 @@ beforeAll(async () => {
       '<html><head><title>t</title><link rel="stylesheet" href="/a.css"></head><body>' +
         // The plain link fetches the stylesheet with checkCss off too, body unread.
         '<img src="/i.png" alt="i"><a href="/gone">g</a><a href="/chunked">c</a><a href="/a.css">s</a>' +
+        '<a href="/z.css">z</a><a href="/zgone">zg</a>' +
         '</body></html>',
     );
   });
@@ -88,3 +110,13 @@ it.each([true, false])('stores the decoded size of answers without Content-Lengt
   expect(got['/chunked']).toBe(chunks.join('').length);
   expect(got['/i.png']).toBe(image.length);
 });
+
+it.each([true, false])(
+  'stores the decoded size, not the Content-Length, of a compressed answer (checkCss %s)',
+  async (checkCss) => {
+    const got = await sizes(`z-${checkCss}`, checkCss);
+    expect(cssZ.length).toBeLessThan(Buffer.byteLength(cssZText) / 2);
+    expect(got['/z.css']).toBe(Buffer.byteLength(cssZText));
+    expect(got['/zgone']).toBe(Buffer.byteLength(page404Z));
+  },
+);

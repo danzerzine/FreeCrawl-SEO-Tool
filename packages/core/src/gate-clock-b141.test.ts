@@ -24,6 +24,8 @@ beforeAll(async () => {
     if (req.url === '/robots.txt') {
       return void res.writeHead(200, { 'content-type': 'text/plain' }).end('User-agent: *\nDisallow: /x\n');
     }
+    // A server that drops HEAD: the start-URL probe falls back to GET.
+    if (req.method === 'HEAD' && req.url === '/nohead') return void req.socket.destroy();
     res.writeHead(200, { 'content-type': 'text/html' }).end('<html></html>');
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -45,6 +47,20 @@ it('the start-URL probe starts its clock after the gate', async () => {
   await resolveStartUrl(`${base}/`, 'test', 3000, (a) => attempts.push(a), { beforeRequest: slowGate });
   // An absolute URL that never answered comes back as given: the attempts tell.
   expect(attempts.map((a) => `${a.method} ${a.outcome}`)).toEqual(['HEAD ok']);
+});
+
+it('the GET after a failed HEAD starts its clock after the second gate wait', async () => {
+  const attempts: { method: string; outcome: string }[] = [];
+  let gates = 0;
+  const countingGate = async (): Promise<void> => {
+    gates++;
+    await slowGate();
+  };
+  await resolveStartUrl(`${base}/nohead`, 'test', 3000, (a) => attempts.push(a), {
+    beforeRequest: countingGate,
+  });
+  expect(gates).toBe(2);
+  expect(attempts.map((a) => `${a.method} ${a.outcome}`)).toEqual(['HEAD fail', 'GET ok']);
 });
 
 it('robots.txt starts its clock after the gate', async () => {
@@ -72,6 +88,37 @@ it('a sitemap budget does not count the time spent at the gate', async () => {
     expect(controller.signal.aborted).toBe(false);
     // 400 ms were spent before the gate: 600 ms of the budget are left.
     await vi.advanceTimersByTimeAsync(599);
+    expect(controller.signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(controller.signal.aborted).toBe(true);
+    deadline.clear();
+  } finally {
+    db.close();
+  }
+});
+
+it('a later request of the same budget counts only the time spent outside the gate', async () => {
+  const db = new ProjectDb(join(dir, 'deadline-later.seoproject'));
+  try {
+    const c = new Crawler({ ...DEFAULT_CRAWL_CONFIG, startUrl: `${base}/` }, db);
+    const gated = c as unknown as {
+      acquireRateSlot: () => Promise<void>;
+      gatedDeadline: (
+        controller: AbortController,
+        budgetMs: number,
+      ) => { beforeRequest: () => Promise<void>; clear: () => void };
+    };
+    gated.acquireRateSlot = slowGate;
+    const controller = new AbortController();
+    const deadline = gated.gatedDeadline(controller, 1000);
+    await vi.advanceTimersByTimeAsync(400);
+    await deadline.beforeRequest();
+    // First request: 400 ms used. Work for 100 ms, then wait at the gate again.
+    await vi.advanceTimersByTimeAsync(100);
+    await deadline.beforeRequest();
+    expect(controller.signal.aborted).toBe(false);
+    // 500 ms used in all, the two gate waits are not counted: 500 ms left.
+    await vi.advanceTimersByTimeAsync(499);
     expect(controller.signal.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(controller.signal.aborted).toBe(true);
