@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { parseArgs } from 'node:util';
-import { cpus } from 'node:os';
+import { parseArgs, type ParseArgsOptionsConfig } from 'node:util';
+import { availableParallelism, cpus } from 'node:os';
 import { basename, resolve } from 'node:path';
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { mergeCrawlConfig } from './crawl-config.js';
@@ -141,8 +141,8 @@ Options:
   --max <n>           Max URLs (default: ${DEFAULT_CRAWL_CONFIG.maxUrls})
   --max-per-host <n>  Max pages per host name, each subdomain its own count; images and
                         external pages do not count (default: no limit)
-  --parse-workers <n> Parse HTML on <n> worker threads; 0 parses on the main thread
-                        (default: ${DEFAULT_PARSE_WORKERS})
+  --parse-workers <n> Parse HTML on <n> worker threads; 0 parses on the main thread;
+                        at most the number of CPU cores (default: ${DEFAULT_PARSE_WORKERS})
   --memory-limit <mb> Pause the crawl when its memory reaches <mb> MB, resume below 80 % of it;
                         if it stays high, finish with what was crawled (exit 4) (default: off)
   --render            Render each page in Chromium and read links and content after its scripts ran
@@ -380,88 +380,110 @@ const NEGATABLE = new Set([
   'sitemap-discovery',
 ]);
 
+const CLI_OPTIONS = {
+  depth: { type: 'string' },
+  max: { type: 'string' },
+  'max-per-host': { type: 'string' },
+  'parse-workers': { type: 'string' },
+  'memory-limit': { type: 'string' },
+  'work-dir': { type: 'string' },
+  render: { type: 'boolean' },
+  'max-bytes': { type: 'string' },
+  ngram: { type: 'string' },
+  'word-locale': { type: 'string' },
+  'by-section': { type: 'boolean' },
+  'section-depth': { type: 'string' },
+  'with-bodies': { type: 'boolean' },
+  'max-inlinks': { type: 'string' },
+  'per-target': { type: 'string' },
+  'per-source': { type: 'string' },
+  'min-closeness': { type: 'string' },
+  'max-targets': { type: 'string' },
+  'max-source-outlinks': { type: 'string' },
+  'page-script': { type: 'string' },
+  axe: { type: 'boolean' },
+  'cookie-list': { type: 'boolean' },
+  coverage: { type: 'boolean' },
+  'markup-check': { type: 'boolean' },
+  concurrency: { type: 'string' },
+  rps: { type: 'string' },
+  'night-rps': { type: 'string' },
+  night: { type: 'string' },
+  'user-agent': { type: 'string' },
+  robots: { type: 'boolean' },
+  'respect-crawl-delay': { type: 'boolean' },
+  external: { type: 'boolean' },
+  'check-external': { type: 'boolean' },
+  'sitemap-discovery': { type: 'boolean' },
+  sitemap: { type: 'string', multiple: true },
+  proxy: { type: 'string' },
+  'image-variants': { type: 'boolean' },
+  'adaptive-speed': { type: 'boolean' },
+  header: { type: 'string', multiple: true },
+  include: { type: 'string', multiple: true },
+  exclude: { type: 'string', multiple: true },
+  list: { type: 'string' },
+  config: { type: 'string' },
+  db: { type: 'string' },
+  out: { type: 'string' },
+  limits: { type: 'string' },
+  'raw-headers': { type: 'boolean' },
+  json: { type: 'boolean' },
+  project: { type: 'string' },
+  format: { type: 'string' },
+  regex: { type: 'string' },
+  'verify-bots': { type: 'boolean' },
+  counter: { type: 'string' },
+  days: { type: 'string' },
+  metrics: { type: 'string' },
+  limit: { type: 'string' },
+  'start-url': { type: 'string' },
+  rules: { type: 'string' },
+  baseline: { type: 'string' },
+  'write-snapshot': { type: 'string' },
+  notify: { type: 'string' },
+  what: { type: 'string' },
+  urls: { type: 'string' },
+  set: { type: 'string' },
+  'save-set': { type: 'string' },
+  'list-sets': { type: 'boolean' },
+  'export-dir': { type: 'string' },
+  'compare-with': { type: 'string' },
+  export: { type: 'string' },
+  'pid-file': { type: 'string' },
+  resume: { type: 'boolean' },
+  'stop-file': { type: 'string' },
+  verbose: { type: 'boolean' },
+  help: { type: 'boolean', short: 'h' },
+} as const satisfies ParseArgsOptionsConfig;
+
+/**
+ * `--night-rps -1` as two items: parseArgs reads `-1` as an option and rejects
+ * the line with its own message. A negative number after a value option is
+ * joined as `--opt=-1`, so the flag's own check (exit 2) answers.
+ */
+function joinNegativeNumbers(args: string[], options: ParseArgsOptionsConfig): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    const next = args[i + 1];
+    const takesValue = a.startsWith('--') && !a.includes('=') && options[a.slice(2)]?.type === 'string';
+    if (takesValue && next !== undefined && /^-\d+(\.\d+)?$/.test(next)) {
+      out.push(`${a}=${next}`);
+      i++;
+    } else out.push(a);
+  }
+  return out;
+}
+
 /** The command line, strict: an unknown option or a missing value throws. */
 function parseCliArgs() {
   const parsed = parseArgs({
+    args: joinNegativeNumbers(process.argv.slice(2), CLI_OPTIONS),
     allowPositionals: true,
     allowNegative: true,
     tokens: true,
-    options: {
-      depth: { type: 'string' },
-      max: { type: 'string' },
-      'max-per-host': { type: 'string' },
-      'parse-workers': { type: 'string' },
-      'memory-limit': { type: 'string' },
-      'work-dir': { type: 'string' },
-      render: { type: 'boolean' },
-      'max-bytes': { type: 'string' },
-      ngram: { type: 'string' },
-      'word-locale': { type: 'string' },
-      'by-section': { type: 'boolean' },
-      'section-depth': { type: 'string' },
-      'with-bodies': { type: 'boolean' },
-      'max-inlinks': { type: 'string' },
-      'per-target': { type: 'string' },
-      'per-source': { type: 'string' },
-      'min-closeness': { type: 'string' },
-      'max-targets': { type: 'string' },
-      'max-source-outlinks': { type: 'string' },
-      'page-script': { type: 'string' },
-      axe: { type: 'boolean' },
-      'cookie-list': { type: 'boolean' },
-      coverage: { type: 'boolean' },
-      'markup-check': { type: 'boolean' },
-      concurrency: { type: 'string' },
-      rps: { type: 'string' },
-      'night-rps': { type: 'string' },
-      night: { type: 'string' },
-      'user-agent': { type: 'string' },
-      robots: { type: 'boolean' },
-      'respect-crawl-delay': { type: 'boolean' },
-      external: { type: 'boolean' },
-      'check-external': { type: 'boolean' },
-      'sitemap-discovery': { type: 'boolean' },
-      sitemap: { type: 'string', multiple: true },
-      proxy: { type: 'string' },
-      'image-variants': { type: 'boolean' },
-      'adaptive-speed': { type: 'boolean' },
-      header: { type: 'string', multiple: true },
-      include: { type: 'string', multiple: true },
-      exclude: { type: 'string', multiple: true },
-      list: { type: 'string' },
-      config: { type: 'string' },
-      db: { type: 'string' },
-      out: { type: 'string' },
-      limits: { type: 'string' },
-      'raw-headers': { type: 'boolean' },
-      json: { type: 'boolean' },
-      project: { type: 'string' },
-      format: { type: 'string' },
-      regex: { type: 'string' },
-      'verify-bots': { type: 'boolean' },
-      counter: { type: 'string' },
-      days: { type: 'string' },
-      metrics: { type: 'string' },
-      limit: { type: 'string' },
-      'start-url': { type: 'string' },
-      rules: { type: 'string' },
-      baseline: { type: 'string' },
-      'write-snapshot': { type: 'string' },
-      notify: { type: 'string' },
-      what: { type: 'string' },
-      urls: { type: 'string' },
-      set: { type: 'string' },
-      'save-set': { type: 'string' },
-      'list-sets': { type: 'boolean' },
-      'export-dir': { type: 'string' },
-      'compare-with': { type: 'string' },
-      export: { type: 'string' },
-      'pid-file': { type: 'string' },
-      resume: { type: 'boolean' },
-      'stop-file': { type: 'string' },
-      verbose: { type: 'boolean' },
-      help: { type: 'boolean', short: 'h' },
-    },
+    options: CLI_OPTIONS,
   });
   for (const token of parsed.tokens) {
     if (
@@ -763,6 +785,7 @@ async function main(): Promise<void> {
     'parse-workers',
     values['parse-workers'],
     DEFAULT_PARSE_WORKERS,
+    { max: Math.max(1, availableParallelism()) },
   );
   const merged = mergeCrawlConfig(
     fileConfig,
@@ -1274,7 +1297,7 @@ function parseNumeric(
   flag: string,
   value: string | undefined,
   fallback: number,
-  { integer = true }: { integer?: boolean } = {},
+  { integer = true, max }: { integer?: boolean; max?: number } = {},
 ): number {
   if (value === undefined) return fallback;
   const n = Number(value.trim());
@@ -1282,6 +1305,10 @@ function parseNumeric(
     console.error(
       `Invalid --${flag}: ${value} (expected a non-negative ${integer ? 'whole number' : 'number'}).`,
     );
+    process.exit(2);
+  }
+  if (max !== undefined && n > max) {
+    console.error(`Invalid --${flag}: ${value} (at most ${max}, the number of CPU cores).`);
     process.exit(2);
   }
   return n;

@@ -5,6 +5,9 @@
 ### Added
 - The full pages export (CSV, XML, XLSX, bulk files) gains ten Yes/No columns for the newer page signals (hreflang, title, description and meta robots outside head, OG tag with name=, internal UTM links, noindex for other engines, pagination loop, hreflang on a non-canonical page, noindex alternate), blank where a project's crawl never ran the check. A separate `page-signals.csv` (bulk, CLI `dataset:page-signals`) lists one row per page and signal, including eight derived checks.
 
+### Fixed
+- CLI: `--night-rps -1` (two arguments) now gets the usual "Invalid --night-rps" message and exit 2; `--parse-workers` above the number of CPU cores exits 2 instead of starting that many threads.
+
 ## [1.1.0] — 2026-10-18
 
 ### Added
