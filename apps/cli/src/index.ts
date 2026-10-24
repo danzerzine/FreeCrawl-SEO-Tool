@@ -2506,6 +2506,10 @@ async function runExport(opts: {
     } catch (err) {
       return fail(`Cannot read --config ${opts.configPath}: ${(err as Error).message}`);
     }
+    const writesAudit = set ? set.what.includes('audit') : items.some((it) => it.kind === 'audit');
+    if (opts.lang !== undefined && !writesAudit) {
+      console.error('Warning: --lang only sets the language of --what audit; this run writes no audit report.');
+    }
     const runOptions = {
       rawHeaders: opts.rawHeaders,
       pdfs: { crawlConfig, maxBytes },

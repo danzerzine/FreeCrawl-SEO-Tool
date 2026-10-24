@@ -288,6 +288,10 @@ describe('freecrawl export', () => {
     const bad = run(['export', '--project', project, '--out', path.join(dir, 'audit-bad'), '--what', 'audit', '--lang', 'de', '--json']);
     expect(bad.status).toBe(2);
     expect(bad.stdout).toContain('--lang must be ru or en');
+    expect(r.stderr).not.toContain('--lang only sets');
+    const other = run(['export', '--project', project, '--out', path.join(dir, 'audit-other'), '--what', 'issues', '--lang', 'en']);
+    expect(other.status, other.stderr).toBe(0);
+    expect(other.stderr).toContain('Warning: --lang only sets the language of --what audit');
   });
 
   it('writes the four link-target reports, one row per target', () => {

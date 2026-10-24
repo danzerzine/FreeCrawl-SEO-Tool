@@ -40,13 +40,13 @@ const CHECKS: Partial<Record<UrlCategory, Pair>> = {
     ru: {
       title: 'Нет описания страницы (meta description)',
       why: 'поисковик сам сочинит сниппет, обычно хуже',
-      fix: 'Выводить описание в шаблоне страницы: первые 120–160 знаков анонса.',
+      fix: 'Выводить описание в шаблоне страницы: {{descriptionMinChars}}–{{descriptionMaxChars}} знаков из анонса.',
       short: 'Выводить описание страницы',
     },
     en: {
       title: 'No meta description',
       why: 'the search engine writes its own snippet, usually a worse one',
-      fix: 'Output a description in the page template: the first 120–160 characters of the summary.',
+      fix: 'Output a description in the page template: {{descriptionMinChars}}–{{descriptionMaxChars}} characters from the summary.',
       short: 'Output a page description',
     },
   },
@@ -336,12 +336,12 @@ const CHECKS: Partial<Record<UrlCategory, Pair>> = {
     ru: {
       title: 'Описание длиннее {{descriptionMaxChars}} знаков',
       why: 'в выдаче обрежется',
-      fix: 'Сократить, главное — в первые 120 знаков.',
+      fix: 'Сократить до {{descriptionMaxChars}} знаков, главное — в начале.',
     },
     en: {
       title: 'Description longer than {{descriptionMaxChars}} characters',
       why: 'it gets cut off in search results',
-      fix: 'Shorten it and say the point in the first 120 characters.',
+      fix: 'Shorten it to {{descriptionMaxChars}} characters, the point first.',
     },
   },
   'issues:meta-too-short': {
