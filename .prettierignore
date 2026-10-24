@@ -5,3 +5,5 @@ build
 *.min.js
 package-lock.json
 .claude
+# Generated from packages/core/assets/audit-fonts (base64 woff2)
+packages/core/src/audit-report/fonts.generated.ts

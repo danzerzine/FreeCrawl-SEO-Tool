@@ -126,6 +126,14 @@ export { acceptedLastModified, parseSitemapLastmod } from './sitemap-lastmod.js'
 export { previewExtractionRules } from './extraction.js';
 export { exportHtmlReport, renderHtmlReport, type HtmlReportOptions } from './html-report.js';
 export {
+  exportAuditReport,
+  buildAuditData,
+  renderAuditReport,
+  type AuditReportOptions,
+  type AuditData,
+  type AuditLang,
+} from './audit-report/index.js';
+export {
   fetchForParity,
   diffParity,
   type ParityBaseline,
@@ -207,7 +215,9 @@ export {
 export {
   exportLinkTargetReport,
   exportIssuesSummary,
+  issueSummaryCounts,
   LINK_TARGET_EXPORTS,
+  type IssueSummaryCount,
 } from './report-export.js';
 export {
   createLogParser,

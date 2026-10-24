@@ -12,6 +12,7 @@ import {
   ISSUE_SEVERITY,
   issueCount,
   type LinkTargetReportKind,
+  type UrlCategory,
 } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import { writeExportFile } from './export-file.js';
@@ -103,34 +104,55 @@ export async function exportLinkTargetReport(
  * They come from the crawl history, URLs and Items from the project as it
  * stands, so after a stopped crawl or an edit they need not add up.
  */
-export async function exportIssuesSummary(
-  db: ProjectDb,
-  filePath: string,
-  options: { headers?: ReportHeaders } = {},
-): Promise<{ rowsWritten: number }> {
+/** One enabled check as the issue summary counts it. */
+export interface IssueSummaryCount {
+  category: UrlCategory;
+  /** Catalog label with the project's thresholds filled in. */
+  label: string;
+  group: string;
+  severity: string;
+  /** Pages with the issue; null when the count is not computed. */
+  urls: number | null;
+  /** Items (images, link targets) for per-item checks; null otherwise. */
+  items: number | null;
+}
+
+/**
+ * Every enabled check with its page count, in catalog order: the rows of
+ * issues-summary.csv, also read by the audit report.
+ */
+export function issueSummaryCounts(db: ProjectDb): IssueSummaryCount[] {
   const disabled = db.getDisabledIssues();
   const { issues, thresholds } = db.getOverviewCounts();
-  const trend = issueTrend(db)?.checks ?? {};
-  const rows = ISSUE_GROUPS.flatMap((g) =>
+  return ISSUE_GROUPS.flatMap((g) =>
     g.items
       .filter((i) => !disabled.has(i.category))
       .map((i) => {
         const count = issueCount(issues, i);
         const perItem = i.percentBase === 'images' || i.byTarget !== undefined;
         const urls = count === null || !perItem ? count : db.countIssuePages(i.category);
-        const t = trend[i.category];
-        return [
-          i.category,
-          fillThresholdLabel(i.label, thresholds),
-          g.label,
-          ISSUE_SEVERITY[i.category] ?? '',
+        return {
+          category: i.category,
+          label: fillThresholdLabel(i.label, thresholds),
+          group: g.label,
+          severity: ISSUE_SEVERITY[i.category] ?? '',
           urls,
-          perItem ? count : null,
-          t?.previous ?? null,
-          t?.change ?? null,
-        ];
+          items: perItem ? count : null,
+        };
       }),
   );
+}
+
+export async function exportIssuesSummary(
+  db: ProjectDb,
+  filePath: string,
+  options: { headers?: ReportHeaders } = {},
+): Promise<{ rowsWritten: number }> {
+  const trend = issueTrend(db)?.checks ?? {};
+  const rows = issueSummaryCounts(db).map((r) => {
+    const t = trend[r.category];
+    return [r.category, r.label, r.group, r.severity, r.urls, r.items, t?.previous ?? null, t?.change ?? null];
+  });
   return writeExportFile(filePath, async (partPath) => {
     const head =
       options.headers === 'keys'

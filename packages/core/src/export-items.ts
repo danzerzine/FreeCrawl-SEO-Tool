@@ -14,6 +14,7 @@ import {
   ISSUE_CATEGORIES,
   type BulkExportFile,
   type BulkExportResult,
+  type CrawlConfig,
   type ExportDatasetKey,
   type ExportSet,
   type LinkSuggestionInput,
@@ -30,6 +31,7 @@ import {
 } from './bulk-export.js';
 import { writeExportFile } from './export-file.js';
 import { exportHtmlReport, type HtmlReportOptions } from './html-report.js';
+import { exportAuditReport, type AuditLang } from './audit-report/index.js';
 import { exportIssuesSummary, exportLinkTargetReport, LINK_TARGET_EXPORTS } from './report-export.js';
 import { runSeoAuditExport } from './seo-audit-export.js';
 import { exportPdfs, exportScreenshots, type PdfCrawlConfig, type PdfFetched } from './media-export.js';
@@ -45,7 +47,7 @@ import {
 
 /** One `--what` entry of `freecrawl export`. */
 export type ExportItem =
-  | { kind: 'bulk' | 'seo-audit' | 'html' | 'issues' | 'screenshots' | 'pdfs' | 'pdf-text'; name: string }
+  | { kind: 'bulk' | 'seo-audit' | 'html' | 'audit' | 'issues' | 'screenshots' | 'pdfs' | 'pdf-text'; name: string }
   | { kind: 'category'; name: string; tasks: BulkExportTask[] }
   | { kind: 'link'; name: string; report: LinkTargetReportKind; label: string }
   | { kind: 'selected'; name: 'selected-links'; urls: string[] }
@@ -95,7 +97,7 @@ function linkSuggestionWarnings(r: LinkSuggestionResult): string[] {
 }
 
 export const EXPORT_WHAT_HELP =
-  'bulk, seo-audit, html, issues, screenshots, pdfs, pdf-text, tab:<key>, issues:<key>, dataset:<key>, issue-inlinks:<check>, ' +
+  'bulk, seo-audit, html, audit, issues, screenshots, pdfs, pdf-text, tab:<key>, issues:<key>, dataset:<key>, issue-inlinks:<check>, ' +
   LINK_TARGET_EXPORTS.map((r) => r.report).join(', ');
 
 /**
@@ -111,6 +113,7 @@ export function parseExportWhat(what: string | undefined): ExportItem[] {
       name === 'bulk' ||
       name === 'seo-audit' ||
       name === 'html' ||
+      name === 'audit' ||
       name === 'issues' ||
       name === 'screenshots' ||
       name === 'pdfs' ||
@@ -163,6 +166,7 @@ function readsIssueData(item: ExportItem): boolean {
     case 'bulk':
     case 'seo-audit':
     case 'html': // the overview counts
+    case 'audit':
     case 'issues':
       return true;
     case 'screenshots':
@@ -187,10 +191,12 @@ export interface RunExportItemsOptions {
   /** Recorded in the run's manifest.json. */
   projectFile?: string;
   toolVersion?: string;
-  /** White-label header of the `html` report. */
+  /** White-label header of the `html` and `audit` reports. */
   branding?: HtmlReportOptions['branding'];
   /** Config the `pdfs` and `pdf-text` requests are built from (user agent, headers, auth), and its whole-run byte cap. */
   pdfs?: { crawlConfig?: PdfCrawlConfig; maxBytes?: number };
+  /** The `audit` report: language (default `ru`) and the crawl config for its method notes (else `pdfs.crawlConfig`). */
+  audit?: { lang?: AuditLang; crawlConfig?: Partial<CrawlConfig> };
   /** One line per step; the CLI sends it to stderr. */
   onProgress?: (line: string) => void;
   /**
@@ -279,6 +285,15 @@ export async function runExportItems(
           ...(options.branding ? { branding: options.branding } : {}),
         });
         outcome.files.push({ path, label: 'HTML Report', rows: null });
+      } else if (item.kind === 'audit') {
+        const path = join(outDir, 'audit.html');
+        const crawlConfig = options.audit?.crawlConfig ?? options.pdfs?.crawlConfig?.config;
+        await exportAuditReport(db, path, {
+          ...(options.audit?.lang ? { lang: options.audit.lang } : {}),
+          ...(options.branding ? { branding: options.branding } : {}),
+          ...(crawlConfig ? { crawlConfig } : {}),
+        });
+        outcome.files.push({ path, label: 'Audit Report', rows: null });
       } else if (item.kind === 'screenshots') {
         const r = await exportScreenshots(db, outDir, {
           ...(options.projectFile ? { projectFile: options.projectFile } : {}),
