@@ -1384,6 +1384,15 @@ export function parseHtml(
   let schemaMissingRequired = 0;
   let schemaMissingRecommended = 0;
   const schemaFindings: SchemaFinding[] = [];
+  // `@id`s that some node of the page gives a name: what a bare reference can stand for.
+  const schemaNamedIds = new Set<string>();
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      collectNamedIds(JSON.parse($(el).text().trim()) as unknown, schemaNamedIds);
+    } catch {
+      // Reported by the pass below.
+    }
+  });
   $('script[type="application/ld+json"]').each((_, el) => {
     const raw = $(el).text().trim();
     if (!raw) return;
@@ -1398,6 +1407,7 @@ export function parseHtml(
         schemaBlockCount + schemaInvalidCount,
         schemaFindings,
         pageUrl,
+        schemaNamedIds,
       );
       schemaUnknownTypes += validation.unknownTypeCount;
       schemaMissingRequired += validation.missingRequiredCount;
@@ -2931,6 +2941,7 @@ function walkSchemaForValidation(
   block: number,
   findings: SchemaFinding[],
   pageUrl: string,
+  namedIds: ReadonlySet<string> = new Set(),
 ): {
   unknownTypeCount: number;
   missingRequiredCount: number;
@@ -3019,6 +3030,7 @@ function walkSchemaForValidation(
     const rules: SchemaRule[] = [];
     const labels = new Set<string>();
     const reference = isSchemaReference(obj);
+    const hits: { rule: SchemaRule; type: string; root: string }[] = [];
     for (const raw of types) {
       const t = normalizeSchemaType(raw);
       // Malformed shapes — Schema.org PascalCase convention.
@@ -3030,11 +3042,21 @@ function walkSchemaForValidation(
       // The value of `reviewRating` is a rating, even when typed AggregateRating.
       if (reference || via === 'reviewRating') continue;
       for (const rule of rulesForType(t)) {
-        if (rules.includes(rule) || rule.appliesWhen?.(obj, pageUrl) === false) continue;
-        rules.push(rule);
-        if (rule.label) labels.add(rule.label);
-        check(obj, t, rule, skipFor(rule, via));
+        if (hits.some((h) => h.rule === rule) || rule.appliesWhen?.(obj, pageUrl) === false) {
+          continue;
+        }
+        hits.push({ rule, type: t, root: rule.types.find((x) => isSchemaTypeOf(t, x)) ?? t });
       }
+    }
+    // A node typed Organization and LocalBusiness follows the more specific
+    // rule only, like a lone Pharmacy does.
+    for (const h of hits) {
+      if (hits.some((o) => o !== h && o.root !== h.root && isSchemaTypeOf(o.root, h.root))) {
+        continue;
+      }
+      rules.push(h.rule);
+      if (h.rule.label) labels.add(h.rule.label);
+      check(obj, h.type, h.rule, skipFor(h.rule, via, parent));
     }
 
     // Context rules: a Product's offers, a breadcrumb list's items.
@@ -3064,7 +3086,10 @@ function walkSchemaForValidation(
       if (key === 'itemListElement' && rules.some((r) => r.types.includes('BreadcrumbList'))) {
         checkBreadcrumbItems(value);
       }
-      visit(value, key, { rules, labels });
+      const namesItem = rules.some(
+        (r) => r.required?.includes('itemReviewed.name') && !skipFor(r, via).includes('itemReviewed.name'),
+      );
+      visit(value, key, { rules, labels, namesItem });
     }
   };
 
@@ -3079,7 +3104,14 @@ function walkSchemaForValidation(
       : items.length - 1;
     items.forEach((item, i) => {
       const t = typeof item['@type'] === 'string' ? normalizeSchemaType(item['@type']) : 'ListItem';
-      check(item, t, BREADCRUMB_ITEM_RULE, i === last ? ['item'] : []);
+      // A bare `item: {"@id": …}` names the crumb only if a node on the page carries that name.
+      const ref = item['item'];
+      const unnamedRef =
+        isSchemaObject(ref) &&
+        isSchemaReference(ref) &&
+        !namedIds.has(String(ref['@id'])) &&
+        !isTruthyProp(item['name']);
+      check(unnamedRef ? { ...item, item: ref['@id'] } : item, t, BREADCRUMB_ITEM_RULE, i === last ? ['item'] : []);
     });
   };
 
@@ -3091,6 +3123,8 @@ function walkSchemaForValidation(
 interface SchemaContext {
   rules: readonly SchemaRule[];
   labels: ReadonlySet<string>;
+  /** The node asks for `itemReviewed.name` itself, so the item need not be asked for `name` too. */
+  namesItem?: boolean;
 }
 
 /**
@@ -3098,12 +3132,25 @@ interface SchemaContext {
  * rating nested in the thing it rates is about that thing, and the thing a
  * review rates has that review (its other entries are still checked).
  */
-function skipFor(rule: SchemaRule, via: string): string[] {
+function skipFor(rule: SchemaRule, via: string, parent?: SchemaContext): string[] {
   if (via === 'review' || via === 'aggregateRating') return ['itemReviewed', 'itemReviewed.name'];
   if (via !== 'itemReviewed') return [];
-  return [...(rule.required ?? []), ...(rule.recommended ?? [])].filter((entry) =>
+  const own = [...(rule.required ?? []), ...(rule.recommended ?? [])].filter((entry) =>
     entryPaths(entry).some((path) => path === 'review' || path === 'aggregateRating'),
   );
+  // The review already reports a missing `itemReviewed.name`; not once more on the item.
+  return parent?.namesItem ? [...own, 'name'] : own;
+}
+
+/** Adds the `@id` of every node under `node` that carries a name. */
+function collectNamedIds(node: unknown, out: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const n of node) collectNamedIds(n, out);
+    return;
+  }
+  if (!isSchemaObject(node)) return;
+  if (typeof node['@id'] === 'string' && isTruthyProp(node['name'])) out.add(node['@id']);
+  for (const [k, v] of Object.entries(node)) if (k !== '@context') collectNamedIds(v, out);
 }
 
 /** `{"@id": …}`, optionally with `@type`: a pointer to a node defined elsewhere. */
@@ -3119,7 +3166,7 @@ function isSchemaReference(obj: Record<string, unknown>): boolean {
  * step at least one value of the parent (an array is its items) carries it.
  * A reference stands for its definition elsewhere, so it carries any path.
  */
-function hasSchemaPath(obj: Record<string, unknown>, path: string): boolean {
+function hasSchemaPath(obj: Record<string, unknown>, path: string, viaRefs = true): boolean {
   const dot = path.indexOf('.');
   const head = dot < 0 ? path : path.slice(0, dot);
   const value = obj[head];
@@ -3129,7 +3176,7 @@ function hasSchemaPath(obj: Record<string, unknown>, path: string): boolean {
   return (Array.isArray(value) ? value : [value]).some((v) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
     const o = v as Record<string, unknown>;
-    return isSchemaReference(o) || hasSchemaPath(o, rest);
+    return (viaRefs && isSchemaReference(o)) || hasSchemaPath(o, rest, viaRefs);
   });
 }
 
@@ -3161,7 +3208,8 @@ function countGap(obj: Record<string, unknown>, count: SchemaCount): string | un
 
 /** The condition's `if` is present on the node, holding one of `ifIs` when that is given. */
 function conditionFires(obj: Record<string, unknown>, c: SchemaCondition): boolean {
-  const present = entryPaths(c.if).filter((path) => hasSchemaPath(obj, path));
+  // A reference may hold the path or not: it cannot trigger a condition.
+  const present = entryPaths(c.if).filter((path) => hasSchemaPath(obj, path, false));
   if (present.length === 0) return false;
   const ifIs = c.ifIs;
   return !ifIs || present.some((p) => schemaValues(obj, p).some((v) => ifIs.includes(v)));
