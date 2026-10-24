@@ -236,7 +236,7 @@ export interface ParsedPage {
   genericAnchorCount: number;
   /** Internal `<a href>` with `utm_*` in the raw href (normalisation strips them from the stored URL) (B28). */
   internalUtmLinks: number;
-  /** `<a target="_blank">` elements without `rel="noopener"` / `noreferrer`. */
+  /** Links to other sites with `target="_blank"` and no `rel="noopener"` / `noreferrer`. */
   targetBlankNoNoopenerCount: number;
   /**
    * Number of `<a>` elements that look clickable but are NOT crawlable —
@@ -2089,6 +2089,7 @@ export function parseHtml(
     if (anchorGeneric) genericAnchorCount++;
     if (isInternal && /[?&]utm_[a-z]+=/i.test(href)) internalUtmLinks++;
     if (
+      !isInternal &&
       target?.toLowerCase() === '_blank' &&
       !rel?.includes('noopener') &&
       !rel?.includes('noreferrer')
