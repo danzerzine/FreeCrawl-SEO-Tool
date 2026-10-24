@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import type { DuplicateClusterRow } from '@freecrawl/shared-types';
 import { useAppStore } from '../store.js';
+import { clusterHeaderStats } from '../utils/duplicateHeader.js';
 
 const HEADER_ROW_HEIGHT = 32;
 const MEMBER_ROW_HEIGHT = 24;
@@ -29,6 +30,8 @@ type Item =
       /** Stored representative; null when none is recorded (old build, row deleted). */
       repUrl: string | null;
       maxHamming: number | null;
+      /** Lowest text similarity to the representative; null for a SimHash-only group. */
+      minSimilarity: number | null;
     }
   | { kind: 'member'; clusterId: number; row: DuplicateClusterRow };
 
@@ -98,15 +101,8 @@ export function DuplicatesGroupedView() {
       const head = rows[i]!;
       const cid = head.clusterId;
       let j = i;
-      const repUrl = head.repUrl;
-      let maxHamming: number | null = repUrl === null ? null : 0;
-      while (j < rows.length && rows[j]!.clusterId === cid) {
-        const m = rows[j]!;
-        if (maxHamming !== null && m.hammingFromRep !== null && m.hammingFromRep > maxHamming) {
-          maxHamming = m.hammingFromRep;
-        }
-        j++;
-      }
+      while (j < rows.length && rows[j]!.clusterId === cid) j++;
+      const { repUrl, maxHamming, minSimilarity } = clusterHeaderStats(rows.slice(i, j));
       list.push({
         kind: 'header',
         clusterId: cid,
@@ -114,6 +110,7 @@ export function DuplicatesGroupedView() {
         memberCount: j - i,
         repUrl,
         maxHamming,
+        minSimilarity,
       });
       if (!collapsed.has(cid)) {
         for (let k = i; k < j; k++) {
@@ -289,13 +286,22 @@ export function DuplicatesGroupedView() {
                       {it.repUrl}
                     </span>
                   )}
-                  {it.maxHamming !== null && (
+                  {it.minSimilarity !== null ? (
+                    <span className="ml-auto shrink-0 rounded bg-surface-800 px-1.5 py-0.5 font-mono text-[10px] text-surface-300">
+                      {t('duplicates.minSimilarity', {
+                        defaultValue: 'min similarity {{n}}%',
+                        n: it.minSimilarity,
+                      })}
+                    </span>
+                  ) : (
+                    it.maxHamming !== null && (
                     <span className="ml-auto shrink-0 rounded bg-surface-800 px-1.5 py-0.5 font-mono text-[10px] text-surface-300">
                       {t('duplicates.maxHamming', {
                         defaultValue: 'max Δ {{n}} bits',
                         n: it.maxHamming,
                       })}
                     </span>
+                    )
                   )}
                 </div>
               );

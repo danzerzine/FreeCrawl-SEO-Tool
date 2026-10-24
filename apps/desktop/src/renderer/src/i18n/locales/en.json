@@ -1284,6 +1284,7 @@
     "toggleClusterTitle": "Click to expand/collapse this cluster",
     "headerSize": "{{n}} pages",
     "maxHamming": "max Δ {{n}} bits",
+    "minSimilarity": "min similarity {{n}}%",
     "repBadge": "rep",
     "repUnknown": "Representative not recorded — it appears after the next crawl with duplicate analysis",
     "similarityToRepTitle": "Text similarity to the cluster representative (100% = the representative itself)",
