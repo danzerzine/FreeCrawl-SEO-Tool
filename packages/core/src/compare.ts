@@ -1,5 +1,9 @@
 import {
+  accessSync,
+  chmodSync,
   closeSync,
+  constants,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -11,7 +15,7 @@ import {
 } from 'node:fs';
 import { open, stat } from 'node:fs/promises';
 import { freemem, tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import {
   asNoSpaceError,
   categoryWhereClause,
@@ -227,7 +231,8 @@ export interface CompareProject {
 /**
  * Open the other project of a comparison, for every consumer. An archive
  * `.seoproject` is unpacked to a temp working copy; a bare SQLite project is
- * read in place, read-only. When its stored (expensive) checks predate the
+ * read in place, read-only, unless it or its folder is read-only: then it is
+ * read from a copy and nothing is created beside it (B120). When its stored (expensive) checks predate the
  * current definitions they are rebuilt once and kept in the file, so the
  * next comparison with it rebuilds nothing (B109): an archive is rebuilt in
  * its copy and repacked, a bare project in place through SQLite. A file that
@@ -278,6 +283,23 @@ export async function openCompareProject(
         throw asNoSpaceError(err, dir, needed);
       }
       db = new ProjectDb(copy);
+    } else if (!writableInPlace(path)) {
+      // Opened in place, SQLite would fail without a folder to put its log in, or leave
+      // log files beside a read-only file that block writing later (B120).
+      const log = `${path}-wal`;
+      const needed = statSync(path).size + (existsSync(log) ? statSync(log).size : 0);
+      checkFreeSpace(copyBase(), needed, opts.statfs);
+      dir = mkdtempSync(join(copyBase(), COMPARE_COPY_PREFIX));
+      copy = join(dir, basename(path));
+      try {
+        // The file and its log as they are, so rows not yet folded in come too.
+        copyWritable(path, copy);
+        if (existsSync(log)) copyWritable(log, `${copy}-wal`);
+      } catch (err) {
+        throw asNoSpaceError(err, dir, needed);
+      }
+      db = new ProjectDb(copy);
+      if (db.issueMaterialisationStale()) db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
     } else {
       db = new ProjectDb(path, { readOnly: true });
       if (db.issueMaterialisationStale()) {
@@ -316,6 +338,28 @@ export async function openCompareProject(
     throw err;
   }
   return { db, dispose, rebuiltSaved };
+}
+
+/**
+ * Whether a project file can be opened in place without a trace: the file and
+ * its folder both allow writing (SQLite needs the folder for its log files).
+ * The mode bits count too, so a read-only file reads as such for root.
+ */
+function writableInPlace(path: string): boolean {
+  return [path, dirname(path)].every((p) => {
+    try {
+      accessSync(p, constants.W_OK);
+      return (statSync(p).mode & 0o222) !== 0;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Copies a file and makes the copy writable (a copy of a read-only file keeps its mode). */
+function copyWritable(from: string, to: string): void {
+  copyFileSync(from, to);
+  chmodSync(to, 0o600);
 }
 
 /**
