@@ -1234,7 +1234,21 @@
     "beforeHeader": "До",
     "afterHeader": "После",
     "noDiffs": "В этой категории различий нет.",
-    "notComparable": "Не сравнивалось: {{kinds}}"
+    "notComparable": "Не сравнивалось: {{kinds}}",
+    "kind": {
+      "depth": "Глубина",
+      "structured_data": "Структурированные данные",
+      "content": "Контент",
+      "outlinks": "Исходящие ссылки"
+    },
+    "pages_one": "{{count}} страница",
+    "pages_few": "{{count}} страницы",
+    "pages_many": "{{count}} страниц",
+    "pages_other": "{{count}} страницы",
+    "issueChangesTitle": "Страниц по каждой проверке",
+    "issueCheckHeader": "Проверка",
+    "issueAppearedHeader": "Появилось",
+    "issueResolvedHeader": "Исчезло"
   },
   "scheduled": {
     "title": "Обход по расписанию",

@@ -1188,7 +1188,19 @@
     "beforeHeader": "Before",
     "afterHeader": "After",
     "noDiffs": "No diffs in this category.",
-    "notComparable": "Not compared: {{kinds}}"
+    "notComparable": "Not compared: {{kinds}}",
+    "kind": {
+      "depth": "Depth",
+      "structured_data": "Structured data",
+      "content": "Content",
+      "outlinks": "Outlinks"
+    },
+    "pages_one": "{{count}} page",
+    "pages_other": "{{count}} pages",
+    "issueChangesTitle": "Pages per check",
+    "issueCheckHeader": "Check",
+    "issueAppearedHeader": "Appeared",
+    "issueResolvedHeader": "Resolved"
   },
   "scheduled": {
     "title": "Scheduled Crawl",

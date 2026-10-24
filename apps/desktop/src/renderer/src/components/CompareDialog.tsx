@@ -8,6 +8,11 @@ import {
   type CompareDiffRow,
   type CompareLoadResult,
 } from '@freecrawl/shared-types';
+import {
+  issueChangeRows,
+  issueKeysText,
+  notComparableSummary,
+} from '../utils/compareNames.js';
 
 interface Props {
   open: boolean;
@@ -38,7 +43,8 @@ const CATEGORY_LABELS: Record<CompareCategory, CategoryDef> = {
 };
 
 export function CompareDialog({ open, onClose }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const [result, setResult] = useState<CompareLoadResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState<CompareCategory>('added');
@@ -187,13 +193,35 @@ export function CompareDialog({ open, onClose }: Props) {
                 <div
                   className="border-b border-surface-800 px-4 py-2 text-[11px] text-amber-300"
                   title={Object.entries(result.notComparable)
-                    .map(([kind, n]) => `${kind}: ${n.reason}`)
+                    .map(([kind, n]) => `${notComparableSummary({ [kind]: n }, t, lang)}: ${n.reason}`)
                     .join('\n')}
                 >
                   {t('compare.notComparable', {
                     defaultValue: 'Not compared: {{kinds}}',
-                    kinds: Object.keys(result.notComparable).join(', '),
+                    kinds: notComparableSummary(result.notComparable, t, lang),
                   })}
+                </div>
+              )}
+              {active === 'issues' && Object.keys(result.issueChanges).length > 0 && (
+                <div className="max-h-40 overflow-auto border-b border-surface-800">
+                  <table className="w-full text-[11px]">
+                    <thead className="sticky top-0 bg-surface-900 text-surface-400">
+                      <tr>
+                        <th className="py-1 px-3 text-left font-medium">{t('compare.issueCheckHeader', { defaultValue: 'Check' })}</th>
+                        <th className="w-24 py-1 px-3 text-right font-medium">{t('compare.issueAppearedHeader', { defaultValue: 'Appeared' })}</th>
+                        <th className="w-24 py-1 px-3 text-right font-medium">{t('compare.issueResolvedHeader', { defaultValue: 'Resolved' })}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {issueChangeRows(result.issueChanges, lang).map((r) => (
+                        <tr key={r.key} className="border-b border-surface-900/60">
+                          <td className="py-1 px-3 text-surface-100">{r.name}</td>
+                          <td className="py-1 px-3 text-right font-mono text-red-300">{r.appeared.toLocaleString()}</td>
+                          <td className="py-1 px-3 text-right font-mono text-emerald-300">{r.resolved.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
               <div className="border-b border-surface-800 px-4 py-2 text-[11px] text-surface-400">
@@ -240,14 +268,14 @@ export function CompareDialog({ open, onClose }: Props) {
                           {r.before === null ? (
                             <span className="text-surface-700">—</span>
                           ) : (
-                            r.before
+                            r.category === 'issues' ? issueKeysText(r.before, lang) : r.before
                           )}
                         </td>
                         <td className="py-1 px-3 font-mono text-[11px] text-emerald-300">
                           {r.after === null ? (
                             <span className="text-surface-700">—</span>
                           ) : (
-                            r.after
+                            r.category === 'issues' ? issueKeysText(r.after, lang) : r.after
                           )}
                         </td>
                       </tr>
