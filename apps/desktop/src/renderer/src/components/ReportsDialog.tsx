@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store.js';
+import { reportSummary } from '../utils/reportSummary.js';
 import { SerpCheckPanel } from './SerpCheckPanel.js';
 import { LinkSuggestionsPanel } from './LinkSuggestionsPanel.js';
 import type {
@@ -910,11 +911,7 @@ export function ReportsDialog({ open, initialKind, onClose }: Props) {
           <span className="ml-auto text-surface-500">
             {loading
               ? t('common.loading', { defaultValue: 'Loading…' })
-              : t('reports.summary', {
-                  defaultValue: '{{rows}} rows · {{urls}} URLs',
-                  rows: rows.length.toLocaleString(),
-                  urls: total.toLocaleString(),
-                })}
+              : reportSummary(kind, rows.length, total, t)}
           </span>
           )}
         </div>
