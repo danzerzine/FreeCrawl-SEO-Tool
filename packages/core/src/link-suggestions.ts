@@ -113,9 +113,42 @@ class GrowU8 {
   }
 }
 
-interface Candidate {
+export interface Candidate {
   idx: number;
   closeness: number;
+}
+
+/**
+ * The best `perTarget` sources of one target, best first. `touched[0..count)` are the sources the
+ * walk reached and `scratch[s]` their summed term weight; a closeness is that weight over the two
+ * pages' norms, in whole percent. Sources under `minCloseness` or with a zero norm drop out;
+ * `better` breaks ties (negative: the first argument ranks higher).
+ */
+export function rankCandidates(
+  touched: Int32Array,
+  count: number,
+  scratch: Float32Array,
+  norm: Float64Array,
+  target: number,
+  minCloseness: number,
+  perTarget: number,
+  better: (a: Candidate, b: Candidate) => number,
+): Candidate[] {
+  const top: Candidate[] = [];
+  for (let n = 0; n < count; n++) {
+    const s = touched[n]!;
+    const denom = norm[target]! * norm[s]!;
+    if (denom === 0) continue;
+    const closeness = Math.min(100, Math.round((100 * scratch[s]!) / denom));
+    if (closeness < minCloseness) continue;
+    const cand: Candidate = { idx: s, closeness };
+    if (top.length === perTarget && better(cand, top[top.length - 1]!) >= 0) continue;
+    let at = top.length;
+    while (at > 0 && better(cand, top[at - 1]!) < 0) at--;
+    top.splice(at, 0, cand);
+    if (top.length > perTarget) top.pop();
+  }
+  return top;
 }
 
 /**
@@ -475,23 +508,8 @@ export function linkSuggestions(
           }
         }
       };
-      const pick = (): Candidate[] => {
-        const top: Candidate[] = [];
-        for (let n = 0; n < nt; n++) {
-          const s = touched[n]!;
-          const denom = norm[t]! * norm[s]!;
-          if (denom === 0) continue;
-          const closeness = Math.min(100, Math.round((100 * scratch[s]!) / denom));
-          if (closeness < minCloseness) continue;
-          const cand: Candidate = { idx: s, closeness };
-          if (top.length === perTarget && better(cand, top[top.length - 1]!) >= 0) continue;
-          let at = top.length;
-          while (at > 0 && better(cand, top[at - 1]!) < 0) at--;
-          top.splice(at, 0, cand);
-          if (top.length > perTarget) top.pop();
-        }
-        return top;
-      };
+      const pick = (): Candidate[] =>
+        rankCandidates(touched, nt, scratch, norm, t, minCloseness, perTarget, better);
 
       walk(0, TERMS_PER_WALK);
       let top = pick();

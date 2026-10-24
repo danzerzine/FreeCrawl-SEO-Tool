@@ -203,9 +203,10 @@ export interface RunExportItemsOptions {
   /** Thresholds of `dataset:link-suggestions` (CLI `--max-inlinks`, `--per-target`, ...). */
   linkSuggestions?: LinkSuggestionInput;
   /**
-   * How `dataset:link-suggestions` is computed. Without it the report runs in this thread (fine for
-   * the CLI); the desktop passes one that uses the worker thread so a saved set or a schedule never
-   * freezes the main process. `null` = the crawl did not compute inlinks.
+   * How `dataset:link-suggestions` is computed. Without it the report runs in the capped worker
+   * on `projectFile` (the CLI's path), and in this thread only when there is no file or no built
+   * worker. The desktop passes one that uses its own bundled worker so a saved set or a schedule
+   * never freezes the main process. `null` = the crawl did not compute inlinks.
    */
   linkSuggestionsRunner?: (input: LinkSuggestionInput) => Promise<LinkSuggestionResult | null>;
 }
