@@ -46,6 +46,22 @@ const CASES: Record<string, string> = {
   'opener and closer touching': '<script></script>x<style></style>y',
   'comment holding a script': 'a<!-- <script>x</script> -->b',
   'unicode that changes length when lowercased': 'İİİ<script>x</script>Ünï<SCRIPT>y</SCRIPT>ſ<style>z</style>K',
+  'comment holding a greater-than': 'a<!-- a > b -->c',
+  'unterminated comment': 'before <!--foo and more text',
+  'unterminated comment holding a tag end': 'before <!--foo>bar baz',
+  'unterminated comment after a closed one': 'a<!-- x -->b<!--never closed <i>c</i>',
+  'empty tag': 'a<>b <> c',
+  'trailing less-than': 'a < b and c <',
+  'less-than before an empty tag': 'x<<>y',
+  'less-than inside a tag': 'a<a<b>c',
+  'tag across lines': 'a<a\nhref="x"\n>b',
+  'comment closer at once': 'a<!---->b<!-->c-->d',
+  'nested-ish comments': 'a<!-- one <!-- two --> three -->b',
+  'comment then tag': '<!-- c --><p>text</p><!-- d --><b>',
+  'tag then comment': '<p><!-- c -->text',
+  'comments mixed with script blocks':
+    'a<!-- <script> -->b<script>x<!-- y</script>c<style><!-- z --></style>d<!--e-->f<script>never closed <!-- g -->',
+  'comment opener inside an unterminated script': 'x<!-- k --> <script>var s = "<!--"; <b>',
   'non-latin text': '<p>Привет, мир</p><script>alert(1)</script><p>Ещё текст</p>',
 };
 
@@ -84,5 +100,27 @@ describe('stripHtml: speed on many unclosed openers', () => {
       expect(out).toBe('intro');
       expect(ms).toBeLessThan(50);
     }
+  });
+});
+
+describe('stripHtml: speed on many unclosed comment and tag openers', () => {
+  it('64k "<!--" openers with no closing "-->" strip in well under 50 ms', () => {
+    const html = 'intro text ' + '<!--'.repeat(64_000);
+    const t0 = performance.now();
+    const out = stripHtml(html);
+    const ms = performance.now() - t0;
+    console.log(`strip-html speed: 64k unclosed <!-- openers (${html.length} chars) -> ${ms.toFixed(2)} ms`);
+    expect(out).toBe(html.trim());
+    expect(ms).toBeLessThan(50);
+  });
+
+  it('64k "<a" openers with no ">" strip in well under 50 ms', () => {
+    const html = 'intro text ' + '<a'.repeat(64_000);
+    const t0 = performance.now();
+    const out = stripHtml(html);
+    const ms = performance.now() - t0;
+    console.log(`strip-html speed: 64k unclosed <a openers (${html.length} chars) -> ${ms.toFixed(2)} ms`);
+    expect(out).toBe(html.trim());
+    expect(ms).toBeLessThan(50);
   });
 });
