@@ -3703,18 +3703,12 @@ export class Crawler extends EventEmitter {
     // resources, iframes, redirect hops, resume) funnels through here.
     if (!this.config.checkExternalLinks) return;
     if (this.externalSeen.has(url)) return;
-    // Bound external discovery the same way internal crawling is bounded.
-    // Without these caps `externalSeen` and the probe queue grow without
-    // limit on sites with a huge external-link graph (directories,
-    // aggregators) — the internal `enqueue` has the same guards.
+    // Bound external discovery by `maxUrls`: without it `externalSeen` and
+    // the probe queue grow without limit on sites with a huge external-link
+    // graph (directories, aggregators). `maxQueueSize` caps the internal
+    // page queue only; applying it here would silently leave external links
+    // unchecked, since probes run at crawl speed and keep the queue full.
     if (this.externalSeen.size >= this.config.maxUrls) return;
-    if (
-      this.config.maxQueueSize > 0 &&
-      this.externalQueue.size + this.externalQueue.pending >=
-        this.config.maxQueueSize
-    ) {
-      return;
-    }
     if (!this.passesUrlFilter(url)) return;
     this.externalSeen.add(url);
     this.externalQueue
