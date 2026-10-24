@@ -1111,7 +1111,19 @@
     "beforeHeader": "Əvvəl",
     "afterHeader": "Sonra",
     "noDiffs": "Bu kateqoriyada fərq yoxdur.",
-    "notComparable": "Müqayisə olunmadı: {{kinds}}"
+    "notComparable": "Müqayisə olunmadı: {{kinds}}",
+    "kind": {
+      "depth": "Depth",
+      "structured_data": "Structured data",
+      "content": "Content",
+      "outlinks": "Outlinks"
+    },
+    "pages_one": "{{count}} page",
+    "pages_other": "{{count}} pages",
+    "issueChangesTitle": "Pages per check",
+    "issueCheckHeader": "Check",
+    "issueAppearedHeader": "Appeared",
+    "issueResolvedHeader": "Resolved"
   },
   "scheduled": {
     "title": "Cədvəlli tarama",

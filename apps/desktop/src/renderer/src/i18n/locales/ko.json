@@ -1088,7 +1088,19 @@
     "beforeHeader": "이전",
     "afterHeader": "이후",
     "noDiffs": "이 범주에는 차이가 없습니다.",
-    "notComparable": "비교 불가: {{kinds}}"
+    "notComparable": "비교 불가: {{kinds}}",
+    "kind": {
+      "depth": "Depth",
+      "structured_data": "Structured data",
+      "content": "Content",
+      "outlinks": "Outlinks"
+    },
+    "pages_one": "{{count}} page",
+    "pages_other": "{{count}} pages",
+    "issueChangesTitle": "Pages per check",
+    "issueCheckHeader": "Check",
+    "issueAppearedHeader": "Appeared",
+    "issueResolvedHeader": "Resolved"
   },
   "scheduled": {
     "title": "예약 크롤",

@@ -1134,7 +1134,19 @@
     "beforeHeader": "Prima",
     "afterHeader": "Dopo",
     "noDiffs": "Nessuna differenza in questa categoria.",
-    "notComparable": "Non confrontato: {{kinds}}"
+    "notComparable": "Non confrontato: {{kinds}}",
+    "kind": {
+      "depth": "Depth",
+      "structured_data": "Structured data",
+      "content": "Content",
+      "outlinks": "Outlinks"
+    },
+    "pages_one": "{{count}} page",
+    "pages_other": "{{count}} pages",
+    "issueChangesTitle": "Pages per check",
+    "issueCheckHeader": "Check",
+    "issueAppearedHeader": "Appeared",
+    "issueResolvedHeader": "Resolved"
   },
   "scheduled": {
     "title": "Scansione pianificata",

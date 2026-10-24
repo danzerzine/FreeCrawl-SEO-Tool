@@ -1088,7 +1088,19 @@
     "beforeHeader": "之前",
     "afterHeader": "之后",
     "noDiffs": "此类别下没有差异。",
-    "notComparable": "无法比较：{{kinds}}"
+    "notComparable": "无法比较：{{kinds}}",
+    "kind": {
+      "depth": "Depth",
+      "structured_data": "Structured data",
+      "content": "Content",
+      "outlinks": "Outlinks"
+    },
+    "pages_one": "{{count}} page",
+    "pages_other": "{{count}} pages",
+    "issueChangesTitle": "Pages per check",
+    "issueCheckHeader": "Check",
+    "issueAppearedHeader": "Appeared",
+    "issueResolvedHeader": "Resolved"
   },
   "scheduled": {
     "title": "定时抓取",
