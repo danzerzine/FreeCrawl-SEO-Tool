@@ -2436,6 +2436,7 @@ export class Crawler extends EventEmitter {
         const entry = unprobed[idx];
         if (!entry) return;
         await this.probeTick(progress);
+        if (this.stopped) return;
         // SSRF guard — same as probeExternal: an image `src` can point at an
         // internal address just as a link can.
         if (isPrivateHost(entry.src) && !isPrivateHost(this.config.startUrl)) {
@@ -2548,6 +2549,7 @@ export class Crawler extends EventEmitter {
         const url = urls[idx];
         if (!url) return;
         await this.probeTick(progress);
+        if (this.stopped) return;
         try {
           const result = await probeManifest(url, {
             userAgent: this.resolveUserAgent(url),
@@ -2734,6 +2736,7 @@ export class Crawler extends EventEmitter {
         const src = urls[idx];
         if (!src) return;
         await this.probeTick(progress);
+        if (this.stopped) return;
         let dims: { width: number; height: number } | null = null;
         try {
           dims = await probeSocialImageDimensions(src, {
@@ -2820,6 +2823,7 @@ export class Crawler extends EventEmitter {
         const src = pages[idx];
         if (!src) return;
         await this.probeTick(progress);
+        if (this.stopped) return;
         const fetched = await fetchForParity(src.url, userAgent, {
           acceptLanguage: this.config.acceptLanguage,
           customHeaders: this.config.customHeaders,
@@ -2900,6 +2904,7 @@ export class Crawler extends EventEmitter {
         const url = urls[idx];
         if (!url) return;
         await this.probeTick(progress);
+        if (this.stopped) return;
         try {
           const result = await probePdfMetadata(url, {
             userAgent: this.resolveUserAgent(url),
@@ -3031,6 +3036,7 @@ export class Crawler extends EventEmitter {
         const host = hosts[idx];
         if (!host) return;
         await this.probeTick(progress);
+        if (this.stopped) return;
         try {
           const info = await probeTlsCert(
             host,
@@ -4994,7 +5000,7 @@ export class Crawler extends EventEmitter {
     // Waited in short steps so Stop is not held up by a 30 s pause; the
     // cooldown may also grow while this worker waits.
     while (this.config.adaptiveSpeed && !this.stopped && this.adaptiveCooldownUntil > Date.now()) {
-      await sleep(Math.min(250, this.adaptiveCooldownUntil - Date.now()));
+      await this.untilStopped(sleep(Math.min(250, this.adaptiveCooldownUntil - Date.now())));
     }
     // A robots.txt `Crawl-delay` means "one request every N seconds to this
     // origin" — a *global* spacing, not a per-worker one. Applying it as a
@@ -5018,7 +5024,8 @@ export class Crawler extends EventEmitter {
     const slot = reserveSlot(this.nextDispatchAt, minInterval, now);
     this.nextDispatchAt = slot.next;
     const waitMs = slot.scheduled - now;
-    if (waitMs > 0 && !this.stopped) await sleep(waitMs);
+    // Stop cuts the wait short (B191); callers check `stopped` after it.
+    if (waitMs > 0 && !this.stopped) await this.untilStopped(sleep(waitMs));
   }
 
   // ==================================================================
