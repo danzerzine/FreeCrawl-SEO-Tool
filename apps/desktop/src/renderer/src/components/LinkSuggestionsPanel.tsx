@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { LinkSuggestionResult, LinkSuggestionRow } from '@freecrawl/shared-types';
+import type {
+  LinkSuggestionInput,
+  LinkSuggestionResult,
+  LinkSuggestionRow,
+} from '@freecrawl/shared-types';
 import { InfoTip } from './InfoTip.js';
 
 const INFO_TIP =
@@ -49,6 +53,8 @@ export function LinkSuggestionsPanel() {
   const [saved, setSaved] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const request = useRef(0);
+  /** Thresholds of the shown result: the CSV is the report for these. */
+  const shown = useRef<LinkSuggestionInput | null>(null);
 
   // Closing the dialog (or leaving this tab) stops the report running on the worker.
   useEffect(
@@ -89,13 +95,10 @@ export function LinkSuggestionsPanel() {
     setError(null);
     setSaved(null);
     try {
-      const r = await window.freecrawl.reportsLinkSuggestions({
-        maxInlinks,
-        perTarget,
-        perSource,
-        minCloseness,
-      });
+      const input = { maxInlinks, perTarget, perSource, minCloseness };
+      const r = await window.freecrawl.reportsLinkSuggestions(input);
       if (mine !== request.current) return;
+      shown.current = r === null ? null : input;
       setNotComputed(r === null);
       setResult(r);
       setOpen(new Set());
@@ -111,9 +114,20 @@ export function LinkSuggestionsPanel() {
   };
 
   const exportCsv = async () => {
-    if (!result) return;
-    const r = await window.freecrawl.reportsLinkSuggestionsExport(result.rows);
-    setSaved(r.filePath || null);
+    if (!result || !shown.current) return;
+    // The main process runs the report again for the thresholds that made this result and
+    // writes the file itself: the rows are not sent back.
+    setSaved(null);
+    setLoading(true);
+    try {
+      const r = await window.freecrawl.reportsLinkSuggestionsExport(shown.current);
+      setSaved(r.filePath || null);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(/Link suggestions cancelled/.test(message) ? null : message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggle = (url: string) =>

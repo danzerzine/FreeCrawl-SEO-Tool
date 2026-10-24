@@ -100,7 +100,6 @@ import {
   type TopWordsBlock,
   type LinkSuggestionInput,
   type LinkSuggestionResult,
-  type LinkSuggestionRow,
   type TopWordsInput,
   type SerpCheckInput,
   type SerpRowResult,
@@ -494,8 +493,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.reportsLinkSuggestions, input),
   reportsLinkSuggestionsCancel: (): Promise<void> =>
     ipcRenderer.invoke(IPC.reportsLinkSuggestionsCancel),
-  reportsLinkSuggestionsExport: (rows: LinkSuggestionRow[]): Promise<ExportCsvResult> =>
-    ipcRenderer.invoke(IPC.reportsLinkSuggestionsExport, rows),
+  reportsLinkSuggestionsExport: (input: LinkSuggestionInput): Promise<ExportCsvResult> =>
+    ipcRenderer.invoke(IPC.reportsLinkSuggestionsExport, input),
   reportsSerpCheck: (input: SerpCheckInput): Promise<SerpRowResult[]> =>
     ipcRenderer.invoke(IPC.reportsSerpCheck, input),
   prefsExportSettings: (input: SettingsExportInput): Promise<SettingsExportResult> =>

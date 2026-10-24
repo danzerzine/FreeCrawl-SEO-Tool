@@ -122,7 +122,6 @@ import {
   type TopWordsBlock,
   type LinkSuggestionInput,
   type LinkSuggestionResult,
-  type LinkSuggestionRow,
   type TopWordsInput,
   type SerpCheckInput,
   type SerpRowResult,
@@ -345,8 +344,7 @@ import {
   validateRobotsTxt,
   topWordsBlocksAsync,
   runLinkSuggestionsInWorker,
-  datasetRows,
-  buildCsvTable,
+  LINK_SUGGESTIONS_NOT_COMPUTED,
   checkSerpInput,
   fetchSitemaps,
   validateFetchedSitemaps,
@@ -5628,19 +5626,23 @@ function registerIpc(): void {
   });
   registerHandle(
     IPC.reportsLinkSuggestionsExport,
-    async (_e, rows: LinkSuggestionRow[]): Promise<ExportCsvResult> => {
+    async (_e, input: LinkSuggestionInput): Promise<ExportCsvResult> => {
       const res = await dialog.showSaveDialog(mainWindow!, {
         defaultPath: 'link-suggestions.csv',
         filters: [{ name: 'CSV', extensions: ['csv'] }],
       });
       if (res.canceled || !res.filePath) return { filePath: '', rowsWritten: 0 };
-      const cols = EXPORT_DATASET_COLUMNS['link-suggestions'].map((c) => ({
-        key: c.key,
-        label: c.header,
-      }));
-      const out = [...datasetRows(getDb(), 'link-suggestions', { linkSuggestions: rows })];
-      await writeFile(res.filePath, `\uFEFF${buildCsvTable(cols, out)}\n`, 'utf8');
-      return { filePath: res.filePath, rowsWritten: out.length };
+      // B189: the report runs on the worker like the tab's (not from rows sent back by the
+      // window), and the file is streamed by the same writer as `dataset:link-suggestions`.
+      const report = await computeLinkSuggestions(input ?? {});
+      if (report === null) throw new Error(LINK_SUGGESTIONS_NOT_COMPUTED);
+      const r = await exportTabular(getDb(), res.filePath, {
+        format: 'csv',
+        sections: [{ label: 'Link Suggestions', dataset: 'link-suggestions' }],
+        columns: EXPORT_DATASET_COLUMNS['link-suggestions'].map((c) => c.key),
+        datasetContext: { linkSuggestions: report.rows },
+      });
+      return { filePath: res.filePath, rowsWritten: r.rowsWritten };
     },
   );
   // B85: pure check of pasted text, no project read and no storage.

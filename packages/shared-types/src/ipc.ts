@@ -20,7 +20,6 @@ import type {
   Indexability,
   LinkSuggestionInput,
   LinkSuggestionResult,
-  LinkSuggestionRow,
   LinkTargetReportInput,
   LinkTargetRow,
   OverviewCounts,
@@ -333,8 +332,8 @@ export const IPC = {
   reportsTopWordsBlocks: 'reports:top-words-blocks',
   /** B93: internal-link suggestions, computed on a dedicated worker. */
   reportsLinkSuggestions: 'reports:link-suggestions',
-  /** B93: save the rows the tab shows as CSV (asks for the file). */
   reportsLinkSuggestionsCancel: 'reports:link-suggestions-cancel',
+  /** B189: save the report as CSV (asks for the file); the main process runs it again on the worker. */
   reportsLinkSuggestionsExport: 'reports:link-suggestions-export',
   /** B85: check pasted titles and descriptions against the snippet limits; nothing is fetched or stored. */
   reportsSerpCheck: 'reports:serp-check',
@@ -2614,7 +2613,8 @@ export interface FreeCrawlApi {
   reportsLinkSuggestions(input: LinkSuggestionInput): Promise<LinkSuggestionResult | null>;
   /** Stops the running link-suggestions report of this window (dialog closed). */
   reportsLinkSuggestionsCancel(): Promise<void>;
-  reportsLinkSuggestionsExport(rows: LinkSuggestionRow[]): Promise<ExportCsvResult>;
+  /** B189: the report for these thresholds written to a file the user picks, without the rows passing through the window. */
+  reportsLinkSuggestionsExport(input: LinkSuggestionInput): Promise<ExportCsvResult>;
   /** B85 SERP-lite: pasted text or rows against the limits (project's or given); no storage, no fetch. */
   reportsSerpCheck(input: SerpCheckInput): Promise<SerpRowResult[]>;
   /** Heartbeat: renderer reports its latest input-lag sample (ms). */
