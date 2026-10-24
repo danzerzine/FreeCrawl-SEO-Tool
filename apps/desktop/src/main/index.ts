@@ -5765,6 +5765,10 @@ function registerIpc(): void {
     if (!outputDir) return { outputDir: '', files: 0, errors: 0 };
     const r = await runSavedExportSet(sess.getDb(), outputDir, name, {
       branding: readReportBranding(),
+      audit: {
+        lang: getMenuLang() === 'ru' ? 'ru' : 'en',
+        ...(sess.lastCrawlConfig ? { crawlConfig: sess.lastCrawlConfig } : {}),
+      },
       ...bulkExportMeta(sess),
       // B93: dataset:link-suggestions runs on the worker, not on the main process.
       linkSuggestionsRunner: (input) => runLinkSuggestionsOffThread(sess, input),

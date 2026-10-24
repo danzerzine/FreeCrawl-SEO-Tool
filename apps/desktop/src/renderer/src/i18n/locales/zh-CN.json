@@ -348,6 +348,7 @@
     "saveFailed": "无法保存导出集",
     "deleteFailed": "无法删除导出集",
     "tokenIssues": "问题摘要",
+    "tokenAudit": "审计报告 (HTML)",
     "groupExports": "完整导出",
     "groupLinks": "链接报告",
     "groupTabs": "标签页",

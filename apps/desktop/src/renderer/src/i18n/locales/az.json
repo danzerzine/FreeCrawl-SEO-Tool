@@ -353,6 +353,7 @@
     "saveFailed": "Dəsti saxlamaq alınmadı",
     "deleteFailed": "Dəsti silmək alınmadı",
     "tokenIssues": "Problemlərin xülasəsi",
+    "tokenAudit": "Audit hesabatı (HTML)",
     "groupExports": "Tam ixraclar",
     "groupLinks": "Keçid hesabatları",
     "groupTabs": "Tablar",

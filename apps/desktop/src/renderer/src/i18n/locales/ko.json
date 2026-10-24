@@ -348,6 +348,7 @@
     "saveFailed": "세트를 저장할 수 없습니다",
     "deleteFailed": "세트를 삭제할 수 없습니다",
     "tokenIssues": "문제 요약",
+    "tokenAudit": "감사 보고서 (HTML)",
     "groupExports": "전체 내보내기",
     "groupLinks": "링크 보고서",
     "groupTabs": "탭",

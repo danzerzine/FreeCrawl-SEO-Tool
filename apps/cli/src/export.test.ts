@@ -276,6 +276,20 @@ describe('freecrawl export', () => {
     expect(walk(out).filter((f) => f.endsWith('.part'))).toEqual([]);
   });
 
+  it('audit writes audit.html in the --lang language; a bad --lang exits 2', () => {
+    const out = path.join(dir, 'audit');
+    const r = run(['export', '--project', project, '--out', out, '--what', 'audit', '--lang', 'en', '--json']);
+    expect(r.status, r.stderr).toBe(0);
+    const html = fs.readFileSync(path.join(out, 'audit.html'), 'utf8');
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain('All problems in order');
+    const files = (JSON.parse(r.stdout) as { files: { path: string; label: string }[] }).files;
+    expect(files.map((f) => f.label)).toEqual(['Audit Report']);
+    const bad = run(['export', '--project', project, '--out', path.join(dir, 'audit-bad'), '--what', 'audit', '--lang', 'de', '--json']);
+    expect(bad.status).toBe(2);
+    expect(bad.stdout).toContain('--lang must be ru or en');
+  });
+
   it('writes the four link-target reports, one row per target', () => {
     const out = path.join(dir, 'links');
     const r = run(['export', '--project', project, '--out', out, '--json', '--what',

@@ -358,6 +358,7 @@
     "saveFailed": "No se pudo guardar el conjunto",
     "deleteFailed": "No se pudo eliminar el conjunto",
     "tokenIssues": "Resumen de problemas",
+    "tokenAudit": "Informe de auditoría (HTML)",
     "groupExports": "Exportaciones completas",
     "groupLinks": "Informes de enlaces",
     "groupTabs": "Pestañas",

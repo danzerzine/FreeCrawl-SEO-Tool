@@ -353,6 +353,7 @@
     "saveFailed": "सेट सहेजा नहीं जा सका",
     "deleteFailed": "सेट मिटाया नहीं जा सका",
     "tokenIssues": "समस्याओं का सारांश",
+    "tokenAudit": "ऑडिट रिपोर्ट (HTML)",
     "groupExports": "पूर्ण निर्यात",
     "groupLinks": "लिंक रिपोर्ट",
     "groupTabs": "टैब",

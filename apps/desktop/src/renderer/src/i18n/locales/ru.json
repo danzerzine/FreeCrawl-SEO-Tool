@@ -364,6 +364,7 @@
     "saveFailed": "Не удалось сохранить набор",
     "deleteFailed": "Не удалось удалить набор",
     "tokenIssues": "Сводка проблем",
+    "tokenAudit": "Отчёт-аудит (HTML)",
     "groupExports": "Целые выгрузки",
     "groupLinks": "Отчёты по ссылкам",
     "groupTabs": "Вкладки",

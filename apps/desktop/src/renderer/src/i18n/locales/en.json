@@ -354,6 +354,7 @@
     "saveFailed": "Could not save the set",
     "deleteFailed": "Could not delete the set",
     "tokenIssues": "Issues summary",
+    "tokenAudit": "Audit report (HTML)",
     "groupExports": "Whole exports",
     "groupLinks": "Link reports",
     "groupTabs": "Tabs",

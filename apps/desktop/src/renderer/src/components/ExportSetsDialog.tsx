@@ -78,6 +78,8 @@ export function ExportSetsDialog({ open, onClose }: ExportSetsDialogProps) {
         return t('scheduled.exportSeoAudit', { defaultValue: 'SEO Audit (Screaming Frog layout)' });
       case 'html':
         return t('scheduled.exportHtml', { defaultValue: 'HTML report' });
+      case 'audit':
+        return t('exportSets.tokenAudit', { defaultValue: 'Audit report (HTML)' });
       case 'issues':
         return t('exportSets.tokenIssues', { defaultValue: 'Issues summary' });
     }

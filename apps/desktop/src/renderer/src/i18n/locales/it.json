@@ -358,6 +358,7 @@
     "saveFailed": "Impossibile salvare il set",
     "deleteFailed": "Impossibile eliminare il set",
     "tokenIssues": "Riepilogo dei problemi",
+    "tokenAudit": "Report di audit (HTML)",
     "groupExports": "Esportazioni complete",
     "groupLinks": "Report sui link",
     "groupTabs": "Schede",

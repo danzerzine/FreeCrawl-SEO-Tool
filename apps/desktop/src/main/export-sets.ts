@@ -37,7 +37,7 @@ export function exportSetChoices(): ExportSetChoiceGroup[] {
   const byPrefix = (prefix: string) =>
     [...labels].filter(([c]) => c.startsWith(prefix)).map(([token, l]) => ({ token, label: l.join(', ') }));
   return [
-    { group: 'exports', choices: ['bulk', 'seo-audit', 'html', 'issues'].map((token) => ({ token })) },
+    { group: 'exports', choices: ['bulk', 'seo-audit', 'html', 'audit', 'issues'].map((token) => ({ token })) },
     { group: 'links', choices: LINK_TARGET_EXPORTS.map((r) => ({ token: r.report, label: r.label })) },
     { group: 'tabs', choices: byPrefix('tab:') },
     { group: 'issues', choices: byPrefix('issues:') },

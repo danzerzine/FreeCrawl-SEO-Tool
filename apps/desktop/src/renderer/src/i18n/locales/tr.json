@@ -353,6 +353,7 @@
     "saveFailed": "Set kaydedilemedi",
     "deleteFailed": "Set silinemedi",
     "tokenIssues": "Sorun özeti",
+    "tokenAudit": "Denetim raporu (HTML)",
     "groupExports": "Tam dışa aktarmalar",
     "groupLinks": "Bağlantı raporları",
     "groupTabs": "Sekmeler",

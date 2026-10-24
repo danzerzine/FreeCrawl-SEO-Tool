@@ -358,6 +358,7 @@
     "saveFailed": "Impossible d'enregistrer l'ensemble",
     "deleteFailed": "Impossible de supprimer l'ensemble",
     "tokenIssues": "Résumé des problèmes",
+    "tokenAudit": "Rapport d'audit (HTML)",
     "groupExports": "Exports complets",
     "groupLinks": "Rapports de liens",
     "groupTabs": "Onglets",

@@ -275,6 +275,9 @@ export options:
                         bulk        one CSV per tab / issue check with rows, plus links-internal/external.csv
                         seo-audit   Screaming Frog-style SEO Audit files in <dir>/seo-audit
                         html        single-file HTML report (report.html)
+                        audit       single-file HTML crawl audit (audit.html): summary, fixes in order,
+                                    a 0-100 health score, click depth, sitemap, sections and, when search
+                                    traffic was pulled, pages against search visits. Language: --lang
                         issues      issues-summary.csv: check key, label, group, severity, URLs, items,
                                     previous crawl's count, change since
                         screenshots screenshots/ (the PNGs of the project's .screenshots folder, named
@@ -324,7 +327,7 @@ export options:
                                     reports need the redirect-chain pass of the crawl ("not computed" else)
                       Checks turned off in Settings → Issues are skipped, as in the desktop app.
                       Issue lists computed by an older version of the checks are recomputed first
-                        when the run reads them (bulk, seo-audit, html, issues, issues:<key>,
+                        when the run reads them (bulk, seo-audit, html, audit, issues, issues:<key>,
                         dataset:issues-long / issue-inlinks): in place in a CLI crawl database (the
                         same derived data a crawl writes), in the working copy of a desktop-saved one.
   --urls <file>       URLs to export the links of, one per line, as stored in the project. Writes
@@ -332,7 +335,9 @@ export options:
                         pages, columns of the Inlinks / Outlinks tabs). Without --what, only these two
                         files are written; with it, they are added. URLs not in the project are listed
                         in errors and on stderr (exit 1); exit 2 when none is in the project.
-  --config <file>     With --what pdfs or pdf-text: crawl config to take the user agent and headers from
+  --config <file>     With --what pdfs or pdf-text: crawl config to take the user agent and headers from;
+                        with --what audit: the page limit, robots.txt and user agent of the method notes
+  --lang <ru|en>      With --what audit: report language (default ru)
   --max-bytes <n>     With --what pdfs or pdf-text: stop downloading after n bytes in all (default 2 GB)
   --ngram <1|2|3>     With dataset:top-words: words (1) or 2-3 word phrases (default 1)
   --word-locale <l>   With dataset:top-words: stopword list: en, ru, tr or all (default all)
@@ -391,6 +396,7 @@ const CLI_OPTIONS = {
   'max-bytes': { type: 'string' },
   ngram: { type: 'string' },
   'word-locale': { type: 'string' },
+  lang: { type: 'string' },
   'by-section': { type: 'boolean' },
   'section-depth': { type: 'string' },
   'with-bodies': { type: 'boolean' },
@@ -644,6 +650,7 @@ async function main(): Promise<void> {
       rawHeaders: Boolean(values['raw-headers']),
       configPath: values.config,
       maxBytes: values['max-bytes'],
+      lang: values.lang,
       topWords: {
         ngram: values.ngram,
         wordLocale: values['word-locale'],
@@ -2366,6 +2373,8 @@ async function runExport(opts: {
   configPath: string | undefined;
   /** `--max-bytes`: whole-run cap of `--what pdfs`. */
   maxBytes: string | undefined;
+  /** `--lang`: language of `--what audit`. */
+  lang: string | undefined;
   /** B84: flags of `--what dataset:top-words`, as typed. */
   topWords: TopWordsFlags;
   /** B93: flags of `--what dataset:link-suggestions`, as typed. */
@@ -2418,6 +2427,9 @@ async function runExport(opts: {
   if (!opts.out) return fail('--out <dir> is required.');
   const outDir = resolve(opts.out);
   const maxBytes = parseNumeric('max-bytes', opts.maxBytes, PDF_MAX_RUN_BYTES);
+  if (opts.lang !== undefined && opts.lang !== 'ru' && opts.lang !== 'en') {
+    return fail(`--lang must be ru or en (got "${opts.lang}").`);
+  }
   let items: ExportItem[];
   let selectedUrls: string[] = [];
   let topWords: TopWordsBlocksOptions;
@@ -2497,6 +2509,7 @@ async function runExport(opts: {
     const runOptions = {
       rawHeaders: opts.rawHeaders,
       pdfs: { crawlConfig, maxBytes },
+      ...(opts.lang === 'ru' || opts.lang === 'en' ? { audit: { lang: opts.lang as 'ru' | 'en' } } : {}),
       projectFile: resolve(opts.projectPath),
       toolVersion: cliVersion(),
       onProgress: progressLine,

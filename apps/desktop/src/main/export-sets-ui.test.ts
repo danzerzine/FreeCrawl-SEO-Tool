@@ -42,7 +42,7 @@ describe('export set choices (B14)', () => {
     const groups = exportSetChoices();
     const tokens = groups.flatMap((g) => g.choices.map((c) => c.token));
     expect(() => parseExportWhat(tokens.join(','))).not.toThrow();
-    for (const t of ['bulk', 'seo-audit', 'html', 'issues', 'tab:redirects', 'dataset:broken-links',
+    for (const t of ['bulk', 'seo-audit', 'html', 'audit', 'issues', 'tab:redirects', 'dataset:broken-links',
       'error-inlinks', 'redirects-to-error', 'non-indexable-inlinks', 'redirect-inlinks']) {
       expect(tokens).toContain(t);
     }
