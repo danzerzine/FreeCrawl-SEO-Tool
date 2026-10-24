@@ -20,6 +20,7 @@ export {
   TEMPLATE_SHINGLES_META_KEY,
 } from './project-db.js';
 export type {
+  AuditReportPage,
   SeoTextScope,
   UpsertUrlInput,
   ProbeWrite,

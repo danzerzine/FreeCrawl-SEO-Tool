@@ -1846,6 +1846,22 @@ const META_KEYS_KEPT_BY_RESET = [
   'lastStartUrl',
 ] as const;
 
+/** The crawled internal HTML pages the audit report counts (`--what audit`). */
+const AUDIT_PAGES_WHERE = "is_external = 0 AND crawled_at IS NOT NULL AND content_kind = 'html'";
+
+/** One crawled internal HTML page as the audit report reads it. */
+export interface AuditReportPage {
+  id: number;
+  url: string;
+  statusCode: number | null;
+  indexability: string;
+  responseTimeMs: number | null;
+  titleLength: number | null;
+  descriptionLength: number | null;
+  inlinks: number;
+  crawledAt: string;
+}
+
 /** Internal, crawled, indexable HTML pages with a 2xx answer: what an XML sitemap lists. */
 const INDEXABLE_URLS_WHERE = `is_external = 0
          AND content_kind = 'html'
@@ -5545,6 +5561,95 @@ export class ProjectDb {
 
   countSitemapUrls(): number {
     return (this.db.prepare('SELECT COUNT(*) AS c FROM sitemap_urls').get() as { c: number }).c;
+  }
+
+  /**
+   * The crawl as the audit report (`--what audit`) reads it: every crawled
+   * internal HTML page, in id order, with the fields the report counts.
+   */
+  auditReportPages(): AuditReportPage[] {
+    return this.db
+      .prepare(
+        `SELECT id, url, status_code AS statusCode, indexability, response_time_ms AS responseTimeMs,
+                title_length AS titleLength, meta_description_length AS descriptionLength,
+                inlinks, crawled_at AS crawledAt
+           FROM urls
+          WHERE ${AUDIT_PAGES_WHERE}
+          ORDER BY id`,
+      )
+      .all() as unknown as AuditReportPage[];
+  }
+
+  /** Internal URLs of any kind (pages, images, files), for the audit report's method notes. */
+  countInternalUrls(): number {
+    return (this.db.prepare('SELECT COUNT(*) AS c FROM urls WHERE is_external = 0').get() as { c: number }).c;
+  }
+
+  /**
+   * Internal hyperlinks as (source page id, target URL), grouped by source,
+   * for the audit report's click depth from the start page (the stored
+   * `depth` is 0 for every URL seeded from a sitemap).
+   */
+  auditReportHyperlinks(): Iterable<{ fromId: number; toUrl: string }> {
+    return this.db
+      .prepare(
+        `SELECT from_url_id AS fromId, to_url AS toUrl FROM links
+          WHERE is_internal = 1 AND COALESCE(type, 'hyperlink') = 'hyperlink'
+          ORDER BY from_url_id`,
+      )
+      .iterate() as Iterable<{ fromId: number; toUrl: string }>;
+  }
+
+  /** Sitemap URLs against the crawled HTML pages, for the audit report. */
+  auditReportSitemap(): {
+    inSitemap: number;
+    inSitemapNotCrawled: number;
+    indexableNotInSitemap: number;
+    nonIndexableInSitemap: number;
+  } {
+    return this.db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM sitemap_urls) AS inSitemap,
+           (SELECT COUNT(*) FROM sitemap_urls s
+             WHERE NOT EXISTS (SELECT 1 FROM urls WHERE url = s.url AND ${AUDIT_PAGES_WHERE})) AS inSitemapNotCrawled,
+           (SELECT COUNT(*) FROM urls u WHERE ${AUDIT_PAGES_WHERE} AND u.indexability = 'indexable'
+             AND NOT EXISTS (SELECT 1 FROM sitemap_urls WHERE url = u.url)) AS indexableNotInSitemap,
+           (SELECT COUNT(*) FROM urls u WHERE ${AUDIT_PAGES_WHERE} AND u.indexability <> 'indexable'
+             AND EXISTS (SELECT 1 FROM sitemap_urls WHERE url = u.url)) AS nonIndexableInSitemap`,
+      )
+      .get() as {
+      inSitemap: number;
+      inSitemapNotCrawled: number;
+      indexableNotInSitemap: number;
+      nonIndexableInSitemap: number;
+    };
+  }
+
+  /**
+   * Search traffic per URL for the audit report: Metrica search visits when
+   * a counter's rows have any, else Search Console clicks; the account or
+   * counter pulled last. Null when neither table has search traffic.
+   */
+  auditReportSearchTraffic(): {
+    source: 'metrica' | 'gsc';
+    accountId: string;
+    rows: { url: string; value: number }[];
+  } | null {
+    const pick = (table: 'metrica_results' | 'gsc_results', col: 'search_visits' | 'clicks') => {
+      const acc = this.db
+        .prepare(`SELECT account_id AS a FROM ${table} WHERE ${col} > 0 ORDER BY fetched_at DESC LIMIT 1`)
+        .get() as { a: string } | undefined;
+      if (!acc) return null;
+      const rows = this.db
+        .prepare(`SELECT url, ${col} AS value FROM ${table} WHERE account_id = ? AND ${col} > 0`)
+        .all(acc.a) as unknown as { url: string; value: number }[];
+      return { accountId: acc.a, rows };
+    };
+    const metrica = pick('metrica_results', 'search_visits');
+    if (metrica) return { source: 'metrica', ...metrica };
+    const gsc = pick('gsc_results', 'clicks');
+    return gsc ? { source: 'gsc', ...gsc } : null;
   }
 
   /**
