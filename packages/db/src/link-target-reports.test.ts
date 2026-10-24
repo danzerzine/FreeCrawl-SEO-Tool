@@ -16,6 +16,8 @@ const LONG = 'a'.repeat(120);
  * long anchor and target=_blank (70 in the content, 30 in the footer).
  * /z (301 -> /gone, no response) is linked from p1..p3, /gone directly from
  * p4..p5, /y directly from p6, the 200 noindex page /ni from p1..p5.
+ * Every article also links https://other.test/out in a new tab; /own-tab
+ * links only /p1 in a new tab.
  */
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fc-b4a-'));
@@ -36,17 +38,30 @@ beforeEach(() => {
     `(103, '${u('/z')}', 301, 'non-indexable:redirect', '${u('/gone')}', '${u('/gone')}')`,
     `(104, '${u('/gone')}', NULL, 'non-indexable:no-response', NULL, NULL)`,
     `(105, '${u('/ni')}', 200, 'non-indexable:noindex', NULL, NULL)`,
+    `(106, '${u('/own-tab')}', 200, 'indexable', NULL, NULL)`,
   );
   for (let i = 1; i <= 3; i++) links.push(`(${i}, '${u('/z')}', 'z', NULL, 'header')`);
   for (let i = 4; i <= 5; i++) links.push(`(${i}, '${u('/gone')}', 'g', NULL, 'content')`);
   links.push(`(6, '${u('/y')}', 'y', NULL, 'content')`);
   for (let i = 1; i <= 5; i++) links.push(`(${i}, '${u('/ni')}', 'n', NULL, 'sidebar')`);
+  // The same pages link out to another site in a new tab; only that link is a
+  // target=_blank risk, the _blank link to /x stays on the site (B100).
+  const external: string[] = [];
+  for (let i = 1; i <= 100; i++) {
+    external.push(`(${i}, 'https://other.test/out', 'out', '_blank', 'content', 0)`);
+  }
+  // /own-tab opens only a page of its own site in a new tab: not flagged.
+  links.push(`(106, '${u('/p1')}', 'p1', '_blank', 'content')`);
   raw.exec(`
     INSERT INTO project_meta (key, value) VALUES ('redirectChainsComputed', '1');
     INSERT INTO urls (id, url, status_code, indexability, redirect_target, redirect_final_url)
     VALUES ${urls.join(',\n')};
     INSERT INTO links (from_url_id, to_url, anchor, target, link_position)
     VALUES ${links.join(',\n')};
+    INSERT INTO urls (id, url, status_code, indexability, is_external)
+    VALUES (107, 'https://other.test/out', 200, 'indexable', 1);
+    INSERT INTO links (from_url_id, to_url, anchor, target, link_position, is_internal)
+    VALUES ${external.join(',\n')};
   `);
   raw.close();
 });
@@ -134,7 +149,7 @@ describe('link-check issue totals count targets (B63)', () => {
     const blankFlagged = [...db.iterateUrlsByCategory('issues:target-blank-no-noopener')].length;
     db.close();
     expect(issues.internalLinkToRedirect).toBe(2); // /x and /z
-    expect(issues.targetBlankNoNoopener).toBe(1); // /x
+    expect(issues.targetBlankNoNoopener).toBe(1); // other.test/out, not /x
     expect(issues.anchorTextTooLong).toBe(1); // /x
     expect(issues.brokenLinksInternal).toBe(2); // /y and /gone, not 3 links
     expect(flagged).toBe(100);

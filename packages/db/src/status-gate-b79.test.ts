@@ -85,19 +85,19 @@ describe('status gate (B79)', () => {
   it('a materialised link check flags only a source page answered 2xx', () => {
     const raw = new DatabaseSync(file);
     const link = raw.prepare(
-      `INSERT INTO links (from_url_id, to_url, anchor, is_internal, target) VALUES (?, ?, 'x', 1, '_blank')`,
+      `INSERT INTO links (from_url_id, to_url, anchor, is_internal, target) VALUES (?, ?, 'x', 0, '_blank')`,
     );
     for (const [id, name] of [[7, 't1'], [8, 't2'], [9, 't3']] as const) {
       raw
         .prepare(
           `INSERT INTO urls (id, url, status_code, indexability, content_kind, is_external, h1_count)
-           VALUES (?, ?, 200, 'indexable', 'html', 0, 0)`,
+           VALUES (?, ?, 200, 'indexable', 'html', 1, 0)`,
         )
-        .run(id, `https://ex.com/${name}`);
+        .run(id, `https://other.test/${name}`);
     }
-    link.run(1, 'https://ex.com/t1');
-    link.run(3, 'https://ex.com/t2');
-    link.run(4, 'https://ex.com/t3');
+    link.run(1, 'https://other.test/t1');
+    link.run(3, 'https://other.test/t2');
+    link.run(4, 'https://other.test/t3');
     raw.exec('UPDATE urls SET target_blank_no_noopener_count = 1 WHERE id IN (1, 3, 4)');
     raw.close();
     const db = new ProjectDb(file);

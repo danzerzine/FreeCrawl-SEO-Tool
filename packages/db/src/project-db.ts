@@ -14167,7 +14167,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '10';
+export const ISSUE_MATERIALISATION_VERSION = '11';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -14227,8 +14227,12 @@ const LONG_ANCHOR_LINK_SQL = 'anchor IS NOT NULL AND LENGTH(anchor) > 100';
 /** A `links` row (unaliased) whose anchor is a generic phrase ("click here"). */
 const GENERIC_ANCHOR_LINK_SQL = `anchor IS NOT NULL
   AND LOWER(TRIM(anchor)) IN (${GENERIC_ANCHOR_TEXTS.map(sqlString).join(', ')})`;
-/** A `links` row (unaliased) opening a new tab without rel=noopener / noreferrer. */
-const TARGET_BLANK_NO_NOOPENER_LINK_SQL = `LOWER(COALESCE(target, '')) = '_blank'
+/**
+ * A `links` row (unaliased) to another site opening a new tab without
+ * rel=noopener / noreferrer. A link to a page of the same site is no risk (B100).
+ */
+const TARGET_BLANK_NO_NOOPENER_LINK_SQL = `is_internal = 0
+  AND LOWER(COALESCE(target, '')) = '_blank'
   AND (
     rel IS NULL
     OR (LOWER(rel) NOT LIKE '%noopener%' AND LOWER(rel) NOT LIKE '%noreferrer%')
