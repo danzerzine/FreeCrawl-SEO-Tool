@@ -344,7 +344,7 @@ const ORPHAN_PAGE_SQL = `is_external = 0 AND content_kind = 'html'
   AND url != COALESCE((SELECT value FROM project_meta WHERE key = 'lastStartUrl'), '')
   AND EXISTS (SELECT 1 FROM project_meta WHERE key = '${INLINKS_COMPUTED_META_KEY}')`;
 /** A `links` row (unaliased) that is not rel="nofollow". */
-const FOLLOWED_LINK_SQL = `(rel IS NULL OR rel NOT LIKE '%nofollow%')`;
+export const FOLLOWED_LINK_SQL = `(rel IS NULL OR rel NOT LIKE '%nofollow%')`;
 /**
  * Targets of internal links `l` (joined source page: `s`) that are not
  * self-links and match `where`. Uncorrelated: SQLite builds it once per
@@ -10943,6 +10943,36 @@ export class ProjectDb {
     } finally {
       if (--this.mmapOffCalls === 0) this.db.exec(`PRAGMA mmap_size = ${MMAP_SIZE}`);
     }
+  }
+
+  /** Column names of a table; an older project lacks the ones added later. */
+  tableColumns(table: string): Set<string> {
+    const rows = this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    return new Set(rows.map((c) => c.name));
+  }
+
+  /**
+   * Streams the rows of a read-only `sql` one at a time, for a bulk reader that
+   * funnels them into its own structure (no array of all rows).
+   */
+  iterateRows<T>(sql: string): Iterable<T> {
+    return this.db.prepare(sql).iterate() as Iterable<T>;
+  }
+
+  /**
+   * Prepared reader of one page's followed internal link targets (distinct),
+   * sorted and joined by newlines, which a URL cannot hold: '' for none. Per
+   * `from_url_id` through idx_links_from, so no sort or scan of the table.
+   */
+  followedOutlinkReader(): (urlId: number) => string {
+    const stmt = this.db.prepare(
+      `SELECT group_concat(to_url, char(10)) AS targets FROM (
+         SELECT DISTINCT to_url FROM links
+          WHERE from_url_id = ? AND type = 'hyperlink' AND is_internal = 1
+            AND ${FOLLOWED_LINK_SQL}
+          ORDER BY to_url)`,
+    );
+    return (urlId) => (stmt.get(urlId) as { targets: string | null }).targets ?? '';
   }
 
   /** Running `withoutMmap` calls; the map comes back when it drops to 0. */

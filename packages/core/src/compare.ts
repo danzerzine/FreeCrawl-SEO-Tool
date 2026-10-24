@@ -174,28 +174,6 @@ interface MinimalRow {
 }
 
 /**
- * Prepared reader of one page's followed internal link targets (distinct),
- * sorted and joined by newlines, which a URL cannot hold: '' for none. Per
- * `from_url_id` through idx_links_from, so no sort or scan of the table; one
- * string per page instead of a row per link, so equal pages compare as two
- * strings (12 s against 7 s per side on a 261k-page project, B109).
- */
-function outlinkReader(db: ProjectDb): (urlId: number) => string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawDb = (db as any).db as {
-    prepare: (sql: string) => { get: (...args: number[]) => unknown };
-  };
-  const stmt = rawDb.prepare(
-    `SELECT group_concat(to_url, char(10)) AS targets FROM (
-       SELECT DISTINCT to_url FROM links
-        WHERE from_url_id = ? AND type = 'hyperlink' AND is_internal = 1
-          AND (rel IS NULL OR rel NOT LIKE '%nofollow%')
-        ORDER BY to_url)`,
-  );
-  return (urlId) => (stmt.get(urlId) as { targets: string | null }).targets ?? '';
-}
-
-/**
  * The checks each page is flagged by: one bitset per check over `urls.id`,
  * so a 261k-page pair holds a few MB, not a Map of per-page arrays. Membership
  * is the filter behind each check's list (`categoryWhereClause`), so cheap
@@ -400,15 +378,6 @@ async function saveRebuilt(copy: string, path: string): Promise<boolean> {
 
 const COMPARE_COPY_PREFIX = 'freecrawl-compare-';
 
-/** Column names of a table; an older project lacks the ones added later. */
-function columnsOf(db: ProjectDb, table: string): Set<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawDb = (db as any).db as { prepare: (sql: string) => { all: () => unknown[] } };
-  return new Set(
-    (rawDb.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name),
-  );
-}
-
 /** Columns the newer kinds read. A missing one is selected as NULL and its kind is reported as not comparable. */
 const KIND_COLUMNS = ['depth', 'schema_types', 'content_hash', 'content_source'] as const;
 
@@ -470,27 +439,17 @@ function verdictsSql(urlColumns: ReadonlySet<string>): string {
 function loadAll(db: ProjectDb, urlColumns: ReadonlySet<string>): Iterable<MinimalRow> {
   // Pull only the fields the diff needs — keeps memory bounded at 1M
   // URLs (~120 MB for the seven columns vs ~600 MB for the full table).
-  // Reaches into the underlying DatabaseSync via ProjectDb.exec for the
-  // raw SELECT — no public iterator covers exactly this projection and
-  // the diff is a one-shot operation, so we keep the helper here.
-  //
   // Streams rather than returning an array: the caller only ever funnels
   // these into a Map, and `.all()` meant the full row array and the Map
   // built from it were both live at peak — two copies per side, four in
   // total, all on the main thread.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawDb = (db as any).db as {
-    prepare: (sql: string) => { iterate: () => Iterable<unknown> };
-  };
-  return rawDb
-    .prepare(
-      `SELECT id, url, status_code, title, meta_description, h1, canonical,
+  return db.iterateRows<MinimalRow>(
+    `SELECT id, url, status_code, title, meta_description, h1, canonical,
               indexability, response_time_ms, ${KIND_COLUMNS.map((c) => (urlColumns.has(c) ? c : `NULL AS ${c}`)).join(', ')},
               ${verdictsSql(urlColumns)} AS verdicts
          FROM urls
         WHERE is_external = 0 AND content_kind = 'html'`,
-    )
-    .iterate() as Iterable<MinimalRow>;
+  );
 }
 
 /**
@@ -516,22 +475,77 @@ function compactRow(r: MinimalRow): MinimalRow {
   };
 }
 
-const EMPTY_COUNTS: Record<CompareCategory, number> = {
-  added: 0,
-  removed: 0,
-  status: 0,
-  title: 0,
-  meta: 0,
-  h1: 0,
-  canonical: 0,
-  indexability: 0,
-  response_time: 0,
-  depth: 0,
-  content: 0,
-  structured_data: 0,
-  outlinks: 0,
-  issues: 0,
-};
+const EMPTY_COUNTS = Object.fromEntries(COMPARE_CATEGORIES.map((k) => [k, 0])) as Record<
+  CompareCategory,
+  number
+>;
+
+const numberText = (n: number | null): string | null => (n !== null ? String(n) : null);
+
+/** What `differs` reads besides the two rows. */
+interface FieldCtx {
+  /** Maps a URL the way the page's scheme / www move requires (identity for a page that did not move). */
+  key: (url: string) => string;
+  rtThreshold: number;
+}
+
+/**
+ * The kinds read off one page present in both crawls: when the field changed,
+ * and how a side's value shows in the row. `needs` names a column group a kind
+ * is not comparable without (an older project lacks it).
+ */
+const FIELD_KINDS: readonly {
+  category: CompareCategory;
+  needs?: 'depth' | 'schema';
+  differs: (a: MinimalRow, b: MinimalRow, ctx: FieldCtx) => boolean;
+  show: (r: MinimalRow) => string | null;
+}[] = [
+  {
+    category: 'status',
+    differs: (a, b) => a.status_code !== b.status_code,
+    show: (r) => numberText(r.status_code),
+  },
+  {
+    category: 'title',
+    differs: (a, b) => (a.title ?? '') !== (b.title ?? ''),
+    show: (r) => r.title,
+  },
+  {
+    category: 'meta',
+    differs: (a, b) => (a.meta_description ?? '') !== (b.meta_description ?? ''),
+    show: (r) => r.meta_description,
+  },
+  { category: 'h1', differs: (a, b) => (a.h1 ?? '') !== (b.h1 ?? ''), show: (r) => r.h1 },
+  {
+    category: 'canonical',
+    differs: (a, b, { key }) => key(a.canonical ?? '') !== key(b.canonical ?? ''),
+    show: (r) => r.canonical,
+  },
+  {
+    category: 'indexability',
+    differs: (a, b) => a.indexability !== b.indexability,
+    show: (r) => r.indexability,
+  },
+  {
+    // Response-time deltas are always noisy in the small: an absolute-ms floor applies.
+    category: 'response_time',
+    differs: (a, b, { rtThreshold }) =>
+      Math.abs((a.response_time_ms ?? 0) - (b.response_time_ms ?? 0)) >= rtThreshold,
+    show: (r) => (r.response_time_ms !== null ? `${r.response_time_ms} ms` : null),
+  },
+  {
+    category: 'depth',
+    needs: 'depth',
+    differs: (a, b) => a.depth !== b.depth,
+    show: (r) => numberText(r.depth),
+  },
+  {
+    category: 'structured_data',
+    needs: 'schema',
+    differs: (a, b) => (a.schema_types ?? '') !== (b.schema_types ?? ''),
+    show: (r) => r.schema_types,
+  },
+];
 
 export function compareCrawls(
   a: ProjectDb,
@@ -543,8 +557,8 @@ export function compareCrawls(
 
   // Consume each side straight into its Map — no intermediate array.
   const mapA = new Map<string, MinimalRow>();
-  const colsA = columnsOf(a, 'urls');
-  const colsB = columnsOf(b, 'urls');
+  const colsA = a.tableColumns('urls');
+  const colsB = b.tableColumns('urls');
   for (const r of loadAll(a, colsA)) mapA.set(r.url, compactRow(r));
   const mapB = new Map<string, MinimalRow>();
   for (const r of loadAll(b, colsB)) mapB.set(r.url, compactRow(r));
@@ -623,9 +637,9 @@ export function compareCrawls(
   const flagsB = flaggedChecks(b, keys);
   const issueChanges: Record<string, CompareIssueChange> = {};
   let compared = 0;
-  const hasLinkType = columnsOf(a, 'links').has('type') && columnsOf(b, 'links').has('type');
-  const outlinksA = hasLinkType ? outlinkReader(a) : null;
-  const outlinksB = hasLinkType ? outlinkReader(b) : null;
+  const hasLinkType = a.tableColumns('links').has('type') && b.tableColumns('links').has('type');
+  const outlinksA = hasLinkType ? a.followedOutlinkReader() : null;
+  const outlinksB = hasLinkType ? b.followedOutlinkReader() : null;
   // A kind is comparable only when both projects have all the columns it reads.
   const lacking = (...cols: string[]): string[] =>
     cols.filter((c) => !colsA.has(c) || !colsB.has(c));
@@ -646,6 +660,8 @@ export function compareCrawls(
   const verdictBit = keys.map((k) => VERDICT_CHECKS.findIndex((c) => c.key === k));
   const isKindCheck = keys.map((k) => KIND_CHECKS.has(k));
   const partlySkipped = keys.map(() => 0);
+  const notComparableNeeds = { depth: noDepth, schema: noSchema };
+  const fieldKinds = FIELD_KINDS.filter((k) => !k.needs || !notComparableNeeds[k.needs]);
 
   // Field-level changes — present in both, value differs.
   for (const [urlA, ra] of mapA) {
@@ -656,82 +672,12 @@ export function compareCrawls(
     // Only a page that moved across scheme / www reads its targets through the
     // same mapping; elsewhere such a move of a target is a real change.
     const key = pairs.has(urlA) ? urlMapKey : (u: string) => u;
+    const ctx: FieldCtx = { key, rtThreshold };
 
-    if (ra.status_code !== rb.status_code) {
-      push({
-        url,
-        category: 'status',
-        before: ra.status_code !== null ? String(ra.status_code) : null,
-        after: rb.status_code !== null ? String(rb.status_code) : null,
-      });
-    }
-    if ((ra.title ?? '') !== (rb.title ?? '')) {
-      push({
-        url,
-        category: 'title',
-        before: ra.title,
-        after: rb.title,
-      });
-    }
-    if ((ra.meta_description ?? '') !== (rb.meta_description ?? '')) {
-      push({
-        url,
-        category: 'meta',
-        before: ra.meta_description,
-        after: rb.meta_description,
-      });
-    }
-    if ((ra.h1 ?? '') !== (rb.h1 ?? '')) {
-      push({
-        url,
-        category: 'h1',
-        before: ra.h1,
-        after: rb.h1,
-      });
-    }
-    if (key(ra.canonical ?? '') !== key(rb.canonical ?? '')) {
-      push({
-        url,
-        category: 'canonical',
-        before: ra.canonical,
-        after: rb.canonical,
-      });
-    }
-    if (ra.indexability !== rb.indexability) {
-      push({
-        url,
-        category: 'indexability',
-        before: ra.indexability,
-        after: rb.indexability,
-      });
-    }
-    // Response-time deltas are always noisy in the small. Apply a
-    // configurable absolute-ms floor before flagging.
-    const rtA = ra.response_time_ms ?? 0;
-    const rtB = rb.response_time_ms ?? 0;
-    if (Math.abs(rtA - rtB) >= rtThreshold) {
-      push({
-        url,
-        category: 'response_time',
-        before: ra.response_time_ms !== null ? `${ra.response_time_ms} ms` : null,
-        after: rb.response_time_ms !== null ? `${rb.response_time_ms} ms` : null,
-      });
-    }
-    if (!noDepth && ra.depth !== rb.depth) {
-      push({
-        url,
-        category: 'depth',
-        before: ra.depth !== null ? String(ra.depth) : null,
-        after: rb.depth !== null ? String(rb.depth) : null,
-      });
-    }
-    if (!noSchema && (ra.schema_types ?? '') !== (rb.schema_types ?? '')) {
-      push({
-        url,
-        category: 'structured_data',
-        before: ra.schema_types,
-        after: rb.schema_types,
-      });
+    for (const kind of fieldKinds) {
+      if (kind.differs(ra, rb, ctx)) {
+        push({ url, category: kind.category, before: kind.show(ra), after: kind.show(rb) });
+      }
     }
     compared++;
     // The targets are read one page at a time and dropped, so nothing per URL
