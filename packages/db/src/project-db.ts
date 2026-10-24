@@ -1,6 +1,7 @@
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import * as zlib from 'node:zlib';
 import { sectionOf } from './section-of.js';
+import { stripHtml } from './strip-html.js';
 import { STATUS_CODES } from 'node:http';
 import type {
   MobileParityDiff,
@@ -4793,33 +4794,6 @@ export class ProjectDb {
       }
       return h;
     };
-
-    // Rough HTML-to-text — strips `<script>` / `<style>` blocks, then
-    // every remaining tag, then named entities, collapses whitespace,
-    // lowercases. We don't bother with a full cheerio parse because the
-    // boilerplate-detection signal is robust to noise (repeated
-    // navigation copy is repeated whether we get tags right or not),
-    // and the 2K-page pass needs to be fast.
-    const stripHtml = (html: string): string =>
-      html
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
-        // Unterminated trailing block. Bodies arrive truncated (the
-        // crawler's 1 MB snapshot cap, plus the SUBSTR cap below), so the
-        // cut routinely lands inside a <script>. The paired patterns above
-        // need a closing tag to match, so without this the whole minified
-        // bundle survives tag-stripping and becomes "text" — on a real
-        // crawl that turned 400 words of prose into 8,300 JS tokens, and
-        // since those tokens are near-identical across pages every shingle
-        // looked like boilerplate and coverage pinned at 100% site-wide.
-        .replace(/<(?:script|style|noscript)\b[\s\S]*$/i, ' ')
-        .replace(/<!--[\s\S]*?-->/g, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&[#a-z0-9]+;/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .toLowerCase();
 
     const shingleHashes = (text: string): Set<number> => {
       const words = text.split(' ').filter((w) => w.length > 0);
