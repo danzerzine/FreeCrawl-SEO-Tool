@@ -143,7 +143,8 @@ table.mini td.bar-c .meter{width:100%}
 .cols div.o{background:var(--ink-muted)}
 .cols div span{position:absolute;bottom:100%;left:0;right:0;text-align:center;font-size:12px;padding-bottom:3px}
 .cols-l{display:flex;gap:8px;font-size:12px;color:var(--ink-muted);margin-top:6px}
-.cols-l span{flex:1;text-align:center;overflow-wrap:anywhere}
+.cols-l span{flex:1;min-width:0;text-align:center;overflow-wrap:normal;hyphens:manual}
+.cols>:first-child,.cols>:last-child,.cols-l>:first-child,.cols-l>:last-child{flex:1.5}
 .callout{background:var(--soft-fill);border-radius:var(--r-callout);padding:12px 14px;font-size:14px;margin-bottom:14px;max-width:90ch}
 .legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--ink-muted);margin-bottom:6px}
 .path{font-family:var(--font-path);font-size:13px}
@@ -159,12 +160,13 @@ dl.facts dt{color:var(--ink-muted)}dl.facts dd{margin:0;min-width:0;overflow-wra
 @media (max-width:1100px){.start{grid-template-columns:1fr}}
 @media (max-width:860px){.lead{display:contents}.letter{order:1}.start{order:2}.score{order:3}.tiles{order:4}main>*{order:5}.lead{grid-template-columns:1fr}.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.start ol{grid-template-columns:1fr}}
 @media (max-width:720px){.grid2{grid-template-columns:1fr}.share{width:auto}.share .meter{display:none}
+ .cols,.cols-l{gap:4px}.cols-l{font-size:10px}
  table.issues thead{display:none}table.issues tr:not(.grp){display:grid;grid-template-columns:auto 1fr auto;gap:6px 10px;padding:12px 0;border-bottom:1px solid var(--hairline)}
  table.issues td{border:0;padding:0}table.issues td.what{grid-column:1/-1;grid-row:2}table.issues tr.grp{display:block}table.issues tr.grp td{display:block}
  table.issues td.share{text-align:right}.pr .meter{width:110px}.card{padding:16px}.ring{width:150px}}
 @media print{@page{size:A4;margin:12mm}.scroll{overflow:visible}.card{-webkit-box-decoration-break:clone;box-decoration-break:clone}table.data td{padding:6px 8px;font-size:11px}.lead{display:grid}main>*,.start,.tiles{order:0}body{background:var(--card-white);font-size:12px}.bar,main{padding-left:0;padding-right:0}
  .card{break-inside:avoid;border-color:var(--print-hairline)}.card.fixes{break-inside:auto}table.data tr{break-inside:avoid}h2{break-after:avoid}
- .lead{grid-template-columns:1fr 240px}.tiles{grid-template-columns:repeat(4,1fr)}.start{grid-template-columns:1fr}.start ol{grid-template-columns:repeat(3,1fr)}.grid2{grid-template-columns:1fr 1fr}a{color:inherit;text-decoration:none}}
+ .lead{grid-template-columns:1fr 240px}.tiles{grid-template-columns:repeat(4,1fr)}.start{grid-template-columns:1fr}.start ol{grid-template-columns:repeat(3,1fr)}.grid2{grid-template-columns:1fr 1fr}a{color:inherit;text-decoration:none}.cols,.cols-l{gap:5px}.cols-l{font-size:10px}}
 `;
 
 const CHECK_SVG =

@@ -1,6 +1,7 @@
 // Regenerates packages/core/src/audit-report/fonts.generated.ts from the woff2 files in
 // packages/core/assets/audit-fonts (Literata 600, Golos Text 400/500/600; latin and cyrillic
 // subsets of the @fontsource 5.3.0 builds; SIL Open Font License 1.1, texts next to the files).
+// The latin files are patched by scripts/patch-audit-fonts.py (U+202F glyph).
 // The audit report embeds them as data: URLs so the page makes no network request.
 // Run: node packages/core/scripts/gen-audit-fonts.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
