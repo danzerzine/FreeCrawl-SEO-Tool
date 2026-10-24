@@ -199,10 +199,25 @@ describe('adaptive speed on server trouble (B30)', () => {
     expect(run.events[0]?.message).toMatch(/^Adaptive speed: server errors/);
   }, 60_000);
 
-  it('a single answer over 5 s counts as trouble', async () => {
-    delayMs = (hit) => (hit % 3 === 0 ? 400 : 0);
-    const run = await withPause('ADAPTIVE_SLOW_ANSWER_MS', 200, () => crawl({ adaptiveSpeed: true }));
-    expect(run.events[0]?.message).toMatch(/^Adaptive speed: server errors/);
+  it('a single answer over 5 s counts as trouble, the rest do not', async () => {
+    // One slow answer at the normal 5 s threshold; one outcome alone never cuts, so the outcomes are counted.
+    delayMs = (hit) => (hit === 4 ? 5_300 : 0);
+    const outcomes: boolean[] = [];
+    await crawl(
+      { adaptiveSpeed: true, maxUrls: 12, maxRps: 20 },
+      {
+        setup: (c) => {
+          const health = (c as unknown as { serverHealth: ServerHealth }).serverHealth;
+          const note = health.noteOutcome.bind(health);
+          health.noteOutcome = (bad, now) => {
+            outcomes.push(bad);
+            return note(bad, now);
+          };
+        },
+      },
+    );
+    expect(outcomes.length).toBeGreaterThan(4);
+    expect(outcomes.filter(Boolean)).toHaveLength(1);
   }, 60_000);
 
   it('503 answers are rate limiting, not server trouble', async () => {
