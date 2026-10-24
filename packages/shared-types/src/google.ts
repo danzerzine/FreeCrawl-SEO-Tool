@@ -477,6 +477,53 @@ export function ga4PickerFields(fields: Ga4Field[], query: string): Ga4Field[] {
     );
 }
 
+/** B166 — API name → the name GA4 shows (`uiName`), from a field list. */
+export function ga4FieldLabels(fields: Ga4Field[]): Record<string, string> {
+  return Object.fromEntries(fields.map((f) => [f.apiName, f.uiName]));
+}
+
+/** B166 — the GA4 name of a field; the API name when no list is at hand. */
+export function ga4FieldLabel(apiName: string, labels: Record<string, string>): string {
+  return labels[apiName] ?? apiName;
+}
+
+/**
+ * B166 — the picker's list plus the fields already chosen: without a network the list is empty,
+ * but the saved choice still shows (under its API name) and can be unticked.
+ */
+export function ga4PickerFieldsWithSaved(
+  fields: Ga4Field[],
+  metrics: string[],
+  dimensions: string[],
+  query: string,
+): Ga4Field[] {
+  const known = new Set(fields.map((f) => `${f.kind}:${f.apiName}`));
+  const saved = (names: string[], kind: Ga4Field['kind']): Ga4Field[] =>
+    names
+      .filter((n) => !known.has(`${kind}:${n}`))
+      .map((apiName) => ({
+        apiName,
+        uiName: apiName,
+        description: '',
+        customDefinition: /^custom(Event|User|Item):/.test(apiName),
+        category: '',
+        kind,
+      }));
+  return ga4PickerFields([...fields, ...saved(metrics, 'metric'), ...saved(dimensions, 'dimension')], query);
+}
+
+/**
+ * B166 — a field's `error` of the form «not pulled: <reason>» (written by the pull, in English)
+ * split into parts the tab can word in the UI language; null for Google's own message.
+ */
+export function ga4NotPulledReason(
+  error: string | undefined,
+): { kind: 'quota' } | { kind: 'other'; detail: string } | null {
+  const m = /^not pulled: (.*)$/s.exec(error ?? '');
+  if (!m) return null;
+  return /quota/i.test(m[1]!) ? { kind: 'quota' } : { kind: 'other', detail: m[1]! };
+}
+
 /**
  * B37 — tick or untick one field. Adding past the limit (ten metrics, five dimensions) is
  * refused and says which list is full; unticking always works.

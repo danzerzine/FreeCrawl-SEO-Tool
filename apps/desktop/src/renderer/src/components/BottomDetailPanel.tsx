@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { translateLabel } from '../i18n/labels.js';
-import { DEFAULT_SEO_THRESHOLDS, parseCookiesJson, webmasterReasonFallback } from '@freecrawl/shared-types';
+import { DEFAULT_SEO_THRESHOLDS, ga4FieldLabel, parseCookiesJson, webmasterReasonFallback } from '@freecrawl/shared-types';
 import type {
   Ga4CustomValue,
   CrawlConfig,
@@ -25,6 +25,7 @@ import { GridExportButton } from './GridExportButton.js';
 import { AxeView } from './AxeView.js';
 import { LighthouseView } from './LighthouseView.js';
 import { useAppStore } from '../store.js';
+import { useGa4FieldLabels } from '../hooks/useGa4FieldLabels.js';
 import { diagnoseStatus, type StatusDiagnosis } from '../utils/statusDiagnosis.js';
 import {
   copySelection,
@@ -910,6 +911,8 @@ function AnalyticsView({
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const dataVersion = useAppStore((s) => s.dataVersion);
+  /** B166: the names GA4 shows for the custom fields. */
+  const ga4Labels = useGa4FieldLabels(loaded && !!data?.ga4Custom);
 
   useEffect(() => {
     let cancelled = false;
@@ -1001,7 +1004,7 @@ function AnalyticsView({
     }
     if (ga4Custom) {
       for (const [field, values] of Object.entries(ga4Custom)) {
-        out.push(['Analytics 4', field, customValueText(values)]);
+        out.push(['Analytics 4', ga4FieldLabel(field, ga4Labels), customValueText(values)]);
       }
     }
     if (inspection) {
@@ -1080,7 +1083,7 @@ function AnalyticsView({
         )}
         {ga4Custom &&
           Object.entries(ga4Custom).map(([field, values]) => (
-            <AnalyticsRow key={field} label={field} value={customValueText(values)} />
+            <AnalyticsRow key={field} label={ga4FieldLabel(field, ga4Labels)} value={customValueText(values)} />
           ))}
       </AnalyticsCard>
       <AnalyticsCard

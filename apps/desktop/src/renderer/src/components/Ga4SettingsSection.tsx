@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   GA4_MAX_CUSTOM_DIMENSIONS,
   GA4_MAX_CUSTOM_METRICS,
-  ga4PickerFields,
+  ga4PickerFieldsWithSaved,
   ga4ToggleCustom,
   mergeGa4Settings,
   type Ga4Field,
@@ -185,7 +185,7 @@ function CustomFieldPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.property, settings.accountId]);
 
-  const shown = ga4PickerFields(fields, query);
+  const shown = ga4PickerFieldsWithSaved(fields, settings.customMetrics, settings.customDimensions, query);
 
   return (
     <div className="mt-3">

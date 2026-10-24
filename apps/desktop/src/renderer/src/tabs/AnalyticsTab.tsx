@@ -6,6 +6,8 @@ import { Loader2, Search, RefreshCw } from 'lucide-react';
 import {
   defaultGa4Settings,
   ga4CellText,
+  ga4FieldLabel,
+  ga4NotPulledReason,
   type Ga4FetchMeta,
   type Ga4Property,
   type Ga4Row,
@@ -13,6 +15,7 @@ import {
   type GoogleAuthState,
 } from '@freecrawl/shared-types';
 import { useAppStore } from '../store.js';
+import { useGa4FieldLabels } from '../hooks/useGa4FieldLabels.js';
 
 const TOOLBAR_HEIGHT = 36;
 const HEADER_HEIGHT = 26;
@@ -88,6 +91,16 @@ export function AnalyticsTab() {
   const scrollRef = useRef<HTMLDivElement>(null);
   /** B37: the custom fields of the last pull that came back, in the order chosen. */
   const customCols = (meta?.customFields ?? []).filter((f) => f.ok).map((f) => f.field);
+  /** B166: the names GA4 shows for the custom fields; the API name until they are known. */
+  const fieldLabels = useGa4FieldLabels(customCols.length > 0);
+  /** B166: the pull writes «not pulled: …» in English; word it in the UI language. */
+  const notPulledText = (error?: string): string => {
+    const r = ga4NotPulledReason(error);
+    if (!r) return error ?? '';
+    return r.kind === 'quota'
+      ? t('ga4Tab.fieldNotPulledQuota', { defaultValue: 'not pulled: Google quota used up' })
+      : t('ga4Tab.fieldNotPulled', { defaultValue: 'not pulled: {{detail}}', detail: r.detail });
+  };
 
   const loadProperties = useCallback(async (account?: string) => {
     const res = await window.freecrawl.ga4ListProperties(account);
@@ -496,7 +509,7 @@ export function AnalyticsTab() {
         <div className="border-b border-amber-700/40 bg-amber-900/20 px-3 py-1 text-[10px] text-amber-200">
           {(meta?.customFields ?? [])
             .filter((f) => !f.ok)
-            .map((f) => `${f.field}: ${f.error ?? ''}`)
+            .map((f) => `${ga4FieldLabel(f.field, fieldLabels)}: ${notPulledText(f.error)}`)
             .join(' · ')}
         </div>
       )}
@@ -537,7 +550,7 @@ export function AnalyticsTab() {
         <div className="w-[88px] shrink-0 px-2 text-right">{t('ga4Tab.colFetched', { defaultValue: 'Fetched' })}</div>
         {customCols.map((c) => (
           <div key={c} className="shrink-0 truncate px-2 text-left" style={{ width: CUSTOM_COL_WIDTH }} title={c}>
-            {c.replace(/^custom(Event|User):/, '')}
+            {fieldLabels[c] ?? c.replace(/^custom(Event|User):/, '')}
           </div>
         ))}
       </div>
