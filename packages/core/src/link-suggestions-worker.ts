@@ -21,12 +21,17 @@ const { file, input, internals } = workerData as {
   internals?: LinkSuggestionInternals;
 };
 
-const db = new ProjectDb(file, { readOnly: true });
-try {
-  const result = await db.withoutMmap(async () => linkSuggestions(db, input, internals));
-  parentPort.postMessage({ ok: true, result });
-} catch (err) {
-  parentPort.postMessage({ ok: false, error: err instanceof Error ? err.message : String(err) });
-} finally {
-  db.close();
-}
+// No top-level await: the desktop bundle loads this file with require(), which refuses an
+// ES module that awaits at the top level (ERR_REQUIRE_ASYNC_MODULE).
+const port = parentPort;
+void (async () => {
+  const db = new ProjectDb(file, { readOnly: true });
+  try {
+    const result = await db.withoutMmap(async () => linkSuggestions(db, input, internals));
+    port.postMessage({ ok: true, result });
+  } catch (err) {
+    port.postMessage({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  } finally {
+    db.close();
+  }
+})();
