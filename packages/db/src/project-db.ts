@@ -4431,7 +4431,8 @@ export class ProjectDb {
     this.db.exec('UPDATE urls SET near_dup_similarity = NULL WHERE near_dup_similarity IS NOT NULL');
     this.db.prepare('DELETE FROM project_meta WHERE key = ?').run(NEAR_DUPLICATE_INCOMPLETE_META_KEY);
 
-    const indexClause = onlyIndexable ? "AND indexability = 'indexable'" : '';
+    // Only 2xx pages: an error page is no duplicate content, whatever the setting.
+    const indexClause = `AND status_code BETWEEN 200 AND 299 ${onlyIndexable ? "AND indexability = 'indexable'" : ''}`;
     const fingerprinted = `is_external = 0 AND content_kind = 'html'
              AND (simhash IS NOT NULL OR minhash IS NOT NULL) ${indexClause}`;
     // Only fingerprints made with the project's current template set are
