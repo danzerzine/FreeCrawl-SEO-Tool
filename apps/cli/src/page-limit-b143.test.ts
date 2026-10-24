@@ -99,4 +99,14 @@ describe('--max counts pages, not robots-blocked URLs (B143)', () => {
     expect(r.code).toBe(0);
     expect(counts(db)).toEqual({ fetched: 10, blocked: 5 });
   }, 60000);
+
+  it('a resume that ignores robots.txt does not go past --max with the URLs it had blocked', async () => {
+    const db = path.join(dir, 'ignore.seoproject');
+    const first = await start(['--max', '10', '--db', db]).done;
+    expect(first.code).toBe(0);
+    expect(counts(db)).toEqual({ fetched: 10, blocked: 5 });
+    const r = await start(['--max', '10', '--resume', '--no-robots', '--db', db]).done;
+    expect(r.code).toBe(0);
+    expect(counts(db).fetched).toBe(10);
+  }, 60000);
 });

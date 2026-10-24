@@ -4418,6 +4418,9 @@ export class Crawler extends EventEmitter {
    */
   private requeueKnown(item: QueueItem): void {
     const wasCounted = this.seen.delete(item.url);
+    // A saved robots-blocked row queued again with robots.txt off is a page
+    // now: it takes a page slot like any other (`--max` on a resume).
+    if (!this.config.respectRobotsTxt) this.robotsBlocked.delete(item.url);
     this.enqueue(item, { alreadyCounted: wasCounted });
   }
 
