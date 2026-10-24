@@ -280,7 +280,7 @@ export async function openCompareProject(
       try {
         await unpackProject(path, copy);
       } catch (err) {
-        throw asNoSpaceError(err, dir, needed);
+        throw asNoSpaceError(err, copyBase(), needed);
       }
       db = new ProjectDb(copy);
     } else if (!writableInPlace(path)) {

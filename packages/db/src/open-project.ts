@@ -321,11 +321,13 @@ export async function openProject(
   try {
     if (dir && workingPath) {
       const needed = statSync(path).size * UNPACKED_PER_PACKED;
-      checkFreeSpace(dir, needed);
+      // Named in the message: the chosen folder, not the copy's temporary one.
+      const spaceDir = opts.workDir ?? dirname(dir);
+      checkFreeSpace(spaceDir, needed);
       try {
         await unpackProject(path, workingPath);
       } catch (err) {
-        throw asNoSpaceError(err, dir, needed);
+        throw asNoSpaceError(err, spaceDir, needed);
       }
     }
     db = new ProjectDb(workingPath ?? path, { readOnly: opts.readOnly });

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type * as Fs from 'node:fs';
@@ -62,10 +62,43 @@ const workingCopies = () => readdirSync(join(work, 'FreeCrawl-work'));
 describe('a disk too small for a project (B31)', () => {
   it('refuses to open before unpacking, with the sizes', async () => {
     disk.freeBytes = 100;
+    // The message names the chosen folder, not the working copy's temporary one.
     await expect(openProject(path, { readOnly: true, workDir: work })).rejects.toThrow(
-      /^Not enough free space in .*freecrawl-cli-\w+: 0\.0 GB free, 0\.0 GB needed\.$/,
+      `Not enough free space in ${work}: 0.0 GB free, 0.0 GB needed.`,
     );
     expect(workingCopies()).toEqual([]);
+  });
+
+  it('a disk that fills up while unpacking names the chosen folder too', async () => {
+    disk.fullOn = 'unpack';
+    await expect(openProject(path, { readOnly: true, workDir: work })).rejects.toThrow(
+      `Not enough free space in ${work}: `,
+    );
+  });
+
+  it('opening needs 13.6 times the packed size free', async () => {
+    const needed = statSync(path).size * 13.6;
+    expect(needed).toBeGreaterThan(1000);
+    disk.freeBytes = Math.ceil(needed) - 1;
+    await expect(openProject(path, { readOnly: true, workDir: work })).rejects.toThrow(
+      /^Not enough free space in /,
+    );
+    disk.freeBytes = Math.ceil(needed);
+    const p = await openProject(path, { readOnly: true, workDir: work });
+    p.dispose();
+  });
+
+  it('saving needs 0.72 times the project file size free', async () => {
+    const p = await openProject(path, { forWrite: true, workDir: work });
+    p.db.walCheckpoint();
+    const [copy] = workingCopies();
+    const needed = statSync(join(work, 'FreeCrawl-work', copy!, 'saved.seoproject')).size * 0.72;
+    expect(needed).toBeGreaterThan(1000);
+    disk.freeBytes = Math.ceil(needed) - 1;
+    await expect(p.save()).rejects.toThrow(/^Not enough free space in /);
+    disk.freeBytes = Math.ceil(needed);
+    await p.save();
+    p.dispose();
   });
 
   it('refuses to save before packing, and the saved file stays as it was', async () => {
