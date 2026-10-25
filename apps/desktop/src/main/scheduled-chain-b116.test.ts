@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { CompareSummary } from '@freecrawl/core';
+import type { ScheduleEntry } from '@freecrawl/shared-types';
 import {
   launchScheduledCrawl,
   saveAfterScheduledCrawl,
@@ -175,8 +176,10 @@ describe('the main process runs the chain through these functions', () => {
     expect(main).toContain("recordFireResult(schedulerStore, projectPath, 'skipped')");
   });
   it('recordFireResult stores a skipped run', () => {
-    const store = { map: { '/p': { spec: { enabled: true, cadence: 'daily' }, status: { lastFiredAt: 1, lastStatus: 'running', nextFiresAt: 2 } } } as never };
-    recordFireResult({ load: () => store.map, save: (m) => void (store.map = m) }, '/p', 'skipped');
-    expect((store.map as Record<string, { status: { lastStatus: string } }>)['/p']!.status.lastStatus).toBe('skipped');
+    let map: Record<string, ScheduleEntry> = {
+      '/p': { spec: { enabled: true, cadence: 'daily' }, status: { lastFiredAt: 1, lastStatus: 'running', nextFiresAt: 2 } },
+    };
+    recordFireResult({ load: () => map, save: (m) => void (map = m) }, '/p', 'skipped');
+    expect(map['/p']!.status.lastStatus).toBe('skipped');
   });
 });
