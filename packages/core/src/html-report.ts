@@ -336,7 +336,7 @@ const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
   textChangedByJs: 'Serve the main text in the HTML; content that appears only after rendering is indexed later, or missed.',
   consoleErrors: 'Fix the scripts that throw or log errors while the page renders; a broken script can hide content from users and crawlers.',
   failedResources: 'Fix or remove the scripts, styles, images and API calls that fail to load; the page renders without them.',
-  markupErrors: 'Fix the broken markup (missing doctype, broken or unclosed tags, bad character references, obsolete elements); browsers repair it differently and a parser may read the page another way.',
+  markupErrors: 'Fix the broken markup (missing doctype, broken, unclosed, stray or mis-nested tags, blocks inside inline elements, misplaced elements and attributes, bad character references, obsolete elements); browsers repair it differently and a parser may read the page another way.',
   duplicateIds: 'Give every id attribute one element: anchors, labels and scripts that look an id up find the wrong element.',
   ampValidationErrors: 'Fix AMP validation errors or the AMP version will not be served.',
   ampTargetBroken: 'Point rel=amphtml at a working AMP page, or remove it.',

@@ -571,7 +571,7 @@ const COL = {
     header: "Markup Errors",
     size: 110,
     kind: 'number',
-    info: "HTML markup errors found by the fixed rule set (missing doctype, duplicate attribute or id, broken tags, obsolete elements, unclosed elements): 0 clean, empty when not checked. Needs Settings → Crawling → Check HTML markup.",
+    info: "HTML markup errors found by the fixed rule set (missing doctype, duplicate attribute or id, broken tags, obsolete elements, unclosed elements, stray end tags, wrong nesting, an attribute on an element that does not take it): 0 clean, empty when not checked. Needs Settings → Crawling → Check HTML markup.",
     example: "3",
     hiddenByDefault: true,
   } as ColumnSpec,

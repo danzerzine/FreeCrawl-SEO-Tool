@@ -1,9 +1,11 @@
 import { Parser } from 'htmlparser2';
 import { parse } from 'parse5';
+import { checkStructure } from './markup-structure.js';
 
 /**
- * B45: a small, fixed HTML markup check. Not a validator: neither parse5 7.3.0 nor
- * htmlparser2 10.1.0 reports stray end tags or mis-nesting, so those are out (B45b).
+ * B45: a small, fixed HTML markup check. Not a validator. Neither parse5 7.3.0 nor
+ * htmlparser2 10.1.0 reports stray end tags or mis-nesting: those come from a pass of
+ * our own over the tokens (B45b, `markup-structure.ts`).
  * Codes are API (they land in the DB and in JSON): never renamed, a new one is appended.
  */
 export const MARKUP_CODES = [
@@ -15,6 +17,11 @@ export const MARKUP_CODES = [
   'duplicate-id',
   'obsolete-element',
   'unclosed-element',
+  'stray-end-tag',
+  'misnested-tag',
+  'block-in-inline',
+  'wrong-parent',
+  'attribute-not-allowed',
 ] as const;
 export type MarkupCode = (typeof MARKUP_CODES)[number];
 
@@ -106,6 +113,9 @@ export function checkMarkup(html: string): MarkupCheck {
     if (kids) for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i]!);
   }
 
+  // B45b: stray end tags, mis-nesting, content models and attributes.
+  const structure = checkStructure(src, add);
+
   if (!cut) {
     // Implied closes of elements that need an end tag. Self-closed svg/math children are
     // reported as implied by htmlparser2 too, so nothing inside them counts (r2 N2).
@@ -121,6 +131,11 @@ export function checkMarkup(html: string): MarkupCheck {
     });
     parser.write(src);
     parser.end();
+    // An element whose end tag came after its parent's was mis-nested, not left open:
+    // htmlparser2 saw it closed by the parent, the structure pass saw its end tag.
+    const unclosed = (counts['unclosed-element'] ?? 0) - structure.misnested;
+    if (unclosed > 0) counts['unclosed-element'] = unclosed;
+    else delete counts['unclosed-element'];
   }
 
   let total = 0;

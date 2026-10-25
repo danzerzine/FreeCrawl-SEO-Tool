@@ -1084,7 +1084,8 @@ export interface CrawlConfig {
   storeNofollowLinks: boolean;
   /**
    * Count HTML markup errors per page (B45): missing doctype, duplicate attribute or id, broken
-   * tags, obsolete elements, unclosed elements. Two extra parses of every HTML page, so it is
+   * tags, obsolete elements, unclosed elements; stray end tags, wrong nesting, misplaced elements
+   * and attributes (B45b). Two extra parses and a token pass of every HTML page, so it is
    * off by default (and its two issues would otherwise appear in every old workflow's report).
    */
   markupValidation: boolean;

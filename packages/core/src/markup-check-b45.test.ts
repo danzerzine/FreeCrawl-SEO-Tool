@@ -5,7 +5,7 @@ const DT = '<!DOCTYPE html>';
 const codes = (html: string): Record<string, number> => checkMarkup(html).codes;
 
 describe('checkMarkup (B45)', () => {
-  it('the rule list is exactly the 8 stable codes', () => {
+  it('the rule list is the 8 stable codes, then the 5 of B45b appended', () => {
     expect([...MARKUP_CODES]).toEqual([
       'missing-doctype',
       'duplicate-attribute',
@@ -15,6 +15,11 @@ describe('checkMarkup (B45)', () => {
       'duplicate-id',
       'obsolete-element',
       'unclosed-element',
+      'stray-end-tag',
+      'misnested-tag',
+      'block-in-inline',
+      'wrong-parent',
+      'attribute-not-allowed',
     ]);
   });
 
@@ -75,11 +80,11 @@ describe('checkMarkup (B45)', () => {
     expect(codes(`${DT}<ruby>a<rb>b<rt>c<rtc>d</ruby>`)).toEqual({});
   });
 
-  it('stray end tags are NOT reported by parse5 7.3.0 or htmlparser2 10.1.0', () => {
-    // If an upgrade starts reporting these, this test fails and the rule list
-    // has to be reviewed on purpose (a new code is appended, never renamed).
-    expect(codes(`${DT}<div></div></div>`)).toEqual({});
-    expect(codes(`${DT}<body></foo>`)).toEqual({});
+  it('stray end tags come from the structure pass (B45b) and count once', () => {
+    // parse5 7.3.0 and htmlparser2 10.1.0 do not report them; if an upgrade starts
+    // to, a parser code would double this count and the mapping has to be reviewed.
+    expect(codes(`${DT}<div></div></div>`)).toEqual({ 'stray-end-tag': 1 });
+    expect(codes(`${DT}<body></foo>`)).toEqual({ 'stray-end-tag': 1 });
   });
 
   it('input over 2 MB: the cut creates no unexpected-end / unclosed-element', () => {

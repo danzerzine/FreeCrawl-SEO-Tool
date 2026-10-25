@@ -2000,7 +2000,7 @@ function CrawlerPanel({ form, update }: PanelProps) {
           checked={form.markupValidation}
           onChange={(v) => update('markupValidation', v)}
           hint={t('settingsPanels.crawler.markupValidationHint', { defaultValue: 'Default off — parses every page twice more' })}
-          info='Counts HTML markup errors per page with a fixed small rule set: missing doctype, duplicate attributes and ids, broken tags, unexpected end of file, bad character references, obsolete elements and unclosed elements. Fills the HTML Markup Errors and Duplicate id Attributes issues and two columns. It is not a full validator: stray end tags and wrong nesting are not reported. Off by default because it parses every HTML page twice more.'
+          info='Counts HTML markup errors per page with a fixed small rule set: missing doctype, duplicate attributes and ids, broken tags, unexpected end of file, bad character references, obsolete elements, unclosed elements, stray end tags, end tags in the wrong order, a block inside an inline element, an element under a parent it may not have, and an HTML attribute on an element that does not take it. Fills the HTML Markup Errors and Duplicate id Attributes issues and two columns. It is not a full validator. Off by default because it parses every HTML page twice more.'
           example="Leave off for speed; on to find broken markup and repeated ids."
         />
         <Bool
