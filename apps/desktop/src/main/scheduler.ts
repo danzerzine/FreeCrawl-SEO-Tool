@@ -103,7 +103,7 @@ export function claimIfDue(
 export function recordFireResult(
   store: SchedulerStore,
   projectPath: string,
-  result: 'success' | 'failure',
+  result: 'success' | 'failure' | 'skipped',
 ): void {
   if (!projectPath) return;
   const map = store.load();

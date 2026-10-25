@@ -649,7 +649,8 @@ export interface ScheduleStatus {
   lastFiredAt: number | null;
   /** Epoch ms when the next fire is due. Server-computed on set. */
   nextFiresAt: number | null;
-  lastStatus: 'success' | 'failure' | 'running' | null;
+  /** `skipped`: due, but a crawl started by hand while the previous crawl was being copied (B116). */
+  lastStatus: 'success' | 'failure' | 'running' | 'skipped' | null;
 }
 
 export interface ScheduleEntry {

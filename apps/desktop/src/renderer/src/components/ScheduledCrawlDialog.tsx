@@ -436,6 +436,7 @@ export function ScheduledCrawlDialog({ open, onClose }: Props) {
                   entry?.status.lastStatus === 'success' && 'text-emerald-400',
                   entry?.status.lastStatus === 'failure' && 'text-red-400',
                   entry?.status.lastStatus === 'running' && 'text-blue-300',
+                  entry?.status.lastStatus === 'skipped' && 'text-amber-300',
                   !entry?.status.lastStatus && 'text-surface-500',
                 )}
               >

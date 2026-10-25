@@ -366,8 +366,6 @@ import {
   issueTrend,
   screenshotDirFor,
   pngInsideRoots,
-  compareChangesText,
-  compareHasChanges,
   type CompareSummary,
   type LogAnalysisResult,
   type LogExportTables,
@@ -501,6 +499,7 @@ import {
 } from './link-suggestions-guard.js';
 import { keepPreviousCrawl, previousCrawlPath, runChangeReport } from './change-report.js';
 import { cancelledCompareResult, compareWithOpenProject } from './compare-load.js';
+import { launchScheduledCrawl, saveAfterScheduledCrawl, scheduledChangeReport, webhookChanges } from './scheduled-chain.js';
 import { monitorHistory, monitorMetricNames } from './monitor-history.js';
 import {
   exportSelectedLinks,
@@ -1741,25 +1740,24 @@ function schedulerTickForSession(s: ProjectSession): void {
     `Scheduled crawl firing: ${cfg.startUrl} (cadence=${entry.spec.cadence})`,
   );
   const controller = crawlController;
-  const launch = (): void => {
-    // A crawl started by hand while the copy ran wins; this run is skipped.
-    if (s.activeCrawler) return;
-    s.crawlerStartedByScheduler = true;
-    void controller.launchCrawl(cfg);
-  };
-  if (!entry.spec.afterCrawl?.compare) return launch();
-  // B81: the saved project is copied before the crawl's first autosave
-  // changes it; the change report compares the new crawl with the copy.
   const projectPath = s.currentProjectPath;
-  void keepPreviousCrawl(projectPath)
-    .catch((err: unknown) => {
-      logger.log(
-        'warn',
-        'scheduler',
-        `Copy of the previous crawl failed, the change report will be skipped: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    })
-    .then(launch);
+  // B81: with a change report the saved project is copied before the crawl's first autosave
+  // changes it; the report compares the new crawl with the copy. A crawl started by hand while
+  // the copy ran wins, and the skipped run is written to the schedule's status (B116).
+  void launchScheduledCrawl(
+    {
+      keepPreviousCrawl,
+      crawlActive: () => s.activeCrawler !== null,
+      launch: () => {
+        s.crawlerStartedByScheduler = true;
+        void controller.launchCrawl(cfg);
+      },
+      recordSkipped: () => recordFireResult(schedulerStore, projectPath, 'skipped'),
+      log: (level, message) => logger.log(level, 'scheduler', message),
+    },
+    projectPath,
+    entry.spec.afterCrawl?.compare === true,
+  );
 }
 
 function startScheduler(): void {
@@ -8041,24 +8039,14 @@ function registerIpc(): void {
         : null;
     let changes: CompareSummary | null = null;
     if (after.compare) {
-      try {
-        changes = await runChangeReport(previousCrawlPath(sess.currentProjectPath), db, exportDir, usableWorkDir());
-        if (!changes) {
-          logger.log('info', 'main', 'Change report skipped: no copy of the previous crawl (the copy at the crawl start failed)', undefined, sess.logTag);
-        } else {
-          if (exportDir) files.push(join(exportDir, 'compare-summary.json'));
-          logger.log('info', 'main', compareChangesText(changes), undefined, sess.logTag);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`compare: ${msg}`);
-        logger.log('warn', 'main', `Change report failed: ${msg}`, undefined, sess.logTag);
-      }
-      void alertAfterCrawl(db, alertDeps(sess), {
-        since,
-        footer: changes ? compareChangesText(changes) : undefined,
-        footerChanged: changes ? compareHasChanges(changes) : false,
+      const report = await scheduledChangeReport({
+        runChangeReport: () => runChangeReport(previousCrawlPath(sess.currentProjectPath), db, exportDir, usableWorkDir()),
+        alert: (opts) => alertAfterCrawl(db, alertDeps(sess), { since, ...opts }),
+        log: (level, message) => logger.log(level, 'main', message, undefined, sess.logTag),
       });
+      changes = report.changes;
+      if (report.error) errors.push(report.error);
+      if (changes && exportDir) files.push(join(exportDir, 'compare-summary.json'));
     }
     if (after.export !== 'none' && exportDir) {
       try {
@@ -8106,27 +8094,22 @@ function registerIpc(): void {
           errors,
           summary: db.getSummary(),
           issues: db.getOverviewCounts().issues,
-          changes: changes && {
-            totalBefore: changes.totalA,
-            totalAfter: changes.totalB,
-            counts: changes.counts,
-            checksChanged: Object.keys(changes.issueChanges).length,
-            notComparable: Object.keys(changes.notComparable),
-          },
+          changes: webhookChanges(changes),
         });
         logger.log(r.ok ? 'info' : 'warn', 'main', `Scheduled webhook ${r.ok ? 'delivered' : 'failed'} (status ${r.status ?? 'n/a'}, ${r.durationMs} ms)${r.ok ? '' : `: ${r.detail}`}`, undefined, sess.logTag);
       }
     }
-    if (after.compare && sess.currentProjectPath && !sess.autoSaveInFlight) {
-      sess.autoSaveInFlight = true;
-      try {
-        await saveProjectDocument(sess, sess.currentProjectPath);
-        logger.log('info', 'main', `Saved ${sess.currentProjectPath} for the next change report`, undefined, sess.logTag);
-      } catch (err) {
-        logger.log('warn', 'main', `Save after the scheduled crawl failed: ${err instanceof Error ? err.message : String(err)}`, undefined, sess.logTag);
-      } finally {
-        sess.autoSaveInFlight = false;
-      }
+    if (after.compare && sess.currentProjectPath) {
+      await saveAfterScheduledCrawl({
+        saveInFlight: () => sess.autoSaveInFlight,
+        setSaveInFlight: (v) => {
+          sess.autoSaveInFlight = v;
+        },
+        save: async () => {
+          await saveProjectDocument(sess, sess.currentProjectPath);
+        },
+        log: (level, message) => logger.log(level, 'main', message, undefined, sess.logTag),
+      });
     }
   }
 
