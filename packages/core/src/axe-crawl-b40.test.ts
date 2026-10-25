@@ -23,6 +23,8 @@ beforeAll(async () => {
 });
 afterAll(() => {
   server.close();
+  // A project file that is still open cannot be deleted on Windows (EBUSY).
+  for (const d of opened) d.close();
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -39,11 +41,16 @@ const AUDIT: AxeAudit = {
 };
 
 let n = 0;
+const opened: ProjectDb[] = [];
 async function crawl(
   hook: RenderHook | undefined,
   o: { mode?: CrawlConfig['renderingMode']; axe?: boolean; db?: ProjectDb; requestTimeoutMs?: number } = {},
 ) {
-  const db = o.db ?? new ProjectDb(join(dir, `p${n++}.seoproject`));
+  let db = o.db;
+  if (!db) {
+    db = new ProjectDb(join(dir, `p${n++}.seoproject`));
+    opened.push(db);
+  }
   const c = new Crawler(
     {
       ...DEFAULT_CRAWL_CONFIG,
