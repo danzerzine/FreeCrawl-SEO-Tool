@@ -2553,6 +2553,13 @@ export class ProjectDb {
   insertLinks(fromUrlId: number, links: DiscoveredLink[], fromDepth: number): void {
     if (links.length === 0) return;
     const CHUNK = 200;
+    // A link back to the page it sits on is marked here, where the page URL
+    // is known, so counting inlinks never has to look targets up.
+    const pageUrl = (
+      this.db.prepare('SELECT url FROM urls WHERE id = ?').get(fromUrlId) as
+        | { url: string }
+        | undefined
+    )?.url;
     // Skip the inner BEGIN when the caller already opened a transaction
     // via `runInTransaction` — SQLite forbids nested BEGINs and the
     // outer transaction will commit our work atomically anyway.
@@ -2565,7 +2572,7 @@ export class ProjectDb {
       for (let i = 0; i < links.length; i += CHUNK) {
         const slice = links.slice(i, i + CHUNK);
         const placeholders = slice
-          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
           .join(',');
         const args: (string | number | null)[] = [];
         for (const link of slice) {
@@ -2582,13 +2589,14 @@ export class ProjectDb {
             link.linkPath,
             link.linkPosition,
             link.linkOrigin,
+            link.toUrl === pageUrl ? 1 : 0,
           );
         }
         this.db
           .prepare(
             `INSERT INTO links (
                from_url_id, to_url, anchor, rel, is_internal,
-               type, alt_text, target, path_type, link_path, link_position, link_origin
+               type, alt_text, target, path_type, link_path, link_position, link_origin, is_self
              ) VALUES ${placeholders}`,
           )
           .run(...args);
@@ -3005,9 +3013,8 @@ export class ProjectDb {
           WHERE is_internal = 1
             -- A page linking to itself (a skip link, a logo on the home page)
             -- is not an inlink: it must not hide an orphan. The row stays in
-            -- the links table so the Inlinks tab can still show it.
-            AND from_url_id != COALESCE(
-              (SELECT id FROM urls WHERE urls.url = links.to_url), -1)
+            -- the links table; insertLinks marks it when it is written.
+            AND is_self = 0
           GROUP BY to_url
       `);
       this.db.exec('CREATE INDEX _inlink_counts_url ON _inlink_counts(url)');
@@ -7518,7 +7525,9 @@ export class ProjectDb {
     // `image_usages` and `resource_usages` — the tab was empty for every
     // such row while this read `links` alone.
     const hyperTotal = (
-      this.db.prepare('SELECT COUNT(*) AS c FROM links WHERE to_url = ?').get(url) as { c: number }
+      this.db
+        .prepare('SELECT COUNT(*) AS c FROM links WHERE to_url = ? AND is_self = 0')
+        .get(url) as { c: number }
     ).c;
     const imageTotal = (
       this.db
@@ -7569,7 +7578,7 @@ export class ProjectDb {
          JOIN urls f ON l.from_url_id = f.id
          LEFT JOIN urls t ON l.to_url = t.url
          LEFT JOIN urls ft ON ft.url = t.redirect_final_url
-         WHERE l.to_url = ?
+         WHERE l.to_url = ? AND l.is_self = 0
          LIMIT ?`,
       )
       .all(url, limit) as unknown as Row[];

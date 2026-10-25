@@ -2482,11 +2482,24 @@ const MIGRATIONS: Migration[] = [
     // computed". A positive inlink count proves the pass ran. No index on
     // `inlinks`: EXISTS stops at the first matching row, and a project that
     // never computed them scans the table once (milliseconds at 300k rows).
+    //
+    // `links.is_self` marks a link whose target is the page it sits on. It is
+    // written with the link, so the inlink count stays a single GROUP BY
+    // instead of looking up every link target's id.
     up: (db) => {
       db.exec(`
         INSERT OR IGNORE INTO project_meta (key, value)
         SELECT 'inlinksComputed', '1'
         WHERE EXISTS (SELECT 1 FROM urls WHERE is_external = 0 AND inlinks > 0)
+      `);
+      const cols = db.prepare('PRAGMA table_info(links)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'is_self')) {
+        db.exec('ALTER TABLE links ADD COLUMN is_self INTEGER NOT NULL DEFAULT 0');
+      }
+      db.exec(`
+        UPDATE links SET is_self = 1
+        WHERE is_self = 0
+          AND EXISTS (SELECT 1 FROM urls u WHERE u.id = links.from_url_id AND u.url = links.to_url)
       `);
     },
   },
