@@ -938,7 +938,7 @@ export function buildTools(): Tool[] {
     {
       name: 'query_axe',
       description:
-        'Accessibility findings from axe-core (WCAG 2.0-2.2 A/AA), one row per page x rule, violations first (worst impact first, then most elements), then "needs review" rows (kind incomplete: axe could not decide, not counted as issues): rule id, kind (violation | incomplete), impact (critical | serious | moderate | minor), help text, help URL, WCAG tags, number of elements and up to 3 sample elements (selector, opening markup, how to fix). Only stored when the crawl ran with JS rendering and the axe-core audit on (Settings -> JavaScript rendering, or --render --axe in the CLI); counts per page are also in get_url_detail (axeViolations, axeSerious, axeIncomplete; null = not audited). Filter by url (exact), impact, rule_id and kind.',
+        'Accessibility findings from axe-core (WCAG 2.0-2.2 A/AA), one row per page x rule, violations first (worst impact first, then most elements), then "needs review" rows (kind incomplete: axe could not decide, not counted as issues): rule id, kind (violation | incomplete), impact (critical | serious | moderate | minor), help text, help URL, WCAG tags, number of elements and up to 3 sample elements (selector, opening markup, how to fix). A violation axe reports with no impact counts as moderate or minor (never serious) and sorts after minor. Only stored when the crawl ran with JS rendering and the axe-core audit on (Settings → Rendering, or --render --axe in the CLI); counts per page are also in get_url_detail (axeViolations, axeSerious, axeIncomplete; null = not audited). Filter by url (exact), impact, rule_id and kind.',
       inputSchema: {
         type: 'object',
         properties: {

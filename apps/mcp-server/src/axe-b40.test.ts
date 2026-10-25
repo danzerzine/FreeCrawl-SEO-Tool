@@ -51,6 +51,13 @@ describe('B40 R14: MCP query_axe', () => {
     expect(t!.description).toMatch(/--axe|Settings/);
   });
 
+  it('names the settings panel as the app does and says how a missing impact is counted (B177)', () => {
+    const d = tool()!.description;
+    expect(d).toContain('Settings → Rendering');
+    expect(d).not.toContain('Settings -> JavaScript rendering');
+    expect(d).toMatch(/no impact.*moderate or minor/i);
+  });
+
   it('lists violations worst impact first, then needs-review, and filters', () => {
     expect(run({ url: A }).rows.map((r) => `${r.ruleId}:${r.kind}`)).toEqual([
       'image-alt:violation', 'label:violation', 'minor-one:violation', 'color-contrast:incomplete',

@@ -16014,6 +16014,7 @@ function baseCategoryWhereClause(
       return `is_external = 0 AND content_kind = 'html'
               AND axe_serious IS NOT NULL AND axe_serious > 0`;
     case 'issues:axe-moderate-minor':
+      // Violations that are not critical/serious, including one axe reports with no impact (B177).
       return `is_external = 0 AND content_kind = 'html'
               AND axe_violations IS NOT NULL AND axe_serious IS NOT NULL
               AND axe_violations > axe_serious`;

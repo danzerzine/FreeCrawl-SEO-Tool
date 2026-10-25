@@ -44,6 +44,11 @@ describe('reduceAxeResults (B40 R5, R10)', () => {
     expect(out.violations[0]!.impact).toBeNull();
   });
 
+  it('a violation with no impact is a violation but not a serious one (B177)', () => {
+    const out = reduceAxeResults(raw([rule('x', { impact: null }), rule('y', { impact: 'serious' })]));
+    expect([out.violationsTotal, out.seriousTotal]).toEqual([2, 1]);
+  });
+
   it('cuts html to 200 chars and the summary to 300', () => {
     const long = '<p>' + 'a'.repeat(500) + '</p>';
     const n = { ...node(1, long), failureSummary: 's'.repeat(900) };
