@@ -324,6 +324,7 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Broken Next/Prev Target', category: 'issues:pagination-broken' },
     { label: 'Paginated Page Not Indexable', category: 'issues:pagination-non-indexable' },
     { label: 'Pagination Loop', category: 'issues:pagination-loop' },
+    { label: 'Multiple Pagination URLs', category: 'issues:pagination-multiple' },
     { label: 'Sequence Break', category: 'issues:pagination-sequence-break' },
     { label: 'Canonical Conflict', category: 'issues:pagination-canonical-conflict' },
   ],

@@ -217,6 +217,7 @@ export const PT_BR_LABELS: Record<string, string> = {
   'Internal Link with UTM': 'Link interno com UTM',
   'Paginated Page Not Indexable': 'Página paginada não indexável',
   'Pagination Loop': 'Loop de paginação',
+  'Multiple Pagination URLs': 'Várias URLs de paginação',
   'Noindex Alternate': 'Alternativa noindex',
   'Hreflang on Non-Canonical Page': 'Hreflang em página não canônica',
   'Hreflang Noindex Alternate': 'Hreflang: alternativa noindex',

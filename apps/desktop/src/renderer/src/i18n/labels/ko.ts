@@ -216,6 +216,7 @@ export const KO_LABELS: Record<string, string> = {
   'Internal Link with UTM': 'UTM이 붙은 내부 링크',
   'Paginated Page Not Indexable': '색인되지 않는 페이지네이션 페이지',
   'Pagination Loop': '페이지네이션 순환',
+  'Multiple Pagination URLs': '여러 페이지네이션 URL',
   'Noindex Alternate': 'noindex 대체 페이지',
   'Hreflang on Non-Canonical Page': '비정규 페이지의 hreflang',
   'Hreflang Noindex Alternate': 'hreflang: noindex 대체 페이지',

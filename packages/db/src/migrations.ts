@@ -2983,6 +2983,14 @@ const MIGRATIONS: Migration[] = [
       addColumnsIfMissing(db, 'links', [['occurrences', 'INTEGER']]);
     },
   },
+  {
+    // B121: 1 when the page declares more than one rel=next or rel=prev. No backfill: a re-crawl fills it.
+    version: 131,
+    name: 'add_pagination_multiple',
+    up: (db) => {
+      addColumnsIfMissing(db, 'urls', [['pagination_multiple', 'INTEGER NOT NULL DEFAULT 0']]);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

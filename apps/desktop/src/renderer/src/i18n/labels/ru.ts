@@ -216,6 +216,7 @@ export const RU_LABELS: Record<string, string> = {
   'Internal Link with UTM': 'Внутренняя ссылка с UTM',
   'Paginated Page Not Indexable': 'Страница пагинации не индексируется',
   'Pagination Loop': 'Петля пагинации',
+  'Multiple Pagination URLs': 'Несколько URL пагинации',
   'Noindex Alternate': 'Альтернатива с noindex',
   'Hreflang on Non-Canonical Page': 'Hreflang на неканонической странице',
   'Hreflang Noindex Alternate': 'Hreflang: альтернатива с noindex',

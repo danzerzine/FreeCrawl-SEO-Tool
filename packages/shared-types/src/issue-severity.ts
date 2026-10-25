@@ -99,6 +99,7 @@ const WARNING: UrlCategory[] = [
   'issues:link-utm-internal',
   'issues:pagination-non-indexable',
   'issues:pagination-loop',
+  'issues:pagination-multiple',
   'issues:hreflang-not-canonical',
   'issues:hreflang-noindex-target',
   'issues:lang-content-mismatch',

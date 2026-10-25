@@ -215,6 +215,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Internal Link with UTM': '带 UTM 的内部链接',
   'Paginated Page Not Indexable': '分页页面不可索引',
   'Pagination Loop': '分页循环',
+  'Multiple Pagination URLs': '多个分页 URL',
   'Noindex Alternate': 'noindex 的替代页',
   'Hreflang on Non-Canonical Page': '非规范页面上的 hreflang',
   'Hreflang Noindex Alternate': 'Hreflang：noindex 的替代页',

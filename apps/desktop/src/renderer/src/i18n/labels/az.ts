@@ -224,6 +224,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Internal Link with UTM': 'UTM ilə daxili link',
   'Paginated Page Not Indexable': 'İndekslənməyən səhifələmə səhifəsi',
   'Pagination Loop': 'Səhifələmə dövrəsi',
+  'Multiple Pagination URLs': 'Çoxsaylı səhifələmə URL-ləri',
   'Noindex Alternate': 'Noindex alternativ',
   'Hreflang on Non-Canonical Page': 'Kanonik olmayan səhifədə hreflang',
   'Hreflang Noindex Alternate': 'Hreflang: noindex alternativ',

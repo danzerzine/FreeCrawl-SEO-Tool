@@ -197,6 +197,8 @@ export interface ParsedPage {
   paginationNext: string | null;
   /** `<link rel="prev">` href, normalized to absolute URL. */
   paginationPrev: string | null;
+  /** More than one `<link rel="next">` or more than one `<link rel="prev">` (the two above read the first). */
+  paginationMultiple: boolean;
   /** All `<link rel="alternate" hreflang>` entries on the page. */
   hreflangs: HreflangEntry[];
   /** Videos found on the page (`<video>` + recognised embeds) for the
@@ -1635,6 +1637,7 @@ export function parseHtml(
   const paginationPrevRaw = ($('link[rel="prev"]').attr('href') ?? '').trim();
   const paginationNext = paginationNextRaw ? normalizeUrl(paginationNextRaw, baseUrl, opts.urlRewrites) : null;
   const paginationPrev = paginationPrevRaw ? normalizeUrl(paginationPrevRaw, baseUrl, opts.urlRewrites) : null;
+  const paginationMultiple = $('link[rel="next"]').length > 1 || $('link[rel="prev"]').length > 1;
 
   // Hreflang — `<link rel="alternate" hreflang="…" href="…">`. We dedupe
   // by lang+href because some sites repeat tags accidentally. Same rule as
@@ -2601,6 +2604,7 @@ export function parseHtml(
     renderBlockingCount,
     paginationNext,
     paginationPrev,
+    paginationMultiple,
     hreflangs,
     videos,
     amphtml,

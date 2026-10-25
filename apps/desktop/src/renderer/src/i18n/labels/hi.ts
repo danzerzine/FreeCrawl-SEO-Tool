@@ -216,6 +216,7 @@ export const HI_LABELS: Record<string, string> = {
   'Internal Link with UTM': 'UTM वाला आंतरिक लिंक',
   'Paginated Page Not Indexable': 'पेजिनेशन पेज इंडेक्स नहीं होता',
   'Pagination Loop': 'पेजिनेशन लूप',
+  'Multiple Pagination URLs': 'एकाधिक पेजिनेशन URL',
   'Noindex Alternate': 'noindex वाला विकल्प',
   'Hreflang on Non-Canonical Page': 'गैर-कैनोनिकल पेज पर hreflang',
   'Hreflang Noindex Alternate': 'Hreflang: noindex वाला विकल्प',

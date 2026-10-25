@@ -6207,6 +6207,7 @@ export class Crawler extends EventEmitter {
           schemaInvalidCount: parsed.schemaInvalidCount,
           paginationNext: this.config.storePagination ? parsed.paginationNext : null,
           paginationPrev: this.config.storePagination ? parsed.paginationPrev : null,
+          paginationMultiple: this.config.storePagination && parsed.paginationMultiple ? 1 : 0,
           hreflangs:
             this.config.storeHreflang && parsed.hreflangs.length > 0
               ? JSON.stringify(parsed.hreflangs)

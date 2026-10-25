@@ -215,6 +215,7 @@ export const TR_LABELS: Record<string, string> = {
   'Internal Link with UTM': 'UTM’li İç Bağlantı',
   'Paginated Page Not Indexable': 'Dizine Eklenmeyen Sayfalama Sayfası',
   'Pagination Loop': 'Sayfalama Döngüsü',
+  'Multiple Pagination URLs': "Birden çok sayfalama URL'si",
   'Noindex Alternate': 'Noindex Alternatif',
   'Hreflang on Non-Canonical Page': 'Kanonik Olmayan Sayfada Hreflang',
   'Hreflang Noindex Alternate': 'Hreflang: Noindex Alternatif',

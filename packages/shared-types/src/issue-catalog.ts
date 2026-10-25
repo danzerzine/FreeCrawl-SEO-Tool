@@ -350,6 +350,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-pagination-broken', label: 'Broken Next/Prev Target', category: 'issues:pagination-broken', count: 'paginationBroken' },
       { key: 'issues-pagination-non-indexable', label: 'Paginated Page Not Indexable', category: 'issues:pagination-non-indexable', count: 'paginationNonIndexable' },
       { key: 'issues-pagination-loop', label: 'Pagination Loop', category: 'issues:pagination-loop', count: 'paginationLoop' },
+      { key: 'issues-pagination-multiple', label: 'Multiple Pagination URLs', category: 'issues:pagination-multiple', count: 'paginationMultiple' },
       { key: 'issues-pagination-sequence-break', label: 'Sequence Break (gap in numbering)', category: 'issues:pagination-sequence-break', count: 'paginationSequenceBreak' },
       { key: 'issues-pagination-canonical-conflict', label: 'Canonical Conflict', category: 'issues:pagination-canonical-conflict', count: 'paginationCanonicalConflict' },
     ],

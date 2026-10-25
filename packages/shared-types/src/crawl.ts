@@ -132,6 +132,7 @@ export type UrlCategory =
   | 'issues:link-utm-internal'
   | 'issues:pagination-non-indexable'
   | 'issues:pagination-loop'
+  | 'issues:pagination-multiple'
   | 'issues:hreflang-not-canonical'
   | 'issues:hreflang-noindex-target'
   | 'issues:og-name-attribute'
@@ -2210,6 +2211,8 @@ export interface OverviewCounts {
     linkUtmInternal: number;
     paginationNonIndexable: number;
     paginationLoop: number;
+    /** Pages with more than one rel=next or rel=prev (B121). */
+    paginationMultiple: number;
     hreflangNotCanonical: number;
     hreflangNoindexTarget: number;
     /** `og:*` tags given with `name=` instead of `property=` (B25). */

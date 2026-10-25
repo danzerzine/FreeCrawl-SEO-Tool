@@ -211,6 +211,8 @@ type ClauseLimits = SeoThresholds & {
   readonly noAxeColumns?: boolean;
   /** No markup columns (before migration 128): the two markup filters match nothing. */
   readonly noMarkupColumns?: boolean;
+  /** No `pagination_multiple` column (before migration 131): the Multiple Pagination URLs filter matches nothing. */
+  readonly noPaginationMultiple?: boolean;
 };
 /** The URL up to its query, with a trailing slash so a last path segment ends like the others (B28). */
 const URL_PATH_SLASH_SQL =
@@ -287,6 +289,7 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   'issues:meta-robots-outside-head',
   'issues:link-utm-internal',
   'issues:pagination-loop',
+  'issues:pagination-multiple',
   'issues:hreflang-not-canonical',
   'issues:hreflang-noindex-target',
   'issues:amp-target-broken',
@@ -543,6 +546,7 @@ interface UrlRowDb {
   schema_invalid_count: number;
   pagination_next: string | null;
   pagination_prev: string | null;
+  pagination_multiple: number;
   hreflangs: string | null;
   hreflang_count: number;
   videos: string | null;
@@ -922,6 +926,8 @@ export interface UpsertUrlInput {
   schemaInvalidCount?: number;
   paginationNext?: string | null;
   paginationPrev?: string | null;
+  /** 1 when the page declares more than one rel=next or rel=prev (B121). */
+  paginationMultiple?: number;
   /** JSON-stringified array of `HreflangEntry` objects, or null. */
   hreflangs?: string | null;
   hreflangCount?: number;
@@ -1127,7 +1133,7 @@ const UPSERT_URL_SQL = `
     meta_keywords, meta_author, meta_generator, theme_color,
     hsts, x_frame_options, x_content_type_options, content_encoding,
     schema_types, schema_block_count, schema_invalid_count,
-    pagination_next, pagination_prev, hreflangs, hreflang_count, videos,
+    pagination_next, pagination_prev, pagination_multiple, hreflangs, hreflang_count, videos,
     amphtml, favicon, mixed_content_count, mixed_content_active, mixed_content_passive,
     folder_depth, query_param_count,
     csp, referrer_policy, permissions_policy,
@@ -1173,7 +1179,7 @@ const UPSERT_URL_SQL = `
     :meta_keywords, :meta_author, :meta_generator, :theme_color,
     :hsts, :x_frame_options, :x_content_type_options, :content_encoding,
     :schema_types, :schema_block_count, :schema_invalid_count,
-    :pagination_next, :pagination_prev, :hreflangs, :hreflang_count, :videos,
+    :pagination_next, :pagination_prev, :pagination_multiple, :hreflangs, :hreflang_count, :videos,
     :amphtml, :favicon, :mixed_content_count, :mixed_content_active, :mixed_content_passive,
     :folder_depth, :query_param_count,
     :csp, :referrer_policy, :permissions_policy,
@@ -1265,6 +1271,7 @@ const UPSERT_URL_SQL = `
     schema_invalid_count = excluded.schema_invalid_count,
     pagination_next = excluded.pagination_next,
     pagination_prev = excluded.pagination_prev,
+    pagination_multiple = excluded.pagination_multiple,
     hreflangs = excluded.hreflangs,
     hreflang_count = excluded.hreflang_count,
     videos = excluded.videos,
@@ -2626,7 +2633,8 @@ export class ProjectDb {
     const cols = this.urlSortColumns();
     const limits: ClauseLimits = cols.has('main_word_count') ? t : { ...t, wordsSql: 'word_count' };
     const withAxe = cols.has('axe_serious') ? limits : { ...limits, noAxeColumns: true };
-    return cols.has('markup_errors') ? withAxe : { ...withAxe, noMarkupColumns: true };
+    const withMarkup = cols.has('markup_errors') ? withAxe : { ...withAxe, noMarkupColumns: true };
+    return cols.has('pagination_multiple') ? withMarkup : { ...withMarkup, noPaginationMultiple: true };
   }
 
   private hasTable(name: string): boolean {
@@ -3420,6 +3428,7 @@ export class ProjectDb {
       schema_invalid_count: input.schemaInvalidCount ?? 0,
       pagination_next: input.paginationNext ?? null,
       pagination_prev: input.paginationPrev ?? null,
+      pagination_multiple: input.paginationMultiple ?? 0,
       hreflangs: input.hreflangs ?? null,
       videos: input.videos ?? null,
       hreflang_count: input.hreflangCount ?? 0,
@@ -9286,6 +9295,7 @@ export class ProjectDb {
       linkUtmInternal: gatedCount('issues:link-utm-internal'),
       paginationNonIndexable: gatedCount('issues:pagination-non-indexable'),
       paginationLoop: gatedCount('issues:pagination-loop'),
+      paginationMultiple: gatedCount('issues:pagination-multiple'),
       hreflangNotCanonical: gatedCount('issues:hreflang-not-canonical'),
       hreflangNoindexTarget: gatedCount('issues:hreflang-noindex-target'),
       ogNameAttribute: gatedCount('issues:og-name-attribute'),
@@ -14804,7 +14814,7 @@ const MMAP_SIZE = 30_000_000_000;
  * redirect checks keep their wider scope on purpose.
  */
 export const STATUS_GATED_ISSUES: ReadonlySet<string> = new Set(
-  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'h1-changed-by-js', 'canonical-changed-by-js', 'links-changed-by-js', 'text-changed-by-js', 'console-errors', 'failed-resources', 'markup-errors', 'duplicate-ids', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate', 'axe-critical-serious', 'axe-moderate-minor', 'axe-needs-review'].map((k) => `issues:${k}`),
+  ['og-name-attribute', 'noindex-other-bot', 'http3-not-supported', 'http2-not-supported', 'response-slow', 'response-very-slow', 'ttfb-slow', 'ttfb-very-slow', 'page-large', 'page-too-large-critical', 'keepalive-disabled', 'hsts-no-preload', 'hsts-max-age-short', 'hsts-no-includesubdomains', 'cookie-no-secure', 'cookie-no-httponly', 'cookie-no-samesite', 'cors-wildcard-origin', 'cors-wildcard-with-credentials', 'charset-mismatch', 'ssl-cert-expired', 'ssl-cert-expiring-soon', 'ssl-protocol-old', 'ssl-signature-weak', 'title-too-long', 'title-too-short', 'title-duplicate', 'title-multiple', 'title-pixel-width-too-long', 'title-pixel-width-too-short', 'title-placeholder', 'title-single-word', 'meta-too-long', 'meta-too-short', 'meta-duplicate', 'meta-pixel-width-too-long', 'meta-pixel-width-too-short', 'h1-duplicate', 'h1-multiple', 'h1-empty', 'h1-too-long', 'h1-equals-title', 'description-equals-title', 'description-equals-h1', 'heading-skipped-level', 'canonical-self-referencing', 'canonical-non-self', 'canonical-mismatch', 'canonical-conflicting', 'canonical-cross-domain', 'canonical-not-absolute', 'multiple-canonicals', 'noindex-canonical-conflict', 'canonical-to-noindex', 'canonical-to-non-200', 'canonical-to-redirect', 'canonical-outside-head', 'hreflang-outside-head', 'title-outside-head', 'description-outside-head', 'meta-robots-outside-head', 'url-template-junk', 'url-internal-search', 'link-utm-internal', 'pagination-non-indexable', 'pagination-loop', 'pagination-multiple', 'hreflang-not-canonical', 'hreflang-noindex-target', 'pagination-canonical-conflict', 'pagination-broken', 'pagination-sequence-break', 'hreflang-x-default-missing', 'hreflang-invalid-code', 'hreflang-self-ref-missing', 'hreflang-reciprocity-missing', 'hreflang-unlinked', 'hreflang-target-issues', 'hreflang-inconsistent-lang', 'structured-data-invalid', 'schema-duplicate-id', 'schema-unknown-type', 'schema-missing-required', 'schema-missing-recommended', 'mixed-content', 'mixed-content-active', 'mixed-content-passive', 'insecure-form-action', 'missing-sri', 'render-blocking', 'render-blocking-critical', 'images-no-lazy-loading', 'images-no-responsive', 'link-empty-anchor', 'broken-bookmark', 'links-per-page-too-many', 'page-many-requests', 'og-image-not-absolute', 'twitter-image-not-absolute', 'og-image-wrong-aspect', 'twitter-image-wrong-aspect', 'meta-refresh-used', 'lang-content-mismatch', 'noindex-js-injected', 'title-changed-by-js', 'h1-changed-by-js', 'canonical-changed-by-js', 'links-changed-by-js', 'text-changed-by-js', 'console-errors', 'failed-resources', 'markup-errors', 'duplicate-ids', 'amp-validation-errors', 'amp-target-broken', 'amp-target-redirect', 'h2-missing', 'h2-duplicate', 'description-has-html', 'form-input-unlabeled', 'aria-invalid-role', 'low-contrast-text', 'focus-outline-suppressed', 'font-too-small', 'tap-targets-too-small', 'mobile-parity-mismatch', 'content-wider-than-screen', 'analytics-multiple-ga4', 'analytics-ua-legacy', 'analytics-pixel-without-policy', 'text-code-ratio-low', 'flesch-very-difficult', 'gunning-fog-very-high', 'high-boilerplate', 'content-area-not-found', 'spelling-grammar', 'over-budget', 'duplicate-content-exact', 'canonical-conflict-near-duplicate', 'axe-critical-serious', 'axe-moderate-minor', 'axe-needs-review'].map((k) => `issues:${k}`),
 );
 
 /** `INTERNAL_HTML_SCOPE` everywhere in a clause (also inside GROUP BY subqueries) becomes the 2xx scope. */
@@ -14834,6 +14844,7 @@ function baseCategoryWhereClause(
   if (disabledIssues?.has(cat)) return '1 = 0';
   if (t.noAxeColumns && cat.startsWith('issues:axe-')) return '1 = 0';
   if (t.noMarkupColumns && MARKUP_CHECKS.includes(cat)) return '1 = 0';
+  if (t.noPaginationMultiple && cat === 'issues:pagination-multiple') return '1 = 0';
   switch (cat) {
     case 'all':
       return null;
@@ -15224,6 +15235,9 @@ function baseCategoryWhereClause(
       return `is_external = 0 AND content_kind = 'html'
               AND (pagination_next IS NOT NULL OR pagination_prev IS NOT NULL)
               AND indexability LIKE 'non-indexable%'`;
+    case 'issues:pagination-multiple':
+      // More than one rel=next or rel=prev on the page; only the first is read (B121).
+      return "is_external = 0 AND content_kind = 'html' AND pagination_multiple = 1";
     case 'issues:pagination-loop':
       // Following rel=next returns to a page already in the chain (B82).
       return "is_external = 0 AND content_kind = 'html' AND pagination_loop = 1";
