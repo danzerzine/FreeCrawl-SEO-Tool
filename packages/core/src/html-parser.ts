@@ -768,6 +768,36 @@ export interface ServedPageSignals {
   words: number;
 }
 
+const HEAD_ONLY_TAGS = new Set(['title', 'meta', 'link', 'script', 'style', 'base', 'noscript', 'template']);
+
+/**
+ * Whether the browser would put this element in `<body>` of the served source. A source that
+ * writes no `<body>` (a fragment) still gets one: it opens at the first node that is not head
+ * content, so a `<link rel=canonical>` written after the page text sits in the body the rendered
+ * DOM has, and Google does not read it there (B161).
+ */
+function servedInBody($: cheerio.CheerioAPI, el: Parameters<typeof $>[0]): boolean {
+  const $el = $(el);
+  if ($el.closest('body').length > 0) return true;
+  if ($el.closest('head').length > 0) return false;
+  const chain = $el.parentsUntil('html');
+  const top = (chain.length > 0 ? chain.last() : $el).get(0) as
+    | { name?: string; prev?: unknown }
+    | undefined;
+  if (!top) return false;
+  if (chain.length > 0 && !HEAD_ONLY_TAGS.has((top.name ?? '').toLowerCase())) return true;
+  let node = top.prev as { type?: string; name?: string; data?: string; prev?: unknown } | null | undefined;
+  while (node) {
+    if (node.type === 'tag' || node.type === 'script' || node.type === 'style') {
+      if (!HEAD_ONLY_TAGS.has((node.name ?? '').toLowerCase())) return true;
+    } else if (node.type === 'text' && (node.data ?? '').trim() !== '') {
+      return true;
+    }
+    node = node.prev as typeof node;
+  }
+  return false;
+}
+
 /**
  * The four things B33 compares, read out of an HTML document with one
  * cheerio load. Follows `parseHtml` rule for rule (base href, head-only
@@ -803,7 +833,7 @@ export function readServedPageSignals(
   const h1 = decodeEntities($('h1').first().text()).replace(/\s+/g, ' ').trim() || null;
   const canonicalHref = (
     $('link[rel="canonical"]')
-      .filter((_, el) => $(el).closest('body').length === 0)
+      .filter((_, el) => !servedInBody($, el))
       .first()
       .attr('href') ?? ''
   ).trim();
