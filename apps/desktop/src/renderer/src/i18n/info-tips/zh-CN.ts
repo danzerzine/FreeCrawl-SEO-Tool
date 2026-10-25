@@ -109,8 +109,8 @@ export const ZH_CN_INFO_TIPS: Record<string, string> = {
   ['Character count of the first H1.']: '第一个 H1 的字符数。',
   ['Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.']:
     'meta description 的字符数。建议：70–155 个字符；超过 155 有被截断的风险。',
-  ['Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.']:
-    '标题的字符数。建议：30–60 个字符；超过 60 有在搜索结果中被截断的风险。',
+  ['Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).']:
+    '标题的字符数。页面标题检查按项目阈值标记它（设置 → 阈值；默认 30–60）。',
   ['Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.']:
     '正文 shingle 的 Charikar 64 位 SimHash。由抓取后的近似重复聚类处理使用。两个 SimHash 在配置的汉明阈值内即视为相似。',
   ['Coarse content classification derived from URL extension and Content-Type header.']:

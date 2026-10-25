@@ -111,8 +111,8 @@ export const KO_INFO_TIPS: Record<string, string> = {
   ['Character count of the first H1.']: '첫 번째 H1의 글자 수.',
   ['Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.']:
     '메타 설명의 글자 수. 권장: 70–155자. 155자를 넘으면 잘릴 위험이 있습니다.',
-  ['Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.']:
-    '제목의 글자 수. 권장: 30–60자. 60자를 넘으면 검색 결과에서 잘릴 위험이 있습니다.',
+  ['Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).']:
+    '제목의 글자 수. 페이지 제목 검사는 프로젝트 임계값을 기준으로 표시합니다(설정 → 임계값, 기본값 30–60).',
   ['Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.']:
     '본문 shingle의 Charikar 64비트 SimHash. 크롤링 후 유사 중복 클러스터링 단계에서 사용됩니다. 설정된 해밍 임계값 내의 두 SimHash는 유사한 것으로 간주됩니다.',
   ['Coarse content classification derived from URL extension and Content-Type header.']:

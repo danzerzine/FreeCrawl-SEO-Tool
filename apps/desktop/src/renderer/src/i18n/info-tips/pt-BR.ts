@@ -113,8 +113,8 @@ export const PT_BR_INFO_TIPS: Record<string, string> = {
   ['Character count of the first H1.']: 'Contagem de caracteres do primeiro H1.',
   ['Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.']:
     'Contagem de caracteres da meta descrição. Recomendado: 70–155 caracteres; acima de 155 há risco de truncamento.',
-  ['Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.']:
-    'Contagem de caracteres do título. Recomendado: 30–60 caracteres; acima de 60 há risco de truncamento nas SERPs.',
+  ['Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).']:
+    'Contagem de caracteres do título. As verificações de Títulos de página o sinalizam pelos limites do projeto (Configurações → Limites; 30–60 por padrão).',
   ['Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.']:
     'SimHash Charikar de 64 bits dos shingles do corpo. Usado pela etapa pós-rastreamento de agrupamento de quase duplicatas. Dois SimHashes dentro do limite de Hamming configurado são considerados semelhantes.',
   ['Coarse content classification derived from URL extension and Content-Type header.']:

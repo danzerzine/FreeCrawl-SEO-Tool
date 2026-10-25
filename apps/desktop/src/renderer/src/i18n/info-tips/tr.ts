@@ -114,8 +114,8 @@ export const TR_INFO_TIPS: Record<string, string> = {
   ['Character count of the first H1.']: "İlk H1'in karakter sayısı.",
   ['Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.']:
     'Meta açıklamanın karakter sayısı. Önerilen: 70–155 karakter; 155 üzeri kırpılma riski taşır.',
-  ['Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.']:
-    "Başlığın karakter sayısı. Önerilen: 30–60 karakter; 60 üzeri SERP'lerde kırpılma riski taşır.",
+  ['Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).']:
+    'Başlığın karakter sayısı. Sayfa Başlıkları kontrolleri bunu projenin eşiklerine göre işaretler (Ayarlar → Eşikler; varsayılan 30–60).',
   ['Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.']:
     'Gövde metni parçalarının Charikar 64-bit SimHash değeri. Crawl sonrası yakın-yinelenen kümeleme geçişi tarafından kullanılır. Yapılandırılan Hamming eşiği içindeki iki SimHash benzer kabul edilir.',
   ['Coarse content classification derived from URL extension and Content-Type header.']:

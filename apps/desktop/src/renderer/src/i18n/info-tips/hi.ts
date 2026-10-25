@@ -114,8 +114,8 @@ export const HI_INFO_TIPS: Record<string, string> = {
   ['Character count of the first H1.']: 'पहले H1 की अक्षर संख्या।',
   ['Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.']:
     'मेटा विवरण की अक्षर संख्या। अनुशंसित: 70–155 अक्षर; 155 से अधिक पर कटने का जोखिम।',
-  ['Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.']:
-    'शीर्षक की अक्षर संख्या। अनुशंसित: 30–60 अक्षर; 60 से अधिक पर SERP में कटने का जोखिम।',
+  ['Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).']:
+    'शीर्षक की अक्षर संख्या। पृष्ठ शीर्षक जाँचें इसे प्रोजेक्ट की सीमाओं के आधार पर चिह्नित करती हैं (सेटिंग्स → सीमाएँ; डिफ़ॉल्ट 30–60)।',
   ['Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.']:
     'बॉडी शिंगल्स का Charikar 64-बिट SimHash। क्रॉल के बाद के निकट-डुप्लिकेट क्लस्टरिंग चरण द्वारा उपयोग होता है। कॉन्फ़िगर की गई Hamming सीमा के भीतर दो SimHash समान माने जाते हैं।',
   ['Coarse content classification derived from URL extension and Content-Type header.']:

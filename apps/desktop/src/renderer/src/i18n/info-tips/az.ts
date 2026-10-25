@@ -113,8 +113,8 @@ export const AZ_INFO_TIPS: Record<string, string> = {
   ['Character count of the first H1.']: 'İlk H1-in simvol sayı.',
   ['Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.']:
     'Meta təsvirin simvol sayı. Tövsiyə: 70–155 simvol; 155-dən çox olduqda kəsilmə riski var.',
-  ['Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.']:
-    'Başlığın simvol sayı. Tövsiyə: 30–60 simvol; 60-dan çox olduqda SERP-də kəsilmə riski var.',
+  ['Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).']:
+    'Başlığın simvol sayı. Səhifə başlıqları yoxlamaları onu layihənin hədlərinə görə qeyd edir (Ayarlar → Hədlər; standart olaraq 30–60).',
   ['Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.']:
     'Gövdə shingle-larının Charikar 64-bit SimHash-i. Tarama sonrası oxşar-təkrar klasterləşdirmə mərhələsi tərəfindən istifadə olunur. Konfiqurasiya edilmiş Hamming həddi daxilindəki iki SimHash oxşar sayılır.',
   ['Coarse content classification derived from URL extension and Content-Type header.']:

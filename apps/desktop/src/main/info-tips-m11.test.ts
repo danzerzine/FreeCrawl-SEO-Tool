@@ -36,3 +36,16 @@ describe('M11 tooltips are translated', () => {
     });
   }
 });
+
+// B133: the title-length tooltip changed with the thresholds of module 5 and lost its translations.
+describe('the title length tooltip is translated (B133)', () => {
+  const tip = (/ {2}titleLength: \{\n(?:.*\n)*? {4}info: '((?:[^'\\]|\\.)*)',/.exec(columns)![1] as string).replace(/\\'/g, "'");
+  it('names the thresholds setting', () => expect(tip).toMatch(/Thresholds/));
+  for (const [lang, table] of Object.entries(INFO_TIPS)) {
+    it(lang, () => {
+      expect(table[tip], lang).toBeTruthy();
+      expect(table[tip]).not.toBe(tip);
+      expect(table[tip]).toContain('30–60');
+    });
+  }
+});

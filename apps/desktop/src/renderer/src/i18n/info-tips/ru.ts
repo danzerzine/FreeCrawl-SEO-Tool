@@ -113,8 +113,8 @@ export const RU_INFO_TIPS: Record<string, string> = {
   ['Character count of the first H1.']: 'Число символов первого H1.',
   ['Character count of the meta description. Recommended: 70–155 characters; over 155 risks truncation.']:
     'Число символов мета-описания. Рекомендуется: 70–155 символов; свыше 155 — риск усечения.',
-  ['Character count of the title. Recommended: 30–60 characters; over 60 risks truncation in SERPs.']:
-    'Число символов заголовка. Рекомендуется: 30–60 символов; свыше 60 — риск усечения в выдаче.',
+  ['Character count of the title. The Page Titles checks flag it against the project thresholds (Settings → Thresholds; 30–60 by default).']:
+    'Число символов заголовка. Проверки раздела «Заголовки страниц» сравнивают его с порогами проекта (Настройки → Пороги; по умолчанию 30–60).',
   ['Charikar 64-bit SimHash of body shingles. Used by the post-crawl near-duplicate clustering pass. Two SimHashes within the configured Hamming threshold are considered similar.']:
     '64-битный SimHash Чарикара по шинглам тела. Используется проходом кластеризации почти дубликатов после сканирования. Два SimHash в пределах настроенного порога Хэмминга считаются похожими.',
   ['Coarse content classification derived from URL extension and Content-Type header.']:
