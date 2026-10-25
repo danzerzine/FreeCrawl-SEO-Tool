@@ -244,6 +244,8 @@ import {
   type GscBqRunResult,
   type GscInspectRunResult,
   type ExportSheetsInput,
+  type MediaExportInfo,
+  type MediaExportRunInput,
   type ExportSheetsResult,
   type ExportBigqueryInput,
   type ExportBigqueryResult,
@@ -338,6 +340,7 @@ import {
   type DatasetExportContext,
   exportGrid,
   exportSitemap,
+  parseExportWhat,
   exportHtmlReport,
   renderHtmlReport,
   runSeoAuditExport,
@@ -502,10 +505,14 @@ import { cancelledCompareResult, compareWithOpenProject } from './compare-load.j
 import { launchScheduledCrawl, saveAfterScheduledCrawl, scheduledChangeReport, webhookChanges } from './scheduled-chain.js';
 import { monitorHistory, monitorMetricNames } from './monitor-history.js';
 import {
+  desktopPdfOptions,
   exportSelectedLinks,
   exportSetChoices,
+  pdfExportMaxBytes,
+  runDesktopExportItems,
   runSavedExportSet,
   saveDesktopExportSet,
+  setPdfExportMaxBytes,
 } from './export-sets.js';
 import { alertAfterCrawl, alertsState, crawlRunSaved, saveAlertsConfig, sendTestAlert, type AlertDeps } from './monitor-alerts.js';
 import type { ProjectDb as ProjectDbType } from '@freecrawl/db';
@@ -5772,10 +5779,40 @@ function registerIpc(): void {
         ...(sess.lastCrawlConfig ? { crawlConfig: sess.lastCrawlConfig } : {}),
       },
       ...bulkExportMeta(sess),
+      // B154: pdfs fetch with the app's crawl config and the project's byte cap.
+      ...desktopPdfOptions(sess.lastCrawlConfig, sess.getDb()),
       // B93: dataset:link-suggestions runs on the worker, not on the main process.
       linkSuggestionsRunner: (input) => runLinkSuggestionsOffThread(sess, input),
     });
     await showExportOutcome(L().dlgExportSetCompleteTitle, outputDir, r, win);
+    return { outputDir, files: r.files.length, errors: r.errors.length };
+  });
+  // B154 — File → Export PDF Files and Screenshots: the same runner as a set holding them.
+  registerHandle(IPC.exportMediaInfo, (): MediaExportInfo => {
+    const sess = currentSession();
+    const config = sess.lastCrawlConfig ?? DEFAULT_CRAWL_CONFIG;
+    return {
+      userAgent: config.userAgent,
+      headerNames: Object.keys(config.customHeaders ?? {}),
+      auth: config.auth?.type ?? 'none',
+      formLogin: config.formLogin?.enabled === true,
+      maxBytes: pdfExportMaxBytes(sess.getDb()),
+    };
+  });
+  registerHandle(IPC.exportMediaRun, async (e, input: MediaExportRunInput) => {
+    const sess = currentSession();
+    const win = BrowserWindow.fromWebContents(e.sender) ?? mainWindow;
+    const what = input.what.filter((w) => w === 'pdfs' || w === 'screenshots');
+    if (what.length === 0) return { outputDir: '', files: 0, errors: 0 };
+    setPdfExportMaxBytes(sess.getDb(), input.maxBytes);
+    const outputDir = await pickExportFolder(L().dlgMediaExportFolderTitle, win);
+    if (!outputDir) return { outputDir: '', files: 0, errors: 0 };
+    const r = await runDesktopExportItems(sess.getDb(), outputDir, parseExportWhat(what.join(',')), {
+      ...bulkExportMeta(sess),
+      ...desktopPdfOptions(sess.lastCrawlConfig, sess.getDb()),
+      onProgress: (line) => logger.log('info', 'main', `PDF/screenshot export: ${line}`, undefined, sess.logTag),
+    });
+    await showExportOutcome(L().dlgMediaExportCompleteTitle, outputDir, r, win);
     return { outputDir, files: r.files.length, errors: r.errors.length };
   });
 
@@ -8057,6 +8094,7 @@ function registerIpc(): void {
           exportDir,
           branding: readReportBranding(),
           ...bulkExportMeta(sess),
+          ...desktopPdfOptions(sess.lastCrawlConfig, db),
           writePdf: writePdfReport,
           linkSuggestionsRunner: (input) => runLinkSuggestionsOffThread(sess, input),
           onProgress: (line) => logger.log('info', 'main', `Scheduled export: ${line}`, undefined, sess.logTag),

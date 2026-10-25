@@ -7,8 +7,9 @@ import { listExportSets } from '@freecrawl/core';
 import { runSavedExportSet, saveDesktopExportSet } from './export-sets.js';
 import { runScheduledExport } from './scheduled-export.js';
 
-// M10 review round 1 (std M4 / spec M5): the PDF and screenshot exports have
-// no desktop options yet, so they stay command-line only.
+// M10 review round 1 (std M4 / spec M5): a command-line-only export stays out
+// of desktop sets and schedules. Since B154 that is `pdf-text` alone (the PDF
+// files and screenshots run in the app: export-media-b154.test.ts).
 let dir: string;
 let db: ProjectDb;
 
@@ -22,38 +23,34 @@ afterAll(() => {
 });
 
 describe('desktop export sets and schedules leave out the CLI-only exports', () => {
-  it('saving a set that holds pdfs or screenshots is refused with a message, nothing saved', () => {
-    expect(() => saveDesktopExportSet(db, { name: 'media', what: ['issues', 'pdfs'] })).toThrow(
-      /"pdfs".*command line/s,
+  it('saving a set that holds pdf-text is refused with a message, nothing saved', () => {
+    expect(() => saveDesktopExportSet(db, { name: 'media', what: ['issues', 'pdf-text'] })).toThrow(
+      /"pdf-text".*command line/s,
     );
-    expect(() => saveDesktopExportSet(db, { name: 'media', what: ['screenshots'] })).toThrow(/"screenshots"/);
     expect(listExportSets(db)).toEqual([]);
     expect(saveDesktopExportSet(db, { name: 'ok', what: ['issues'] }).what).toEqual(['issues']);
   });
 
-  it('a CLI-saved set with pdfs can be saved again from the editor; its CLI-only tokens stay, new ones are refused', () => {
-    db.setMeta('exportSets', JSON.stringify([{ name: 'cli2', what: ['issues', 'pdfs'] }]));
-    const saved = saveDesktopExportSet(db, { name: 'cli2', what: ['issues', 'tab:redirects', 'pdfs'] });
-    expect(saved.what).toEqual(['issues', 'tab:redirects', 'pdfs']);
-    expect(() => saveDesktopExportSet(db, { name: 'cli2', what: ['issues', 'pdfs', 'screenshots'] })).toThrow(
-      /"screenshots"/,
-    );
+  it('a CLI-saved set with pdf-text can be saved again from the editor; its CLI-only token stays, a new one is refused', () => {
+    db.setMeta('exportSets', JSON.stringify([{ name: 'cli2', what: ['issues', 'pdf-text'] }]));
+    const saved = saveDesktopExportSet(db, { name: 'cli2', what: ['issues', 'tab:redirects', 'pdf-text'] });
+    expect(saved.what).toEqual(['issues', 'tab:redirects', 'pdf-text']);
+    expect(() => saveDesktopExportSet(db, { name: 'cli3', what: ['issues', 'pdf-text'] })).toThrow(/"pdf-text"/);
     db.setMeta('exportSets', JSON.stringify([]));
   });
 
-  it('a set saved by the CLI with pdfs runs without them and reports why', async () => {
+  it('a set saved by the CLI with pdf-text runs without it and reports why', async () => {
     // As `freecrawl export --save-set` stores it.
-    db.setMeta('exportSets', JSON.stringify([{ name: 'cli', what: ['issues', 'pdfs', 'screenshots'] }]));
+    db.setMeta('exportSets', JSON.stringify([{ name: 'cli', what: ['issues', 'pdf-text'] }]));
     const out = path.join(dir, 'set-out');
     const r = await runSavedExportSet(db, out, 'cli', {});
     expect(r.files.map((f) => path.basename(f.path))).toContain('issues-summary.csv');
     expect(fs.existsSync(path.join(out, 'pdfs'))).toBe(false);
-    expect(r.errors.map((e) => e.error).join('\n')).toMatch(/"pdfs" is only available in the command line/);
-    expect(r.errors.map((e) => e.error).join('\n')).toMatch(/"screenshots" is only available/);
+    expect(r.errors.map((e) => e.error).join('\n')).toMatch(/"pdf-text" is only available in the command line/);
   });
 
-  it('a schedule running a set with only pdfs runs nothing for it and puts the reason in its errors', async () => {
-    db.setMeta('exportSets', JSON.stringify([{ name: 'media', what: ['pdfs'] }]));
+  it('a schedule running a set with only pdf-text runs nothing for it and puts the reason in its errors', async () => {
+    db.setMeta('exportSets', JSON.stringify([{ name: 'media', what: ['pdf-text'] }]));
     const out = path.join(dir, 'sched-out');
     fs.mkdirSync(out);
     const r = await runScheduledExport(
@@ -62,7 +59,7 @@ describe('desktop export sets and schedules leave out the CLI-only exports', () 
       { exportDir: out, toolVersion: 'test', writePdf: async () => {} },
     );
     expect(r.files).toEqual([]);
-    expect(r.errors.join('\n')).toMatch(/pdfs: "pdfs" is only available in the command line/);
+    expect(r.errors.join('\n')).toMatch(/pdf-text: "pdf-text" is only available in the command line/);
     expect(fs.readdirSync(out)).toEqual([]);
   });
 });

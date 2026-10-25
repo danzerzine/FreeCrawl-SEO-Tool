@@ -6,7 +6,7 @@ import { ProjectDb } from '@freecrawl/db';
 import { CLI_ONLY_EXPORTS, runSavedExportSet, saveDesktopExportSet } from './export-sets.js';
 
 // B42 / r1 M6: `pdf-text` loads unpdf, which is not verified in Electron, so the
-// desktop skips it like pdfs and screenshots (B154 lifts this together with the Electron check).
+// desktop skips it like pdfs and screenshots (B154 moved pdfs and screenshots into the app; pdf-text waits for the Electron check).
 let dir: string;
 let db: ProjectDb;
 
@@ -21,7 +21,8 @@ afterAll(() => {
 
 describe('pdf-text is a command-line-only export', () => {
   it('is in CLI_ONLY_EXPORTS', () => {
-    expect([...CLI_ONLY_EXPORTS]).toEqual(['pdfs', 'screenshots', 'pdf-text']);
+    // B154 moved pdfs and screenshots into the app; pdf-text waits for the check of unpdf in the packaged app.
+    expect([...CLI_ONLY_EXPORTS]).toEqual(['pdf-text']);
   });
 
   it('the desktop refuses to save a set with it', () => {

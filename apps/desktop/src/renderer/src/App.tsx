@@ -18,6 +18,8 @@ import { ProjectsDialog } from './components/ProjectsDialog.js';
 import { PasswordPromptDialog } from './components/PasswordPromptDialog.js';
 import { ExportDialog } from './components/ExportDialog.js';
 import { GoogleExportDialog, type GoogleExportDataset } from './components/GoogleExportDialog.js';
+import { MediaExportDialog } from './components/MediaExportDialog.js';
+import { SitemapOptionsDialog, type SitemapVariantChoice } from './components/SitemapOptionsDialog.js';
 import { UrlsTab } from './tabs/UrlsTab.js';
 import { ImagesTab } from './tabs/ImagesTab.js';
 import { BrokenLinksTab } from './tabs/BrokenLinksTab.js';
@@ -70,6 +72,8 @@ export function App() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [exportSetsOpen, setExportSetsOpen] = useState(false);
   const [googleExportTarget, setGoogleExportTarget] = useState<'sheets' | 'bigquery' | null>(null);
+  const [mediaExportOpen, setMediaExportOpen] = useState(false);
+  const [sitemapVariant, setSitemapVariant] = useState<SitemapVariantChoice | null>(null);
   const [trendsOpen, setTrendsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [dropFlash, setDropFlash] = useState<string | null>(null);
@@ -401,6 +405,9 @@ export function App() {
         case 'open-export-sets':
           setExportSetsOpen(true);
           break;
+        case 'export-media':
+          setMediaExportOpen(true);
+          break;
         case 'open-trends':
           setTrendsOpen(true);
           break;
@@ -416,20 +423,21 @@ export function App() {
         case 'open-settings':
           setSettingsOpen(true);
           break;
+        // B154: the lastmod source is picked first, then the save dialog opens.
         case 'generate-sitemap':
-          void window.freecrawl.sitemapGenerate({ filePath: '' });
+          setSitemapVariant('standard');
           break;
         case 'generate-sitemap-images':
-          void window.freecrawl.sitemapGenerate({ filePath: '', variant: 'image' });
+          setSitemapVariant('image');
           break;
         case 'generate-sitemap-hreflang':
-          void window.freecrawl.sitemapGenerate({ filePath: '', variant: 'hreflang' });
+          setSitemapVariant('hreflang');
           break;
         case 'generate-sitemap-news':
-          void window.freecrawl.sitemapGenerate({ filePath: '', variant: 'news' });
+          setSitemapVariant('news');
           break;
         case 'generate-sitemap-video':
-          void window.freecrawl.sitemapGenerate({ filePath: '', variant: 'video' });
+          setSitemapVariant('video');
           break;
         case 'export-html-report':
           void window.freecrawl.exportHtmlReport({ filePath: '' });
@@ -719,6 +727,23 @@ export function App() {
           if (target) runGoogleExport(target, datasets);
         }}
         onCancel={() => setGoogleExportTarget(null)}
+      />
+      <MediaExportDialog
+        open={mediaExportOpen}
+        onClose={() => setMediaExportOpen(false)}
+        onOpenSettings={() => {
+          setMediaExportOpen(false);
+          setSettingsOpen(true, { section: 'requests' });
+        }}
+      />
+      <SitemapOptionsDialog
+        variant={sitemapVariant}
+        onConfirm={(lastmod) => {
+          const variant = sitemapVariant;
+          setSitemapVariant(null);
+          if (variant) void window.freecrawl.sitemapGenerate({ filePath: '', variant, lastmod });
+        }}
+        onCancel={() => setSitemapVariant(null)}
       />
       <TrendsDialog open={trendsOpen} onClose={() => setTrendsOpen(false)} />
       <ProjectsDialog

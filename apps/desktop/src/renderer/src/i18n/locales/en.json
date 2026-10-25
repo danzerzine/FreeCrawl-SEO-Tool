@@ -368,7 +368,9 @@
     "groupDatasets": "Datasets",
     "groupIssueInlinks": "Inlinks to pages with an issue",
     "picked_one": "{{count}} export picked",
-    "picked_other": "{{count}} exports picked"
+    "picked_other": "{{count}} exports picked",
+    "tokenPdfs": "PDF files (downloaded with the crawl settings)",
+    "tokenScreenshots": "Screenshots"
   },
   "app": {
     "dropMissingPath": "Couldn't read the dropped path for {{name}}. Use File → Open Project instead.",
@@ -2868,5 +2870,32 @@
     "mayHaveBeenCreated": "The task may have been created anyway. Check the tracker before sending again.",
     "button": "Create task…",
     "buttonTitle": "Turn this issue into a task for GitHub or Basecamp"
+  },
+  "mediaExport": {
+    "title": "Export PDF files and screenshots",
+    "pdfs": "PDF files of the crawl (downloaded now, into pdfs/, with pdfs.csv)",
+    "screenshots": "Screenshots taken during the crawl (with screenshots.csv)",
+    "requestTitle": "PDF requests use the crawl settings",
+    "userAgent": "User agent",
+    "headers": "Custom headers",
+    "headersNone": "none",
+    "auth": "Authentication",
+    "authNone": "none",
+    "formLogin": "The crawl logs in through a form: the PDF files cannot be requested that way and are skipped.",
+    "openSettings": "Change in Settings",
+    "limit": "Stop downloading PDF files after (MB, all files together)",
+    "limitHint": "Kept in the project: saved export sets and scheduled crawls use the same limit."
+  },
+  "sitemapGenerate": {
+    "title": "Generate XML sitemap",
+    "lastmodLabel": "Where <lastmod> comes from",
+    "lastmod": {
+      "chain": "Page's Last-Modified if trustworthy, else the site's sitemap, else none (recommended)",
+      "last-modified": "Page's Last-Modified header only",
+      "sitemap": "The site's own sitemap only",
+      "crawl": "Crawl date",
+      "none": "No lastmod"
+    },
+    "generate": "Generate…"
   }
 }

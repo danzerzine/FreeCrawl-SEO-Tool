@@ -357,6 +357,8 @@ export const IPC = {
   exportSetSave: 'export-sets:save',
   exportSetDelete: 'export-sets:delete',
   exportSetRun: 'export-sets:run',
+  exportMediaInfo: 'export-media:info',
+  exportMediaRun: 'export-media:run',
   monitorAlertsGet: 'monitor-alerts:get',
   monitorAlertsSave: 'monitor-alerts:save',
   monitorAlertsTest: 'monitor-alerts:test',
@@ -609,6 +611,26 @@ export interface ExportSetChoiceGroup {
 }
 
 /** What a scheduled crawl does with its results once it finishes. */
+/** B154: the request settings the PDF files export uses, as the export dialog shows them. */
+export interface MediaExportInfo {
+  /** The crawl config's user agent. */
+  userAgent: string;
+  /** Names of the custom request headers (values stay in the main process). */
+  headerNames: string[];
+  /** HTTP authentication type of the crawl config; `none` when unset. */
+  auth: 'none' | 'basic' | 'bearer' | 'digest';
+  /** The crawl logs in through a form: the PDF requests cannot, so they are skipped. */
+  formLogin: boolean;
+  /** Whole-run download cap of the PDF files, bytes. */
+  maxBytes: number;
+}
+
+export interface MediaExportRunInput {
+  what: ('pdfs' | 'screenshots')[];
+  /** New whole-run download cap, bytes; stored in the project for sets and schedules. */
+  maxBytes: number;
+}
+
 export interface ScheduleAfterCrawl {
   /** Export written into a timestamped sub-folder of `outputDir`. `set` runs
    *  the project's saved export set named `exportSet` (`freecrawl export --set`). */
@@ -791,6 +813,7 @@ export type MenuEvent =
   | 'export-seo-audit'
   | 'export-bulk'
   | 'open-export-sets'
+  | 'export-media'
   | 'open-trends'
   | 'export-sheets'
   | 'export-bigquery'
@@ -2677,6 +2700,10 @@ export interface FreeCrawlApi {
   exportSetDelete(name: string): Promise<boolean>;
   /** Ask for a folder, run the set into it and show the result; `outputDir` is '' when cancelled. */
   exportSetRun(name: string): Promise<{ outputDir: string; files: number; errors: number }>;
+  /** B154 — what the PDF files export will send (from the crawl config) and the project's byte cap. */
+  exportMediaInfo(): Promise<MediaExportInfo>;
+  /** B154 — store the byte cap, ask for a folder, run the PDF files and/or screenshots export into it and show the result. */
+  exportMediaRun(input: MediaExportRunInput): Promise<{ outputDir: string; files: number; errors: number }>;
   /** B88d — the current project's alert rules and channels, plus the metric list and which channels have credentials. */
   monitorAlertsGet(): Promise<MonitorAlertsState>;
   /** Save the project's rules and channels; rejects naming `rules[<index>]` on a bad rule, saving nothing. */

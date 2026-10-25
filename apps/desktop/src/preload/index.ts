@@ -5,6 +5,8 @@ import {
   type AlertDelivery,
   type MonitorAlertsConfig,
   type MonitorAlertsState,
+  type MediaExportInfo,
+  type MediaExportRunInput,
   type BridgeSessionInfo,
   type BrowserInstallState,
   type ConfirmClearResult,
@@ -517,6 +519,9 @@ const api: FreeCrawlApi = {
   exportSetDelete: (name: string): Promise<boolean> => ipcRenderer.invoke(IPC.exportSetDelete, name),
   exportSetRun: (name: string): Promise<{ outputDir: string; files: number; errors: number }> =>
     ipcRenderer.invoke(IPC.exportSetRun, name),
+  exportMediaInfo: (): Promise<MediaExportInfo> => ipcRenderer.invoke(IPC.exportMediaInfo),
+  exportMediaRun: (input: MediaExportRunInput): Promise<{ outputDir: string; files: number; errors: number }> =>
+    ipcRenderer.invoke(IPC.exportMediaRun, input),
   monitorAlertsGet: (): Promise<MonitorAlertsState> => ipcRenderer.invoke(IPC.monitorAlertsGet),
   monitorAlertsSave: (config: MonitorAlertsConfig): Promise<MonitorAlertsState> =>
     ipcRenderer.invoke(IPC.monitorAlertsSave, config),

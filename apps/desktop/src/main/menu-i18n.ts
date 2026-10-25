@@ -56,6 +56,8 @@ export interface MenuLabels {
   exportSeoAudit: string;
   bulkExport: string;
   exportSets: string;
+  /** B154 */
+  exportMedia: string;
   exportSheets: string;
   exportBigquery: string;
   compareWith: string;
@@ -191,6 +193,8 @@ export interface MenuLabels {
   dlgBulkExportCompleteTitle: string;
   dlgExportSetFolderTitle: string;
   dlgExportSetCompleteTitle: string;
+  dlgMediaExportFolderTitle: string;
+  dlgMediaExportCompleteTitle: string;
   dlgExportLinksFolderTitle: string;
   dlgExportLinksCompleteTitle: string;
   dlgHtmlReportSavedTitle: string;

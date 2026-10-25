@@ -82,6 +82,10 @@ export function ExportSetsDialog({ open, onClose }: ExportSetsDialogProps) {
         return t('exportSets.tokenAudit', { defaultValue: 'Audit report (HTML)' });
       case 'issues':
         return t('exportSets.tokenIssues', { defaultValue: 'Issues summary' });
+      case 'pdfs':
+        return t('exportSets.tokenPdfs', { defaultValue: 'PDF files (downloaded with the crawl settings)' });
+      case 'screenshots':
+        return t('exportSets.tokenScreenshots', { defaultValue: 'Screenshots' });
     }
     // The labels the sidebar, tab bar and Reports dialog show, so a set
     // reads the same as the rest of the app in every language.

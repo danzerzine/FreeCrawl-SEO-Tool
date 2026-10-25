@@ -12,6 +12,7 @@ import {
   BULK_EXPORT_TASKS,
   CLI_EXPORT_DATASETS,
   LINK_TARGET_EXPORTS,
+  PDF_MAX_RUN_BYTES,
   findExportSet,
   listExportSets,
   parseExportWhat,
@@ -21,7 +22,12 @@ import {
   type ExportOutcome,
   type RunExportItemsOptions,
 } from '@freecrawl/core';
-import { ISSUE_CATEGORIES, type ExportSet, type ExportSetChoiceGroup } from '@freecrawl/shared-types';
+import {
+  ISSUE_CATEGORIES,
+  type CrawlConfig,
+  type ExportSet,
+  type ExportSetChoiceGroup,
+} from '@freecrawl/shared-types';
 
 /**
  * Every `--what` token a set can hold, grouped for the picker. Tab and
@@ -37,7 +43,10 @@ export function exportSetChoices(): ExportSetChoiceGroup[] {
   const byPrefix = (prefix: string) =>
     [...labels].filter(([c]) => c.startsWith(prefix)).map(([token, l]) => ({ token, label: l.join(', ') }));
   return [
-    { group: 'exports', choices: ['bulk', 'seo-audit', 'html', 'audit', 'issues'].map((token) => ({ token })) },
+    {
+      group: 'exports',
+      choices: ['bulk', 'seo-audit', 'html', 'audit', 'issues', 'pdfs', 'screenshots'].map((token) => ({ token })),
+    },
     { group: 'links', choices: LINK_TARGET_EXPORTS.map((r) => ({ token: r.report, label: r.label })) },
     { group: 'tabs', choices: byPrefix('tab:') },
     { group: 'issues', choices: byPrefix('issues:') },
@@ -53,12 +62,46 @@ export function exportSetChoices(): ExportSetChoiceGroup[] {
 }
 
 /**
- * Exports that only the command line offers: the PDF, PDF text and screenshot files
- * need a request config (user agent, headers, auth, byte cap) and a sidecar
- * folder the desktop dialogs do not give them yet, so an unattended desktop
- * run would differ from the same set run by `freecrawl export --set`.
+ * Exports that only the command line offers: `pdf-text` loads unpdf, whose
+ * load inside the packaged app is not verified yet. The PDF files and
+ * screenshots run in the app too (B154), see {@link desktopPdfOptions}.
  */
-export const CLI_ONLY_EXPORTS = ['pdfs', 'screenshots', 'pdf-text'] as const;
+export const CLI_ONLY_EXPORTS = ['pdf-text'] as const;
+
+/** Project meta key of the whole-run download cap of the PDF files export (B154). */
+const PDF_MAX_BYTES_META = 'pdfExportMaxBytes';
+
+/** The project's PDF download cap in bytes; the CLI's 2 GB default when none is stored. */
+export function pdfExportMaxBytes(db: ProjectDb): number {
+  const n = Number(db.getMeta(PDF_MAX_BYTES_META) ?? '');
+  return Number.isSafeInteger(n) && n > 0 ? n : PDF_MAX_RUN_BYTES;
+}
+
+export function setPdfExportMaxBytes(db: ProjectDb, bytes: number): void {
+  if (!Number.isSafeInteger(bytes) || bytes <= 0) {
+    throw new Error(`The download limit must be a whole number of bytes above 0, got ${bytes}.`);
+  }
+  db.setMeta(PDF_MAX_BYTES_META, String(bytes));
+}
+
+/**
+ * What the `pdfs` export of a desktop run builds its requests from: the
+ * app's crawl config as it holds it (secrets already decrypted, so auth
+ * works where the CLI reading the saved envelope skips it) and the
+ * project's byte cap. The same for the menu, the export sets and the
+ * schedules, so all three fetch the files alike.
+ */
+export function desktopPdfOptions(
+  config: CrawlConfig | null,
+  db: ProjectDb,
+): Pick<RunExportItemsOptions, 'pdfs'> {
+  return {
+    pdfs: {
+      ...(config ? { crawlConfig: { config, secretsEnc: false } } : {}),
+      maxBytes: pdfExportMaxBytes(db),
+    },
+  };
+}
 
 const cliOnlyMessage = (name: string): string =>
   `"${name}" is only available in the command line for now (freecrawl export --what ${name}); the desktop app skipped it.`;

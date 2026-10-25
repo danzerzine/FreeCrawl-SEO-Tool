@@ -139,6 +139,10 @@ export function buildAppMenu(handlers: AppMenuHandlers): Menu {
           click: () => send('open-export-sets'),
         },
         {
+          label: L.exportMedia,
+          click: () => send('export-media'),
+        },
+        {
           label: L.exportSheets,
           click: () => send('export-sheets'),
         },

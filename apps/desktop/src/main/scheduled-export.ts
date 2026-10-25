@@ -29,6 +29,8 @@ export interface ScheduledExportContext {
   onProgress?: (line: string) => void;
   /** B93: computes `dataset:link-suggestions` off the main thread (the desktop's worker). */
   linkSuggestionsRunner?: RunExportItemsOptions['linkSuggestionsRunner'];
+  /** B154: request config and byte cap of the `pdfs` export (see `desktopPdfOptions`). */
+  pdfs?: RunExportItemsOptions['pdfs'];
 }
 
 export interface ScheduledExportResult {
@@ -54,6 +56,7 @@ export async function runScheduledExport(
     branding: ctx.branding,
     onProgress: ctx.onProgress,
     linkSuggestionsRunner: ctx.linkSuggestionsRunner,
+    ...(ctx.pdfs ? { pdfs: ctx.pdfs } : {}),
   };
   let r: ExportOutcome;
   if (after.export === 'set') {
