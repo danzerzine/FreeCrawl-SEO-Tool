@@ -1960,6 +1960,9 @@ export function parseHtml(
     textCodeRatio = Math.min(100, Math.round((text.length / html.length) * 100));
   }
 
+  // A page that marks its main region: a link outside it and outside every
+  // other landmark is template, not text (B170).
+  const pageHasMain = $('main, article, [role="main"]').length > 0;
   let emptyAnchorCount = 0;
   let anchorTooLongCount = 0;
   let genericAnchorCount = 0;
@@ -1986,7 +1989,7 @@ export function parseHtml(
       tag,
       value: value.slice(0, 500),
       target,
-      linkPosition: detectLinkPosition(el),
+      linkPosition: detectLinkPosition(el, pageHasMain),
       isInternal: target ? isSameHost(pageUrl, target, opts) : true,
     });
   };
@@ -2146,7 +2149,7 @@ export function parseHtml(
 
     const pathType = detectPathType(href);
     const linkPath = buildLinkPath(el);
-    const linkPosition = detectLinkPosition(el);
+    const linkPosition = detectLinkPosition(el, pageHasMain);
 
     linkMap.set(normalized, {
       fromUrl: pageUrl,
@@ -3485,16 +3488,26 @@ function detectAndValidateAmp(
   return { isAmpPage: true, errors: [...new Set(errors)] };
 }
 
+/** ARIA landmark roles and the region each stands for. */
+const ROLE_POSITIONS: Readonly<Record<string, LinkPosition>> = {
+  navigation: 'navigation',
+  banner: 'header',
+  contentinfo: 'footer',
+  complementary: 'sidebar',
+  main: 'content',
+};
+
 /**
  * Infer the page region a link lives in based on its ancestor landmark
- * elements. Walks up the parent chain and returns the first match.
+ * elements (or their ARIA roles). Walks up the whole parent chain, unlike
+ * the 8-tag `link_path`, and returns the first match. A link under no
+ * landmark is text only on a page that marks no main region; on one that
+ * does, it sits in the template around it (a sidebar or block without
+ * `<aside>`/`<nav>`) and reads `aside` (B170).
  */
-function detectLinkPosition(el: unknown): LinkPosition {
-  let cur: { type?: string; name?: string; parent?: unknown } | null = el as {
-    type?: string;
-    name?: string;
-    parent?: unknown;
-  };
+function detectLinkPosition(el: unknown, pageHasMain: boolean): LinkPosition {
+  let cur: { type?: string; name?: string; attribs?: Record<string, string>; parent?: unknown } | null =
+    el as { type?: string; name?: string; parent?: unknown };
   while (cur) {
     if (cur.type === 'tag' && cur.name) {
       const name = cur.name.toLowerCase();
@@ -3503,10 +3516,12 @@ function detectLinkPosition(el: unknown): LinkPosition {
       if (name === 'footer') return 'footer';
       if (name === 'aside') return 'sidebar';
       if (name === 'main' || name === 'article') return 'content';
+      const role = cur.attribs?.role?.trim().toLowerCase();
+      if (role && ROLE_POSITIONS[role]) return ROLE_POSITIONS[role];
     }
     cur = cur.parent as typeof cur;
   }
-  return 'content';
+  return pageHasMain ? 'aside' : 'content';
 }
 
 /**
