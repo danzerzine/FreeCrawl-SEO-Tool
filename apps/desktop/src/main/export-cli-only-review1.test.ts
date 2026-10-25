@@ -7,7 +7,7 @@ import { listExportSets } from '@freecrawl/core';
 import { runSavedExportSet, saveDesktopExportSet } from './export-sets.js';
 import { runScheduledExport } from './scheduled-export.js';
 
-// M10 review round 1 (std M4 / spec M5): a command-line-only export stays out
+// M10: a command-line-only export stays out
 // of desktop sets and schedules. Since B154 that is `pdf-text` alone (the PDF
 // files and screenshots run in the app: export-media-b154.test.ts).
 let dir: string;

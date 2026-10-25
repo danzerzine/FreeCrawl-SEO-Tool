@@ -147,7 +147,7 @@ describe('read entry points return the bq rows (r1 H2)', () => {
 });
 
 describe('source text: only gsc-account.ts and the API-only sites resolve an OAuth account', () => {
-  // Changes only with a review note (spec B91, r2 L3).
+  // Changes only with a review note (spec B91).
   const ALLOWED_INDEX = [
     "const account = resolveGoogleAccount('gsc', accountId);", // list sites
     "const accountId = resolveGoogleAccount('gsc', input.accountId);", // gscFetch pull

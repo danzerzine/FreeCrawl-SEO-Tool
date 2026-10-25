@@ -67,13 +67,13 @@ describe('checkMarkup (B45)', () => {
     expect(codes(`${DT}<span/>x`)).toEqual({ 'unclosed-element': 1 });
   });
 
-  it('inline svg and math self-closing children are clean (r2 N2)', () => {
+  it('inline svg and math self-closing children are clean', () => {
     expect(
       codes(`${DT}<svg><path d="M0"/><circle r="1"/><use href="#i"/></svg><math><mi/></math>`),
     ).toEqual({});
   });
 
-  it('optional end tags and void elements are not errors (r2 L5)', () => {
+  it('optional end tags and void elements are not errors', () => {
     expect(codes('<table><caption>c<tr><td>x</table>')).toEqual({ 'missing-doctype': 1 });
     expect(codes(`${DT}<table><caption>c<tr><td>x</table>`)).toEqual({});
     expect(codes(`${DT}<ul><li>a<li>b</ul><p>a<p>b<img src=x><br>`)).toEqual({});

@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
   shell: {},
 }));
 
-// Per-file guard (r2-L5, S1): only 127.0.0.1 may be reached. It replaces both the global fetch and
+// Per-file guard: only 127.0.0.1 may be reached. It replaces both the global fetch and
 // `apiFetch` (undici's own fetch, the clients' default transport), so a test that forgets `deps`
 // is stopped here instead of calling Google.
 const guard = vi.hoisted(() => {
@@ -222,7 +222,7 @@ describe('B37 resume', () => {
     expect(m1.customMessage).toMatch(/today/i);
     expect(m1.customMessage).not.toMatch(/continues? tomorrow/i);
     expect(m1.customMessage).toContain('customUser:plan');
-    // the tab words the message itself (en/ru) from these parts (P12)
+    // the tab words the message itself (en/ru) from these parts
     expect(m1.customNotPulled).toEqual(['customUser:plan']);
     expect(m1.customStop).toBe('quota');
 
@@ -232,7 +232,7 @@ describe('B37 resume', () => {
     const second = g2.reports().filter((r) => r.dims.length === 2);
     expect(second.map((r) => r.dims[1])).toEqual(['customUser:plan']); // only #2
     expect(stored()).toEqual({ 'customEvent:author': 3, 'customUser:plan': 3 });
-    // r2-M2: the meta of the resumed pull lists #1 as well as #2
+    // The meta of the resumed pull lists #1 as well as #2
     const m2 = metaOf();
     expect(m2.customFields!.map((f) => [f.field, f.ok, f.rows])).toEqual([
       ['customEvent:author', true, 3],
@@ -290,7 +290,7 @@ describe('B37 quota guard', () => {
   });
 });
 
-describe('B168 P6: the five-metric report reports the quota', () => {
+describe('B168: the five-metric report reports the quota', () => {
   it('asks for it, and a low answer stops the optional requests before the first one', async () => {
     const asked: boolean[] = [];
     const low = { tokensPerDay: 3000, tokensPerHour: 30000, tokensPerProjectPerHour: 12000 };
@@ -310,7 +310,7 @@ describe('B168 P6: the five-metric report reports the quota', () => {
   });
 });
 
-describe('B168 P7: values of the previous property are not counted as unmatched', () => {
+describe('B168: values of the previous property are not counted as unmatched', () => {
   it('a pull of property B that stops before any custom answer leaves A\'s rows hidden and out of unmatchedUrls', async () => {
     const dim = 'customEvent:author';
     const OLD = 'https://ex.test/only-in-a';
@@ -353,7 +353,7 @@ describe('B37 metrics 400', () => {
     expect(statusOf(metaOf(), X)).toMatchObject({ ok: false, error: expect.stringContaining('not found in the property') as string });
   });
 
-  it('metadata that drops nothing skips the identical retry and goes to one request per metric (r2-L1)', async () => {
+  it('metadata that drops nothing skips the identical retry and goes to one request per metric', async () => {
     const g = fakeGoogle(metricsServer({ knownInMetadata: true }));
     await runPull(g, chosen);
     expect(g.reports().filter((r) => !isFive(r)).map((r) => r.metrics.join())).toEqual([
@@ -379,7 +379,7 @@ describe('B37 metrics 400', () => {
     expect(stored()).toEqual({ 'customEvent:a': 2, 'customEvent:b': 2 });
   });
 
-  it('the quota guard runs before each fallback request (r2-L1)', async () => {
+  it('the quota guard runs before each fallback request', async () => {
     const g = fakeGoogle(
       standard((r) => {
         if (r.kind === 'metadata') return { status: 200, body: { metrics: [{ apiName: 'customEvent:a' }, { apiName: X }, { apiName: 'customEvent:b' }] } };
@@ -417,7 +417,7 @@ describe('B37 stale data', () => {
     expect(tab.rows.every((r) => !r.custom)).toBe(true);
   });
 
-  it('r2-L2: a first custom request that fails before any answer does not blank the older values', async () => {
+  it('a first custom request that fails before any answer does not blank the older values', async () => {
     const dim = 'customEvent:author';
     await runPull(fakeGoogle(standard()), { customDimensions: [dim] });
     const before = stored();
@@ -444,7 +444,7 @@ describe('B37 errors', () => {
   });
 });
 
-describe('B37 two entry points share one helper (r1 M2, r2-L3)', () => {
+describe('B37 two entry points share one helper', () => {
   const settings = (): Ga4IntegrationSettings =>
     mergeGa4Settings({ accountId: 'acc', property: PROP_A, customMetrics: ['customEvent:reads'], customDimensions: ['customEvent:author'] });
 
@@ -502,7 +502,7 @@ describe('B37 two entry points share one helper (r1 M2, r2-L3)', () => {
   });
 });
 
-describe('GA4 with a dead Google sign-in (P1)', () => {
+describe('GA4 with a dead Google sign-in', () => {
   const dead = (g: ReturnType<typeof fakeGoogle>) => {
     g.deps.getToken = async () => {
       throw new GoogleTokenError('Token has been expired or revoked.', 'dead_grant', true);

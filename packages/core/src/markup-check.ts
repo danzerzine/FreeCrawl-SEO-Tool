@@ -118,7 +118,7 @@ export function checkMarkup(html: string): MarkupCheck {
 
   if (!cut) {
     // Implied closes of elements that need an end tag. Self-closed svg/math children are
-    // reported as implied by htmlparser2 too, so nothing inside them counts (r2 N2).
+    // reported as implied by htmlparser2 too, so nothing inside them counts.
     let foreign = 0;
     const parser = new Parser({
       onopentag(name) {

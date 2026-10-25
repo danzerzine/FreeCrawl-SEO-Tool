@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
 import { CLI_ONLY_EXPORTS, runSavedExportSet, saveDesktopExportSet } from './export-sets.js';
 
-// B42 / r1 M6: `pdf-text` loads unpdf, which is not verified in Electron, so the
+// B42: `pdf-text` loads unpdf, which is not verified in Electron, so the
 // desktop skips it like pdfs and screenshots (B154 moved pdfs and screenshots into the app; pdf-text waits for the Electron check).
 let dir: string;
 let db: ProjectDb;

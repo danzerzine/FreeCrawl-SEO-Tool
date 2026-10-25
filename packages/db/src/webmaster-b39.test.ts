@@ -230,7 +230,7 @@ describe('B39 storage', () => {
     expect(rowsOf('webmaster_broken_links')).toEqual([]);
   });
 
-  describe('deleting URLs keeps working on a project holding Webmaster rows (r1 M1)', () => {
+  describe('deleting URLs keeps working on a project holding Webmaster rows', () => {
     const seed = () => {
       db.upsertWebmasterEvents(HOST, [ev(A), ev(B), ev(GONE)], '2026-10-10T00:00:00.000Z');
       db.upsertWebmasterBrokenLinks(HOST, [bl(A, GONE), bl(GONE, A), bl(B, C), bl('https://other.test/x', 'https://other.test/y')], '2026-10-10T00:00:00.000Z');

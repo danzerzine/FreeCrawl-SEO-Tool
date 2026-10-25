@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { googleMetaKey, isYandexTokenShape, webmasterMetaKey } from './meta-keys.js';
 
-// B168 S3 / S8: one definition of the meta-key rule and of the token shape.
+// B168: one definition of the meta-key rule and of the token shape.
 describe('integration meta keys', () => {
   it('google: per account, the bare base for a project from before accounts', () => {
     expect(googleMetaKey('ga4FetchMeta', 'acc-1')).toBe('ga4FetchMeta:acc-1');
