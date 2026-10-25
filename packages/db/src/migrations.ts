@@ -2486,6 +2486,11 @@ const MIGRATIONS: Migration[] = [
     // `links.is_self` marks a link whose target is the page it sits on. It is
     // written with the link, so the inlink count stays a single GROUP BY
     // instead of looking up every link target's id.
+    //
+    // Rows stored before the no-response state had its own handling carry a
+    // NULL status with `non-indexable:client-error`: those are requests that
+    // got no answer (or, for private addresses, were never sent) and are moved
+    // to the states they belong to. A real 4xx always has a status.
     up: (db) => {
       db.exec(`
         INSERT OR IGNORE INTO project_meta (key, value)
@@ -2500,6 +2505,17 @@ const MIGRATIONS: Migration[] = [
         UPDATE links SET is_self = 1
         WHERE is_self = 0
           AND EXISTS (SELECT 1 FROM urls u WHERE u.id = links.from_url_id AND u.url = links.to_url)
+      `);
+      db.exec(`
+        UPDATE urls SET
+          indexability = 'unknown:skipped',
+          indexability_reason = 'Private or internal address, not requested'
+        WHERE status_code IS NULL AND indexability = 'non-indexable:client-error'
+          AND status_text LIKE 'Skipped: private/internal address%'
+      `);
+      db.exec(`
+        UPDATE urls SET indexability = 'non-indexable:no-response', indexability_reason = 'No response'
+        WHERE status_code IS NULL AND indexability = 'non-indexable:client-error'
       `);
     },
   },
