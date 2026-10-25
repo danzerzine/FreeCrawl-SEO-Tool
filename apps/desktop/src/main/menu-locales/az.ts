@@ -30,6 +30,7 @@ export const MENU_AZ: MenuLabels = {
   sitemapVideo: 'Video…',
   exportHtmlReport: 'HTML hesabatı ixrac et…',
   exportPdfReport: 'PDF hesabatı ixrac et…',
+  exportIssues: 'Problemlər hesabatını ixrac et…',
   exportSeoAudit: 'SEO auditini ixrac et (Screaming Frog düzəni)…',
   bulkExport: 'Toplu ixrac…',
   exportSheets: 'Google Sheets-ə ixrac et…',
@@ -169,6 +170,7 @@ export const MENU_AZ: MenuLabels = {
   dlgBulkExportCompleteTitle: 'Toplu ixrac tamamlandı',
   dlgHtmlReportSavedTitle: 'HTML hesabat saxlanıldı',
   dlgPdfReportSavedTitle: 'PDF hesabat yadda saxlanıldı',
+  dlgIssuesExportSavedTitle: 'Problemlər hesabatı yadda saxlanıldı',
   dlgSeoAuditFolderTitle: 'SEO audit ixracı üçün qovluq seçin',
   dlgSeoAuditCompleteTitle: 'SEO audit ixracı tamamlandı',
   dlgPickLogoTitle: 'Hesabat loqosu seçin',
@@ -269,6 +271,7 @@ export const MENU_AZ: MenuLabels = {
   detailBulkExportErrors: 'Xətalar:',
   msgHtmlReportWritten: 'Hesabat yazıldı: {size} KB.',
   msgPdfReportWritten: 'PDF yazıldı: {size} KB.',
+  msgIssuesExportWritten: 'İxrac edilən problem: {issues}. Yazılan səhifə sətri: {rows}.',
   msgSeoAuditWritten: '{files} fayl yazıldı ({rows} sətir).',
   dlgCompareWithProjectTitle: 'Layihə ilə müqayisə et…',
   msgSitemapSharded:

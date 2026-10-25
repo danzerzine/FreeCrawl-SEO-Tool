@@ -27,6 +27,8 @@ import {
   type CrashRecoveryResumeResult,
   type CrashRecoveryStatus,
   type ExportHtmlReportInput,
+  type ExportIssuesInput,
+  type ExportIssuesResult,
   type ExportPdfReportInput,
   type ExportPdfReportResult,
   type ExportSeoAuditResult,
@@ -313,6 +315,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.crashRecoveryDiscard),
   exportPdfReport: (input: ExportPdfReportInput): Promise<ExportPdfReportResult> =>
     ipcRenderer.invoke(IPC.exportPdfReport, input),
+  exportIssues: (input: ExportIssuesInput): Promise<ExportIssuesResult> =>
+    ipcRenderer.invoke(IPC.exportIssues, input),
   exportSeoAudit: (): Promise<ExportSeoAuditResult> => ipcRenderer.invoke(IPC.exportSeoAudit),
   pickImageFile: (): Promise<string | null> => ipcRenderer.invoke(IPC.pickImageFile),
   exportHtmlReport: (input: ExportHtmlReportInput): Promise<ExportHtmlReportResult> =>

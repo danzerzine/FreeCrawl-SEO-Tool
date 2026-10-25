@@ -286,6 +286,7 @@
     "windowHint": "Finestra indipendente — chiudila per staccarla dall'applicazione principale"
   },
   "export": {
+    "currentIssue": "Filtro problema attuale: {{issue}}",
     "title": "Esporta",
     "exportAsTitle": "Esporta dati della scansione",
     "exportButton": "Esporta",

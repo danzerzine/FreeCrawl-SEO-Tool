@@ -53,6 +53,7 @@ export interface MenuLabels {
   sitemapVideo: string;
   exportHtmlReport: string;
   exportPdfReport: string;
+  exportIssues: string;
   exportSeoAudit: string;
   bulkExport: string;
   exportSheets: string;
@@ -187,6 +188,7 @@ export interface MenuLabels {
   dlgBulkExportCompleteTitle: string;
   dlgHtmlReportSavedTitle: string;
   dlgPdfReportSavedTitle: string;
+  dlgIssuesExportSavedTitle: string;
   dlgSeoAuditFolderTitle: string;
   dlgSeoAuditCompleteTitle: string;
   dlgPickLogoTitle: string;
@@ -275,6 +277,8 @@ export interface MenuLabels {
   msgHtmlReportWritten: string;
   /** `{size}` = report size in KB. */
   msgPdfReportWritten: string;
+  /** Placeholders: {issues}, {rows}. */
+  msgIssuesExportWritten: string;
   /** `{files}` files, `{rows}` rows. */
   msgSeoAuditWritten: string;
   dlgCompareWithProjectTitle: string;

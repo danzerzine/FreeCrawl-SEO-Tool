@@ -1654,6 +1654,7 @@ export function UrlsTab() {
             selectedIds={selectedIds.size > 0 ? [...selectedIds] : undefined}
             search={search || undefined}
             filter={filter ?? undefined}
+            activeCategory={activeCategory}
           />
         )}
       </ErrorBoundary>

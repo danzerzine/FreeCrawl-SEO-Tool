@@ -93,6 +93,9 @@ export interface ParsedPage {
   ogTitle: string | null;
   ogDescription: string | null;
   ogImage: string | null;
+  /** `ogImage` resolved and normalised the way `images.src` is; null when
+   *  it is not a fetchable http(s) address. */
+  ogImageSrc: string | null;
   /** `og:type` value (e.g. `website`, `article`, `product`), lowercased. */
   ogType: string | null;
   /** Raw `og:url` attribute value — verbatim, not resolved. */
@@ -105,6 +108,8 @@ export interface ParsedPage {
   twitterTitle: string | null;
   twitterDescription: string | null;
   twitterImage: string | null;
+  /** `twitterImage` resolved and normalised like {@link ogImageSrc}. */
+  twitterImageSrc: string | null;
   metaKeywords: string | null;
   metaAuthor: string | null;
   metaGenerator: string | null;
@@ -1046,10 +1051,16 @@ export function parseHtml(
   // occurrences (not the type vocabulary), because the data model varies
   // per author and the Issues panel only needs presence/absence to flag a
   // missing-structured-data page. Schema.org microdata uses `itemscope`;
-  // RDFa uses `typeof` / `vocab` / `property`.
+  // RDFa uses `typeof` / `vocab` / `property`. Open Graph / Facebook /
+  // Twitter `<meta property>` share tags reuse the attribute but are not
+  // structured data — counting them hid "No Structured Data" on every page
+  // whose only markup was a share card.
   const microdataCount = $('[itemscope]').length;
   const rdfaCount =
-    $('[typeof]').length + $('[vocab]').length + $('[property]').length;
+    $('[typeof], [vocab]').length +
+    $('[property]')
+      .not('[typeof], [vocab]')
+      .filter((_, el) => !isSocialMetaProperty(el.tagName, $(el).attr('property'))).length;
 
   // Insecure form action — HTTPS page with `<form action="http://…">`.
   // Browsers warn ("not secure" interstitial) when the user submits.
@@ -1879,20 +1890,26 @@ export function parseHtml(
 
   // Add a candidate URL discovered from a srcset/picture-source. Same
   // rules as the `<img src>` loop — skip data URIs, normalise, dedupe.
-  // The parent `<img>` provides the alt/width/height fallback when we
+  // The parent `<img>` provides the alt/width/height/lazy fallback when we
   // see a srcset variant for the first time.
   const addImageCandidate = (
     rawUrl: string,
     alt: string | null,
     width: number | null,
     height: number | null,
+    lazy: boolean,
   ): void => {
     if (!rawUrl) return;
     if (rawUrl.startsWith('data:')) return;
     const normalized = normalizeUrl(rawUrl, baseUrl, opts.urlRewrites);
     if (!normalized) return;
     if (!/^https?:/.test(normalized)) return;
-    if (imageMap.has(normalized)) return;
+    const prev = imageMap.get(normalized);
+    if (prev) {
+      // An eager use of the URL anywhere on the page wins over a lazy one.
+      if (!lazy) prev.lazy = false;
+      return;
+    }
     imageMap.set(normalized, {
       src: normalized,
       alt,
@@ -1900,6 +1917,7 @@ export function parseHtml(
       height,
       isInternal: isSameHost(pageUrl, normalized, opts),
       variant: true,
+      lazy,
     });
   };
 
@@ -1973,9 +1991,8 @@ export function parseHtml(
     // Lazy-loading adoption — `loading="lazy"` is the native browser
     // attribute; an image whose real address sits in a lazy-load data
     // attribute is deferred by script, which is lazy loading as well.
-    if (($el.attr('loading') ?? '').trim().toLowerCase() === 'lazy' || viaLazyAttr) {
-      imagesLazy++;
-    }
+    const lazy = ($el.attr('loading') ?? '').trim().toLowerCase() === 'lazy' || viaLazyAttr;
+    if (lazy) imagesLazy++;
 
     // Responsive imagery — an `<img>` is "responsive" if it carries
     // `srcset` itself (or its lazy-load twin) OR is wrapped in `<picture>`
@@ -1993,21 +2010,27 @@ export function parseHtml(
     const inPicture = $el.parent('picture').length > 0;
     if (srcsetAttr || inPicture) imagesResponsive++;
 
-    if (!imageMap.has(normalized)) {
+    // Per-URL `lazy` feeds Slow-Loading Images, which must test the large
+    // image itself: an eager use of the URL anywhere on the page wins.
+    const prev = imageMap.get(normalized);
+    if (!prev) {
       imageMap.set(normalized, {
         src: normalized,
         alt,
         width,
         height,
         isInternal,
+        lazy,
       });
+    } else if (!lazy) {
+      prev.lazy = false;
     }
 
     // Capture every candidate URL from the `<img srcset>` so the same
     // pages that trigger Broken-Image / Large-Image probes pick them up.
     if (srcsetAttr) {
       for (const candidate of parseSrcset(srcsetAttr)) {
-        addImageCandidate(candidate, alt, null, null);
+        addImageCandidate(candidate, alt, null, null, lazy);
       }
     }
   });
@@ -2024,8 +2047,22 @@ export function parseHtml(
     // element has no alt of its own to be "missing".
     const $img = $(el).parent('picture').find('img').first();
     const alt = $img.length > 0 ? imgAlt($img) : null;
+    // The browser loads whichever source it picks the way its `<img>` says:
+    // `loading="lazy"`, or a script-deferred address (same rule as the
+    // `<img>` loop's lazy-attribute fallback).
+    let lazy = false;
+    if ($img.length > 0) {
+      const imgSrc = ($img.attr('src') ?? '').trim();
+      lazy =
+        ($img.attr('loading') ?? '').trim().toLowerCase() === 'lazy' ||
+        ((!imgSrc || imgSrc.startsWith('data:')) &&
+          LAZY_SRC_ATTRS.some((name) => {
+            const v = ($img.attr(name) ?? '').trim();
+            return v !== '' && !v.startsWith('data:');
+          }));
+    }
     for (const candidate of parseSrcset(srcsetAttr)) {
-      addImageCandidate(candidate, alt, null, null);
+      addImageCandidate(candidate, alt, null, null, lazy);
     }
   });
 
@@ -2035,12 +2072,22 @@ export function parseHtml(
   // Missing Alt and the per-page image counts) and returned separately
   // so the post-crawl size probe can still check them against the
   // 5 MB share-card limit.
+  // The resolved addresses are returned too: the "> 5 MB" checks join the
+  // page to its probed `images.src`, which a relative or entity-escaped
+  // raw `og:image` value never equals.
   const socialImages: DiscoveredImage[] = [];
-  for (const ogish of [ogImage, twitterImage]) {
+  let ogImageSrc: string | null = null;
+  let twitterImageSrc: string | null = null;
+  for (const [ogish, kind] of [
+    [ogImage, 'og'],
+    [twitterImage, 'twitter'],
+  ] as const) {
     if (!ogish) continue;
     const normalized = normalizeUrl(ogish, baseUrl, opts.urlRewrites);
     if (!normalized) continue;
     if (!/^https?:/.test(normalized)) continue;
+    if (kind === 'og') ogImageSrc = normalized;
+    else twitterImageSrc = normalized;
     if (imageMap.has(normalized) || socialImages.some((s) => s.src === normalized)) continue;
     socialImages.push({
       src: normalized,
@@ -2074,6 +2121,7 @@ export function parseHtml(
     ogTitle,
     ogDescription,
     ogImage,
+    ogImageSrc,
     ogType,
     ogUrl,
     ogSiteName,
@@ -2082,6 +2130,7 @@ export function parseHtml(
     twitterTitle,
     twitterDescription,
     twitterImage,
+    twitterImageSrc,
     metaKeywords,
     metaAuthor,
     metaGenerator,
@@ -2648,7 +2697,10 @@ function walkSchemaForValidation(
     }
 
     // Recurse into nested objects/arrays (e.g. `@graph`, `mainEntity`).
-    for (const value of Object.values(obj)) {
+    // `@context` holds term definitions, not entities: its
+    // `{"@type": "@id"}` coercions read as a malformed `@type`.
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '@context') continue;
       if (value && (typeof value === 'object' || Array.isArray(value))) {
         visit(value);
       }
@@ -2657,6 +2709,18 @@ function walkSchemaForValidation(
 
   visit(node);
   return { unknownTypeCount, missingRequiredCount, missingRecommendedCount };
+}
+
+/** `property` prefixes of the social share-card vocabularies (Open Graph
+ *  and its object types, Facebook, Twitter) — page metadata, not RDFa. */
+const SOCIAL_META_PROPERTY = /^(og|fb|twitter|article|book|profile|music|video):/i;
+
+/** True for a `<meta property>` whose every token is a share-card
+ *  property (`og:title`, `twitter:card`, `article:author og:see_also`). */
+function isSocialMetaProperty(tagName: string, property: string | undefined): boolean {
+  if (tagName.toLowerCase() !== 'meta') return false;
+  const tokens = (property ?? '').trim().split(/\s+/).filter(Boolean);
+  return tokens.length > 0 && tokens.every((t) => SOCIAL_META_PROPERTY.test(t));
 }
 
 function isTruthyProp(v: unknown): boolean {

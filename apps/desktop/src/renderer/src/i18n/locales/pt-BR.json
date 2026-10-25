@@ -286,6 +286,7 @@
     "windowHint": "Janela independente — feche para desanexar do aplicativo principal"
   },
   "export": {
+    "currentIssue": "Filtro de problema atual: {{issue}}",
     "title": "Exportar",
     "exportAsTitle": "Exportar dados do rastreamento",
     "exportButton": "Exportar",

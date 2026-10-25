@@ -25,6 +25,7 @@ export const MENU_HI: MenuLabels = {
   sitemapVideo: 'वीडियो…',
   exportHtmlReport: 'HTML रिपोर्ट निर्यात करें…',
   exportPdfReport: 'PDF रिपोर्ट निर्यात करें…',
+  exportIssues: 'समस्या रिपोर्ट निर्यात करें…',
   exportSeoAudit: 'SEO ऑडिट निर्यात करें (Screaming Frog लेआउट)…',
   bulkExport: 'थोक निर्यात…',
   exportSheets: 'Google Sheets में निर्यात करें…',
@@ -164,6 +165,7 @@ export const MENU_HI: MenuLabels = {
   dlgBulkExportCompleteTitle: 'थोक निर्यात पूर्ण',
   dlgHtmlReportSavedTitle: 'HTML रिपोर्ट सहेजी गई',
   dlgPdfReportSavedTitle: 'PDF रिपोर्ट सहेजी गई',
+  dlgIssuesExportSavedTitle: 'समस्या रिपोर्ट सहेजी गई',
   dlgSeoAuditFolderTitle: 'SEO ऑडिट निर्यात के लिए फ़ोल्डर चुनें',
   dlgSeoAuditCompleteTitle: 'SEO ऑडिट निर्यात पूर्ण',
   dlgPickLogoTitle: 'रिपोर्ट लोगो चुनें',
@@ -264,6 +266,7 @@ export const MENU_HI: MenuLabels = {
   detailBulkExportErrors: 'त्रुटियाँ:',
   msgHtmlReportWritten: 'रिपोर्ट लिखी गई: {size} KB।',
   msgPdfReportWritten: 'PDF लिखी गई: {size} KB.',
+  msgIssuesExportWritten: 'निर्यात की गई समस्याएँ: {issues}. लिखी गई पेज पंक्तियाँ: {rows}.',
   msgSeoAuditWritten: '{files} फ़ाइलें लिखी गईं ({rows} पंक्तियाँ)।',
   dlgCompareWithProjectTitle: 'प्रोजेक्ट से तुलना करें…',
   msgSitemapSharded:

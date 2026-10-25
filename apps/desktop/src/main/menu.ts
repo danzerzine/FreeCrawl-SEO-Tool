@@ -127,6 +127,10 @@ export function buildAppMenu(handlers: AppMenuHandlers): Menu {
           click: () => send('export-pdf-report'),
         },
         {
+          label: L.exportIssues,
+          click: () => send('export-issues'),
+        },
+        {
           label: L.exportSeoAudit,
           click: () => send('export-seo-audit'),
         },

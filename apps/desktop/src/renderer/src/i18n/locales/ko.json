@@ -282,6 +282,7 @@
     "windowHint": "독립 창 — 닫으면 메인 앱에서 분리됩니다"
   },
   "export": {
+    "currentIssue": "현재 문제 필터: {{issue}}",
     "title": "내보내기",
     "exportAsTitle": "크롤 데이터 내보내기",
     "exportButton": "내보내기",

@@ -22,6 +22,13 @@ export interface IssueCheckDef {
   percentBase?: 'images';
 }
 
+/** One affected URL listed under an issue in the HTML / PDF report. */
+export interface IssueUrlSample {
+  url: string;
+  statusCode: number | null;
+  indexability: string | null;
+}
+
 /** A sidebar group (Page Titles, Meta Descriptions, …) and its checks. */
 export interface IssueGroupDef {
   key: string;
