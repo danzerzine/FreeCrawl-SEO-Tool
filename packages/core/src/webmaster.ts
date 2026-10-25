@@ -16,11 +16,12 @@
  * at a local server).
  */
 import { fetch as undiciFetch } from 'undici';
-import type {
-  WebmasterBrokenLinkRow,
-  WebmasterErrorCode,
-  WebmasterEventRow,
-  WebmasterHost,
+import {
+  trimTrailingSlashes,
+  type WebmasterBrokenLinkRow,
+  type WebmasterErrorCode,
+  type WebmasterEventRow,
+  type WebmasterHost,
 } from '@freecrawl/shared-types';
 
 const DEFAULT_BASE_URL = 'https://api.webmaster.yandex.net/v4';
@@ -108,7 +109,7 @@ function resolve(deps: WebmasterDeps): Resolved {
     fetch: deps.fetch ?? undiciFetch,
     log: deps.log ?? (() => {}),
     sleep: deps.sleep ?? defaultSleep,
-    baseUrl: (deps.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, ''),
+    baseUrl: trimTrailingSlashes(deps.baseUrl ?? DEFAULT_BASE_URL),
     now: deps.now ?? Date.now,
     lastRequestAt: null,
   };

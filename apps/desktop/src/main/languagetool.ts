@@ -21,11 +21,12 @@
  * confident" and flags every word — output that is indistinguishable from
  * a genuinely error-ridden page once it reaches the UI.
  */
-import type {
-  SpellingLanguageOption,
-  SpellingLevel,
-  SpellingMatch,
-  SpellingResult,
+import {
+  trimTrailingSlashes,
+  type SpellingLanguageOption,
+  type SpellingLevel,
+  type SpellingMatch,
+  type SpellingResult,
 } from '@freecrawl/shared-types';
 import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from 'undici';
 import {
@@ -150,7 +151,7 @@ interface LanguagesCacheEntry {
 const languagesCache = new Map<string, LanguagesCacheEntry>();
 
 function normaliseEndpoint(endpoint: string): string {
-  return endpoint.replace(/\/+$/, '');
+  return trimTrailingSlashes(endpoint);
 }
 
 /**
@@ -348,7 +349,7 @@ async function postCheck(
     body.set('username', opts.username);
     body.set('apiKey', opts.apiKey);
   }
-  const base = opts.endpoint.replace(/\/+$/, '');
+  const base = trimTrailingSlashes(opts.endpoint);
   const res = await undiciFetch(`${base}/v2/check`, {
     method: 'POST',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

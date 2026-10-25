@@ -10,6 +10,7 @@
  * scrubbed from any server reply or error text.
  */
 import nodemailer from 'nodemailer';
+import { trimTrailingSlashes } from '@freecrawl/shared-types';
 import { redactUrlSecrets } from '../http-client.js';
 import { postWebhookJson } from '../webhook.js';
 import type { AlertRuleResult } from './rules.js';
@@ -131,7 +132,7 @@ export function sendTelegram(
   results: AlertRuleResult[],
   opts: SendOptions & { title?: string } = {},
 ): Promise<SendResult> {
-  const url = `${cfg.apiBase.replace(/\/+$/, '')}/bot${cfg.token}/sendMessage`;
+  const url = `${trimTrailingSlashes(cfg.apiBase)}/bot${cfg.token}/sendMessage`;
   return post(
     url,
     redactUrlSecrets(cfg.apiBase),

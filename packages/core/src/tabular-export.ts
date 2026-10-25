@@ -11,7 +11,7 @@ import type {
   AdvancedFilter,
   ExportDatasetKey,
 } from '@freecrawl/shared-types';
-import { EXPORT_DATASET_COLUMNS, urlColumnHeader } from '@freecrawl/shared-types';
+import { EXPORT_DATASET_COLUMNS, trimDots, urlColumnHeader } from '@freecrawl/shared-types';
 import { escapeCsv } from './spreadsheet.js';
 import { m5ColumnsNotChecked, withSignalCells } from './url-signals.js';
 import { datasetRows, readCell, type DatasetExportContext } from './dataset-export.js';
@@ -324,7 +324,7 @@ function sanitizeFilename(label: string): string {
   const cleaned = sanitizeSegment(label);
   // A bare `.`/`..` (or one that sanitised down to that) must never become a
   // filename — strip leading/trailing dots.
-  const stripped = cleaned.replace(/^\.+|\.+$/g, '');
+  const stripped = trimDots(cleaned);
   return stripped.length > 0 ? stripped : 'export';
 }
 

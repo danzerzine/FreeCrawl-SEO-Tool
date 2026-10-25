@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from '@freecrawl/shared-types';
 import { toBasecampHtml, toMarkdown, type IssueTask } from './issue-task.js';
 
 /** Minimal fetch shape: the desktop passes its `apiFetch`, tests pass global `fetch`. */
@@ -48,7 +49,7 @@ function checkBase(apiBase: string): { base: string } | { error: string } {
       error: 'The tracker API address must use https (http is allowed only for localhost).',
     };
   }
-  return { base: apiBase.replace(/\/+$/, '') };
+  return { base: trimTrailingSlashes(apiBase) };
 }
 
 function scrub(text: string, secrets: string[]): string {

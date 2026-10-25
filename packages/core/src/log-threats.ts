@@ -21,7 +21,7 @@
  */
 
 import { promises as dns } from 'node:dns';
-import type { LogThreatCategory } from '@freecrawl/shared-types';
+import { stripBlockComments, type LogThreatCategory } from '@freecrawl/shared-types';
 
 export interface ThreatRule {
   id: string;
@@ -259,7 +259,7 @@ export function decodeTarget(raw: string): string {
 
 /** Decoded target normalised for matching: `+` → space, inline comments → space. */
 function normaliseForMatch(decoded: string): string {
-  return decoded.replace(/\+/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
+  return stripBlockComments(decoded.replace(/\+/g, ' '));
 }
 
 /**

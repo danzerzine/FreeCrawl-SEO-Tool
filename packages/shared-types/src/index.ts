@@ -30,3 +30,4 @@ export * from './axe.js';
 export * from './cookie-list.js';
 export * from './top-words-cloud.js';
 export * from './serp.js';
+export * from './text-trim.js';
