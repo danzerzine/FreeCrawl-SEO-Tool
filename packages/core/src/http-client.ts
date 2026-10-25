@@ -1,6 +1,6 @@
 import dns from 'node:dns';
 import crypto from 'node:crypto';
-import { Agent, ProxyAgent, buildConnector, setGlobalDispatcher } from 'undici';
+import { Agent, EnvHttpProxyAgent, ProxyAgent, buildConnector, setGlobalDispatcher } from 'undici';
 import { SocksClient, type SocksProxy } from 'socks';
 import { createResilientLookup, type DnsResolverHook } from './dns-resolver.js';
 
@@ -65,8 +65,13 @@ export const MOBILE_DEVICE_SCALE_FACTOR = 3;
  *   and uses whichever connects first. Important for dual-stack hosts
  *   where one family is broken on the user's network.
  * - If HTTPS_PROXY / HTTP_PROXY env vars are set (corporate networks),
- *   route through ProxyAgent so packaged-app users don't get ECONNREFUSED
- *   against origins they can only reach via their company proxy.
+ *   route through EnvHttpProxyAgent so packaged-app users don't get
+ *   ECONNREFUSED against origins they can only reach via their company
+ *   proxy. NO_PROXY / no_proxy is honoured with curl's rules (comma list,
+ *   domain-suffix match with or without a leading dot, optional `:port`,
+ *   `*` = never proxy), so intranet hosts and localhost go direct. The
+ *   Settings override is an explicit "route everything through this
+ *   proxy" choice and ignores NO_PROXY.
  * - SOCKS proxies (`socks5://`, `socks5h://`, `socks4://`, `socks4a://`)
  *   are routed through a custom undici Agent whose `connect` dials the
  *   destination over a SOCKS tunnel (TLS upgraded for https origins).
@@ -98,9 +103,14 @@ export function initHttpClient(opts: { proxyOverride?: string; onDnsEvent?: DnsR
     process.env['HTTP_PROXY'] ??
     process.env['http_proxy'] ??
     null;
-  const proxyUrl = (opts.proxyOverride && opts.proxyOverride.trim()) || envProxy || '';
+  const overrideProxy = (opts.proxyOverride && opts.proxyOverride.trim()) || '';
+  const proxyUrl = overrideProxy || envProxy || '';
+  const noProxy = process.env['NO_PROXY'] ?? process.env['no_proxy'] ?? '';
+  const useEnvAgent = !overrideProxy && !!envProxy && !isSocksUrl(envProxy);
 
-  const key = proxyUrl || '<direct>';
+  // NO_PROXY is part of the key only when it actually affects routing, so a
+  // changed exclusion list rebuilds the env-proxy dispatcher.
+  const key = proxyUrl ? (useEnvAgent ? `${proxyUrl}|no_proxy=${noProxy}` : proxyUrl) : '<direct>';
   if (key === lastProxyKey) return;
   lastProxyKey = key;
   // Effective transport changed — drop the cached lenient dispatcher so it
@@ -116,9 +126,25 @@ export function initHttpClient(opts: { proxyOverride?: string; onDnsEvent?: DnsR
 
   if (proxyUrl) {
     directMode = false;
-    const scheme = proxyUrl.slice(0, Math.max(0, proxyUrl.indexOf(':'))).toLowerCase();
-    if (scheme.startsWith('socks')) {
+    if (isSocksUrl(proxyUrl)) {
       setGlobalDispatcher(buildSocksDispatcher(proxyUrl));
+      return;
+    }
+    if (useEnvAgent) {
+      // Scheme-specific variable first, then the other one — the previous
+      // behaviour sent every request through whichever variable was set,
+      // and a user with only HTTPS_PROXY must not start leaking http://
+      // crawls past their proxy.
+      const env = process.env;
+      const httpsVar = env['HTTPS_PROXY'] ?? env['https_proxy'];
+      const httpVar = env['HTTP_PROXY'] ?? env['http_proxy'];
+      setGlobalDispatcher(
+        new EnvHttpProxyAgent({
+          httpProxy: httpVar ?? httpsVar,
+          httpsProxy: httpsVar ?? httpVar,
+          noProxy,
+        }),
+      );
       return;
     }
     setGlobalDispatcher(new ProxyAgent({ uri: proxyUrl }));
@@ -147,6 +173,10 @@ export function initHttpClient(opts: { proxyOverride?: string; onDnsEvent?: DnsR
   });
 
   setGlobalDispatcher(agent);
+}
+
+function isSocksUrl(url: string): boolean {
+  return url.slice(0, Math.max(0, url.indexOf(':'))).toLowerCase().startsWith('socks');
 }
 
 /**
