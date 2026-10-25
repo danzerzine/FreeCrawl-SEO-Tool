@@ -227,6 +227,11 @@ const X_ROBOTS_DIRECTIVES = new Set([
   'indexifembedded',
 ]);
 
+/** Stored-body cap from the setting: 0 means no cap, as the Settings text says (B147). */
+function bodySnapshotCap(configured: number): number {
+  return configured > 0 ? configured : Number.MAX_SAFE_INTEGER;
+}
+
 /**
  * Which of `noindex` / `nofollow` an `X-Robots-Tag` header applies to US.
  *
@@ -6330,10 +6335,7 @@ export class Crawler extends EventEmitter {
         storeBody: this.config.storeBodySnapshots
           ? {
               body,
-              maxBytes:
-                this.config.bodySnapshotMaxBytes > 0
-                  ? this.config.bodySnapshotMaxBytes
-                  : 1_048_576,
+              maxBytes: bodySnapshotCap(this.config.bodySnapshotMaxBytes),
             }
           : null,
         links: persistedLinks,
@@ -6363,10 +6365,7 @@ export class Crawler extends EventEmitter {
       if (urlId) {
         const persistOps: Promise<unknown>[] = [];
         if (renderedHtml) {
-          const cap =
-            this.config.bodySnapshotMaxBytes > 0
-              ? this.config.bodySnapshotMaxBytes
-              : 1_048_576;
+          const cap = bodySnapshotCap(this.config.bodySnapshotMaxBytes);
           persistOps.push(
             this.dbCall<void>('setUrlRenderedBody', [
               urlId,
