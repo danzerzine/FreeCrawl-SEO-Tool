@@ -203,12 +203,10 @@ export function SearchConsoleTab() {
           // Its key, project and dataset are checked here, not first at Pull (B181).
           const check = await window.freecrawl.gscBqCheck();
           if (cancelled) return;
-          if (check.ok) {
-            setStage('ready');
-          } else {
-            setError(check.error);
-            setStage('error');
-          }
+          // A failed check (offline, revoked key) is a banner over the data pulled earlier, not a
+          // replacement screen (B209).
+          if (!check.ok) setError(check.error);
+          setStage('ready');
         } else if (!configured) {
           setStage('unconfigured');
         } else if (!auth.connected) {
