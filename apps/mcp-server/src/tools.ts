@@ -750,7 +750,7 @@ export function buildTools(): Tool[] {
     {
       name: 'query_ga4',
       description:
-        'GA4 rows: sessions, users, pageviews, engagementRate, avgSessionDuration per crawled page, from the Google account the project uses (switch with `google_account_set`). When custom GA4 metrics or dimensions were pulled, each row also has `custom`: field name to a list of {value, sessions} (a metric has one value and null sessions; a dimension lists its values by sessions); `ga4_fetch` meta lists every chosen field with ok/error. Configure the integration in Settings → Integrations → GA4 to populate.',
+        'GA4 rows: sessions, users, pageviews, engagementRate, avgSessionDuration per crawled page, from the Google account the project uses (switch with `google_account_set`). Returns `{rows, total}`; every row has exactly the keys `id`, `url`, `statusCode`, `ga4` ({sessions, users, pageviews, engagementRate, avgSessionDuration, fetchedAt}, null when the page had no GA4 traffic) and `custom`. `custom` is null when no custom GA4 metric or dimension was pulled; otherwise it holds every custom field the last `ga4_fetch` pulled, each a list of {value, sessions} (a metric has one value and null sessions; a dimension lists its values by sessions) or null when the page has no value for it; `ga4_fetch` meta lists every chosen field with ok/error. Configure the integration in Settings → Integrations → GA4 to populate.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -763,14 +763,29 @@ export function buildTools(): Tool[] {
           offset: { type: 'integer', minimum: 0 },
         },
       },
-      handler: (args, db) =>
-        db.queryGa4({
+      handler: (args, db) => {
+        const r = db.queryGa4({
           limit: clamp(args.limit, 1, 1000, 50),
           offset: clamp(args.offset, 0, 10_000_000, 0),
           search: typeof args.search === 'string' ? args.search : undefined,
           filter: args.filter as 'all' | 'with-data' | 'without-data' | undefined,
           accountId: savedGoogleAccount(db, 'ga4'),
-        }),
+        });
+        // B168: the same keys on every row; a chosen field the page lacks is null.
+        return {
+          total: r.total,
+          rows: r.rows.map((row) => ({
+            id: row.id,
+            url: row.url,
+            statusCode: row.statusCode,
+            ga4: row.ga4,
+            custom:
+              r.customFields.length > 0
+                ? Object.fromEntries(r.customFields.map((f) => [f, row.custom?.[f] ?? null]))
+                : null,
+          })),
+        };
+      },
     },
 
     {

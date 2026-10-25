@@ -8330,7 +8330,7 @@ export class ProjectDb {
     /** B37: custom fields to attach to each row, pulled from `customProperty` only. */
     customFields?: string[];
     customProperty?: string;
-  }): { rows: Ga4Row[]; total: number } {
+  }): { rows: Ga4Row[]; total: number; customFields: string[] } {
     const where: string[] = [
       "u.is_external = 0 AND u.content_kind = 'html'",
       'u.status_code >= 200 AND u.status_code < 300',
@@ -8384,6 +8384,8 @@ export class ProjectDb {
 
     return {
       total: totalRow.c,
+      // B168: the custom fields the rows were read for, so a caller can give every row every field.
+      customFields: sel?.fields ?? [],
       rows: rowsDb.map((r) => {
         const fetchedAt = r['fetched_at'];
         const c = custom.get(r['url'] as string);
