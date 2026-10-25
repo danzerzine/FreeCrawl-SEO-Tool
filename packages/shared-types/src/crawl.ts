@@ -2638,6 +2638,8 @@ export interface DiscoveredLink {
   linkPosition: LinkPosition;
   linkOrigin: LinkOrigin;
   isInternal: boolean;
+  /** How many times the page links to this target (one record per source and target); missing = 1. */
+  occurrences?: number;
 }
 
 /**

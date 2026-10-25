@@ -65,8 +65,8 @@ describe('B39 migration', () => {
 
     const raw2 = new DatabaseSync(file);
     for (const t of before) {
-      // `urls` gains columns in later migrations (M17 axe): the old definition stays a prefix of it.
-      if (t.name === 'urls') expect(schemaOf(raw2, t.name)!.startsWith(t.sql.slice(0, t.sql.lastIndexOf(')')).trimEnd())).toBe(true);
+      // `urls` and `links` gain columns in later migrations (M17 axe, B132): the old definition stays a prefix of it.
+      if (t.name === 'urls' || t.name === 'links') expect(schemaOf(raw2, t.name)!.startsWith(t.sql.slice(0, t.sql.lastIndexOf(')')).trimEnd())).toBe(true);
       else expect(schemaOf(raw2, t.name)).toBe(t.sql);
     }
     const cols = (t: string) =>

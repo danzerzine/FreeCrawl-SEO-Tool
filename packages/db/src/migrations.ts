@@ -2974,6 +2974,15 @@ const MIGRATIONS: Migration[] = [
       ]);
     },
   },
+  {
+    // B132: the link graph keeps one row per source and target; `occurrences` is how many times the page
+    // links to that target. NULL (rows of older crawls) reads as 1. No backfill: a re-crawl fills it.
+    version: 130,
+    name: 'add_link_occurrences',
+    up: (db) => {
+      addColumnsIfMissing(db, 'links', [['occurrences', 'INTEGER']]);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

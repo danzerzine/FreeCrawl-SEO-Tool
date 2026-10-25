@@ -3566,7 +3566,7 @@ export class ProjectDb {
       for (let i = 0; i < links.length; i += CHUNK) {
         const slice = links.slice(i, i + CHUNK);
         const placeholders = slice
-          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
           .join(',');
         const args: (string | number | null)[] = [];
         for (const link of slice) {
@@ -3583,13 +3583,14 @@ export class ProjectDb {
             link.linkPath,
             link.linkPosition,
             link.linkOrigin,
+            link.occurrences ?? 1,
           );
         }
         this.db
           .prepare(
             `INSERT INTO links (
                from_url_id, to_url, anchor, rel, is_internal,
-               type, alt_text, target, path_type, link_path, link_position, link_origin
+               type, alt_text, target, path_type, link_path, link_position, link_origin, occurrences
              ) VALUES ${placeholders}`,
           )
           .run(...args);
@@ -10936,11 +10937,47 @@ export class ProjectDb {
   externalOutlinkCounts(): Map<number, { total: number; unique: number }> {
     const rows = this.db
       .prepare(
-        `SELECT from_url_id AS id, COUNT(*) AS total, COUNT(DISTINCT to_url) AS uniq
+        `SELECT from_url_id AS id, ${this.hasLinkOccurrences() ? 'SUM(COALESCE(occurrences, 1))' : 'COUNT(*)'} AS total,
+                COUNT(DISTINCT to_url) AS uniq
            FROM links WHERE is_internal = 0 GROUP BY from_url_id`,
       )
       .all() as { id: number; total: number; uniq: number }[];
     return new Map(rows.map((r) => [r.id, { total: r.total, unique: r.uniq }]));
+  }
+
+  private hasLinkOccurrences(): boolean {
+    return (this.db.prepare('PRAGMA table_info(links)').all() as unknown as { name: string }[]).some(
+      (c) => c.name === 'occurrences',
+    );
+  }
+
+  /**
+   * Repeats beyond the first, for pages that link to the same target more than once (B132): per source
+   * page id for Outlinks, per target URL for Inlinks. Counted like `outlinks` and `inlinks` (followed
+   * rel, no link to itself), so adding them gives the total links. Empty for a project crawled before
+   * the repeat count was recorded.
+   */
+  linkRepeatExtras(): { outlinks: Map<number, number>; inlinks: Map<string, number> } {
+    if (!this.hasLinkOccurrences()) return { outlinks: new Map(), inlinks: new Map() };
+    const counted = this.countedLinkSql();
+    const out = this.db
+      .prepare(
+        `SELECT from_url_id AS id, SUM(occurrences - 1) AS n FROM links
+          WHERE occurrences > 1 AND ${counted} GROUP BY from_url_id`,
+      )
+      .all() as { id: number; n: number }[];
+    const inn = this.db
+      .prepare(
+        `SELECT to_url AS url, SUM(occurrences - 1) AS n FROM links
+          WHERE occurrences > 1 AND is_internal = 1 AND ${counted}
+            AND from_url_id != COALESCE((SELECT id FROM urls WHERE urls.url = links.to_url), -1)
+          GROUP BY to_url`,
+      )
+      .all() as { url: string; n: number }[];
+    return {
+      outlinks: new Map(out.map((r) => [r.id, r.n])),
+      inlinks: new Map(inn.map((r) => [r.url, r.n])),
+    };
   }
 
   /**

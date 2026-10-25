@@ -157,6 +157,8 @@ export interface SeoAuditContext {
   external: Map<number, { total: number; unique: number }>;
   /** Distinct internal link targets per page, keyed by URL id. */
   uniqueOutlinks: Map<number, number>;
+  /** Repeated links beyond the first per source and target (B132). */
+  repeats: { outlinks: Map<number, number>; inlinks: Map<string, number> };
 }
 
 const EMPTY_CONTEXT: SeoAuditContext = {
@@ -164,6 +166,7 @@ const EMPTY_CONTEXT: SeoAuditContext = {
   headers: new Map(),
   external: new Map(),
   uniqueOutlinks: new Map(),
+  repeats: { outlinks: new Map(), inlinks: new Map() },
 };
 
 // Same names html-parser.ts reads as robots directives.
@@ -242,7 +245,8 @@ export function loadSeoAuditContext(db: ProjectDb): SeoAuditContext {
   }
   const external = db.externalOutlinkCounts();
   const uniqueOutlinks = db.internalUniqueOutlinkCounts();
-  return { bodies, headers, external, uniqueOutlinks };
+  const repeats = db.linkRepeatExtras();
+  return { bodies, headers, external, uniqueOutlinks, repeats };
 }
 
 /** Membership test over an ascending id list. */
@@ -452,12 +456,13 @@ function cell(column: string, row: CrawlUrlRow, ctx: SeoAuditContext): Cell {
     case 'Link Score':
       return row.linkScore;
     // The link graph keeps one row per source and target, so `inlinks`
-    // already counts distinct source pages.
+    // already counts distinct source pages; Inlinks and Outlinks add the repeats (B132).
     case 'Inlinks':
+      return row.inlinks + (ctx.repeats.inlinks.get(row.url) ?? 0);
     case 'Unique Inlinks':
       return row.inlinks;
     case 'Outlinks':
-      return row.outlinks;
+      return row.outlinks + (ctx.repeats.outlinks.get(row.id) ?? 0);
     case 'Unique Outlinks':
       return ctx.uniqueOutlinks.get(row.id) ?? 0;
     case 'External Outlinks':

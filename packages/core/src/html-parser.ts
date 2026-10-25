@@ -2152,6 +2152,7 @@ export function parseHtml(
     // occurrence is followable, the link is followable.
     const existing = linkMap.get(normalized);
     if (existing) {
+      existing.occurrences = (existing.occurrences ?? 1) + 1;
       if (existing.rel?.includes('nofollow') && !rel?.includes('nofollow')) {
         existing.rel = rel;
         // The stored record describes the followable occurrence, so its
@@ -2196,6 +2197,7 @@ export function parseHtml(
       linkPosition,
       linkOrigin: 'html',
       isInternal,
+      occurrences: 1,
     });
   });
 
