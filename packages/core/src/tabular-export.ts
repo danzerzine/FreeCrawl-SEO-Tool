@@ -132,7 +132,7 @@ function rowSource(db: ProjectDb, q: RowQuery): Iterable<CrawlUrlRow> {
   return db.iterateUrlsByCategory(q.category);
 }
 
-async function writeCsvFile(
+export async function writeCsvFile(
   source: Iterable<Record<string, unknown>>,
   filePath: string,
   columns: string[],
@@ -319,7 +319,7 @@ function colLetter(idx: number): string {
   return s;
 }
 
-function sanitizeSheetName(label: string, used: Set<string>): string {
+export function sanitizeSheetName(label: string, used: Set<string>): string {
   let base = label.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31);
   if (!base) base = 'Sheet';
   let candidate = base;
@@ -519,7 +519,7 @@ function buildZip(files: { name: string; data: Buffer }[]): Buffer {
   return Buffer.concat([...localChunks, ...centralChunks, eocd]);
 }
 
-function buildXlsxBuffer(
+export function buildXlsxBuffer(
   sheets: { name: string; rows: Record<string, unknown>[]; columns: string[] }[],
 ): Buffer {
   const contentTypes =

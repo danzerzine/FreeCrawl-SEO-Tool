@@ -25,6 +25,7 @@ export const MENU_KO: MenuLabels = {
   sitemapVideo: '비디오…',
   exportHtmlReport: 'HTML 보고서 내보내기…',
   exportPdfReport: 'PDF 보고서 내보내기…',
+  exportIssues: '문제 보고서 내보내기…',
   exportSeoAudit: 'SEO 감사 내보내기 (Screaming Frog 레이아웃)…',
   bulkExport: '일괄 내보내기…',
   exportSheets: 'Google Sheets로 내보내기…',
@@ -161,6 +162,7 @@ export const MENU_KO: MenuLabels = {
   dlgBulkExportCompleteTitle: '일괄 내보내기 완료',
   dlgHtmlReportSavedTitle: 'HTML 보고서 저장됨',
   dlgPdfReportSavedTitle: 'PDF 보고서 저장됨',
+  dlgIssuesExportSavedTitle: '문제 보고서 저장됨',
   dlgSeoAuditFolderTitle: 'SEO 감사 내보내기 폴더 선택',
   dlgSeoAuditCompleteTitle: 'SEO 감사 내보내기 완료',
   dlgPickLogoTitle: '보고서 로고 선택',
@@ -261,6 +263,7 @@ export const MENU_KO: MenuLabels = {
   detailBulkExportErrors: '오류:',
   msgHtmlReportWritten: '보고서 기록: {size} KB.',
   msgPdfReportWritten: 'PDF 작성됨: {size} KB.',
+  msgIssuesExportWritten: '내보낸 문제: {issues}. 작성된 페이지 행: {rows}.',
   msgSeoAuditWritten: '{files}개 파일 작성됨 ({rows}행).',
   dlgCompareWithProjectTitle: '프로젝트와 비교…',
   msgSitemapSharded:

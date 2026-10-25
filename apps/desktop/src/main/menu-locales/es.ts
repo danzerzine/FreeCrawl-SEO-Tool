@@ -25,6 +25,7 @@ export const MENU_ES: MenuLabels = {
   sitemapVideo: 'Vídeo…',
   exportHtmlReport: 'Exportar informe HTML…',
   exportPdfReport: 'Exportar informe PDF…',
+  exportIssues: 'Exportar informe de problemas…',
   exportSeoAudit: 'Exportar auditoría SEO (formato Screaming Frog)…',
   bulkExport: 'Exportación masiva…',
   exportSheets: 'Exportar a Google Sheets…',
@@ -164,6 +165,7 @@ export const MENU_ES: MenuLabels = {
   dlgBulkExportCompleteTitle: 'Exportación masiva completada',
   dlgHtmlReportSavedTitle: 'Informe HTML guardado',
   dlgPdfReportSavedTitle: 'Informe PDF guardado',
+  dlgIssuesExportSavedTitle: 'Informe de problemas guardado',
   dlgSeoAuditFolderTitle: 'Elige una carpeta para la exportación de la auditoría SEO',
   dlgSeoAuditCompleteTitle: 'Exportación de auditoría SEO completada',
   dlgPickLogoTitle: 'Elige un logotipo para el informe',
@@ -264,6 +266,7 @@ export const MENU_ES: MenuLabels = {
   detailBulkExportErrors: 'Errores:',
   msgHtmlReportWritten: 'Informe escrito: {size} KB.',
   msgPdfReportWritten: 'PDF escrito: {size} KB.',
+  msgIssuesExportWritten: 'Problemas exportados: {issues}. Filas de páginas escritas: {rows}.',
   msgSeoAuditWritten: '{files} archivos escritos ({rows} filas).',
   dlgCompareWithProjectTitle: 'Comparar con proyecto…',
   msgSitemapSharded:

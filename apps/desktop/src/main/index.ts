@@ -79,6 +79,9 @@ import {
   type CrashRecoveryResumeResult,
   type CrashRecoveryStatus,
   type ExportHtmlReportInput,
+  type ExportIssuesInput,
+  type ExportIssuesResult,
+  type IssueUrlSample,
   type ExportHtmlReportResult,
   type BulkExportResult,
   type UrlCategory,
@@ -286,6 +289,11 @@ import {
   exportSitemap,
   exportHtmlReport,
   renderHtmlReport,
+  htmlReportIssueCategories,
+  issueSampleLimit,
+  DEFAULT_MAX_URLS_PER_ISSUE,
+  type HtmlReportData,
+  exportIssues,
   runSeoAuditExport,
   postWebhookJson,
   ensureHeapHeadroom,
@@ -2133,6 +2141,55 @@ function overviewCountsFor(sess: ProjectSession): Promise<OverviewCounts> {
   sess.overviewInFlight = run;
   return run;
 }
+
+/**
+ * Overview counts for a report or export: the sidebar's cached, reader-
+ * worker read, or the main-thread read when no worker can serve it (a
+ * heavy read refuses the fallback while workers restart, but an export
+ * the user asked for should still run).
+ */
+async function reportCountsFor(sess: ProjectSession): Promise<OverviewCounts> {
+  try {
+    return await overviewCountsFor(sess);
+  } catch {
+    return sess.getDb().getOverviewCounts();
+  }
+}
+
+/**
+ * The HTML / PDF report's reads for the current project, done on the
+ * reader worker: the per-issue page lists add one query per issue, which
+ * on a large project would otherwise stall the main process.
+ */
+async function htmlReportDataFor(
+  sess: ProjectSession,
+  maxUrlsPerIssue: number,
+): Promise<HtmlReportData> {
+  const db = sess.getDb();
+  const counts = await reportCountsFor(sess);
+  const categories = htmlReportIssueCategories(counts);
+  const sampleLimit = issueSampleLimit(maxUrlsPerIssue);
+  const top = (column: 'response_time_ms' | 'depth' | 'outlinks'): Promise<TopUrlsRow[]> =>
+    callReaderOrFallback<TopUrlsRow[]>('topUrlsBy', [column, 25, 'desc'], () =>
+      db.topUrlsBy(column, 25),
+    );
+  const [summary, slowest, deepest, fanout, issueUrls] = await Promise.all([
+    callReaderOrFallback<CrawlSummary>('getSummary', [], () => db.getSummary()),
+    top('response_time_ms'),
+    top('depth'),
+    top('outlinks'),
+    callReaderOrFallback<Record<string, IssueUrlSample[]>>(
+      'issueUrlSamples',
+      [categories, sampleLimit],
+      () => db.issueUrlSamples(categories, sampleLimit),
+    ),
+  ]);
+  return { summary, counts, slowest, deepest, fanout, issueUrls };
+}
+
+/** Affected pages listed per issue in the PDF report — a printable
+ *  summary; the HTML report lists more and the Issues export all. */
+const PDF_MAX_URLS_PER_ISSUE = 25;
 
 /**
  * Rebuild `urls_issues` in the background when it was last written by an
@@ -7652,10 +7709,16 @@ function registerIpc(): void {
    * document the HTML export writes, so branding, Unicode text and fonts
    * come out exactly as in the browser — no PDF library, no font files.
    */
-  async function writePdfReport(db: ProjectDb, filePath: string): Promise<number> {
+  async function writePdfReport(
+    db: ProjectDb,
+    filePath: string,
+    data?: HtmlReportData,
+  ): Promise<number> {
     const html = await renderHtmlReport(db, {
       startUrl: db.getMeta('lastStartUrl') ?? '',
       branding: readReportBranding(),
+      maxUrlsPerIssue: PDF_MAX_URLS_PER_ISSUE,
+      data,
     });
     const tmpHtml = join(app.getPath('temp'), `freecrawl-report-${Date.now()}-${randomBytes(4).toString('hex')}.html`);
     await writeFile(tmpHtml, html, 'utf8');
@@ -10585,7 +10648,11 @@ function registerIpc(): void {
         if (res.canceled || !res.filePath) return { filePath: '', bytesWritten: 0 };
         filePath = res.filePath;
       }
-      const bytesWritten = await writePdfReport(getDb(), filePath);
+      const bytesWritten = await writePdfReport(
+        getDb(),
+        filePath,
+        await htmlReportDataFor(currentSession(), PDF_MAX_URLS_PER_ISSUE),
+      );
       if (mainWindow) {
         await dialog.showMessageBox(mainWindow, {
           type: 'info',
@@ -10651,6 +10718,7 @@ function registerIpc(): void {
       const result = await exportHtmlReport(getDb(), filePath, {
         startUrl: getDb().getMeta('lastStartUrl') ?? '',
         branding: readReportBranding(),
+        data: await htmlReportDataFor(currentSession(), DEFAULT_MAX_URLS_PER_ISSUE),
       });
       if (mainWindow) {
         await dialog.showMessageBox(mainWindow, {
@@ -10664,6 +10732,46 @@ function registerIpc(): void {
           buttons: [L().btnOk],
           noLink: true,
         });
+      }
+      return result;
+    },
+  );
+
+  registerHandle(
+    IPC.exportIssues,
+    async (_e, input: ExportIssuesInput): Promise<ExportIssuesResult> => {
+      let filePath = input.filePath;
+      if (!filePath) {
+        const res = await dialog.showSaveDialog(mainWindow!, {
+          defaultPath: 'freecrawl-issues.xlsx',
+          filters: [
+            { name: L().filterExcelWorkbook, extensions: ['xlsx'] },
+            { name: 'CSV (UTF-8)', extensions: ['csv'] },
+          ],
+        });
+        if (res.canceled || !res.filePath) return { filePath: '', issues: 0, rowsWritten: 0 };
+        filePath = res.filePath;
+      }
+      const result = await exportIssues(getDb(), filePath, {
+        format: filePath.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx',
+        counts: await reportCountsFor(currentSession()),
+      });
+      if (mainWindow) {
+        await dialog
+          .showMessageBox(mainWindow, {
+            type: 'info',
+            title: L().dlgIssuesExportSavedTitle,
+            message: L()
+              .msgIssuesExportWritten.replace('{issues}', result.issues.toLocaleString())
+              .replace('{rows}', result.rowsWritten.toLocaleString()),
+            detail: result.filePath,
+            buttons: [L().btnOk, L().btnOpenFolder],
+            defaultId: 0,
+            noLink: true,
+          })
+          .then((res) => {
+            if (res.response === 1) shell.showItemInFolder(result.filePath);
+          });
       }
       return result;
     },

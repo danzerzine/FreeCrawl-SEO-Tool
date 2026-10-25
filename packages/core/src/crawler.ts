@@ -158,6 +158,17 @@ const HEAD_UNRELIABLE_STATUSES = new Set([
   400, 401, 403, 405, 406, 409, 429, 501,
 ]);
 
+/** What the post-crawl image probe stores for one image. */
+interface ImageProbeResult {
+  status: number;
+  /** Content-Length, when the server sent a usable one. */
+  length: number | null;
+}
+
+/** Recorded for an image behind more than 20 redirects: no image is
+ *  reachable, and 508 (Loop Detected) keeps it in Broken Image Src. */
+const IMAGE_REDIRECT_LIMIT_STATUS = 508;
+
 // Known X-Robots-Tag directive keywords. Anything else appearing before a
 // colon is a bot name (`googlebot: noindex`), not a directive — but a real
 // directive can ALSO carry a colon (`unavailable_after: <date>`,
@@ -1856,52 +1867,35 @@ export class Crawler extends EventEmitter {
           writes.push({ method: 'setImageSize', args: [entry.id, null, 0] });
           continue;
         }
-        // Only send the crawl's auth/custom headers to in-scope image hosts;
-        // third-party / CDN image URLs must not receive the start site's creds.
-        const imgInScope = isInScope(this.config.startUrl, entry.src, this.config.scope);
-        const controller = new AbortController();
-        const timeout = setTimeout(
-          () => controller.abort(),
-          Math.max(2_000, this.config.requestTimeoutMs / 2),
-        );
+        let result: ImageProbeResult | null = null;
+        let headErr: unknown;
         try {
-          const res = await undiciFetch(entry.src, {
-            method: 'HEAD',
-            headers: defaultRequestHeaders(
-              this.resolveUserAgent(entry.src),
-              this.config.acceptLanguage,
-              imgInScope ? this.config.customHeaders : {},
-              imgInScope ? this.config.auth : undefined,
-            ),
-            redirect: 'follow',
-            signal: controller.signal,
-          });
-          const lenStr = res.headers.get('content-length');
-          const len = lenStr !== null ? Number.parseInt(lenStr, 10) : null;
-          writes.push({
-            method: 'setImageSize',
-            args: [
-              entry.id,
-              Number.isFinite(len) && len !== null && len >= 0 ? len : null,
-              res.status,
-            ],
-          });
-          if (Number.isFinite(len) && len !== null && len > threshold) {
-            large++;
-          }
-          probed++;
-          // Drain body — HEAD has none, but undici treats 1xx/204 weirdly.
+          result = await this.fetchImageHeaders(entry.src, 'HEAD');
+        } catch (err) {
+          headErr = err;
+        }
+        // Confirm a HEAD error with a GET, as the external-link checker
+        // does: CDNs and WAFs answer HEAD with 403 / 405 / 5xx (or drop it)
+        // for an image a GET serves fine, and some servers route GET only.
+        // A redirect loop or a DNS / connect failure won't change on GET.
+        const retry = result
+          ? result.status >= 400 && result.status !== IMAGE_REDIRECT_LIMIT_STATUS
+          : !isHardTransportError(headErr);
+        if (retry && !this.stopped) {
           try {
-            await res.body?.cancel();
+            result = await this.fetchImageHeaders(entry.src, 'GET');
           } catch {
-            /* ignore */
+            // Keep the HEAD answer, if there was one.
           }
-        } catch {
+        }
+        if (!result) {
           // Mark with status 0 so we don't re-probe on the next crawl.
           writes.push({ method: 'setImageSize', args: [entry.id, null, 0] });
-        } finally {
-          clearTimeout(timeout);
+          continue;
         }
+        writes.push({ method: 'setImageSize', args: [entry.id, result.length, result.status] });
+        if (result.length !== null && result.length > threshold) large++;
+        probed++;
       }
     };
 
@@ -1913,6 +1907,69 @@ export class Crawler extends EventEmitter {
       'info',
       `Image probe complete: ${probed} sized, ${large} > ${(threshold / 1024).toFixed(0)} KB`,
     );
+  }
+
+  /**
+   * Status and Content-Length of an image, redirects followed by hand so
+   * the SSRF guard covers every Location — a public image can 30x to an
+   * internal address; that hop is not requested and its 3xx is recorded
+   * instead. Each request after the first HEAD (a redirect hop, the GET
+   * retry) waits for its own `maxRps` slot, and each has its own timeout.
+   * The body is never read. Throws on a transport failure.
+   */
+  private async fetchImageHeaders(src: string, method: 'HEAD' | 'GET'): Promise<ImageProbeResult> {
+    const timeoutMs = Math.max(2_000, this.config.requestTimeoutMs / 2);
+    let url = src;
+    for (let hop = 0; ; hop++) {
+      if (method === 'GET' || hop > 0) await this.acquireRateSlot();
+      // Only send the crawl's auth/custom headers to in-scope image hosts;
+      // third-party / CDN image URLs must not receive the start site's creds.
+      const inScope = isInScope(this.config.startUrl, url, this.config.scope);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      let res: Awaited<ReturnType<typeof undiciFetch>>;
+      try {
+        res = await undiciFetch(url, {
+          method,
+          headers: defaultRequestHeaders(
+            this.resolveUserAgent(url),
+            this.config.acceptLanguage,
+            inScope ? this.config.customHeaders : {},
+            inScope ? this.config.auth : undefined,
+          ),
+          redirect: 'manual',
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+      const status = res.status;
+      const lenStr = res.headers.get('content-length');
+      const location = status >= 300 && status < 400 ? res.headers.get('location') : null;
+      // HEAD has no body (undici still wants 1xx/204 drained); a GET's is
+      // never needed — the headers carry the size.
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* ignore */
+      }
+      if (!location) {
+        const len = lenStr !== null ? Number.parseInt(lenStr, 10) : NaN;
+        return { status, length: Number.isFinite(len) && len >= 0 ? len : null };
+      }
+      let next: string;
+      try {
+        next = new URL(location, url).toString();
+      } catch {
+        return { status, length: null };
+      }
+      if (isPrivateHost(next) && !isPrivateHost(this.config.startUrl)) {
+        return { status, length: null };
+      }
+      // Browsers give up after 20 redirects; so does the probe.
+      if (hop >= 20) return { status: IMAGE_REDIRECT_LIMIT_STATUS, length: null };
+      url = next;
+    }
   }
 
   /**
@@ -2449,6 +2506,7 @@ export class Crawler extends EventEmitter {
                 subject: info.subject,
                 signatureAlgorithm: info.signatureAlgorithm,
                 protocol: info.protocol,
+                legacyProtocol: info.legacyProtocol,
                 chainLength: info.chainLength,
                 chainSubjects: info.chainSubjects,
                 probeStatus: info.error ? 0 : 200,
@@ -2475,6 +2533,7 @@ export class Crawler extends EventEmitter {
                 subject: null,
                 signatureAlgorithm: null,
                 protocol: null,
+                legacyProtocol: 'untested',
                 chainLength: null,
                 chainSubjects: null,
                 probeStatus: 0,
@@ -4787,6 +4846,7 @@ export class Crawler extends EventEmitter {
           ogTitle: parsed.ogTitle,
           ogDescription: parsed.ogDescription,
           ogImage: parsed.ogImage,
+          ogImageSrc: parsed.ogImageSrc,
           ogType: parsed.ogType,
           ogUrl: parsed.ogUrl,
           ogSiteName: parsed.ogSiteName,
@@ -4795,6 +4855,7 @@ export class Crawler extends EventEmitter {
           twitterTitle: parsed.twitterTitle,
           twitterDescription: parsed.twitterDescription,
           twitterImage: parsed.twitterImage,
+          twitterImageSrc: parsed.twitterImageSrc,
           metaKeywords: parsed.metaKeywords,
           metaAuthor: parsed.metaAuthor,
           metaGenerator: parsed.metaGenerator,

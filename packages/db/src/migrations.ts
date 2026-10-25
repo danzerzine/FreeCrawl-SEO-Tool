@@ -2474,6 +2474,58 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 101,
+    name: 'add_host_certs_legacy_protocol',
+    // `host_certs.protocol` is the best version a default handshake
+    // negotiates, and Node / Electron never go below TLS 1.2 there — so it
+    // could not show that a server still accepts TLS 1.0 / 1.1. The TLS
+    // probe now makes a second handshake capped at TLS 1.1 and stores the
+    // outcome here (`TLSv1` / `TLSv1.1` / `refused` / `untested`). Existing
+    // rows stay NULL — their expiry data keeps showing — and
+    // `unprobedHttpsHosts()` hands those hosts to the next crawl again.
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(host_certs)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'legacy_protocol')) {
+        db.exec('ALTER TABLE host_certs ADD COLUMN legacy_protocol TEXT');
+      }
+    },
+  },
+  {
+    version: 102,
+    name: 'add_image_usages_lazy',
+    // 1 / 0 for whether the page defers this image (`loading="lazy"` or a
+    // script-deferred address); NULL for rows stored before the column.
+    // Lets Slow-Loading Images test the large image itself, not the page.
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(image_usages)')
+        .all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === 'lazy')) {
+        db.exec('ALTER TABLE image_usages ADD COLUMN lazy INTEGER');
+      }
+    },
+  },
+  {
+    version: 103,
+    name: 'add_urls_share_image_src',
+    // og:image / twitter:image resolved and normalised the way
+    // `images.src` is, so the "> 5 MB" checks match a relative or
+    // entity-escaped share image to its probed row. `og_image` /
+    // `twitter_image` keep the raw value for the not-absolute checks.
+    up: (db) => {
+      const cols = db
+        .prepare('PRAGMA table_info(urls)')
+        .all() as unknown as { name: string }[];
+      const names = new Set(cols.map((c) => c.name));
+      if (!names.has('og_image_src')) db.exec('ALTER TABLE urls ADD COLUMN og_image_src TEXT');
+      if (!names.has('twitter_image_src')) {
+        db.exec('ALTER TABLE urls ADD COLUMN twitter_image_src TEXT');
+      }
+    },
+  },
 ];
 
 export function runMigrations(db: DatabaseSync): void {

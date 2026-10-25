@@ -2,7 +2,15 @@ import { createWriteStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ProjectDb } from '@freecrawl/db';
-import type { CrawlSummary, OverviewCounts, ReportBranding } from '@freecrawl/shared-types';
+import type {
+  CrawlSummary,
+  IssueSeverity,
+  IssueUrlSample,
+  OverviewCounts,
+  ReportBranding,
+  UrlCategory,
+} from '@freecrawl/shared-types';
+import { SEVERITY_LABEL, summarizeIssues, type IssueSummary } from './issue-summary.js';
 
 /**
  * Self-contained HTML audit report for a finished crawl. Single-file
@@ -14,7 +22,9 @@ import type { CrawlSummary, OverviewCounts, ReportBranding } from '@freecrawl/sh
  *   - Header: site, run timestamp, total URL count, crawl duration.
  *   - Summary cards: status mix, indexability mix, payload mix.
  *   - Top issues table: every non-zero issue with its count, ranked by
- *     severity bucket (errors → warnings → info).
+ *     severity (critical → warning → info), each linking to its section.
+ *   - Issue details: per issue, the advice and the first affected pages
+ *     (`maxUrlsPerIssue`); the full lists are in the Issues export.
  *   - Sample tables: top 25 slowest URLs, top 25 deepest URLs, top 25
  *     URLs with the most outlinks. Capped on purpose — the user goes to
  *     the live UI for full data.
@@ -27,6 +37,57 @@ export interface HtmlReportOptions {
   generatedAt?: Date;
   /** White-label header: brand name, logo, accent colour, "prepared by". */
   branding?: ReportBranding;
+  /** Affected pages listed under each issue. Default 100. */
+  maxUrlsPerIssue?: number;
+  /**
+   * The database reads, already done. The desktop app runs them on its
+   * reader worker so a large project does not stall the main process;
+   * without it they run here, on `db`.
+   */
+  data?: HtmlReportData;
+}
+
+/** Everything the report reads from the project — see {@link collectHtmlReportData}. */
+export interface HtmlReportData {
+  summary: CrawlSummary;
+  counts: OverviewCounts;
+  slowest: { url: string; value: number | null }[];
+  deepest: { url: string; value: number | null }[];
+  fanout: { url: string; value: number | null }[];
+  /**
+   * `issues:*` category → its first affected pages, fetched with
+   * {@link issueSampleLimit} — one past the cap, so the report knows
+   * whether the list goes on.
+   */
+  issueUrls: Record<string, IssueUrlSample[]>;
+}
+
+export const DEFAULT_MAX_URLS_PER_ISSUE = 100;
+
+/** The issue categories whose affected pages the report lists. */
+export function htmlReportIssueCategories(counts: OverviewCounts): UrlCategory[] {
+  return summarizeIssues(counts).map((i) => i.category);
+}
+
+/** Rows to fetch per issue for a report listing `maxUrlsPerIssue`. */
+export function issueSampleLimit(maxUrlsPerIssue = DEFAULT_MAX_URLS_PER_ISSUE): number {
+  return maxUrlsPerIssue + 1;
+}
+
+/** Every read the report needs, done synchronously on `db`. */
+export function collectHtmlReportData(db: ProjectDb, maxUrlsPerIssue?: number): HtmlReportData {
+  const counts = db.getOverviewCounts();
+  return {
+    summary: db.getSummary(),
+    counts,
+    slowest: db.topUrlsBy('response_time_ms', 25),
+    deepest: db.topUrlsBy('depth', 25),
+    fanout: db.topUrlsBy('outlinks', 25),
+    issueUrls: db.issueUrlSamples(
+      htmlReportIssueCategories(counts),
+      issueSampleLimit(maxUrlsPerIssue),
+    ),
+  };
 }
 
 function escape(s: string): string {
@@ -68,223 +129,37 @@ tr:last-child td { border-bottom: none; }
 .right { text-align: right; }
 .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 11px; word-break: break-all; }
-.sev-error { color: #dc2626; font-weight: 600; }
-.sev-warn  { color: #d97706; font-weight: 600; }
-.sev-info  { color: #2563eb; }
-@media print { body { background: white; padding: 12px; } .card { break-inside: avoid; } }
+.sev-critical { color: #dc2626; font-weight: 600; }
+.sev-warning  { color: #d97706; font-weight: 600; }
+.sev-info     { color: #2563eb; }
+a { color: inherit; }
+details.issue { margin: 0 0 14px; }
+details.issue > summary { cursor: pointer; font-weight: 600; font-size: 13px; color: #111827; margin: 0 0 6px; }
+details.issue p { margin: 0 0 6px; }
+@media print { body { background: white; padding: 12px; } .card { break-inside: avoid; }
+  details.issue > summary { break-after: avoid; } }
 `;
 
-interface IssueDef {
-  key: keyof OverviewCounts['issues'];
-  label: string;
-  severity: 'error' | 'warn' | 'info';
+/** Tier badge, styled `sev-critical` / `sev-warning` / `sev-info`. */
+function sevBadge(severity: IssueSeverity): string {
+  return `<span class="sev-${severity}">${SEVERITY_LABEL[severity].toUpperCase()}</span>`;
 }
 
-const ISSUES: IssueDef[] = [
-  { key: 'titleMissing', label: 'Title Missing', severity: 'error' },
-  { key: 'titleDuplicate', label: 'Title Duplicate', severity: 'error' },
-  { key: 'titleTooLong', label: 'Title Too Long (>60)', severity: 'warn' },
-  { key: 'titleTooShort', label: 'Title Too Short (<30)', severity: 'warn' },
-  { key: 'metaMissing', label: 'Meta Description Missing', severity: 'error' },
-  { key: 'metaDuplicate', label: 'Meta Description Duplicate', severity: 'error' },
-  { key: 'metaTooLong', label: 'Meta Description Too Long (>160)', severity: 'warn' },
-  { key: 'metaTooShort', label: 'Meta Description Too Short (<120)', severity: 'warn' },
-  { key: 'h1Missing', label: 'H1 Missing', severity: 'error' },
-  { key: 'h1Duplicate', label: 'H1 Duplicate', severity: 'error' },
-  { key: 'h1Multiple', label: 'Multiple H1s', severity: 'warn' },
-  { key: 'headingSkippedLevel', label: 'Skipped Heading Level', severity: 'warn' },
-  { key: 'multipleCanonicals', label: 'Multiple Canonicals', severity: 'error' },
-  { key: 'canonicalMissing', label: 'Canonical Missing', severity: 'warn' },
-  { key: 'canonicalToNon200', label: 'Canonical → Non-200', severity: 'error' },
-  { key: 'canonicalToRedirect', label: 'Canonical → Redirect', severity: 'warn' },
-  { key: 'canonicalToNoindex', label: 'Canonical → Noindex', severity: 'error' },
-  { key: 'canonicalMismatch', label: 'Canonical HTTP/HTML Mismatch', severity: 'error' },
-  { key: 'contentThin', label: 'Thin Content (<300 words)', severity: 'warn' },
-  { key: 'nearDuplicate', label: 'Near-Duplicate Content', severity: 'warn' },
-  { key: 'duplicateContentExact', label: 'Duplicate Content (exact)', severity: 'error' },
-  { key: 'responseSlow', label: 'Slow Response (>1s)', severity: 'warn' },
-  { key: 'responseVerySlow', label: 'Very Slow Response (>3s)', severity: 'error' },
-  { key: 'pageLarge', label: 'Large Page (>1MB)', severity: 'warn' },
-  { key: 'urlTooLong', label: 'URL Too Long (>2048)', severity: 'warn' },
-  { key: 'urlManyParams', label: 'Many Query Params (>5)', severity: 'info' },
-  { key: 'redirectLoop', label: 'Redirect Loop', severity: 'error' },
-  { key: 'redirectChainLong', label: 'Long Redirect Chain (>3)', severity: 'warn' },
-  { key: 'redirectSelf', label: 'Self-Redirect', severity: 'error' },
-  { key: 'mixedContent', label: 'Mixed Content', severity: 'error' },
-  { key: 'imageMissingAlt', label: 'Image Missing Alt', severity: 'warn' },
-  { key: 'metaRefreshUsed', label: 'Meta Refresh Used', severity: 'warn' },
-  { key: 'compressionMissing', label: 'Compression Missing', severity: 'warn' },
-  { key: 'cspMissing', label: 'CSP Missing', severity: 'info' },
-  { key: 'hstsMissing', label: 'HSTS Missing', severity: 'info' },
-  { key: 'xFrameOptionsMissing', label: 'X-Frame-Options Missing', severity: 'info' },
-  { key: 'xContentTypeOptionsMissing', label: 'X-Content-Type-Options Missing', severity: 'info' },
-  { key: 'viewportMissing', label: 'Viewport Missing', severity: 'warn' },
-  { key: 'langMissing', label: 'lang Attribute Missing', severity: 'info' },
-  { key: 'ogMissing', label: 'OpenGraph Tags Missing', severity: 'info' },
-  { key: 'twitterMissing', label: 'Twitter Card Missing', severity: 'info' },
-  { key: 'structuredDataMissing', label: 'JSON-LD Missing', severity: 'info' },
-  { key: 'structuredDataInvalid', label: 'Invalid JSON-LD', severity: 'error' },
-  { key: 'paginationBroken', label: 'Pagination Broken', severity: 'error' },
-  { key: 'hreflangXDefaultMissing', label: 'Hreflang x-default Missing', severity: 'info' },
-  { key: 'hreflangInvalidCode', label: 'Hreflang Invalid Code', severity: 'error' },
-  { key: 'hreflangSelfRefMissing', label: 'Hreflang Self-Ref Missing', severity: 'error' },
-  { key: 'hreflangReciprocityMissing', label: 'Hreflang Reciprocity Missing', severity: 'warn' },
-  { key: 'hreflangTargetIssues', label: 'Hreflang Target Issues', severity: 'error' },
-  { key: 'faviconMissing', label: 'Favicon Missing', severity: 'info' },
-  { key: 'charsetMissing', label: 'Charset Missing', severity: 'warn' },
-  { key: 'charsetMismatch', label: 'Charset Mismatch (HTTP vs HTML)', severity: 'warn' },
-  { key: 'canonicalOutsideHead', label: 'Canonical Outside <head>', severity: 'warn' },
-  { key: 'hreflangOutsideHead', label: 'Hreflang Outside <head>', severity: 'warn' },
-  { key: 'langContentMismatch', label: 'Lang ≠ Content Language', severity: 'warn' },
-  { key: 'soft404', label: 'Soft 404', severity: 'warn' },
-  { key: 'redirectChain', label: 'Redirect Chain (2+ hops)', severity: 'warn' },
-  { key: 'blockedByRobots', label: 'Linked URL Blocked by robots.txt', severity: 'warn' },
-  { key: 'noindexJsInjected', label: 'Noindex Added by JavaScript', severity: 'warn' },
-  { key: 'titleChangedByJs', label: 'Title Changed by JavaScript', severity: 'warn' },
-  { key: 'ampValidationErrors', label: 'AMP Validation Errors', severity: 'warn' },
-  { key: 'highBoilerplate', label: 'High Boilerplate (>50%)', severity: 'warn' },
-  { key: 'nonIndexableInSitemap', label: 'Non-Indexable in Sitemap', severity: 'error' },
-  { key: 'non200InSitemap', label: 'Non-200 in Sitemap', severity: 'error' },
-  { key: 'redirectInSitemap', label: 'Redirect in Sitemap', severity: 'warn' },
-  { key: 'crawledNotInSitemap', label: 'Crawled, Not in Sitemap', severity: 'info' },
-  { key: 'brokenLinksInternal', label: 'Broken Internal Links', severity: 'error' },
-  { key: 'brokenLinksExternal', label: 'Broken External Links', severity: 'warn' },
-  { key: 'titleMultiple', label: 'Multiple <title> Tags', severity: 'error' },
-  { key: 'h1Empty', label: 'H1 Empty', severity: 'error' },
-  { key: 'h1TooLong', label: 'H1 Too Long (>70)', severity: 'warn' },
-  { key: 'urlFragment', label: 'Fragment in URL', severity: 'info' },
-  { key: 'urlSpaces', label: 'Spaces in URL', severity: 'warn' },
-  { key: 'imageEmptyAlt', label: 'Image Empty Alt', severity: 'info' },
-  { key: 'imageDuplicateAlt', label: 'Image Duplicate Alt', severity: 'warn' },
-  { key: 'linkEmptyAnchor', label: 'Empty Anchor Text', severity: 'warn' },
-  { key: 'titlePixelWidthTooLong', label: 'Title Pixel Width >600px', severity: 'warn' },
-  { key: 'metaPixelWidthTooLong', label: 'Meta Description Pixel Width >990px', severity: 'warn' },
-  { key: 'insecureFormAction', label: 'Insecure Form Action (HTTPS → HTTP)', severity: 'error' },
-  { key: 'missingSri', label: 'Missing SRI (3rd-party subresource)', severity: 'info' },
-  { key: 'ttfbSlow', label: 'TTFB Slow (>600ms)', severity: 'warn' },
-  { key: 'ttfbVerySlow', label: 'TTFB Very Slow (>1.8s)', severity: 'error' },
-  { key: 'cookieNoSecure', label: 'Cookies Missing Secure (HTTPS)', severity: 'error' },
-  { key: 'cookieNoHttpOnly', label: 'Cookies Missing HttpOnly', severity: 'warn' },
-  { key: 'cookieNoSameSite', label: 'Cookies Missing SameSite', severity: 'info' },
-  { key: 'queryStringTooLong', label: 'Query String >100 Chars', severity: 'info' },
-  { key: 'folderDepthTooDeep', label: 'Folder Depth >4', severity: 'info' },
-  { key: 'http2NotSupported', label: 'HTTP/2 Not Advertised', severity: 'info' },
-  { key: 'http3NotSupported', label: 'HTTP/3 Not Advertised', severity: 'info' },
-  { key: 'renderBlocking', label: 'Render-Blocking Head Resources >5', severity: 'warn' },
-  { key: 'keepaliveDisabled', label: 'Keep-Alive Disabled (Connection: close)', severity: 'warn' },
-  { key: 'titlePlaceholder', label: 'Title Placeholder (Untitled / Default)', severity: 'error' },
-];
+function issueAnchor(index: number): string {
+  return `issue-${index + 1}`;
+}
 
-const SEV_RANK: Record<IssueDef['severity'], number> = { error: 0, warn: 1, info: 2 };
+function urlWord(n: number): string {
+  return n === 1 ? 'URL' : 'URLs';
+}
 
-/**
- * One-line, action-oriented advice per issue for the "Recommendations"
- * section. Report copy stays English (the file is shared and machine-
- * read); the fallback covers checks without a tailored line.
- */
-const RECOMMENDATIONS: Partial<Record<IssueDef['key'], string>> = {
-  titleMissing: 'Write a unique, descriptive <title> (50–60 characters) for every page; it is the strongest on-page ranking and click-through signal.',
-  titleDuplicate: 'Give each page its own title — duplicates make search engines pick one page and suppress the rest.',
-  titleTooLong: 'Trim titles to about 60 characters so they are not truncated in results; front-load the primary keyword.',
-  titleTooShort: 'Expand titles below 30 characters with the page topic and brand so they describe the page.',
-  titlePlaceholder: 'Replace placeholder titles ("Untitled", "Home") with real page titles.',
-  metaMissing: 'Add a meta description (120–160 characters) that summarises the page and invites the click.',
-  metaDuplicate: 'Write page-specific meta descriptions; duplicated snippets lower click-through and get rewritten by Google.',
-  metaTooLong: 'Shorten meta descriptions to about 160 characters so the snippet is not cut off.',
-  metaTooShort: 'Extend meta descriptions below 120 characters to make full use of the snippet.',
-  h1Missing: 'Add a single H1 that states the page topic; screen readers and crawlers use it as the page headline.',
-  h1Duplicate: 'Make H1s unique per page so each page targets its own topic.',
-  h1Multiple: 'Keep one H1 per page and demote the rest to H2/H3.',
-  headingSkippedLevel: 'Restore the heading hierarchy (H1 → H2 → H3) — skipped levels hurt accessibility and outline parsing.',
-  multipleCanonicals: 'Leave exactly one canonical tag per page; conflicting canonicals are ignored by Google.',
-  canonicalMissing: 'Add a self-referencing canonical to indexable pages to consolidate parameter and duplicate variants.',
-  canonicalToNon200: 'Point canonicals at live 200 pages; a canonical to an error page is discarded.',
-  canonicalToRedirect: 'Canonicalise directly to the final URL instead of a redirecting one.',
-  canonicalToNoindex: 'Never canonicalise to a noindex page — the signals contradict each other.',
-  canonicalMismatch: 'Align HTML and HTTP canonicals so they name the same URL.',
-  contentThin: 'Expand thin pages with substantive content or consolidate them into stronger pages.',
-  nearDuplicate: 'Merge or differentiate near-duplicate pages, or canonicalise them to the preferred version.',
-  duplicateContentExact: 'Serve exact-duplicate pages from one URL and redirect or canonicalise the others.',
-  responseSlow: 'Bring server response time under 1 s: cache HTML, tune the database, use a CDN.',
-  responseVerySlow: 'Investigate pages over 3 s first — they hurt crawl budget and Core Web Vitals most.',
-  ttfbSlow: 'Reduce time-to-first-byte with server-side caching and faster hosting.',
-  ttfbVerySlow: 'TTFB above 1.8 s fails Core Web Vitals; profile the backend and add edge caching.',
-  pageLarge: 'Cut page weight: compress images, defer non-critical scripts, remove unused CSS.',
-  urlTooLong: 'Shorten URLs; keep them readable and under ~100 characters where possible.',
-  urlManyParams: 'Reduce query parameters and canonicalise parameterised variants to a clean URL.',
-  redirectLoop: 'Break redirect loops — they return no content and waste crawl budget.',
-  redirectChainLong: 'Collapse redirect chains so every link points straight to the final URL.',
-  redirectSelf: 'Fix URLs that redirect to themselves; they never resolve.',
-  mixedContent: 'Load every sub-resource over HTTPS to remove "Not Secure" warnings.',
-  imageMissingAlt: 'Add descriptive alt text to content images (empty alt for decorative ones).',
-  imageEmptyAlt: 'Confirm images with empty alt are decorative; give meaningful images real alt text.',
-  imageDuplicateAlt: 'Vary alt text so different images are not described identically.',
-  metaRefreshUsed: 'Replace meta refresh with a server-side 301 redirect.',
-  compressionMissing: 'Enable gzip or Brotli compression for text responses.',
-  cspMissing: 'Add a Content-Security-Policy header to mitigate XSS and injection.',
-  hstsMissing: 'Send Strict-Transport-Security on HTTPS pages so browsers never downgrade to HTTP.',
-  xFrameOptionsMissing: 'Send X-Frame-Options (or CSP frame-ancestors) to prevent clickjacking.',
-  xContentTypeOptionsMissing: 'Send X-Content-Type-Options: nosniff.',
-  viewportMissing: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> for mobile rendering.',
-  langMissing: 'Set the html lang attribute so browsers, screen readers and search engines know the page language.',
-  ogMissing: 'Add Open Graph title, description and image so shares render a rich preview.',
-  twitterMissing: 'Add Twitter Card tags (card type + image) for X/Twitter previews.',
-  structuredDataMissing: 'Add JSON-LD structured data for the page type to qualify for rich results.',
-  structuredDataInvalid: 'Fix JSON-LD syntax errors; invalid blocks are ignored entirely.',
-  paginationBroken: 'Point rel=next / rel=prev at live pages in the sequence.',
-  hreflangXDefaultMissing: 'Add an x-default hreflang for visitors who match no listed language.',
-  hreflangInvalidCode: 'Use valid ISO 639-1 language (and optional ISO 3166-1 region) codes in hreflang.',
-  hreflangSelfRefMissing: 'Include a self-referencing hreflang on every page in the cluster.',
-  hreflangReciprocityMissing: 'Make hreflang annotations reciprocal — every target must link back.',
-  hreflangTargetIssues: 'Point hreflang at live, indexable, self-canonical pages.',
-  faviconMissing: 'Add a favicon; it appears next to the site in mobile results.',
-  charsetMissing: 'Declare the character encoding (meta charset or Content-Type header).',
-  charsetMismatch: 'Make the Content-Type header charset match the meta charset — browsers obey the header.',
-  canonicalOutsideHead: 'Move rel=canonical into <head>; search engines ignore it in <body>.',
-  hreflangOutsideHead: 'Move hreflang <link> tags into <head>; search engines ignore them in <body>.',
-  langContentMismatch: 'Set html[lang] to the language the page is actually written in.',
-  soft404: 'Return 404/410 for pages that no longer exist instead of a 200 "not found" page.',
-  redirectChain: 'Point links and redirects straight at the final URL.',
-  blockedByRobots: 'Unblock the URL in robots.txt or stop linking to it internally.',
-  noindexJsInjected: 'Put noindex in the served HTML or X-Robots-Tag; Google may index before rendering.',
-  titleChangedByJs: 'Serve the final <title> in the HTML instead of rewriting it with JavaScript.',
-  ampValidationErrors: 'Fix AMP validation errors or the AMP version will not be served.',
-  nonIndexableInSitemap: 'Remove noindex / canonicalised URLs from the XML sitemap.',
-  non200InSitemap: 'Remove error and redirecting URLs from the XML sitemap.',
-  redirectInSitemap: 'List final URLs in the sitemap, not redirecting ones.',
-  crawledNotInSitemap: 'Add indexable pages missing from the sitemap so they are discovered promptly.',
-  brokenLinksInternal: 'Fix or remove internal links to 4xx/5xx pages.',
-  brokenLinksExternal: 'Update or remove external links to dead pages.',
-  linkEmptyAnchor: 'Give links descriptive anchor text (or alt text on image links).',
-  insecureFormAction: 'Submit forms over HTTPS; an HTTP action leaks form data.',
-  missingSri: 'Add integrity attributes to third-party scripts and stylesheets.',
-  cookieNoSecure: 'Set the Secure flag on cookies served over HTTPS.',
-  cookieNoHttpOnly: 'Set HttpOnly on session cookies so scripts cannot read them.',
-  cookieNoSameSite: 'Set SameSite on cookies to limit cross-site requests.',
-  folderDepthTooDeep: 'Flatten deep folder structures so important pages sit closer to the root.',
-  http2NotSupported: 'Enable HTTP/2 (or HTTP/3) on the server for multiplexed, faster page loads.',
-  renderBlocking: 'Defer or async non-critical scripts and inline critical CSS to unblock rendering.',
-  keepaliveDisabled: 'Enable HTTP keep-alive so browsers reuse connections.',
-  highBoilerplate: 'Increase unique main content relative to navigation and footer boilerplate.',
-};
-const SEVERITY_FALLBACK: Record<IssueDef['severity'], string> = {
-  error: 'Fix these pages first — this check marks a problem that blocks indexing or breaks the user experience.',
-  warn: 'Review and correct where practical; this weakens rankings or usability without blocking them.',
-  info: 'Informational — worth tidying when the affected template is next touched.',
-};
-
-function renderRecommendations(counts: OverviewCounts): string {
-  const rows = ISSUES.map((d) => ({ ...d, count: counts.issues[d.key] as number }))
-    .filter((r) => r.count > 0)
-    .sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.count - a.count)
-    .slice(0, 12);
-  if (rows.length === 0) return '<p class="muted">Nothing to recommend — no issues were detected.</p>';
-  const items = rows
+function renderRecommendations(issues: IssueSummary[]): string {
+  const top = issues.slice(0, 12);
+  if (top.length === 0) return '<p class="muted">Nothing to recommend — no issues were detected.</p>';
+  const items = top
     .map(
       (r) =>
-        `<li><span class="sev-${r.severity}">${escape(r.label)}</span> <span class="muted">(${fmtNum(r.count)} URL${r.count === 1 ? '' : 's'})</span><br>${escape(
-          RECOMMENDATIONS[r.key] ?? SEVERITY_FALLBACK[r.severity],
-        )}</li>`,
+        `<li><span class="sev-${r.severity}">${escape(r.title)}</span> <span class="muted">(${fmtNum(r.count)} ${urlWord(r.count)})</span><br>${escape(r.advice)}</li>`,
     )
     .join('');
   return `<ol class="recs">${items}</ol>`;
@@ -318,7 +193,7 @@ function renderSiteNotices(counts: OverviewCounts): string {
   const blocked = counts.site?.botBlocked;
   if (blocked) {
     out +=
-      `<p><span class="sev-warn">WARN</span> Bot protection blocked ${fmtNum(blocked.count)} ` +
+      `<p><span class="sev-warning">WARNING</span> Bot protection blocked ${fmtNum(blocked.count)} ` +
       `URL${blocked.count === 1 ? '' : 's'}` +
       (blocked.sample ? ` (<span class="mono">${escape(blocked.sample)}</span>)` : '') +
       `: they were not crawled, so this report has no data on them and leaves them out of the ` +
@@ -331,36 +206,70 @@ function renderSiteNotices(counts: OverviewCounts): string {
     : '';
   return (
     out +
-    `<p><span class="sev-warn">WARN</span> Missing pages return ${probe.status}: ` +
+    `<p><span class="sev-warning">WARNING</span> Missing pages return ${probe.status}: ` +
     `<span class="mono">${escape(probe.url)}</span>, a page that does not exist, was answered ` +
     `${probe.status}${via} instead of 404. Broken links on this site look like working pages ` +
     `to search engines (soft 404) — return a real 404 or 410 for missing URLs.</p>`
   );
 }
 
-function renderIssues(counts: OverviewCounts): string {
+function renderIssues(issues: IssueSummary[], counts: OverviewCounts): string {
   const notices = renderSiteNotices(counts);
-  const rows = ISSUES.map((d) => {
-    const c = counts.issues[d.key] as number;
-    return { ...d, count: c };
-  })
-    .filter((r) => r.count > 0)
-    .sort((a, b) =>
-      SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.count - a.count,
-    );
-  if (rows.length === 0) {
+  if (issues.length === 0) {
     return notices || '<p class="muted">No issues detected. Nice.</p>';
   }
-  const body = rows
+  const body = issues
     .map(
-      (r) => `<tr>
-        <td><span class="sev-${r.severity === 'warn' ? 'warn' : r.severity === 'error' ? 'error' : 'info'}">${r.severity.toUpperCase()}</span></td>
-        <td>${escape(r.label)}</td>
+      (r, i) => `<tr>
+        <td>${sevBadge(r.severity)}</td>
+        <td><a href="#${issueAnchor(i)}">${escape(r.title)}</a></td>
         <td class="right mono">${fmtNum(r.count)}</td>
       </tr>`,
     )
     .join('');
   return `${notices}<table><thead><tr><th>Severity</th><th>Issue</th><th class="right">URLs</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+/**
+ * One section per issue: the advice, then its first affected pages. Each
+ * starts open (`<details open>`) so the PDF prints every list, while the
+ * HTML file still lets a reader fold sections away.
+ */
+function renderIssueDetails(
+  issues: IssueSummary[],
+  issueUrls: Record<string, IssueUrlSample[]>,
+  maxUrlsPerIssue: number,
+): string {
+  if (issues.length === 0) return '<p class="muted">No issues detected.</p>';
+  return issues
+    .map((issue, i) => {
+      const sampled = issueUrls[issue.category] ?? [];
+      const rows = sampled.slice(0, maxUrlsPerIssue);
+      const table =
+        rows.length === 0
+          ? ''
+          : `<table><thead><tr><th>URL</th><th class="right">Status</th><th>Indexability</th></tr></thead><tbody>${rows
+              .map(
+                (r) =>
+                  `<tr><td class="mono">${escape(r.url)}</td><td class="right mono">${
+                    r.statusCode === null ? '—' : r.statusCode
+                  }</td><td>${escape(r.indexability ?? '')}</td></tr>`,
+              )
+              .join('')}</tbody></table>`;
+      // Some counters count images or links (Images: Missing Alt, Links:
+      // Broken) while the list holds the pages behind them, so "more" is
+      // judged by the one extra sampled row, not by the count.
+      const more =
+        sampled.length > rows.length
+          ? `<p class="muted">Showing the first ${fmtNum(rows.length)} affected pages. File → Export Issues Report lists all of them.</p>`
+          : '';
+      return (
+        `<details class="issue" id="${issueAnchor(i)}" open>` +
+        `<summary>${sevBadge(issue.severity)} ${escape(issue.title)} <span class="muted">— ${fmtNum(issue.count)} ${urlWord(issue.count)}</span></summary>` +
+        `<p>${escape(issue.advice)}</p>${table}${more}</details>`
+      );
+    })
+    .join('');
 }
 
 export async function exportHtmlReport(
@@ -394,16 +303,13 @@ async function* htmlReportChunks(
   db: ProjectDb,
   options: HtmlReportOptions,
 ): AsyncGenerator<string> {
-  const summary: CrawlSummary = db.getSummary();
-  const counts: OverviewCounts = db.getOverviewCounts();
+  // Sample tables are capped at 25 rows each to keep the report
+  // scannable; the live UI is the right place for the full data set.
+  const maxUrlsPerIssue = options.maxUrlsPerIssue ?? DEFAULT_MAX_URLS_PER_ISSUE;
+  const data = options.data ?? collectHtmlReportData(db, maxUrlsPerIssue);
+  const { summary, counts } = data;
+  const issues = summarizeIssues(counts);
   const generatedAt = options.generatedAt ?? new Date();
-
-  // Sample tables — three small SELECTs straight out of the URL table.
-  // Capped at 25 rows each to keep the report scannable; the live UI is
-  // the right place for the full data set.
-  const slowestRows = db.topUrlsBy('response_time_ms', 25);
-  const deepestRows = db.topUrlsBy('depth', 25);
-  const fanoutRows = db.topUrlsBy('outlinks', 25);
 
   function rowsTable(
     label: string,
@@ -434,11 +340,12 @@ async function* htmlReportChunks(
       <div class="card"><div class="label">Total Bytes</div><div class="value">${fmtNum(summary.totalBytes)}</div></div>
     </div>`;
 
-    yield `<section><h2>Issues</h2>${renderIssues(counts)}</section>`;
-    yield `<section><h2>Recommendations</h2>${renderRecommendations(counts)}</section>`;
-    yield `<section><h2>Top 25 Slowest URLs</h2>${rowsTable('slowest', slowestRows, 'ms')}</section>`;
-    yield `<section><h2>Top 25 Deepest URLs</h2>${rowsTable('deepest', deepestRows, 'depth')}</section>`;
-    yield `<section><h2>Top 25 Outlink-Heavy URLs</h2>${rowsTable('fanout', fanoutRows, 'outlinks')}</section>`;
+    yield `<section><h2>Issues</h2>${renderIssues(issues, counts)}</section>`;
+    yield `<section><h2>Recommendations</h2>${renderRecommendations(issues)}</section>`;
+    yield `<section><h2>Issue Details</h2>${renderIssueDetails(issues, data.issueUrls, maxUrlsPerIssue)}</section>`;
+    yield `<section><h2>Top 25 Slowest URLs</h2>${rowsTable('slowest', data.slowest, 'ms')}</section>`;
+    yield `<section><h2>Top 25 Deepest URLs</h2>${rowsTable('deepest', data.deepest, 'depth')}</section>`;
+    yield `<section><h2>Top 25 Outlink-Heavy URLs</h2>${rowsTable('fanout', data.fanout, 'outlinks')}</section>`;
     yield `</body></html>`;
   };
   yield* gen();

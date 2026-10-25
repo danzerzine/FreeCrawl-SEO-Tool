@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.1] — 2026-10-25
+
+### Added
+- HTML and PDF reports now have an Issue Details section listing the affected pages and how to fix each issue.
+- File → Export Issues Report writes every issue with all its affected pages to Excel (one sheet per issue) or CSV.
+- The Export dialog now preselects the issue you are filtering by, so the export holds just that issue's pages.
+
+### Changed
+- Tap Target Too Small now applies the WCAG 2.5.8 exceptions for inline links, native checkboxes and well-spaced targets.
+- Slow-Loading Images now checks lazy loading per image, so a lazy-loaded hero image is no longer flagged.
+
+### Fixed
+- Deprecated TLS Protocol and Weak Signature Algorithm checks now detect affected servers; they never fired before.
+- Images whose server rejects HEAD requests are confirmed with GET instead of being reported as broken.
+- Relative og:image and twitter:image URLs are now matched by the 5 MB share-image size checks.
+- Open Graph and Twitter meta tags no longer hide pages from the No Structured Data check.
+- JSON-LD @context definitions no longer cause false Malformed @type warnings.
+- File → Export Crawl Data now starts from the tab you are on instead of the one open at launch.
+
 ## [1.1.0] — 2026-10-18
 
 ### Added

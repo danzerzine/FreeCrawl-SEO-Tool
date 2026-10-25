@@ -282,6 +282,7 @@
     "windowHint": "Müstəqil pəncərə — əsas tətbiqdən ayırmaq üçün bağlayın"
   },
   "export": {
+    "currentIssue": "Cari problem filtri: {{issue}}",
     "title": "İxrac",
     "exportAsTitle": "Tarama məlumatlarını ixrac et",
     "exportButton": "İxrac et",

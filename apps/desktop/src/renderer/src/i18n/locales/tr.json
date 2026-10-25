@@ -282,6 +282,7 @@
     "windowHint": "Ayrı pencere — kapatınca ana uygulamadan ayrılır"
   },
   "export": {
+    "currentIssue": "Geçerli sorun filtresi: {{issue}}",
     "title": "Dışa Aktar",
     "exportAsTitle": "Crawl Verilerini Dışa Aktar",
     "exportButton": "Dışa Aktar",

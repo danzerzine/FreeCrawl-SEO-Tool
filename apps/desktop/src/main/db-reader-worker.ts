@@ -113,6 +113,8 @@ const ALLOWED_METHODS = new Set<string>([
   'getResponseTimeHistogram',
   'countUrls',
   'countSitemapUrls',
+  // HTML / PDF report: the first affected pages of every issue.
+  'issueUrlSamples',
 ]);
 
 parentPort.on('message', async (msg: RequestMessage) => {

@@ -35,6 +35,7 @@ import { clearCrawlWithConfirm } from './utils/clearCrawl.js';
 export function App() {
   const { t } = useTranslation();
   const activeTab = useAppStore((s) => s.activeTab);
+  const activeCategory = useAppStore((s) => s.activeCategory);
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const detailPanelOpen = useAppStore((s) => s.detailPanelOpen);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
@@ -470,6 +471,9 @@ export function App() {
         case 'export-pdf-report':
           void window.freecrawl.exportPdfReport({ filePath: '' });
           break;
+        case 'export-issues':
+          void window.freecrawl.exportIssues({ filePath: '' });
+          break;
         case 'export-seo-audit':
           void window.freecrawl.exportSeoAudit();
           break;
@@ -655,11 +659,16 @@ export function App() {
           });
         }}
       />
-      <ExportDialog
-        open={exportAsOpen}
-        onClose={() => setExportAsOpen(false)}
-        defaultTab={activeTab}
-      />
+      {/* Mounted only while open: its picks are seeded from the tab and
+          filter the user is on at the moment they open it. */}
+      {exportAsOpen && (
+        <ExportDialog
+          open={exportAsOpen}
+          onClose={() => setExportAsOpen(false)}
+          defaultTab={activeTab}
+          activeCategory={activeCategory}
+        />
+      )}
       <PasswordPromptDialog
         open={passwordPrompt !== null}
         title={

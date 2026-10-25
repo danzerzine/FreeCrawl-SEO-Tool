@@ -2322,6 +2322,13 @@ export interface DiscoveredImage {
    * (broken, large) still check it.
    */
   variant?: boolean;
+  /**
+   * The page defers this image: `loading="lazy"` or a script-deferred
+   * address on its `<img>` (a variant takes its `<img>`'s value). False
+   * when any use of the URL on the page loads eagerly. Unset for
+   * share-card images, which the page itself never loads.
+   */
+  lazy?: boolean;
 }
 
 /**

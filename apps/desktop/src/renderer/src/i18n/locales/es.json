@@ -284,6 +284,7 @@
     "windowHint": "Ventana independiente — ciérrala para separarla de la aplicación principal"
   },
   "export": {
+    "currentIssue": "Filtro de problema actual: {{issue}}",
     "title": "Exportar",
     "exportAsTitle": "Exportar datos del rastreo",
     "exportButton": "Exportar",

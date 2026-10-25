@@ -273,20 +273,66 @@ const A11Y_AUDIT_FN = `(() => {
   } catch (e) { /* ignore */ }
   if (focusVisibleRestores) focusSuppressed = false;
   // Tap-target sizing — WCAG 2.5.8 (AA) wants interactive controls to be at
-  // least 24x24 CSS px. Sample visible interactive elements and count those
-  // rendered smaller in either dimension. Measured at the render viewport.
-  let tapSmall = 0, tapSampled = 0;
-  const interactive = document.querySelectorAll(
-    'a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="link"], [onclick]',
-  );
-  for (const el of interactive) {
-    if (tapSampled >= 500) break;
+  // least 24x24 CSS px. A smaller target still passes under the criterion's
+  // exceptions, which we apply:
+  //  - Inline: a link inside a sentence, sized by the line of text.
+  //  - User agent control: a checkbox / radio the browser draws itself
+  //    (read as appearance != none — an author resize that keeps the native
+  //    look is missed).
+  //  - Spacing: a 24 px circle on the target's centre touches no other
+  //    target, nor another undersized target's circle.
+  // Boxes of 1 px or less are visually-hidden (sr-only) controls, not
+  // targets. Measured at the render viewport.
+  const TARGET_SEL =
+    'a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="link"], [onclick]';
+  // Does the parent's inline content (its own text, or text in inline
+  // non-target children) hold a letter or digit? Then a link in it sits in
+  // running text — unlike a list of links split by spaces or "|". Cached
+  // per parent, so a menu's parent is walked once.
+  const runningText = new Map();
+  const hasInlineText = (node) => {
+    for (const c of node.childNodes) {
+      if (c.nodeType === 3 && /[\\p{L}\\p{N}]/u.test(c.nodeValue || '')) return true;
+      if (c.nodeType !== 1 || c.matches(TARGET_SEL)) continue;
+      if (getComputedStyle(c).display.startsWith('inline') && hasInlineText(c)) return true;
+    }
+    return false;
+  };
+  const inRunningText = (el) => {
+    const parent = el.parentElement;
+    if (!parent) return false;
+    if (!runningText.has(parent)) runningText.set(parent, hasInlineText(parent));
+    return runningText.get(parent);
+  };
+  // Every visible target is a spacing neighbour; the first 500 are judged.
+  const targets = [];
+  for (const el of document.querySelectorAll(TARGET_SEL)) {
     const cs2 = getComputedStyle(el);
     if (cs2.visibility === 'hidden' || cs2.display === 'none' || parseFloat(cs2.opacity || '1') === 0) continue;
     const r = el.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) continue;
-    tapSampled++;
-    if (r.width < 24 || r.height < 24) tapSmall++;
+    if (r.width <= 1 || r.height <= 1) continue;
+    const undersized =
+      (r.width < 24 || r.height < 24) &&
+      !(cs2.display === 'inline' && inRunningText(el)) &&
+      !(el.matches('input[type="checkbox"], input[type="radio"]') && cs2.appearance !== 'none');
+    targets.push({ el, r, undersized, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  }
+  const judged = targets.slice(0, 500);
+  let tapSmall = 0;
+  const tapSampled = judged.length;
+  for (const a of judged) {
+    if (!a.undersized) continue;
+    const crowded = targets.some((b) => {
+      // Nested targets (an icon inside its button) are one target.
+      if (b === a || a.el.contains(b.el) || b.el.contains(a.el)) return false;
+      // Two undersized targets' 24 px circles overlap.
+      if (b.undersized && Math.hypot(a.x - b.x, a.y - b.y) < 24) return true;
+      // a's circle (radius 12) reaches b's box.
+      const dx = a.x - Math.max(b.r.left, Math.min(a.x, b.r.right));
+      const dy = a.y - Math.max(b.r.top, Math.min(a.y, b.r.bottom));
+      return Math.hypot(dx, dy) < 12;
+    });
+    if (crowded) tapSmall++;
   }
   return {
     lowContrast: low,
