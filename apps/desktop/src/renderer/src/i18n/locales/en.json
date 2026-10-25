@@ -314,6 +314,7 @@
     "windowHint": "Standalone window — close to detach from the main app"
   },
   "export": {
+    "currentIssue": "Current issue filter: {{issue}}",
     "title": "Export",
     "exportAsTitle": "Export Crawl Data",
     "exportButton": "Export",

@@ -125,7 +125,21 @@ export {
 } from './sitemap-export.js';
 export { acceptedLastModified, parseSitemapLastmod } from './sitemap-lastmod.js';
 export { previewExtractionRules } from './extraction.js';
-export { exportHtmlReport, renderHtmlReport, type HtmlReportOptions } from './html-report.js';
+export {
+  exportHtmlReport,
+  renderHtmlReport,
+  htmlReportIssueCategories,
+  issueSampleLimit,
+  DEFAULT_MAX_URLS_PER_ISSUE,
+  type HtmlReportOptions,
+  type HtmlReportData,
+} from './html-report.js';
+export {
+  exportIssues,
+  type IssuesExportOptions,
+  type IssuesExportResult,
+} from './issues-export.js';
+export { summarizeIssues, SEVERITY_LABEL, type IssueSummary } from './issue-summary.js';
 export {
   exportAuditReport,
   buildAuditData,

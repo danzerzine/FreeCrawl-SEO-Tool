@@ -11,7 +11,7 @@ interface Migration {
   up: string | ((db: DatabaseSync) => void);
 }
 
-const MIGRATIONS: Migration[] = [
+export const MIGRATIONS: Migration[] = [
   {
     version: 1,
     name: 'initial_schema',
@@ -3001,6 +3001,42 @@ const MIGRATIONS: Migration[] = [
       addColumnsIfMissing(db, 'urls', [['coverage_files', 'TEXT']]);
     },
   },
+  {
+    // Upstream 1.1.1 numbered this 101; renumbered after this build's 101–132. `host_certs.protocol`
+    // is the best version a default handshake negotiates, and Node / Electron never go below TLS 1.2
+    // there, so it could not show that a server still accepts TLS 1.0 / 1.1. The TLS probe now makes
+    // a second handshake capped at TLS 1.1 and stores the outcome here (`TLSv1` / `TLSv1.1` /
+    // `refused` / `untested`). Existing rows stay NULL (their expiry data keeps showing) and
+    // `unprobedHttpsHosts()` hands those hosts to the next crawl again.
+    version: 133,
+    name: 'add_host_certs_legacy_protocol',
+    up: (db) => {
+      addColumnsIfMissing(db, 'host_certs', [['legacy_protocol', 'TEXT']]);
+    },
+  },
+  {
+    // Upstream 1.1.1 numbered this 102. 1 / 0 for whether the page defers this image
+    // (`loading="lazy"` or a script-deferred address); NULL for rows stored before the column.
+    // Lets Slow-Loading Images test the large image itself, not the page.
+    version: 134,
+    name: 'add_image_usages_lazy',
+    up: (db) => {
+      addColumnsIfMissing(db, 'image_usages', [['lazy', 'INTEGER']]);
+    },
+  },
+  {
+    // Upstream 1.1.1 numbered this 103. og:image / twitter:image resolved and normalised the way
+    // `images.src` is, so the "> 5 MB" checks match a relative or entity-escaped share image to its
+    // probed row. `og_image` / `twitter_image` keep the raw value for the not-absolute checks.
+    version: 135,
+    name: 'add_urls_share_image_src',
+    up: (db) => {
+      addColumnsIfMissing(db, 'urls', [
+        ['og_image_src', 'TEXT'],
+        ['twitter_image_src', 'TEXT'],
+      ]);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */
@@ -3019,6 +3055,21 @@ function addColumnsIfMissing(
   }
 }
 
+function forgetUpstream111Versions(db: DatabaseSync): void {
+  const recorded = new Set(
+    (
+      db
+        .prepare('SELECT version FROM schema_version WHERE version IN (101, 102, 103, 133)')
+        .all() as { version: number }[]
+    ).map((r) => r.version),
+  );
+  if (recorded.has(133) || ![101, 102, 103].some((v) => recorded.has(v))) return;
+  const hasLegacyProtocol = (
+    db.prepare('PRAGMA table_info(host_certs)').all() as unknown as { name: string }[]
+  ).some((c) => c.name === 'legacy_protocol');
+  if (hasLegacyProtocol) db.exec('DELETE FROM schema_version WHERE version IN (101, 102, 103)');
+}
+
 export function runMigrations(
   db: DatabaseSync,
   /** Stop after this version: lets tests build the schema of an older build. */
@@ -3031,11 +3082,21 @@ export function runMigrations(
     );
   `);
 
-  const currentVersion =
-    (db.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number | null }).v ??
-    0;
+  // A project file written by upstream 1.1.1 records 101–103 for its own changes (this build's
+  // 133–135). Its `host_certs.legacy_protocol` column without a recorded 133 gives it away: this
+  // build adds that column only in 133. Forget those three rows so this build's 101–103 run; they
+  // are safe on any schema, and 133–135 then find their columns already there.
+  forgetUpstream111Versions(db);
 
-  const pending = MIGRATIONS.filter((m) => m.version > currentVersion && m.version <= untilVersion);
+  // Every migration not yet recorded runs, not only those above the highest recorded version. A
+  // file this build wrote has no gaps, so for it this is the same as comparing with the highest.
+  const applied = new Set(
+    (db.prepare('SELECT version FROM schema_version').all() as { version: number }[]).map(
+      (r) => r.version,
+    ),
+  );
+
+  const pending = MIGRATIONS.filter((m) => !applied.has(m.version) && m.version <= untilVersion);
   for (const migration of pending) {
     db.exec('BEGIN');
     try {

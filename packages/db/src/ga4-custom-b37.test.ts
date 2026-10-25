@@ -51,8 +51,10 @@ describe('B37 migration', () => {
     db.close();
     const raw2 = new DatabaseSync(file);
     for (const t of before) {
-      // `urls` and `links` gain columns in later migrations (M17 axe, B132): the old definition stays a prefix of it.
-      if (t.name === 'urls' || t.name === 'links') expect(schemaOf(raw2, t.name)!.startsWith(t.sql.slice(0, t.sql.lastIndexOf(')')).trimEnd())).toBe(true);
+      // `urls`, `links` and `host_certs` gain columns in later migrations (M17 axe, B132, 133–135): the old
+      // definition stays a prefix of it. `image_usages` gains `lazy` (134) ahead of its PRIMARY KEY clause.
+      if (t.name === 'image_usages') expect(schemaOf(raw2, t.name)!.replace(' lazy INTEGER,', '')).toBe(t.sql);
+      else if (['urls', 'links', 'host_certs'].includes(t.name)) expect(schemaOf(raw2, t.name)!.startsWith(t.sql.slice(0, t.sql.lastIndexOf(')')).trimEnd())).toBe(true);
       else expect(schemaOf(raw2, t.name)).toBe(t.sql);
     }
     const cols = (raw2.prepare('PRAGMA table_info(ga4_custom_values)').all() as { name: string; pk: number }[]).map(

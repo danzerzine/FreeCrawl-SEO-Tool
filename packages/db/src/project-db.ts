@@ -38,6 +38,7 @@ import type {
   InlinkRow,
   LinkTargetReportInput,
   LinkTargetRow,
+  IssueUrlSample,
   OutlinkRow,
   OverviewCounts,
   Soft404ProbeResult,
@@ -217,6 +218,12 @@ type ClauseLimits = SeoThresholds & {
   readonly noPaginationMultiple?: boolean;
   /** No coverage columns (before migration 129): the two coverage filters match nothing. */
   readonly noCoverageColumns?: boolean;
+  /**
+   * No columns of migrations 133–135 (`host_certs.legacy_protocol`, `image_usages.lazy`,
+   * `urls.og_image_src` / `twitter_image_src`): a read-only open of an older file. The four checks
+   * reading them fall back to the clauses that build used.
+   */
+  readonly noV111Columns?: boolean;
 };
 /** `WHERE col = ? AND …` over the filters that are set, with its arguments (the stored-results queries). */
 function equalityWhere(filters: ReadonlyArray<readonly [string, string | undefined]>): {
@@ -926,10 +933,13 @@ export interface UpsertUrlInput {
   ogTitle?: string | null;
   ogDescription?: string | null;
   ogImage?: string | null;
+  /** `ogImage` resolved like `images.src` — what the size checks join on. */
+  ogImageSrc?: string | null;
   twitterCard?: string | null;
   twitterTitle?: string | null;
   twitterDescription?: string | null;
   twitterImage?: string | null;
+  twitterImageSrc?: string | null;
   metaKeywords?: string | null;
   metaAuthor?: string | null;
   metaGenerator?: string | null;
@@ -1157,8 +1167,8 @@ const UPSERT_URL_SQL = `
     canonical_cross_domain, canonical_count, canonical_http, meta_robots, x_robots_tag,
     content_type, content_length, response_time_ms, depth, outlinks, redirect_target,
     images_count, images_missing_alt,
-    lang, viewport, og_title, og_description, og_image,
-    twitter_card, twitter_title, twitter_description, twitter_image,
+    lang, viewport, og_title, og_description, og_image, og_image_src,
+    twitter_card, twitter_title, twitter_description, twitter_image, twitter_image_src,
     meta_keywords, meta_author, meta_generator, theme_color,
     hsts, x_frame_options, x_content_type_options, content_encoding,
     schema_types, schema_block_count, schema_invalid_count,
@@ -1203,8 +1213,8 @@ const UPSERT_URL_SQL = `
     :canonical_cross_domain, :canonical_count, :canonical_http, :meta_robots, :x_robots_tag,
     :content_type, :content_length, :response_time_ms, :depth, :outlinks, :redirect_target,
     :images_count, :images_missing_alt,
-    :lang, :viewport, :og_title, :og_description, :og_image,
-    :twitter_card, :twitter_title, :twitter_description, :twitter_image,
+    :lang, :viewport, :og_title, :og_description, :og_image, :og_image_src,
+    :twitter_card, :twitter_title, :twitter_description, :twitter_image, :twitter_image_src,
     :meta_keywords, :meta_author, :meta_generator, :theme_color,
     :hsts, :x_frame_options, :x_content_type_options, :content_encoding,
     :schema_types, :schema_block_count, :schema_invalid_count,
@@ -1283,10 +1293,12 @@ const UPSERT_URL_SQL = `
     og_title = excluded.og_title,
     og_description = excluded.og_description,
     og_image = excluded.og_image,
+    og_image_src = excluded.og_image_src,
     twitter_card = excluded.twitter_card,
     twitter_title = excluded.twitter_title,
     twitter_description = excluded.twitter_description,
     twitter_image = excluded.twitter_image,
+    twitter_image_src = excluded.twitter_image_src,
     meta_keywords = excluded.meta_keywords,
     meta_author = excluded.meta_author,
     meta_generator = excluded.meta_generator,
@@ -1701,6 +1713,16 @@ const INTERNAL_HTML_SCOPE = "is_external = 0 AND content_kind = 'html'";
  */
 const REDIRECT_CHAIN_START_SQL =
   'url NOT IN (SELECT redirect_target FROM urls WHERE redirect_target IS NOT NULL)';
+
+/**
+ * `host_certs hc` row of a host that still accepts TLS 1.0 / 1.1 (or SSL).
+ * The main probe handshake never goes below TLS 1.2 (the Node / Electron
+ * floor), so the answer comes from the second, TLS-1.1-capped handshake
+ * (`legacy_protocol`); `protocol` still counts for rows a runtime with a
+ * lower floor wrote. Shared by the issue filter and its counter.
+ */
+const SSL_PROTOCOL_OLD_PREDICATE = `(hc.legacy_protocol IN ('TLSv1', 'TLSv1.1')
+  OR hc.protocol IN ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2'))`;
 
 /**
  * Scope for on-page-element "missing" checks that only make sense on a real
@@ -2676,7 +2698,8 @@ export class ProjectDb {
     const withAxe = cols.has('axe_serious') ? limits : { ...limits, noAxeColumns: true };
     const withMarkup = cols.has('markup_errors') ? withAxe : { ...withAxe, noMarkupColumns: true };
     const withPagination = cols.has('pagination_multiple') ? withMarkup : { ...withMarkup, noPaginationMultiple: true };
-    return cols.has('css_bytes') ? withPagination : { ...withPagination, noCoverageColumns: true };
+    const withCoverage = cols.has('css_bytes') ? withPagination : { ...withPagination, noCoverageColumns: true };
+    return cols.has('og_image_src') ? withCoverage : { ...withCoverage, noV111Columns: true };
   }
 
   private hasTable(name: string): boolean {
@@ -3453,10 +3476,12 @@ export class ProjectDb {
       og_title: input.ogTitle ?? null,
       og_description: input.ogDescription ?? null,
       og_image: input.ogImage ?? null,
+      og_image_src: input.ogImageSrc ?? null,
       twitter_card: input.twitterCard ?? null,
       twitter_title: input.twitterTitle ?? null,
       twitter_description: input.twitterDescription ?? null,
       twitter_image: input.twitterImage ?? null,
+      twitter_image_src: input.twitterImageSrc ?? null,
       meta_keywords: input.metaKeywords ?? null,
       meta_author: input.metaAuthor ?? null,
       meta_generator: input.metaGenerator ?? null,
@@ -6039,11 +6064,13 @@ export class ProjectDb {
        RETURNING id`,
     );
     const upsertUsage = this.db.prepare(
-      `INSERT INTO image_usages (from_url_id, image_id, alt, is_variant)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO image_usages (from_url_id, image_id, alt, is_variant, lazy)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(from_url_id, image_id) DO UPDATE SET
          alt = excluded.alt,
-         is_variant = MIN(image_usages.is_variant, excluded.is_variant)`,
+         is_variant = MIN(image_usages.is_variant, excluded.is_variant),
+         -- An eager use wins; COALESCE so a NULL (share card) never masks it.
+         lazy = MIN(COALESCE(image_usages.lazy, excluded.lazy), COALESCE(excluded.lazy, image_usages.lazy))`,
     );
     const ownsTx = !this.isInTransaction();
     if (ownsTx) this.db.exec('BEGIN');
@@ -6058,7 +6085,13 @@ export class ProjectDb {
           img.isInternal ? 1 : 0,
           variant,
         ) as { id: number };
-        upsertUsage.run(fromUrlId, row.id, img.alt, variant);
+        upsertUsage.run(
+          fromUrlId,
+          row.id,
+          img.alt,
+          variant,
+          img.lazy === undefined ? null : img.lazy ? 1 : 0,
+        );
       }
       if (ownsTx) this.db.exec('COMMIT');
     } catch (err) {
@@ -12911,6 +12944,43 @@ export class ProjectDb {
     }
   }
 
+  /**
+   * The first `limit` URLs (crawl order) each issue category flags — what
+   * the HTML / PDF report lists under every issue. One bounded query per
+   * category, through the same predicate as the sidebar filter, so the
+   * report shows exactly the rows a click on the issue would. Callers pass
+   * only categories with a non-zero count: a category that matches nothing
+   * still scans the table. Read-only, so the desktop runs it on the reader
+   * worker.
+   */
+  issueUrlSamples(
+    categories: readonly UrlCategory[],
+    limit: number,
+  ): Record<string, IssueUrlSample[]> {
+    const disabled = this.getDisabledIssues();
+    const cap = Math.max(1, Math.min(1_000, Math.floor(limit) || 1));
+    const out: Record<string, IssueUrlSample[]> = {};
+    for (const category of categories) {
+      const where = categoryWhereClause(category, disabled);
+      if (!where) continue;
+      out[category] = (
+        this.db
+          .prepare(
+            `SELECT url, status_code, indexability FROM urls
+              WHERE (${where})
+              ORDER BY id
+              LIMIT ?`,
+          )
+          .all(cap) as unknown as {
+          url: string;
+          status_code: number | null;
+          indexability: string | null;
+        }[]
+      ).map((r) => ({ url: r.url, statusCode: r.status_code, indexability: r.indexability }));
+    }
+    return out;
+  }
+
   topUrlsBy(
     column: 'response_time_ms' | 'depth' | 'outlinks' | 'inlinks' | 'content_length',
     limit: number,
@@ -13023,10 +13093,15 @@ export class ProjectDb {
           LIMIT ?`,
       )
       .all(limit) as { host: string }[];
+    // A row without `legacy_protocol` predates the legacy-TLS handshake
+    // (migration 101): probe it again so the TLS 1.0 / 1.1 and weak
+    // signature checks get data.
     const knownHosts = new Set(
-      (this.db.prepare('SELECT host FROM host_certs').all() as { host: string }[]).map(
-        (r) => r.host,
-      ),
+      (
+        this.db
+          .prepare('SELECT host FROM host_certs WHERE legacy_protocol IS NOT NULL')
+          .all() as { host: string }[]
+      ).map((r) => r.host),
     );
     return rows
       .map((r) => r.host)
@@ -13047,6 +13122,9 @@ export class ProjectDb {
     subject: string | null;
     signatureAlgorithm: string | null;
     protocol: string | null;
+    /** `TLSv1` / `TLSv1.1` when the server still accepts it, `refused`,
+     *  or `untested` when the legacy handshake could not be tried. */
+    legacyProtocol?: string | null;
     chainLength?: number | null;
     chainSubjects?: string[] | null;
     probeStatus: number;
@@ -13056,12 +13134,12 @@ export class ProjectDb {
       .prepare(
         `INSERT INTO host_certs (
            host, port, valid_from, valid_to, days_until_expiry,
-           issuer, subject, signature_algorithm, protocol,
+           issuer, subject, signature_algorithm, protocol, legacy_protocol,
            chain_length, chain_subjects,
            probe_status, probe_error, probed_at
          ) VALUES (
            :host, :port, :valid_from, :valid_to, :days_until_expiry,
-           :issuer, :subject, :signature_algorithm, :protocol,
+           :issuer, :subject, :signature_algorithm, :protocol, :legacy_protocol,
            :chain_length, :chain_subjects,
            :probe_status, :probe_error, CURRENT_TIMESTAMP
          )
@@ -13073,6 +13151,7 @@ export class ProjectDb {
            subject = excluded.subject,
            signature_algorithm = excluded.signature_algorithm,
            protocol = excluded.protocol,
+           legacy_protocol = excluded.legacy_protocol,
            chain_length = excluded.chain_length,
            chain_subjects = excluded.chain_subjects,
            probe_status = excluded.probe_status,
@@ -13089,6 +13168,7 @@ export class ProjectDb {
         subject: input.subject,
         signature_algorithm: input.signatureAlgorithm,
         protocol: input.protocol,
+        legacy_protocol: input.legacyProtocol ?? 'untested',
         chain_length: input.chainLength ?? null,
         chain_subjects:
           input.chainSubjects && input.chainSubjects.length > 0
@@ -14487,7 +14567,7 @@ const ISSUE_WRITE_BATCH = 2_000;
  * pass (`issueMaterialisationStale`) instead of showing 0 for those
  * checks until the next crawl.
  */
-export const ISSUE_MATERIALISATION_VERSION = '11';
+export const ISSUE_MATERIALISATION_VERSION = '12';
 const ISSUE_VERSION_META_KEY = 'urlsIssuesVersion';
 
 /**
@@ -14702,16 +14782,28 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   ],
   [
     'issues:image-slow-loading',
-    // ≥1 image > 200 KB AND the page is missing lazy-loading on at least
-    // one image (images_lazy < images_count). The size join is on the
-    // per-image probed `byte_size`; lazy adoption stays page-level.
+    // ≥1 image > 200 KB that the page loads eagerly. Size and lazy are
+    // tested on the same usage, so a lazy 300 KB hero next to a small
+    // eager logo is not flagged. Usages stored before the per-image `lazy`
+    // column (NULL) keep the old page-level test: some image on the page
+    // is not lazy. The size join is on the per-image probed `byte_size`.
     `${INDEXABLE_HTML_SCOPE}
-     AND images_count > 0 AND images_lazy < images_count
-     AND id IN (
-       SELECT iu.from_url_id
-         FROM image_usages iu
-         JOIN images i ON i.id = iu.image_id
-        WHERE i.byte_size > 204800
+     AND (
+       id IN (
+         SELECT iu.from_url_id
+           FROM image_usages iu
+           JOIN images i ON i.id = iu.image_id
+          WHERE i.byte_size > 204800 AND iu.lazy = 0
+       )
+       OR (
+         images_count > 0 AND images_lazy < images_count
+         AND id IN (
+           SELECT iu.from_url_id
+             FROM image_usages iu
+             JOIN images i ON i.id = iu.image_id
+            WHERE i.byte_size > 204800 AND iu.lazy IS NULL
+         )
+       )
      )`,
   ],
   [
@@ -14728,15 +14820,24 @@ export const EXPENSIVE_ISSUE_DEFINITIONS: ReadonlyArray<readonly [string, string
   ],
   [
     'issues:og-image-too-large',
+    // `images.src` is the resolved, normalised address; a relative or
+    // entity-escaped raw `og_image` only matches through `og_image_src`.
+    // The raw comparison covers rows stored before that column.
     `${INDEXABLE_HTML_SCOPE}
      AND og_image IS NOT NULL AND og_image != ''
-     AND og_image IN (SELECT src FROM images WHERE byte_size > 5242880)`,
+     AND (
+       og_image_src IN (SELECT src FROM images WHERE byte_size > 5242880)
+       OR og_image IN (SELECT src FROM images WHERE byte_size > 5242880)
+     )`,
   ],
   [
     'issues:twitter-image-too-large',
     `${INDEXABLE_HTML_SCOPE}
      AND twitter_image IS NOT NULL AND twitter_image != ''
-     AND twitter_image IN (SELECT src FROM images WHERE byte_size > 5242880)`,
+     AND (
+       twitter_image_src IN (SELECT src FROM images WHERE byte_size > 5242880)
+       OR twitter_image IN (SELECT src FROM images WHERE byte_size > 5242880)
+     )`,
   ],
   [
     'issues:canonical-chain-multi-hop',
@@ -14916,6 +15017,39 @@ function gateToPages(clause: string): string {
   return gated.startsWith(INDEXABLE_HTML_SCOPE) ? gated : `${INDEXABLE_HTML_SCOPE} AND (${gated})`;
 }
 
+/** The clauses of the four checks migrations 133–135 changed, as they read on a file without those columns. */
+function preV111Clause(cat: UrlCategory): string | undefined {
+  switch (cat) {
+    case 'issues:ssl-protocol-old':
+      return `is_external = 0 AND content_kind = 'html' AND url LIKE 'https://%'
+              AND EXISTS (
+                SELECT 1 FROM host_certs hc
+                 WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
+                   AND hc.protocol IN ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2')
+              )
+              AND ${SSL_FIRST_PAGE_OF_HOST}`;
+    case 'issues:image-slow-loading':
+      return `${INDEXABLE_HTML_SCOPE}
+     AND images_count > 0 AND images_lazy < images_count
+     AND id IN (
+       SELECT iu.from_url_id
+         FROM image_usages iu
+         JOIN images i ON i.id = iu.image_id
+        WHERE i.byte_size > 204800
+     )`;
+    case 'issues:og-image-too-large':
+      return `${INDEXABLE_HTML_SCOPE}
+     AND og_image IS NOT NULL AND og_image != ''
+     AND og_image IN (SELECT src FROM images WHERE byte_size > 5242880)`;
+    case 'issues:twitter-image-too-large':
+      return `${INDEXABLE_HTML_SCOPE}
+     AND twitter_image IS NOT NULL AND twitter_image != ''
+     AND twitter_image IN (SELECT src FROM images WHERE byte_size > 5242880)`;
+    default:
+      return undefined;
+  }
+}
+
 export function categoryWhereClause(
   cat: UrlCategory,
   /** Silenced issue checks (Settings → Issues): their filter matches nothing. */
@@ -14938,6 +15072,8 @@ function baseCategoryWhereClause(
   if (t.noMarkupColumns && MARKUP_CHECKS.includes(cat)) return '1 = 0';
   if (t.noPaginationMultiple && cat === 'issues:pagination-multiple') return '1 = 0';
   if (t.noCoverageColumns && COVERAGE_CHECKS.includes(cat)) return '1 = 0';
+  const preV111 = t.noV111Columns ? preV111Clause(cat) : undefined;
+  if (preV111 !== undefined) return preV111;
   switch (cat) {
     case 'all':
       return null;
@@ -15878,14 +16014,13 @@ function baseCategoryWhereClause(
               AND ${SSL_FIRST_PAGE_OF_HOST}`;
     case 'issues:ssl-protocol-old':
       // TLSv1.0 / TLSv1.1 are deprecated by all major browsers (2020).
-      // Sites still negotiating them fail PCI-DSS and many corporate
+      // Sites that still accept them fail PCI-DSS and many corporate
       // proxies block them.
       return `is_external = 0 AND content_kind = 'html' AND url LIKE 'https://%'
               AND EXISTS (
                 SELECT 1 FROM host_certs hc
                  WHERE hc.host = LOWER(SUBSTR(urls.url, 9, INSTR(SUBSTR(urls.url, 9), '/') - 1))
-                   AND hc.protocol IS NOT NULL
-                   AND hc.protocol IN ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2')
+                   AND ${SSL_PROTOCOL_OLD_PREDICATE}
               )
               AND ${SSL_FIRST_PAGE_OF_HOST}`;
     case 'issues:ssl-signature-weak':

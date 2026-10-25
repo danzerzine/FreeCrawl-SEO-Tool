@@ -7,7 +7,7 @@ import type {
   ExportTabularSection,
   UrlCategory,
 } from '@freecrawl/shared-types';
-import { EXPORT_DATASET_COLUMNS, type ExportDatasetKey } from '@freecrawl/shared-types';
+import { EXPORT_DATASET_COLUMNS, ISSUE_GROUPS, type ExportDatasetKey } from '@freecrawl/shared-types';
 import { TAB_ORDER, type TabKey } from '../store.js';
 import { COLUMN_SPECS, columnId, type ColumnSpec } from '../tabs/columns.js';
 
@@ -292,6 +292,25 @@ interface ExportDialogProps {
   /** Leaf to pre-select under `defaultTab` — a provider tab passes the
    *  provider it is showing (`seo:ahrefs`) so Export means "this table". */
   defaultLeaf?: string;
+  /** The sidebar category the grid is filtered by. When it is an issue
+   *  check, the dialog offers that issue as a table of its own and picks
+   *  it, so Export means "the pages this issue lists" — not the whole tab. */
+  activeCategory?: UrlCategory;
+}
+
+/** Leaf id of the "current issue filter" row (not a tab, so no tab key). */
+const ISSUE_LEAF = '__issue__';
+
+/** The catalog entry of an issue category, or null for anything else. */
+function issueCheckFor(
+  category: UrlCategory | undefined,
+): { group: string; label: string; category: UrlCategory } | null {
+  if (!category) return null;
+  for (const g of ISSUE_GROUPS) {
+    const item = g.items.find((i) => i.category === category);
+    if (item) return { group: g.label, label: item.label, category: item.category };
+  }
+  return null;
 }
 
 export function ExportDialog({
@@ -302,6 +321,7 @@ export function ExportDialog({
   search,
   filter,
   defaultLeaf,
+  activeCategory,
 }: ExportDialogProps) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
@@ -309,6 +329,7 @@ export function ExportDialog({
   const initialTabKey: TabKey = useMemo(() => {
     return tree.find((n) => n.tabKey === defaultTab)?.tabKey ?? tree[0]?.tabKey ?? 'internal';
   }, [defaultTab, tree]);
+  const activeIssue = useMemo(() => issueCheckFor(activeCategory), [activeCategory]);
 
   const selectionCount = selectedIds?.length ?? 0;
 
@@ -320,9 +341,11 @@ export function ExportDialog({
   const [splitBySeverity, setSplitBySeverity] = useState<boolean>(false);
 
   // Picked leaves — childless tabs use the tab key, child rows use
-  // `<tabKey>:<filename>`. Defaults to the active tab's first leaf so
-  // the dialog always has something to export.
+  // `<tabKey>:<filename>`. Defaults to the issue the grid is filtered by,
+  // else the active tab's first leaf, so the dialog always has something
+  // to export.
   const [pickedLeaves, setPickedLeaves] = useState<Set<string>>(() => {
+    if (activeIssue) return new Set([ISSUE_LEAF]);
     const node = tree.find((n) => n.tabKey === initialTabKey);
     if (!node) return new Set();
     if (node.children.length === 0) return new Set([leafId(node)]);
@@ -364,6 +387,8 @@ export function ExportDialog({
     // Severity-split export emits standard URL rows, so offer the
     // "internal" tab's columns even when no section leaf is picked.
     if (splitBySeverity) set.add('internal');
+    // The issue rows are the grid the user is looking at: its columns.
+    if (activeIssue && pickedLeaves.has(ISSUE_LEAF)) set.add(initialTabKey);
     for (const node of tree) {
       if (node.children.length === 0) {
         if (pickedLeaves.has(leafId(node))) set.add(node.tabKey);
@@ -377,7 +402,7 @@ export function ExportDialog({
       }
     }
     return set;
-  }, [pickedLeaves, tree, splitBySeverity]);
+  }, [pickedLeaves, tree, splitBySeverity, activeIssue, initialTabKey]);
 
   const offeredColumns = useMemo(() => {
     const seen = new Set<string>();
@@ -593,6 +618,13 @@ export function ExportDialog({
         ];
       } else {
         sections = [];
+        if (activeIssue && pickedLeaves.has(ISSUE_LEAF)) {
+          sections.push({
+            label: `${activeIssue.group} — ${activeIssue.label}`,
+            category: activeIssue.category,
+            filename: activeIssue.category.replace(/^issues:/, 'issue-'),
+          });
+        }
         for (const node of tree) {
           if (node.children.length === 0) {
             if (pickedLeaves.has(leafId(node))) {
@@ -720,6 +752,37 @@ export function ExportDialog({
               </div>
               <div className="max-h-[420px] overflow-auto rounded border border-surface-800 bg-surface-950/50 p-2">
                 <div className="flex flex-col gap-0.5">
+                  {activeIssue && (
+                    <label
+                      className={clsx(
+                        'flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[12px]',
+                        pickedLeaves.has(ISSUE_LEAF)
+                          ? 'bg-accent-500/10 text-surface-100'
+                          : 'text-surface-300 hover:bg-surface-800/60',
+                      )}
+                    >
+                      <span className="inline-block h-3.5 w-3.5" />
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5"
+                        checked={pickedLeaves.has(ISSUE_LEAF)}
+                        onChange={() =>
+                          setPickedLeaves((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(ISSUE_LEAF)) next.delete(ISSUE_LEAF);
+                            else next.add(ISSUE_LEAF);
+                            return next;
+                          })
+                        }
+                      />
+                      <span className="truncate">
+                        {t('export.currentIssue', {
+                          defaultValue: 'Current issue filter: {{issue}}',
+                          issue: `${translateLabel(activeIssue.group, lang)} — ${translateLabel(activeIssue.label, lang)}`,
+                        })}
+                      </span>
+                    </label>
+                  )}
                   {tree.map((node) => {
                     const state = parentState(node);
                     const isOpen = expanded.has(node.key);

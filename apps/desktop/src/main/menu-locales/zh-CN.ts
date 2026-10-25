@@ -25,6 +25,7 @@ export const MENU_ZH_CN: MenuLabels = {
   sitemapVideo: '视频…',
   exportHtmlReport: '导出 HTML 报告…',
   exportPdfReport: '导出 PDF 报告…',
+  exportIssues: '导出问题报告…',
   exportSeoAudit: '导出 SEO 审计（Screaming Frog 布局）…',
   bulkExport: '批量导出…',
   exportSets: '已保存的导出集…',
@@ -170,6 +171,7 @@ export const MENU_ZH_CN: MenuLabels = {
   dlgExportLinksCompleteTitle: '入链和出链已导出',
   dlgHtmlReportSavedTitle: 'HTML 报告已保存',
   dlgPdfReportSavedTitle: 'PDF 报告已保存',
+  dlgIssuesExportSavedTitle: '问题报告已保存',
   dlgSeoAuditFolderTitle: '选择 SEO 审计导出文件夹',
   dlgSeoAuditCompleteTitle: 'SEO 审计导出完成',
   dlgPickLogoTitle: '选择报告 Logo',
@@ -270,6 +272,7 @@ export const MENU_ZH_CN: MenuLabels = {
   detailBulkExportErrors: '错误：',
   msgHtmlReportWritten: '报告已写入：{size} KB。',
   msgPdfReportWritten: 'PDF 已写入：{size} KB。',
+  msgIssuesExportWritten: '已导出问题：{issues}。已写入页面行：{rows}。',
   msgSeoAuditWritten: '已写入 {files} 个文件（{rows} 行）。',
   dlgCompareWithProjectTitle: '与项目比较…',
   msgSitemapSharded:

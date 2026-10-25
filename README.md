@@ -21,7 +21,7 @@
 
 <br />
 
-A high-performance website crawler built for serious SEO audits. Targets <kbd>1M+ URLs</kbd> on a single machine, with a dense Screaming Frog-style UI, **181 SEO issue checks**, an interface in **11 languages** with dark and light themes, and zero native dependencies.
+A high-performance website crawler built for serious SEO audits. Targets <kbd>1M+ URLs</kbd> on a single machine, with a dense Screaming Frog-style UI, **200+ SEO issue checks**, an interface in **11 languages** with dark and light themes, and zero native dependencies.
 
 </div>
 
@@ -38,7 +38,7 @@ A high-performance website crawler built for serious SEO audits. Targets <kbd>1M
 
 FreeCrawl crawls your website and checks it for SEO problems. It is a free desktop alternative to Screaming Frog that handles very large sites (**1M+ URLs on one machine**) and streams the results into a fast, dense table while the crawl is still running.
 
-It runs **181 SEO checks across 33 tabs**: page titles, meta descriptions, headings, duplicate content, broken links, redirects, canonicals, hreflang, structured data, security headers, readability, mobile usability, soft 404s, and more. It can also render JavaScript pages with a real headless browser to capture the final DOM, screenshots, and Core Web Vitals. Any check you do not care about can be switched off per project.
+It runs **200+ SEO checks across 33 tabs**: page titles, meta descriptions, headings, duplicate content, broken links, redirects, canonicals, hreflang, structured data, security headers, readability, mobile usability, soft 404s, and more. It can also render JavaScript pages with a real headless browser to capture the final DOM, screenshots, and Core Web Vitals. Any check you do not care about can be switched off per project.
 
 Every link type (images, CSS, JavaScript, media, canonicals, pagination, hreflang, AMP, iframes) has its own **Crawl** and **Store** switch, so you decide exactly what gets fetched and what gets reported. Right-click any table selection to copy cells, rows, or columns straight to the clipboard.
 

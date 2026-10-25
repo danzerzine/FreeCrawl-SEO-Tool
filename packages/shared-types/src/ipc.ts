@@ -226,6 +226,7 @@ export const IPC = {
   crashRecoveryDiscard: 'crash:recovery-discard',
   exportHtmlReport: 'export:html-report',
   exportPdfReport: 'export:pdf-report',
+  exportIssues: 'export:issues',
   exportSeoAudit: 'export:seo-audit',
   pickImageFile: 'app:pick-image-file',
   exportBulk: 'export:bulk',
@@ -810,6 +811,7 @@ export type MenuEvent =
   | 'export-as'
   | 'export-html-report'
   | 'export-pdf-report'
+  | 'export-issues'
   | 'export-seo-audit'
   | 'export-bulk'
   | 'open-export-sets'
@@ -1101,6 +1103,21 @@ export interface ExportSeoAuditResult {
 export interface ExportHtmlReportResult {
   filePath: string;
   bytesWritten: number;
+}
+
+export interface ExportIssuesInput {
+  /** Empty → the main process shows a save dialog (.xlsx or .csv). */
+  filePath: string;
+}
+
+/** Issues report: one sheet per issue (.xlsx) or one long table (.csv). */
+export interface ExportIssuesResult {
+  /** Empty if the user cancelled the save dialog. */
+  filePath: string;
+  /** Issues with at least one affected URL. */
+  issues: number;
+  /** Affected-URL rows written across every issue. */
+  rowsWritten: number;
 }
 
 /** One file produced by a Bulk Export run. */
@@ -2577,6 +2594,8 @@ export interface FreeCrawlApi {
   exportHtmlReport(input: ExportHtmlReportInput): Promise<ExportHtmlReportResult>;
   /** Same report as the HTML export, rendered to PDF by Chromium (Unicode-safe, no extra fonts). */
   exportPdfReport(input: ExportPdfReportInput): Promise<ExportPdfReportResult>;
+  /** Every issue with its affected URLs: an overview sheet plus one sheet per issue. */
+  exportIssues(input: ExportIssuesInput): Promise<ExportIssuesResult>;
   /** Screaming-Frog-layout CSV folder (internal_all.csv, page_titles_all.csv, …). */
   exportSeoAudit(): Promise<ExportSeoAuditResult>;
   /** Picks an image file and returns it as a `data:` URL (null when cancelled / too large). */

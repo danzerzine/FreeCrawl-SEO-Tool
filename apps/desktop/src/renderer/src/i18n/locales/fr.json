@@ -309,6 +309,7 @@
     "windowHint": "Fenêtre indépendante — fermez-la pour la détacher de l'application principale"
   },
   "export": {
+    "currentIssue": "Filtre de problème actuel : {{issue}}",
     "title": "Exporter",
     "exportAsTitle": "Exporter les données d'exploration",
     "exportButton": "Exporter",

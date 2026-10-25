@@ -25,6 +25,7 @@ export const MENU_TR: MenuLabels = {
   sitemapVideo: 'Video…',
   exportHtmlReport: 'HTML Rapor Dışa Aktar…',
   exportPdfReport: 'PDF Rapor Dışa Aktar…',
+  exportIssues: 'Sorun Raporu Dışa Aktar…',
   exportSeoAudit: 'SEO Denetimi Dışa Aktar (Screaming Frog düzeni)…',
   bulkExport: 'Toplu Dışa Aktarım…',
   exportSets: 'Kayıtlı Dışa Aktarma Setleri…',
@@ -173,6 +174,7 @@ export const MENU_TR: MenuLabels = {
   dlgExportLinksCompleteTitle: 'Gelen ve Giden Bağlantılar Dışa Aktarıldı',
   dlgHtmlReportSavedTitle: 'HTML Rapor Kaydedildi',
   dlgPdfReportSavedTitle: 'PDF Rapor Kaydedildi',
+  dlgIssuesExportSavedTitle: 'Sorun Raporu Kaydedildi',
   dlgSeoAuditFolderTitle: 'SEO Denetimi dışa aktarımı için klasör seçin',
   dlgSeoAuditCompleteTitle: 'SEO Denetimi Dışa Aktarımı Tamamlandı',
   dlgPickLogoTitle: 'Rapor logosu seçin',
@@ -273,6 +275,7 @@ export const MENU_TR: MenuLabels = {
   detailBulkExportErrors: 'Hatalar:',
   msgHtmlReportWritten: 'Rapor yazıldı: {size} KB.',
   msgPdfReportWritten: 'PDF yazıldı: {size} KB.',
+  msgIssuesExportWritten: 'Dışa aktarılan sorun: {issues}. Yazılan sayfa satırı: {rows}.',
   msgSeoAuditWritten: '{files} dosya yazıldı ({rows} satır).',
   dlgCompareWithProjectTitle: 'Projeyle Karşılaştır…',
   msgSitemapSharded:

@@ -162,10 +162,10 @@ describe('static texts', () => {
 });
 
 describe('sections', () => {
-  it('maps a check outside the report list to its severity line and omits missing advice', () => {
+  it('maps a check without tailored advice to its severity line and omits the fix section', () => {
     const md = toMarkdown(
       buildIssueTask(
-        input({ category: 'issues:title-single-word', counts: counts({ titleSingleWord: 4 }) }),
+        input({ category: 'issues:inlinks-nofollow-only', counts: counts({ inlinksNofollowOnly: 4 }) }),
       ),
     );
     expect(md).toContain('## Why it matters');

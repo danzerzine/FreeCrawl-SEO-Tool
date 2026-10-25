@@ -305,6 +305,7 @@
     "windowHint": "独立窗口——关闭即可与主应用分离"
   },
   "export": {
+    "currentIssue": "当前问题筛选：{{issue}}",
     "title": "导出",
     "exportAsTitle": "导出抓取数据",
     "exportButton": "导出",

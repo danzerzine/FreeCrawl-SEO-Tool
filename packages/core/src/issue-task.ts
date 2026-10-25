@@ -6,7 +6,7 @@ import {
   type OverviewCounts,
   type UrlCategory,
 } from '@freecrawl/shared-types';
-import { issueAdvice, issueReportSeverity, severityFallback } from './html-report.js';
+import { issueAdvice, severityFallback } from './issue-summary.js';
 
 /** One flagged URL with the values that make the check fire (column name to value). */
 export interface IssueTaskRow {
@@ -137,11 +137,7 @@ export function buildIssueTask(input: BuildIssueTaskInput): IssueTask {
     },
   ];
   const single = keys.length === 1 ? keys[0] : undefined;
-  let sev = single ? issueReportSeverity(single) : undefined;
-  if (!sev) {
-    const s = ISSUE_SEVERITY[input.category];
-    sev = s === 'critical' ? 'error' : s === 'warning' ? 'warn' : s === 'info' ? 'info' : undefined;
-  }
+  const sev = ISSUE_SEVERITY[input.category];
   if (sev) head.push({ heading: 'Why it matters', text: severityFallback(sev) });
   const advice = single ? issueAdvice(single) : undefined;
   if (advice) head.push({ heading: 'How to fix', text: fillThresholdLabel(advice, th) });

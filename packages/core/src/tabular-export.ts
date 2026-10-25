@@ -167,7 +167,7 @@ function rowSource(db: ProjectDb, q: RowQuery): Iterable<CrawlUrlRow> {
   return db.iterateUrlsByCategory(q.category);
 }
 
-async function writeCsvFile(
+export async function writeCsvFile(
   source: Iterable<Record<string, unknown>>,
   filePath: string,
   columns: string[],
@@ -379,7 +379,7 @@ function colLetter(idx: number): string {
   return s;
 }
 
-function sanitizeSheetName(label: string, used: Set<string>, from?: number): string {
+export function sanitizeSheetName(label: string, used: Set<string>, from?: number): string {
   let base = label.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31);
   if (!base) base = 'Sheet';
   const numbered = (n: number): string => {
@@ -409,7 +409,7 @@ function sanitizeSheetName(label: string, used: Set<string>, from?: number): str
 /** Data rows per worksheet. Excel stops at 1,048,576 rows including the
  *  header; a round million leaves headroom, and the rest of a section
  *  continues on `<name> (2)`, `<name> (3)`, … */
-const XLSX_MAX_DATA_ROWS = 1_000_000;
+export const XLSX_MAX_DATA_ROWS = 1_000_000;
 
 /** Uncompressed bytes per worksheet XML before it is continued on the
  *  next sheet: zip entries without ZIP64 cap sizes at 4 GiB. Only very
@@ -421,7 +421,7 @@ const XLSX_CHUNK_CHARS = 256 * 1024;
 
 const ZIP32_MAX = 0xffffffff;
 
-interface XlsxSheetSource {
+export interface XlsxSheetSource {
   name: string;
   headers: readonly string[];
   /** Row cells, aligned to `headers`. Consumed once, lazily. */
@@ -550,7 +550,7 @@ function rowXml(cells: readonly unknown[], r: number): string {
  * `<name> (3)`, … — each with the header row again. Returns data rows
  * written.
  */
-async function writeXlsxFile(filePath: string, sources: XlsxSheetSource[]): Promise<number> {
+export async function writeXlsxFile(filePath: string, sources: XlsxSheetSource[]): Promise<number> {
   const fh = await open(filePath, 'w');
   try {
     const zip = new ZipFileWriter(fh);
