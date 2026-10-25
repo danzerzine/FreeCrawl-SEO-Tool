@@ -8799,6 +8799,8 @@ export class ProjectDb {
   private overviewBatch: Map<string, number> | null = null;
   /** Overview clauses this project's schema cannot run (read-only opens only). */
   private overviewUnreadable = new Set<string>();
+  /** Thresholds and silenced checks the clause set above was built with: the clause text carries both. */
+  private overviewSignature: string | null = null;
 
   private clauseReadable(clause: string): boolean {
     try {
@@ -8852,6 +8854,16 @@ export class ProjectDb {
 
   /** Discover the clause set (once) and run the two combined scans. */
   private runOverviewBatch(): void {
+    // A changed threshold or silenced check changes the clause text, so the compiled batch no longer
+    // matches it and every changed check would fall back to its own table scan (B135).
+    const signature = `${this.getMeta(SEO_THRESHOLDS_META_KEY) ?? ''}|${this.getMeta(DISABLED_ISSUES_META_KEY) ?? ''}`;
+    if (this.overviewClauses && signature !== this.overviewSignature) {
+      this.overviewClauses = null;
+      this.overviewScopedStmt = null;
+      this.overviewGlobalStmt = null;
+      this.countWhereStmtCache.clear();
+    }
+    this.overviewSignature = signature;
     if (!this.overviewClauses) {
       const collect = new Set<string>();
       this.overviewCollect = collect;
