@@ -200,6 +200,29 @@ describe('findings across a resume', () => {
   });
 });
 
+describe('stored counts no baseline can judge (B186, known behaviour)', () => {
+  /** A continued crawl of an older file with sitemaps off: `stored` URLs loaded, then held. */
+  const held = (stored: number) => {
+    const w = new CrawlTrapWatch();
+    w.markSettled();
+    for (let i = 0; i < stored; i++) w.observe(facet(i));
+    w.holdStoredCounts();
+    return w;
+  };
+  it('a stored pattern above the floor fires only after a full floor of new URLs (a delay)', () => {
+    const w = held(2500);
+    expect(feed(w, 1999, (i) => facet(i + 2500))).toEqual([]);
+    const f = feed(w, 1, (i) => facet(i + 4499));
+    expect(f.map((x) => x.rule)).toEqual(['R2']);
+    expect(f[0]!.count).toBe(4500);
+  });
+  it('a stored pattern just below the floor is not held: 1 500 stored + 500 new fire at 2 000', () => {
+    const w = held(1500);
+    expect(feed(w, 499, (i) => facet(i + 1500))).toEqual([]);
+    expect(feed(w, 1, (i) => facet(i + 1999)).map((x) => x.count)).toEqual([2000]);
+  });
+});
+
 describe('memory and CPU bound', () => {
   const longUrl = (k: number, v: number): string => {
     const names = Array.from({ length: 8 }, (_, j) => `n${String(j)}_${String(k).padStart(5, '0')}_aaaaaaaaaaaaaaaaaaaaaaaaaaaaa`);

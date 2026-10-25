@@ -303,6 +303,13 @@ export class CrawlTrapWatch {
    * Call after loading stored counts that no baseline can judge (no sitemap read follows and the
    * earlier read is not known to be clean): they were never judged by this build, and a pattern
    * the sitemap lists in full would read as a trap. New URLs are still counted and checked.
+   *
+   * Known behaviour, accepted (B186): a continued crawl with sitemaps off lands here too when
+   * the earlier read is not known to be clean. A stored pattern at or above the floor then fires
+   * only after a full floor of new URLs (2 500 stored fire at 4 500, a delay); one stored just
+   * below the floor is not held (1 500 stored + 500 new fire at 2 000); and a real trap stored
+   * by a file from before module 18 stays silent until the floor of new URLs is reached.
+   * Pinned in crawl-trap-watch.test.ts.
    */
   holdStoredCounts(): void {
     const held = new Map<string, number>();
