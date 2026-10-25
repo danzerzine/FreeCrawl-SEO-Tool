@@ -2485,7 +2485,9 @@ const MIGRATIONS: Migration[] = [
     //
     // `links.is_self` marks a link whose target is the page it sits on. It is
     // written with the link, so the inlink count stays a single GROUP BY
-    // instead of looking up every link target's id.
+    // instead of looking up every link target's id. The (to_url, is_internal)
+    // index gains `is_self` and replaces the old one (same leading columns),
+    // so the aggregate still reads the index alone, without fetching 3M rows.
     //
     // Rows stored before the no-response state had its own handling carry a
     // NULL status with `non-indexable:client-error`: those are requests that
@@ -2505,6 +2507,10 @@ const MIGRATIONS: Migration[] = [
         UPDATE links SET is_self = 1
         WHERE is_self = 0
           AND EXISTS (SELECT 1 FROM urls u WHERE u.id = links.from_url_id AND u.url = links.to_url)
+      `);
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_links_to_internal_self ON links(to_url, is_internal, is_self);
+        DROP INDEX IF EXISTS idx_links_to_internal;
       `);
       db.exec(`
         UPDATE urls SET
