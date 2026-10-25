@@ -100,7 +100,12 @@ export function readLedger(db: ProjectDb): GscBqLedger | null {
   }
 }
 
-/** Rebuild: drops the `'bq'` rows and the ledger; other accounts' rows stay. */
+/**
+ * Rebuild: drops the `'bq'` rows and the ledger; other accounts' rows stay.
+ * Known limit (B182): a job still in flight from an earlier run is dropped
+ * with the ledger, so its bytes, billed by BigQuery, are not added to the
+ * total the new ledger counts from 0.
+ */
 export function resetBigQuery(db: ProjectDb): void {
   db.deleteGscResults(GSC_BQ_ACCOUNT, [BQ_LEDGER_META_KEY, BQ_FETCH_META_KEY]);
 }

@@ -18,7 +18,13 @@ import type {
 import { describeBqError, type BqTarget } from './gsc-bigquery.js';
 import { buildBqPlan, resetBigQuery, runGscBigQuery, type BqRunClient, type PullPlan } from './gsc-bigquery-run.js';
 
-/** Per-window state of the BigQuery pull. */
+/**
+ * Per-window state of the BigQuery pull. Per window is enough (B182): each
+ * window opens a project as its own working copy, also when two windows open
+ * the same file, so no two windows' pulls write one database, and the overlap
+ * guard in `runGscBigQuery`, which reads its run's ledger, sees every merge
+ * into that copy (pinned by gsc-bq-window-b182.test.ts).
+ */
 export interface BqSlot {
   plan: PullPlan | null;
   planId: string;
