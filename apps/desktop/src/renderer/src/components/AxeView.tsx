@@ -93,7 +93,7 @@ export function AxeView({
           ? t('detail.axe.empty', { defaultValue: 'axe-core found no violations on this page.' })
           : t('detail.axe.notAudited', {
               defaultValue:
-                'This page was not audited by axe-core. Turn on the axe-core audit in Settings, JavaScript rendering, and crawl again.',
+                'This page was not audited by axe-core. Turn on the axe-core audit in Settings → Rendering, and crawl again.',
             })}
       </div>
     );

@@ -424,7 +424,7 @@
     "axe": {
       "tab": "Accessibility (axe)",
       "empty": "axe-core found no violations on this page.",
-      "notAudited": "This page was not audited by axe-core. Turn on the axe-core audit in Settings, JavaScript rendering, and crawl again.",
+      "notAudited": "This page was not audited by axe-core. Turn on the axe-core audit in Settings → Rendering, and crawl again.",
       "loading": "Loading…",
       "colRule": "Rule",
       "colImpact": "Impact",
