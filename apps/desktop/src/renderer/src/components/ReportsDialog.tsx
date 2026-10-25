@@ -1082,7 +1082,7 @@ function linkPositionLabel(value: string, t: Translate): string {
     case 'footer':
       return t('reports.position.footer', { defaultValue: 'Footer' });
     case 'aside':
-      return t('reports.position.aside', { defaultValue: 'Aside' });
+      return t('reports.position.aside', { defaultValue: 'Aside (outside the main text)' });
     default:
       return value;
   }

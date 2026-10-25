@@ -596,7 +596,7 @@
       "content": "Content",
       "sidebar": "Sidebar",
       "footer": "Footer",
-      "aside": "Aside"
+      "aside": "Aside (outside the main text)"
     },
     "indexability": {
       "indexable": "Indexable",

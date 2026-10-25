@@ -40,3 +40,20 @@ describe('link position (B170)', () => {
     expect(positions('<div><p><a href="/x">x</a></p></div>')['/x']).toBe('content');
   });
 });
+
+describe('link position: announcement articles (B210)', () => {
+  it('an <article> teaser inside a sidebar does not make unmarked body links "aside"', () => {
+    const p = positions(`
+      <div class="layout">
+        <div class="text"><p><a href="/in-text">story</a></p></div>
+        <div class="side"><article><h3>Teaser</h3></article></div>
+      </div>`);
+    expect(p['/in-text']).toBe('content');
+  });
+
+  it('a <main> still marks unmarked links outside it as not content', () => {
+    const p = positions(`<main><p><a href="/in-text">story</a></p></main><div><a href="/popular">popular</a></div>`);
+    expect(p['/in-text']).toBe('content');
+    expect(p['/popular']).toBe('aside');
+  });
+});

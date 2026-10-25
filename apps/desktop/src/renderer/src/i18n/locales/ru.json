@@ -632,7 +632,7 @@
       "content": "Контент",
       "sidebar": "Боковая панель",
       "footer": "Подвал",
-      "aside": "Aside"
+      "aside": "Вне основного текста"
     },
     "indexability": {
       "indexable": "Индексируемый",

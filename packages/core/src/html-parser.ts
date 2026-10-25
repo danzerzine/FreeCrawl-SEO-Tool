@@ -1962,7 +1962,9 @@ export function parseHtml(
 
   // A page that marks its main region: a link outside it and outside every
   // other landmark is template, not text (B170).
-  const pageHasMain = $('main, article, [role="main"]').length > 0;
+  // Only a real main landmark counts: an <article> teaser anywhere on the page must not turn
+  // every unmarked body link into "aside" (B210).
+  const pageHasMain = $('main, [role="main"]').length > 0;
   let emptyAnchorCount = 0;
   let anchorTooLongCount = 0;
   let genericAnchorCount = 0;
