@@ -1291,6 +1291,7 @@
     "maxHamming": "max Δ {{n}} bits",
     "minSimilarity": "min similarity {{n}}%",
     "repBadge": "rep",
+    "repBadgeTitle": "Representative of the group",
     "repUnknown": "Representative not recorded — it appears after the next crawl with duplicate analysis",
     "similarityToRepTitle": "Text similarity to the cluster representative (100% = the representative itself)",
     "hammingFromRepTitle": "SimHash Hamming distance from the cluster representative — 0 means the rep itself, higher = further from the rep"

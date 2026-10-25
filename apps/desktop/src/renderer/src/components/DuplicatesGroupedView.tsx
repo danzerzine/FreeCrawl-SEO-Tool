@@ -352,11 +352,17 @@ export function DuplicatesGroupedView() {
                 >
                   {row.indexability === 'indexable' ? 'Indexable' : 'Non-Indexable'}
                 </span>
-                {isRep && (
-                  <span className="shrink-0 rounded bg-accent-500/20 px-1 text-[10px] font-semibold text-accent-300">
-                    {t('duplicates.repBadge', { defaultValue: 'rep' })}
-                  </span>
-                )}
+                {/* Fixed slot on every row so the addresses start on one line (B107). */}
+                <span className="inline-block w-14 shrink-0">
+                  {isRep && (
+                    <span
+                      className="block truncate rounded bg-accent-500/20 px-1 text-[10px] font-semibold text-accent-300"
+                      title={t('duplicates.repBadgeTitle', { defaultValue: 'Representative of the group' })}
+                    >
+                      {t('duplicates.repBadge', { defaultValue: 'rep' })}
+                    </span>
+                  )}
+                </span>
                 <span className="flex-1 truncate font-mono text-surface-200">
                   {row.url}
                 </span>
