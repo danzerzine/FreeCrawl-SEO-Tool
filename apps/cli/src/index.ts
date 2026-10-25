@@ -165,7 +165,9 @@ Options:
                         only from headers
   --coverage          With --render: measure how much CSS and JavaScript of each page is unused after
                         load (one page load, no interaction). Adds about 12 % to the render
-                        time of each page
+                        time of each page. Fills the css-unused / js-unused checks (over
+                        seoThresholds.cssUnusedPct / jsUnusedPct of a --config file, default 50 %)
+                        and dataset:coverage-files
   --markup-check      Count HTML markup errors per page (missing doctype, duplicate id, broken tags,
                         unclosed elements…). With --render the HTML the server sent is checked.
                         Parses every page twice more
@@ -314,7 +316,9 @@ export options:
                                     crawled HTML page with a verdict: ok, not fetched, redirect,
                                     lastmod differs, ...; needs a crawl that read a sitemap), crawl-queue, broken-links, broken-links-by-target,
                                     response-headers, images, pagespeed, pagespeed-audits (one row per
-                                    page x device x Lighthouse audit), cookies (one row per page x cookie; needs a crawl with --cookie-list), axe-violations (one row per
+                                    page x device x Lighthouse audit), cookies (one row per page x cookie; needs a crawl with --cookie-list),
+                                    coverage-files (one row per stylesheet or script file: pages, size,
+                                    unused share; needs a crawl with --coverage), axe-violations (one row per
                                     page x axe-core rule; needs a crawl with --axe), crux, spelling, ai:<provider>,
                                     seo:<provider>
                                     (CSV), page-html and page-text (JSON Lines, .jsonl: page bodies

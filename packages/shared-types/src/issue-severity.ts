@@ -184,6 +184,9 @@ const WARNING: UrlCategory[] = [
   // B45: markup errors and repeated ids, counted only when the markup check ran.
   'issues:markup-errors',
   'issues:duplicate-ids',
+  // B44b: counted only on pages rendered with the coverage option.
+  'issues:css-unused',
+  'issues:js-unused',
 ];
 
 /** Informational / stylistic / nice-to-have signals. */

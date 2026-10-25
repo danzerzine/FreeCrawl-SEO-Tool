@@ -215,6 +215,8 @@ type ClauseLimits = SeoThresholds & {
   readonly noMarkupColumns?: boolean;
   /** No `pagination_multiple` column (before migration 131): the Multiple Pagination URLs filter matches nothing. */
   readonly noPaginationMultiple?: boolean;
+  /** No coverage columns (before migration 129): the two coverage filters match nothing. */
+  readonly noCoverageColumns?: boolean;
 };
 /** `WHERE col = ? AND …` over the filters that are set, with its arguments (the stored-results queries). */
 function equalityWhere(filters: ReadonlyArray<readonly [string, string | undefined]>): {
@@ -238,6 +240,9 @@ const URL_QUERY_AMP_SQL =
   "(CASE WHEN instr(url, '?') > 0 THEN '&' || substr(url, instr(url, '?') + 1) ELSE '' END)";
 /** Near-duplicate clusters above this many pages are named in the crawl log. */
 const LARGE_DUPLICATE_CLUSTER = 50;
+/** B44b: unused CSS / JavaScript below these many characters is no finding (Lighthouse's floors). */
+const CSS_UNUSED_FLOOR = 10 * 1024;
+const JS_UNUSED_FLOOR = 20 * 1024;
 /**
  * `project_meta` key: JSON list of the `LATER_CHECKS` the crawls behind
  * this project filled. A project without it was made before them, so its
@@ -287,6 +292,11 @@ export const CONSOLE_CHECKS: readonly UrlCategory[] = [
  */
 export const MARKUP_CHECKS: readonly UrlCategory[] = ['issues:markup-errors', 'issues:duplicate-ids'];
 /**
+ * The coverage checks of B44b. They have a verdict only for a page rendered
+ * with a hook while `jsRender.coverage` was on.
+ */
+export const COVERAGE_CHECKS: readonly UrlCategory[] = ['issues:css-unused', 'issues:js-unused'];
+/**
  * Page checks added or changed since module 5. A crawl fills every one of
  * them, except the RENDER_CHECKS when it did not render with a hook and the
  * CONSOLE_CHECKS unless the console option was on as well, and the MARKUP_CHECKS
@@ -316,6 +326,7 @@ export const LATER_CHECKS: readonly UrlCategory[] = [
   ...RENDER_CHECKS,
   ...CONSOLE_CHECKS,
   ...MARKUP_CHECKS,
+  ...COVERAGE_CHECKS,
 ];
 /** project_meta: '0' when the crawl sends no request to external hosts. */
 export const CHECK_EXTERNAL_META_KEY = 'checkExternalLinks';
@@ -991,6 +1002,8 @@ export interface UpsertUrlInput {
   cssUnusedBytes?: number | null;
   jsBytes?: number | null;
   jsUnusedBytes?: number | null;
+  /** B44b: compact JSON `[[url, 'css'|'js', bytes, unusedBytes], …]`; NULL / undefined = not measured. */
+  coverageFiles?: string | null;
   minhash?: Uint8Array | null;
   /** Template set the near-duplicate fingerprint was made with (B98); null = none. */
   templateSetId?: number | null;
@@ -1180,7 +1193,7 @@ const UPSERT_URL_SQL = `
     heading_order_violations, subresource_request_count,
     amp_page, amp_validation_errors, mobile_alternate,
     http_charset, meta_charset, canonical_outside_head, content_lang, lang_mismatch,
-    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, markup_errors, markup_codes, cookies_json, cookies_total, cookies_truncated, css_bytes, css_unused_bytes, js_bytes, js_unused_bytes, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
+    soft_404, js_noindex, js_title_changed, js_title, js_h1_changed, js_canonical_changed, js_links_changed, js_text_changed, render_diff, console_errors, failed_resources, console_log, markup_errors, markup_codes, cookies_json, cookies_total, cookies_truncated, css_bytes, css_unused_bytes, js_bytes, js_unused_bytes, coverage_files, minhash, content_source, hreflang_outside_head, og_name_attr, meta_noindex_bots, main_word_count, title_outside_head, description_outside_head, meta_robots_outside_head, internal_utm_links,
     template_set_id
   ) VALUES (
     :url, :content_kind, :status_code, :status_text, :indexability, :indexability_reason,
@@ -1226,7 +1239,7 @@ const UPSERT_URL_SQL = `
     :heading_order_violations, :subresource_request_count,
     :amp_page, :amp_validation_errors, :mobile_alternate,
     :http_charset, :meta_charset, :canonical_outside_head, :content_lang, :lang_mismatch,
-    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :markup_errors, :markup_codes, :cookies_json, :cookies_total, :cookies_truncated, :css_bytes, :css_unused_bytes, :js_bytes, :js_unused_bytes, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
+    :soft_404, :js_noindex, :js_title_changed, :js_title, :js_h1_changed, :js_canonical_changed, :js_links_changed, :js_text_changed, :render_diff, :console_errors, :failed_resources, :console_log, :markup_errors, :markup_codes, :cookies_json, :cookies_total, :cookies_truncated, :css_bytes, :css_unused_bytes, :js_bytes, :js_unused_bytes, :coverage_files, :minhash, :content_source, :hreflang_outside_head, :og_name_attr, :meta_noindex_bots, :main_word_count, :title_outside_head, :description_outside_head, :meta_robots_outside_head, :internal_utm_links,
     :template_set_id
   )
   ON CONFLICT(url) DO UPDATE SET
@@ -1407,6 +1420,7 @@ const UPSERT_URL_SQL = `
     css_unused_bytes = excluded.css_unused_bytes,
     js_bytes = excluded.js_bytes,
     js_unused_bytes = excluded.js_unused_bytes,
+    coverage_files = excluded.coverage_files,
     minhash = excluded.minhash,
     template_set_id = excluded.template_set_id,
     content_source = excluded.content_source,
@@ -1788,6 +1802,17 @@ export interface MobileParitySource {
 }
 
 /** One link edge as the bulk "Links" CSVs write it. */
+/** One row of the B44b files table (`dataset:coverage-files`). */
+export interface CoverageFileExportRow {
+  url: string;
+  kind: 'css' | 'js';
+  pages: number;
+  bytes: number;
+  unusedPct: number;
+  unusedMin: number;
+  unusedTotal: number;
+}
+
 export interface LinkExportRow {
   from_url: string;
   to_url: string;
@@ -2650,7 +2675,8 @@ export class ProjectDb {
     const limits: ClauseLimits = cols.has('main_word_count') ? t : { ...t, wordsSql: 'word_count' };
     const withAxe = cols.has('axe_serious') ? limits : { ...limits, noAxeColumns: true };
     const withMarkup = cols.has('markup_errors') ? withAxe : { ...withAxe, noMarkupColumns: true };
-    return cols.has('pagination_multiple') ? withMarkup : { ...withMarkup, noPaginationMultiple: true };
+    const withPagination = cols.has('pagination_multiple') ? withMarkup : { ...withMarkup, noPaginationMultiple: true };
+    return cols.has('css_bytes') ? withPagination : { ...withPagination, noCoverageColumns: true };
   }
 
   private hasTable(name: string): boolean {
@@ -3486,6 +3512,7 @@ export class ProjectDb {
       css_unused_bytes: input.cssUnusedBytes ?? null,
       js_bytes: input.jsBytes ?? null,
       js_unused_bytes: input.jsUnusedBytes ?? null,
+      coverage_files: input.coverageFiles ?? null,
       minhash: input.minhash ?? null,
       template_set_id: input.templateSetId ?? null,
       content_source: input.contentSource ?? null,
@@ -9344,6 +9371,8 @@ export class ProjectDb {
       textChangedByJs: gatedCount('issues:text-changed-by-js'),
       consoleErrors: gatedCount('issues:console-errors'),
       failedResources: gatedCount('issues:failed-resources'),
+      cssUnused: gatedCount('issues:css-unused'),
+      jsUnused: gatedCount('issues:js-unused'),
       markupErrors: gatedCount('issues:markup-errors'),
       duplicateIds: gatedCount('issues:duplicate-ids'),
       charsetMissing: countWhere(
@@ -10413,6 +10442,46 @@ export class ProjectDb {
    * order, cookies in the order of the stored list. Keyed on url_id (a batch of pages is one index range
    * read), never OFFSET; the list is read with `json_each`. A page whose JSON is unreadable is skipped.
    */
+  /**
+   * B44b: each stylesheet and script file the rendered pages loaded, with the
+   * pages that loaded it, its largest size seen, the share left unused over
+   * all those pages (percent, one decimal), the least any one page left unused
+   * and the sum over the pages; the most unused first.
+   */
+  *iterateCoverageFiles(): IterableIterator<CoverageFileExportRow> {
+    if (!this.urlSortColumns().has('coverage_files')) return;
+    const rows = this.db
+      .prepare(
+        `SELECT f.value ->> 0 AS url, f.value ->> 1 AS kind, COUNT(*) AS pages,
+                MAX(f.value ->> 2) AS bytes, SUM(f.value ->> 2) AS bytes_total,
+                MIN(f.value ->> 3) AS unused_min, SUM(f.value ->> 3) AS unused_total
+           FROM urls u, json_each(u.coverage_files) f
+          WHERE u.coverage_files IS NOT NULL
+          GROUP BY 1, 2
+          ORDER BY unused_total DESC, url ASC`,
+      )
+      .iterate() as IterableIterator<{
+      url: string;
+      kind: string;
+      pages: number;
+      bytes: number;
+      bytes_total: number;
+      unused_min: number;
+      unused_total: number;
+    }>;
+    for (const r of rows) {
+      yield {
+        url: r.url,
+        kind: r.kind === 'js' ? 'js' : 'css',
+        pages: r.pages,
+        bytes: r.bytes,
+        unusedPct: r.bytes_total > 0 ? Math.round((r.unused_total * 1000) / r.bytes_total) / 10 : 0,
+        unusedMin: r.unused_min,
+        unusedTotal: r.unused_total,
+      };
+    }
+  }
+
   *iterateCookies(batch = 500): IterableIterator<CookieExportRow> {
     const cols = this.db.prepare('PRAGMA table_info(urls)').all() as { name: string }[];
     if (!cols.some((c) => c.name === 'cookies_json')) return;
@@ -14860,6 +14929,7 @@ function baseCategoryWhereClause(
   if (t.noAxeColumns && cat.startsWith('issues:axe-')) return '1 = 0';
   if (t.noMarkupColumns && MARKUP_CHECKS.includes(cat)) return '1 = 0';
   if (t.noPaginationMultiple && cat === 'issues:pagination-multiple') return '1 = 0';
+  if (t.noCoverageColumns && COVERAGE_CHECKS.includes(cat)) return '1 = 0';
   switch (cat) {
     case 'all':
       return null;
@@ -15430,6 +15500,14 @@ function baseCategoryWhereClause(
       return "is_external = 0 AND content_kind = 'html' AND markup_errors IS NOT NULL AND markup_errors > 0";
     case 'issues:duplicate-ids':
       return "is_external = 0 AND content_kind = 'html' AND markup_errors IS NOT NULL AND json_extract(markup_codes, '$.\"duplicate-id\"') > 0";
+    // B44b: NULL = not measured. Over the share threshold and past Lighthouse's floor
+    // of 10 KB unused CSS / 20 KB unused JavaScript, so a small file is not a finding.
+    case 'issues:css-unused':
+      return `is_external = 0 AND content_kind = 'html' AND css_bytes IS NOT NULL AND css_bytes > 0
+              AND css_unused_bytes >= ${CSS_UNUSED_FLOOR} AND css_unused_bytes * 100 > css_bytes * ${t.cssUnusedPct}`;
+    case 'issues:js-unused':
+      return `is_external = 0 AND content_kind = 'html' AND js_bytes IS NOT NULL AND js_bytes > 0
+              AND js_unused_bytes >= ${JS_UNUSED_FLOOR} AND js_unused_bytes * 100 > js_bytes * ${t.jsUnusedPct}`;
     case 'issues:charset-missing':
       // HTML 2xx page declares no charset anywhere — neither
       // `<meta charset>` / `<meta http-equiv="Content-Type">` nor the

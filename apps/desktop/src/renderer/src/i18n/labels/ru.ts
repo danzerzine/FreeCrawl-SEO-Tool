@@ -233,6 +233,8 @@ export const RU_LABELS: Record<string, string> = {
   'Text Changed by JavaScript': 'Текст, изменённый JavaScript',
   'Console Errors': "Ошибки консоли",
   'Failed Resources': "Ресурсы не загрузились",
+  'Unused CSS (>{{cssUnusedPct}} %)': 'Неиспользуемый CSS (>{{cssUnusedPct}} %)',
+  'Unused JavaScript (>{{jsUnusedPct}} %)': 'Неиспользуемый JavaScript (>{{jsUnusedPct}} %)',
   'AMP Validation Errors': 'Ошибки проверки AMP',
   'AMP Version Broken': 'Битая AMP-версия',
   'AMP Version Redirects': 'AMP-версия перенаправляет',

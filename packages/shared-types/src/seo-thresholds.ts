@@ -23,6 +23,10 @@ export interface SeoThresholds {
   thinContentWords: number;
   /** Pages whose visible text is under this share of the HTML (percent) are flagged Low Text/Code Ratio. */
   textCodeRatioMinPercent: number;
+  /** B44b: a rendered page leaving more than this share of its CSS unused (percent). */
+  cssUnusedPct: number;
+  /** B44b: a rendered page leaving more than this share of its JavaScript unused (percent). */
+  jsUnusedPct: number;
 }
 
 export const DEFAULT_SEO_THRESHOLDS: Readonly<SeoThresholds> = Object.freeze({
@@ -36,6 +40,8 @@ export const DEFAULT_SEO_THRESHOLDS: Readonly<SeoThresholds> = Object.freeze({
   descriptionMaxPx: 990,
   thinContentWords: 200,
   textCodeRatioMinPercent: 10,
+  cssUnusedPct: 50,
+  jsUnusedPct: 50,
 });
 
 /** The checks each threshold feeds; compare uses it to name what a changed threshold affects. */
@@ -50,6 +56,8 @@ export const SEO_THRESHOLD_CHECKS: Readonly<Record<keyof SeoThresholds, readonly
   descriptionMaxPx: ['issues:meta-pixel-width-too-long'],
   thinContentWords: ['issues:content-thin'],
   textCodeRatioMinPercent: ['issues:text-code-ratio-low'],
+  cssUnusedPct: ['issues:css-unused'],
+  jsUnusedPct: ['issues:js-unused'],
 };
 
 /** Every key filled: a missing, negative or non-numeric value falls back to its default. */

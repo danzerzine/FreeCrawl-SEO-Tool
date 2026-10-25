@@ -153,6 +153,8 @@ export const TAB_QUICK_FILTERS: Partial<Record<TabKey, TabQuickFilter[]>> = {
     { label: 'Linked URL Blocked by robots.txt', category: 'issues:blocked-by-robots' },
     { label: 'Console Errors', category: 'issues:console-errors' },
     { label: 'Failed Resources', category: 'issues:failed-resources' },
+    { label: 'Unused CSS (>{{cssUnusedPct}} %)', category: 'issues:css-unused' },
+    { label: 'Unused JavaScript (>{{jsUnusedPct}} %)', category: 'issues:js-unused' },
   ],
   security: [
     { label: 'HTTPS URLs', category: 'security:https' },
@@ -1010,8 +1012,9 @@ function tabForCategory(cat: UrlCategory): TabKey | null {
   // table; the 'analytics' tab is the GA4 traffic grid, which ignores the
   // category entirely and would show unrelated data (or a connect screen).
   if (cat.startsWith('issues:analytics-')) return 'internal';
-  // B45: the markup columns live in the Internal grid.
+  // B45: the markup columns live in the Internal grid; so do the coverage ones (B44b).
   if (cat === 'issues:markup-errors' || cat === 'issues:duplicate-ids') return 'internal';
+  if (cat === 'issues:css-unused' || cat === 'issues:js-unused') return 'internal';
   if (
     cat === 'issues:anchor-text-too-long' ||
     cat === 'issues:anchor-text-generic' ||

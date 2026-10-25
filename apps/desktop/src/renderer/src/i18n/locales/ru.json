@@ -1216,7 +1216,9 @@
       "descriptionMinPx": "Описание: уже, px",
       "descriptionMaxPx": "Описание: шире, px",
       "thinContentWords": "Мало текста: меньше слов, чем",
-      "textCodeRatioMinPercent": "Мало текста относительно кода: ниже, %"
+      "textCodeRatioMinPercent": "Мало текста относительно кода: ниже, %",
+      "cssUnusedPct": "Неиспользуемый CSS: больше, % (страницы с рендерингом)",
+      "jsUnusedPct": "Неиспользуемый JavaScript: больше, % (страницы с рендерингом)"
     }
   },
   "compare": {

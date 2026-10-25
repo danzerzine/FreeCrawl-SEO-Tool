@@ -29,12 +29,25 @@ export interface JsCoverageEntry {
   functions: CoverageFunction[];
 }
 
+/** One stylesheet or script file of a page and how much of it the page left unused (B44b). */
+export interface CoverageFile {
+  url: string;
+  kind: 'css' | 'js';
+  bytes: number;
+  unusedBytes: number;
+}
+
 export interface CoverageSummary {
   cssBytes: number;
   cssUnusedBytes: number;
   jsBytes: number;
   jsUnusedBytes: number;
+  /** The page's external files, most unused first (B44b); absent when it loaded none. */
+  files?: CoverageFile[];
 }
+
+/** Files kept per page: the most unused ones. */
+export const COVERAGE_FILES_CAP = 100;
 
 /**
  * Used bytes of one script from V8 block coverage. A nested range overrides
@@ -75,6 +88,44 @@ function cssUsedBytes(
   let n = 0;
   for (let i = 0; i < used.length; i++) n += used[i]!;
   return n;
+}
+
+/**
+ * The page's stylesheet and script files (B44b). Code inline in the page
+ * (reported under the document's own URL, or with no URL) counts in the page
+ * totals only: it is no file of its own. A file reported twice is one entry
+ * with both parts added up, as the totals count it. At most
+ * {@link COVERAGE_FILES_CAP} entries, the most unused first.
+ */
+export function coverageFiles(
+  css: readonly CssCoverageEntry[],
+  js: readonly JsCoverageEntry[],
+  documentUrls: readonly string[],
+): CoverageFile[] {
+  const skip = new Set(documentUrls);
+  const byKey = new Map<string, CoverageFile>();
+  const add = (url: string, kind: 'css' | 'js', bytes: number, unusedBytes: number): void => {
+    if (!url || skip.has(url) || url.startsWith('data:')) return;
+    const key = `${kind} ${url}`;
+    const f = byKey.get(key);
+    if (f) {
+      f.bytes += bytes;
+      f.unusedBytes += unusedBytes;
+    } else {
+      byKey.set(key, { url, kind, bytes, unusedBytes });
+    }
+  };
+  for (const e of css) {
+    if (typeof e.text !== 'string') continue;
+    add(e.url, 'css', e.text.length, e.text.length - cssUsedBytes(e.text.length, e.ranges));
+  }
+  for (const e of js) {
+    if (typeof e.source !== 'string') continue;
+    add(e.url, 'js', e.source.length, e.source.length - coverageBytes(e.source.length, e.functions));
+  }
+  return [...byKey.values()]
+    .sort((a, b) => b.unusedBytes - a.unusedBytes || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0))
+    .slice(0, COVERAGE_FILES_CAP);
 }
 
 /** The four stored numbers. A page with no stylesheet or script gives zeros (measured, nothing there). */

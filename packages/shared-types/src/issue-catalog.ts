@@ -421,6 +421,8 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-text-changed-by-js', label: 'Text Changed by JavaScript', category: 'issues:text-changed-by-js', count: 'textChangedByJs' },
       { key: 'issues-console-errors', label: 'Console Errors', category: 'issues:console-errors', count: 'consoleErrors' },
       { key: 'issues-failed-resources', label: 'Failed Resources', category: 'issues:failed-resources', count: 'failedResources' },
+      { key: 'issues-css-unused', label: 'Unused CSS (>{{cssUnusedPct}} %)', category: 'issues:css-unused', count: 'cssUnused' },
+      { key: 'issues-js-unused', label: 'Unused JavaScript (>{{jsUnusedPct}} %)', category: 'issues:js-unused', count: 'jsUnused' },
     ],
   },
   {

@@ -214,6 +214,8 @@ export function datasetRows(
       );
     case 'cookies':
       return asRecords(cookieRows(db));
+    case 'coverage-files':
+      return asRecords(db.iterateCoverageFiles());
     case 'crawl-queue':
       return asRecords(db.iterateCrawlQueue());
     case 'pagespeed':

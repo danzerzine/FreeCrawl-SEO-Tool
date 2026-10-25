@@ -42,6 +42,7 @@ import {
   LATER_CHECKS,
   RENDER_CHECKS,
   CONSOLE_CHECKS,
+  COVERAGE_CHECKS,
   MARKUP_CHECKS,
   TEMPLATE_LEARN_META_KEY,
   TEMPLATE_SET_ID_META_KEY,
@@ -1563,11 +1564,14 @@ export class Crawler extends EventEmitter {
     const recordsConsole = rendering && this.config.jsRender.consoleErrors === true;
     // The markup checks (B45) need the option: with it off the columns stay NULL.
     const recordsMarkup = this.config.markupValidation === true;
+    // The coverage checks (B44b) need a render with the coverage option.
+    const recordsCoverage = rendering && this.config.jsRender.coverage === true;
     const fillable = LATER_CHECKS.filter(
       (k) =>
         (rendering || !RENDER_CHECKS.includes(k)) &&
         (recordsConsole || !CONSOLE_CHECKS.includes(k)) &&
-        (recordsMarkup || !MARKUP_CHECKS.includes(k)),
+        (recordsMarkup || !MARKUP_CHECKS.includes(k)) &&
+        (recordsCoverage || !COVERAGE_CHECKS.includes(k)),
     );
     const filled = continued ? fillable.filter((k) => before.has(k)) : fillable;
     this.db.setMeta(CHECKS_FILLED_META_KEY, JSON.stringify(filled));
@@ -5798,6 +5802,8 @@ export class Crawler extends EventEmitter {
       let cssUnusedBytes: number | null = null;
       let jsBytes: number | null = null;
       let jsUnusedBytes: number | null = null;
+      // Its files (B44b), compact JSON; null = not measured.
+      let coverageFilesJson: string | null = null;
       let renderScriptRan = false;
       let renderScriptResult: string | undefined;
       let renderPreScriptHtml: string | undefined;
@@ -5887,6 +5893,9 @@ export class Crawler extends EventEmitter {
             }
             if (this.config.jsRender.coverage && renderRes.coverage) {
               ({ cssBytes, cssUnusedBytes, jsBytes, jsUnusedBytes } = renderRes.coverage);
+              coverageFilesJson = JSON.stringify(
+                (renderRes.coverage.files ?? []).map((f) => [f.url, f.kind, f.bytes, f.unusedBytes]),
+              );
             }
             renderScriptRan = renderRes.scriptRan === true;
             renderScriptResult = renderRes.scriptResult;
@@ -6266,6 +6275,7 @@ export class Crawler extends EventEmitter {
           cssUnusedBytes,
           jsBytes,
           jsUnusedBytes,
+          coverageFiles: coverageFilesJson,
           markupErrors: parsed.markupErrors,
           markupCodes: parsed.markupCodes,
           // A page the configured content area missed is fingerprinted on

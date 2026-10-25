@@ -149,6 +149,8 @@ export type UrlCategory =
   | 'issues:text-changed-by-js'
   | 'issues:console-errors'
   | 'issues:failed-resources'
+  | 'issues:css-unused'
+  | 'issues:js-unused'
   | 'issues:markup-errors'
   | 'issues:duplicate-ids'
   | 'issues:amp-validation-errors'
@@ -2259,6 +2261,10 @@ export interface OverviewCounts {
     consoleErrors: number;
     /** Pages with resources that failed to load while rendering. */
     failedResources: number;
+    /** Rendered pages leaving much of their CSS unused (B44b; needs the coverage option). */
+    cssUnused: number;
+    /** Rendered pages leaving much of their JavaScript unused (B44b). */
+    jsUnused: number;
     /** Pages with at least one HTML markup error (B45; needs the markup check). */
     markupErrors: number;
     /** Pages with a repeated id attribute (B45). */

@@ -440,6 +440,8 @@ const VERDICT_CHECKS: readonly { key: UrlCategory; sql: string; cols: readonly s
   { key: 'issues:text-changed-by-js', sql: 'js_text_changed IS NOT NULL', cols: ['js_text_changed'] },
   { key: 'issues:console-errors', sql: 'console_errors IS NOT NULL', cols: ['console_errors'] },
   { key: 'issues:failed-resources', sql: 'failed_resources IS NOT NULL', cols: ['failed_resources'] },
+  { key: 'issues:css-unused', sql: 'css_bytes IS NOT NULL', cols: ['css_bytes'] },
+  { key: 'issues:js-unused', sql: 'js_bytes IS NOT NULL', cols: ['js_bytes'] },
   { key: 'issues:low-contrast-text', sql: 'a11y_low_contrast IS NOT NULL', cols: ['a11y_low_contrast'] },
   { key: 'issues:focus-outline-suppressed', sql: 'a11y_focus_suppressed IS NOT NULL', cols: ['a11y_focus_suppressed'] },
   { key: 'issues:font-too-small', sql: 'a11y_small_font IS NOT NULL', cols: ['a11y_small_font'] },

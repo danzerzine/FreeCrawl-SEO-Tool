@@ -1168,7 +1168,9 @@
       "descriptionMinPx": "Description: narrower than, px",
       "descriptionMaxPx": "Description: wider than, px",
       "thinContentWords": "Thin content: fewer words than",
-      "textCodeRatioMinPercent": "Low text/code ratio: below, %"
+      "textCodeRatioMinPercent": "Low text/code ratio: below, %",
+      "cssUnusedPct": "Unused CSS: more than, % (rendered pages)",
+      "jsUnusedPct": "Unused JavaScript: more than, % (rendered pages)"
     }
   },
   "compare": {

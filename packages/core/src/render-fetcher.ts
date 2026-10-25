@@ -10,7 +10,7 @@ import type { AxeAudit } from './axe-reduce.js';
 import { AXE_PROBE_MS, AXE_RUN_MS, axeRunExpression, isDeadPageError, loadAxeSource } from './axe-run.js';
 import { attachConsoleCollector, type ConsoleLog } from './render-console.js';
 import type { CookieListResult } from './cookie-list.js';
-import { summarizeCoverage, type CoverageSummary } from './coverage.js';
+import { coverageFiles, summarizeCoverage, type CoverageSummary } from './coverage.js';
 import { attachCookieCollector, type CookieCollector } from './render-cookies.js';
 
 export interface RenderOptions {
@@ -634,6 +634,9 @@ export async function renderUrl(
       try {
         const [css, js] = await Promise.all([page.coverage.stopCSSCoverage(), page.coverage.stopJSCoverage()]);
         coverage = summarizeCoverage(css, js);
+        // B44b: the files behind the totals; inline code reports the document's own URL.
+        const files = coverageFiles(css, js, [url, page.url()]);
+        if (files.length > 0) coverage.files = files;
       } catch {
         coverage = undefined;
       }

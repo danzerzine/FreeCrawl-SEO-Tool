@@ -2991,6 +2991,16 @@ const MIGRATIONS: Migration[] = [
       addColumnsIfMissing(db, 'urls', [['pagination_multiple', 'INTEGER NOT NULL DEFAULT 0']]);
     },
   },
+  {
+    // B44b: the stylesheet and script files behind the four coverage numbers, as a compact JSON
+    // array [[url, 'css'|'js', bytes, unusedBytes], …] of at most 100 files, most unused first.
+    // NULL = not measured, '[]' = measured and no file. No backfill.
+    version: 132,
+    name: 'add_coverage_files',
+    up: (db) => {
+      addColumnsIfMissing(db, 'urls', [['coverage_files', 'TEXT']]);
+    },
+  },
 ];
 
 /** Adds each `[column, declaration]` the table lacks; a column already there is left alone. */

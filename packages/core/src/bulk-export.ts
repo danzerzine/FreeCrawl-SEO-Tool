@@ -167,6 +167,19 @@ export const BULK_EXPORT_TASKS: BulkExportTask[] = [
     category: 'issues:duplicate-ids',
     columns: [...BULK_BASE_COLUMNS, 'markupErrors', 'markupCodes'],
   },
+  // B44b: written only by a crawl that rendered with the coverage option.
+  {
+    label: 'Unused CSS',
+    file: 'issues-css-unused.csv',
+    category: 'issues:css-unused',
+    columns: [...BULK_BASE_COLUMNS, 'cssBytes', 'cssUnusedBytes'],
+  },
+  {
+    label: 'Unused JavaScript',
+    file: 'issues-js-unused.csv',
+    category: 'issues:js-unused',
+    columns: [...BULK_BASE_COLUMNS, 'jsBytes', 'jsUnusedBytes'],
+  },
 ];
 
 export interface BulkExportDatasetTask {

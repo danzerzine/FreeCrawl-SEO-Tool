@@ -33,6 +33,7 @@ export type ExportDatasetKey =
   | 'sitemap-reconciliation'
   | 'crawl-queue'
   | 'cookies'
+  | 'coverage-files'
   | 'response-headers'
   | 'page-html'
   | 'page-text'
@@ -253,6 +254,16 @@ export const EXPORT_DATASET_COLUMNS: Record<ExportDatasetKey, ExportDatasetColum
     { key: 'thirdParty', header: 'Third Party' },
     { key: 'pageCookiesTotal', header: 'Page Cookies Total' },
     { key: 'pageCookiesTruncated', header: 'Page Cookies Truncated' },
+  ],
+  // B44b: one row per stylesheet or script file the rendered pages loaded.
+  'coverage-files': [
+    { key: 'url', header: 'File' },
+    { key: 'kind', header: 'Type' },
+    { key: 'pages', header: 'Pages' },
+    { key: 'bytes', header: 'Size' },
+    { key: 'unusedPct', header: 'Unused %' },
+    { key: 'unusedMin', header: 'Unused on the Page Using It Most' },
+    { key: 'unusedTotal', header: 'Unused on All Pages' },
   ],
   pagespeed: [
     ...PAGE,
