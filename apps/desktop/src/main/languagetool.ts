@@ -40,6 +40,19 @@ import { L } from './menu-i18n.js';
 
 export const PUBLIC_LT_ENDPOINT = 'https://api.languagetool.org';
 
+/**
+ * Whether `endpoint` is the public LanguageTool API: same origin, so
+ * `https://api.languagetool.org.example.com` is not (B201). Picks only the
+ * request pool size and the rate-limit warning.
+ */
+export function isPublicLanguageTool(endpoint: string): boolean {
+  try {
+    return new URL(endpoint).origin === PUBLIC_LT_ENDPOINT;
+  } catch {
+    return false;
+  }
+}
+
 const REQUEST_TIMEOUT_MS = 60_000;
 
 /** LanguageTool's public API rejects payloads above 20 KB of text. */
@@ -671,9 +684,7 @@ export async function runSpellingBatch(
     }
   };
 
-  const isPublic = check.endpoint
-    .replace(/\/+$/, '')
-    .startsWith(PUBLIC_LT_ENDPOINT);
+  const isPublic = isPublicLanguageTool(check.endpoint);
   const poolSize = Math.min(
     isPublic ? CONCURRENCY_PUBLIC : CONCURRENCY_SELF_HOSTED,
     Math.max(1, total),

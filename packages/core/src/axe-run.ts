@@ -46,7 +46,14 @@ export function loadAxeSource(resolve?: () => string): string | null {
   return src;
 }
 
-/** The in-page expression: runs axe on the document and returns only the reduced result. */
+/**
+ * The in-page expression: runs axe on the document and returns only the reduced result.
+ * Only constants go into it (`AXE_TAGS` through `JSON.stringify`, the source of
+ * `reduceAxeResults`), no crawled data, so code scanning's bad-code-sanitization
+ * finding here is a false positive (B201). It runs in the crawled page's own context,
+ * though, so the page can tamper with the result: it is reduced and stored as data,
+ * never trusted.
+ */
 export function axeRunExpression(): string {
   const opts = JSON.stringify({
     resultTypes: ['violations', 'incomplete'],

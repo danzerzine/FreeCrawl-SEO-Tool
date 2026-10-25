@@ -81,6 +81,7 @@ describe('escaping crawled values', () => {
     '`lead tick @x',
     'trail tick`',
     'a\\|b',
+    'end\\',
     '',
     'has ``` run',
   ];
@@ -106,7 +107,11 @@ describe('escaping crawled values', () => {
     expect(md).toContain('`line one line two`');
     expect(md).toContain('`` `lead tick @x ``');
     expect(md).toContain('`` trail tick` ``');
+    // GFM splits a row only at a pipe not right after a backslash, and drops that one backslash
+    // in the cell (code spans too): `a\\|b` shows as a\|b. Doubling the backslash first would
+    // show a\\|b (B201, the CodeQL finding is a false positive here).
     expect(md).toContain('`a\\\\|b`');
+    expect(md).toContain('`end\\`');
     expect(md).toContain('````has ``` run````');
     // no @ or # outside code spans in the table
     for (const l of tableLines(md).slice(2)) {
@@ -116,7 +121,7 @@ describe('escaping crawled values', () => {
   });
 
   it('writes an empty value as an empty cell', () => {
-    const line = tableLines(toMarkdown(task())).find((l) => l.includes('/p7`'))!;
+    const line = tableLines(toMarkdown(task())).find((l) => l.includes('/p8`'))!;
     expect(cells(line)[1]).toBe('');
     expect(line).not.toContain('``');
   });

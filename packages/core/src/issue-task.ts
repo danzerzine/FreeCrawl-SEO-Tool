@@ -222,6 +222,10 @@ function mdText(s: string): string {
 /** Inline code span: fence longer than any backtick run inside, padded at edge backticks. */
 function mdCell(raw: string): string {
   if (raw === '') return '';
+  // Only the pipe is escaped (B201): a GFM table splits a row at a pipe not
+  // right after a backslash, however many backslashes come before, and drops
+  // that one backslash in the cell, code spans included. Escaping `\` too
+  // would show `a\|b` as a\\|b; a trailing `\` is followed by the fence.
   const v = raw.replace(/\|/g, '\\|');
   const longest = Math.max(0, ...(v.match(/`+/g) ?? []).map((r) => r.length));
   const fence = '`'.repeat(longest + 1);
