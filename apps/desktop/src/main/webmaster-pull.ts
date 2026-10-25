@@ -22,9 +22,11 @@ import {
   fetchWebmasterBrokenLinks,
   fetchWebmasterEvents,
   getWebmasterUserId,
+  webmasterQuotaText,
   type WebmasterDeps,
 } from '@freecrawl/core';
 import type { ProjectDb } from '@freecrawl/db';
+import { webmasterMetaKey } from '@freecrawl/shared-types';
 import type {
   WebmasterFetchMeta,
   WebmasterFetchResult,
@@ -65,7 +67,7 @@ export interface WebmasterPullDeps {
 class RestartPull extends Error {}
 
 export const webmasterRunKey = (hostId: string): string => `webmasterRun:${hostId}`;
-export const webmasterMetaKey = (hostId: string): string => `webmasterFetchMeta:${hostId}`;
+export { webmasterMetaKey };
 
 function fresh(startedAt: string): WebmasterRunProgress {
   return {
@@ -100,15 +102,13 @@ function readRecord(raw: string | null, nowMs: number): WebmasterRunProgress | n
   }
 }
 
-const failure = (
+export const webmasterFailure = (
   error: string,
   errorCode: WebmasterFetchResult['errorCode'],
   exceededUntil: string | null = null,
   cancelled = false,
 ): WebmasterFetchResult => ({ ok: false, meta: null, error, errorCode, exceededUntil, cancelled });
-
-const quotaText = (until: string | null): string =>
-  `Yandex Webmaster daily request quota is used up${until ? `; it opens again at ${until}` : ''}.`;
+const failure = webmasterFailure;
 
 export async function pullWebmaster(
   input: WebmasterPullInput,
@@ -126,7 +126,7 @@ export async function pullWebmaster(
   const until = record.exceededUntil ? Date.parse(record.exceededUntil) : NaN;
   if (!Number.isNaN(until) && deps.now().getTime() < until) {
     return failure(
-      quotaText(record.exceededUntil ?? null),
+      webmasterQuotaText(record.exceededUntil ?? null),
       'quota-exceeded',
       record.exceededUntil ?? null,
     );

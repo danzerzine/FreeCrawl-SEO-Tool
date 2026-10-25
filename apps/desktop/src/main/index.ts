@@ -383,7 +383,7 @@ import {
   setMenuLangProvider,
   type MenuLang,
 } from './menu-i18n.js';
-import { AI_PROVIDERS, isAiProvider, pickUiLanguage } from '@freecrawl/shared-types';
+import { AI_PROVIDERS, googleMetaKey, isAiProvider, isYandexTokenShape, pickUiLanguage } from '@freecrawl/shared-types';
 import {
   getState as getIntegrationsState,
   setCredentials as setIntegrationCredentials,
@@ -446,7 +446,7 @@ import {
   MetricaError,
 } from './metrica.js';
 import { listHosts as webmasterListHosts, webmasterDeps, WebmasterError } from './webmaster.js';
-import { pullWebmaster } from './webmaster-pull.js';
+import { pullWebmaster, webmasterFailure } from './webmaster-pull.js';
 import { runAiBatch, storeAiResult, type AiBatchItem } from './ai-batch.js';
 import { resolveModel, defaultConcurrency } from './ai-providers.js';
 import { runSeoBatch } from './seo-batch.js';
@@ -6756,7 +6756,7 @@ function registerIpc(): void {
     }
     // Checked before any request: a pasted blob with spaces or line breaks
     // would otherwise reach undici, whose header error quotes the value.
-    if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) {
+    if (!isYandexTokenShape(token)) {
       throw new MetricaError(
         'The saved Yandex Metrica token has an unexpected format — paste it again in Settings → Integrations → Yandex Metrica.',
         'token-format',
@@ -7005,7 +7005,7 @@ function registerIpc(): void {
         'not-connected',
       );
     }
-    if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) {
+    if (!isYandexTokenShape(token)) {
       throw new WebmasterError(
         'The saved Yandex Webmaster token has an unexpected format — paste it again in Settings → Integrations → Yandex Webmaster.',
         'token-format',
@@ -7034,11 +7034,8 @@ function registerIpc(): void {
     }
   });
   const runWebmasterFetch = (input: WebmasterFetchInput): Promise<WebmasterFetchResult> => {
-    const fail = (
-      error: string,
-      errorCode: WebmasterFetchResult['errorCode'],
-      cancelled = false,
-    ): WebmasterFetchResult => ({ ok: false, meta: null, error, errorCode, exceededUntil: null, cancelled });
+    const fail = (error: string, errorCode: WebmasterFetchResult['errorCode'], cancelled = false): WebmasterFetchResult =>
+      webmasterFailure(error, errorCode, null, cancelled);
     const saved = resolveWebmasterSettings();
     const hostId = String(input.hostId || saved.hostId || '').trim();
     if (!hostId) return Promise.resolve(fail('No Yandex Webmaster host selected.', 'host-not-verified'));
@@ -8559,15 +8556,6 @@ function registerIpc(): void {
     const accountId = resolveAccountId(integrationId, requested || stored) ?? '';
     if (accountId) adoptLegacyRowsOnce(integrationId, accountId);
     return accountId;
-  }
-
-  /**
-   * `project_meta` key holding the last pull's metadata for one account.
-   * Pre-multi-account projects stored it under the bare base key; that
-   * row is moved across during legacy adoption.
-   */
-  function googleMetaKey(base: string, accountId: string): string {
-    return accountId ? `${base}:${accountId}` : base;
   }
 
   /** Projects whose legacy rows have already been adopted this session. */

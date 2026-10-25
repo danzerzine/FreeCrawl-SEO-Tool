@@ -86,7 +86,15 @@ interface Resolved {
   sleep: NonNullable<WebmasterDeps['sleep']>;
   baseUrl: string;
   now: () => number;
-  lastRequestAt: number | null;
+  /** Shared by every call made with the same `deps` object: the pace holds across the phases of a pull. */
+  pace: { lastRequestAt: number | null };
+}
+
+const paceOf = new WeakMap<object, { lastRequestAt: number | null }>();
+
+/** The text of Yandex's daily quota stop, for the API error and for a refused re-run. */
+export function webmasterQuotaText(until: string | null): string {
+  return `Yandex Webmaster daily request quota is used up${until ? `; it opens again at ${until}` : ''}.`;
 }
 
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -111,7 +119,7 @@ function resolve(deps: WebmasterDeps): Resolved {
     sleep: deps.sleep ?? defaultSleep,
     baseUrl: trimTrailingSlashes(deps.baseUrl ?? DEFAULT_BASE_URL),
     now: deps.now ?? Date.now,
-    lastRequestAt: null,
+    pace: paceOf.get(deps) ?? paceOf.set(deps, { lastRequestAt: null }).get(deps)!,
   };
 }
 
@@ -138,7 +146,7 @@ function classify(status: number, json: unknown): { error: WebmasterError; retry
     return {
       retry: false,
       error: err(
-        `Yandex Webmaster daily request quota is used up${until ? `; it opens again at ${until}` : ''}.`,
+        webmasterQuotaText(until),
         'quota-exceeded',
         until,
       ),
@@ -208,11 +216,11 @@ async function getJson(
   let last: WebmasterError | null = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     throwIfCancelled(signal);
-    if (d.lastRequestAt !== null) {
-      const wait = d.lastRequestAt + MIN_INTERVAL_MS - d.now();
+    if (d.pace.lastRequestAt !== null) {
+      const wait = d.pace.lastRequestAt + MIN_INTERVAL_MS - d.now();
       if (wait > 0) await d.sleep(wait, signal);
     }
-    d.lastRequestAt = d.now();
+    d.pace.lastRequestAt = d.now();
     let retry = true;
     try {
       const timeout = AbortSignal.timeout(60_000);

@@ -135,6 +135,8 @@ import {
   type TemplateSet,
   resolveSeoThresholds,
   DEFAULT_SEO_THRESHOLDS,
+  googleMetaKey,
+  webmasterMetaKey,
   type SeoThresholds,
 } from '@freecrawl/shared-types';
 import { buildCrawlSnapshot } from './crawl-snapshot.js';
@@ -8030,7 +8032,7 @@ export class ProjectDb {
 
   private webmasterMeta(hostId: string): WebmasterFetchMeta | null {
     try {
-      const raw = this.getMeta(`webmasterFetchMeta:${hostId}`);
+      const raw = this.getMeta(webmasterMetaKey(hostId));
       return raw ? (JSON.parse(raw) as WebmasterFetchMeta) : null;
     } catch {
       return null;
@@ -8197,7 +8199,7 @@ export class ProjectDb {
    * valid for the property that pull used. Null when there is no pull or no ok field.
    */
   private ga4CustomSelection(accountId: string): { property: string; fields: string[] } | null {
-    const raw = this.getMeta(accountId ? `ga4FetchMeta:${accountId}` : 'ga4FetchMeta');
+    const raw = this.getMeta(googleMetaKey('ga4FetchMeta', accountId));
     if (!raw) return null;
     try {
       const m = JSON.parse(raw) as { property?: string; customFields?: { field: string; ok: boolean }[] };

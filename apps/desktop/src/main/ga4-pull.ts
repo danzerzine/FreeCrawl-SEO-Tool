@@ -12,6 +12,7 @@
 import {
   GA4_MAX_CUSTOM_DIMENSIONS,
   GA4_MAX_CUSTOM_METRICS,
+  googleMetaKey,
   type Ga4CustomFieldStatus,
   type Ga4FetchInput,
   type Ga4FetchMeta,
@@ -37,9 +38,7 @@ import * as logger from './logger.js';
 /** Stop asking when any of Google's token buckets is below this. */
 const LOW_QUOTA = 5000;
 
-export function googleMetaKey(base: string, accountId: string): string {
-  return accountId ? `${base}:${accountId}` : base;
-}
+export { googleMetaKey };
 
 export interface Ga4PullInput {
   property: string;

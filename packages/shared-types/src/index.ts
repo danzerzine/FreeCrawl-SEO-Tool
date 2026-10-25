@@ -17,6 +17,7 @@ export * from './google.js';
 export * from './gsc-bq-dialog.js';
 export * from './metrica.js';
 export * from './webmaster.js';
+export * from './meta-keys.js';
 export * from './ai.js';
 export * from './mcp.js';
 export * from './seo.js';

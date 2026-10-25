@@ -10,6 +10,7 @@ import {
   COMPARE_CATEGORIES,
   DEFAULT_CRAWL_CONFIG,
   hasPageScript,
+  isYandexTokenShape,
   type CrawlConfig,
   type CrawlProgress,
   type CrawlSnapshot,
@@ -2000,7 +2001,7 @@ function metricaToken(): string {
   }
   // Same check as the desktop app: a value with spaces or line breaks would
   // otherwise reach undici, whose header error quotes the value.
-  if (!/^[A-Za-z0-9._~+/=-]+$/.test(token)) {
+  if (!isYandexTokenShape(token)) {
     throw new MetricaError(
       'YANDEX_METRICA_TOKEN has an unexpected format — it must be a single OAuth token without spaces or line breaks.',
       'token-format',
