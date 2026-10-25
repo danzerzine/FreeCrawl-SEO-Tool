@@ -305,7 +305,7 @@ export async function openCompareProject(
       if (db.issueMaterialisationStale()) {
         db.close();
         db = null;
-        rebuiltSaved = rebuildInPlace(path);
+        rebuiltSaved = await rebuildInPlace(path);
         if (rebuiltSaved) {
           db = new ProjectDb(path, { readOnly: true });
         } else {
@@ -384,15 +384,16 @@ async function warmOsCache(path: string): Promise<void> {
 
 /**
  * Rebuilds the stale checks of a bare project in the file itself, through
- * SQLite in one transaction, so a crawl still writing it or a log left by a
+ * SQLite in short transactions, so a crawl still writing it or a log left by a
  * crashed one is handled by SQLite's own locking and recovery. False when
  * the file cannot be written (a read-only file, a lock held too long).
  */
-function rebuildInPlace(path: string): boolean {
+async function rebuildInPlace(path: string): Promise<boolean> {
   let db: ProjectDb | null = null;
   try {
     db = new ProjectDb(path);
-    if (db.issueMaterialisationStale()) db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
+    // In short steps, so a crawl writing the same file is not held up past its lock wait (B119).
+    if (db.issueMaterialisationStale()) await db.recomputeUrlsIssuesYielding(EXPENSIVE_ISSUE_DEFINITIONS);
     return true;
   } catch {
     return false;
