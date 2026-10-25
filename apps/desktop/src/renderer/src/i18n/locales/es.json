@@ -1723,7 +1723,7 @@
     "cardH2Count": "Número de H2",
     "cardDepth": "Profundidad de rastreo",
     "cardInlinks": "Enlaces entrantes únicos",
-    "cardOutlinks": "Enlaces salientes únicos",
+    "cardOutlinks": "Enlaces salientes, destinos distintos (internos + externos)",
     "cardFollowed": "Enlaces salientes seguidos",
     "cardPctTotal": "% del total",
     "cardWordCount": "Número de palabras"

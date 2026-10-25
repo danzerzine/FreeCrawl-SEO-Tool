@@ -1669,7 +1669,7 @@
     "cardH2Count": "H2 개수",
     "cardDepth": "크롤 깊이",
     "cardInlinks": "고유 인바운드 링크",
-    "cardOutlinks": "고유 아웃바운드 링크",
+    "cardOutlinks": "아웃바운드 링크, 고유 대상 (내부 + 외부)",
     "cardFollowed": "따라간 아웃바운드 링크",
     "cardPctTotal": "전체 대비 %",
     "cardWordCount": "단어 수"

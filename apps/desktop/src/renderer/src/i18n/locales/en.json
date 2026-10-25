@@ -1787,7 +1787,7 @@
     "cardH2Count": "H2 Count",
     "cardDepth": "Crawl Depth",
     "cardInlinks": "Unique Inlinks",
-    "cardOutlinks": "Unique Outlinks",
+    "cardOutlinks": "Outlinks, distinct targets (internal + external)",
     "cardFollowed": "Followed Outlinks",
     "cardPctTotal": "% of Total",
     "cardWordCount": "Word Count"

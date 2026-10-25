@@ -1696,7 +1696,7 @@
     "cardH2Count": "H2 sayı",
     "cardDepth": "Tarama dərinliyi",
     "cardInlinks": "Unikal daxil olan keçidlər",
-    "cardOutlinks": "Unikal çıxan keçidlər",
+    "cardOutlinks": "Çıxan keçidlər, fərqli ünvanlar (daxili + xarici)",
     "cardFollowed": "İzlənən çıxan keçidlər",
     "cardPctTotal": "Ümumidən %",
     "cardWordCount": "Söz sayı"
