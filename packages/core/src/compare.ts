@@ -296,7 +296,7 @@ export async function openCompareProject(
         copyWritable(path, copy);
         if (existsSync(log)) copyWritable(log, `${copy}-wal`);
       } catch (err) {
-        throw asNoSpaceError(err, dir, needed);
+        throw asNoSpaceError(err, copyBase(), needed);
       }
       db = new ProjectDb(copy);
       if (db.issueMaterialisationStale()) db.recomputeUrlsIssues(EXPENSIVE_ISSUE_DEFINITIONS);
