@@ -90,6 +90,22 @@ describe('B40 CLI --axe: as a process', () => {
     }
   }, 60_000);
 
+  it('without --verbose the axe cost line is not printed (B175)', async () => {
+    const r = await run([base, '--db', db(), '--max', '1', '--render', '--axe']);
+    if (r.code === 2 && /Chromium/.test(r.err)) {
+      console.warn('SKIPPED: Chromium is not installed');
+      return;
+    }
+    expect(r.code).toBe(0);
+    expect(r.err + r.out).not.toMatch(/axe-core: \d+ pages?/);
+    const p = new ProjectDb(db());
+    try {
+      expect(p.getUrlById(p.getUrlIdByUrl(base)!)!.axeViolations).toBeGreaterThanOrEqual(2);
+    } finally {
+      p.close();
+    }
+  }, 90_000);
+
   it('--render --axe stores the audit, prints the cost line, and the dataset exports', async () => {
     const r = await run([base, '--db', db(), '--max', '1', '--render', '--axe', '--verbose']);
     if (r.code === 2 && /Chromium/.test(r.err)) {
