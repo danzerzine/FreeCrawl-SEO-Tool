@@ -1696,7 +1696,7 @@
     "cardH2Count": "H2 की संख्या",
     "cardDepth": "क्रॉल गहराई",
     "cardInlinks": "अद्वितीय इनलिंक",
-    "cardOutlinks": "आउटलिंक, अलग-अलग लक्ष्य (आंतरिक + बाहरी)",
+    "cardOutlinks": "अद्वितीय आउटलिंक",
     "cardFollowed": "अनुसरण किए गए आउटलिंक",
     "cardPctTotal": "कुल का %",
     "cardWordCount": "शब्द गणना"

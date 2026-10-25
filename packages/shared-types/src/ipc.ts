@@ -1224,6 +1224,8 @@ export interface GraphNode {
   wordCount: number | null;
   /** Unique outlinks recorded for the page (internal + external). */
   outlinks: number;
+  /** Distinct internal outlink targets, the audit export's Unique Outlinks (B139). */
+  uniqueOutlinks: number;
   /** Distinct internal outlink targets NOT marked rel="nofollow" — the
    *  links that actually pass equity. */
   followedOutlinks: number;

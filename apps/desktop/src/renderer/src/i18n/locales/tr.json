@@ -1696,7 +1696,7 @@
     "cardH2Count": "H2 Sayısı",
     "cardDepth": "Tarama Derinliği",
     "cardInlinks": "Benzersiz İç Bağlantı",
-    "cardOutlinks": "Dış bağlantılar, farklı hedefler (iç + dış)",
+    "cardOutlinks": "Benzersiz Dış Bağlantı",
     "cardFollowed": "Takip Edilen Bağlantı",
     "cardPctTotal": "Toplamın %'si",
     "cardWordCount": "Kelime Sayısı"

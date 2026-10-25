@@ -1693,8 +1693,8 @@ function NodeSummaryCard({
       mono: true,
     },
     {
-      label: t('viz.cardOutlinks', { defaultValue: 'Outlinks, distinct targets (internal + external)' }),
-      value: node.outlinks.toLocaleString(),
+      label: t('viz.cardOutlinks', { defaultValue: 'Unique Outlinks' }),
+      value: node.uniqueOutlinks.toLocaleString(),
       mono: true,
     },
     {

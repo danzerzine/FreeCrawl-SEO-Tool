@@ -11079,15 +11079,17 @@ export class ProjectDb {
    * id, counted like inlinks (followed rel, no link to itself). Pages
    * without internal links are absent.
    */
-  internalUniqueOutlinkCounts(): Map<number, number> {
+  internalUniqueOutlinkCounts(ids?: readonly number[]): Map<number, number> {
+    // B139: `ids` limits it to those pages (the visualization's nodes), counted the same way.
+    const only = ids ? `AND l.from_url_id IN (${ids.map(() => '?').join(',')})` : '';
     const rows = this.db
       .prepare(
         `SELECT l.from_url_id AS id, COUNT(DISTINCT l.to_url) AS n
            FROM links l JOIN urls s ON s.id = l.from_url_id
-          WHERE l.is_internal = 1 AND ${this.countedLinkSql()} AND l.to_url != s.url
+          WHERE l.is_internal = 1 AND ${this.countedLinkSql()} AND l.to_url != s.url ${only}
           GROUP BY l.from_url_id`,
       )
-      .all() as { id: number; n: number }[];
+      .all(...(ids ?? [])) as { id: number; n: number }[];
     return new Map(rows.map((r) => [r.id, r.n]));
   }
 
@@ -12091,6 +12093,7 @@ export class ProjectDb {
       h2Count: number;
       wordCount: number | null;
       outlinks: number;
+      uniqueOutlinks: number;
       followedOutlinks: number;
     }[];
     edges: { source: number; target: number }[];
@@ -12153,6 +12156,8 @@ export class ProjectDb {
       )
       .all(...fromIds) as { source: number; to_url: string; rel: string | null }[];
 
+    // B139: the hover card's Unique Outlinks, as the audit export counts them.
+    const uniqueOutlinks = this.internalUniqueOutlinkCounts(fromIds);
     const edges: { source: number; target: number }[] = [];
     // Followed = distinct internal targets reached by a link whose rel
     // doesn't carry nofollow — the outlinks that actually pass equity.
@@ -12193,6 +12198,7 @@ export class ProjectDb {
         h2Count: n.h2_count,
         wordCount: n.word_count,
         outlinks: n.outlinks,
+        uniqueOutlinks: uniqueOutlinks.get(n.id) ?? 0,
         followedOutlinks: followedTargets.get(n.id)?.size ?? 0,
       })),
       edges,

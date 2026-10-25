@@ -1669,7 +1669,7 @@
     "cardH2Count": "H2 数量",
     "cardDepth": "抓取深度",
     "cardInlinks": "唯一入链数",
-    "cardOutlinks": "出链数，不同目标（内部 + 外部）",
+    "cardOutlinks": "唯一出链数",
     "cardFollowed": "已跟随的出链数",
     "cardPctTotal": "占总数百分比",
     "cardWordCount": "字数"
