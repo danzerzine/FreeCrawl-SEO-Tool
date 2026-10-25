@@ -7,6 +7,7 @@
  */
 import type { ProjectDb } from '@freecrawl/db';
 import type {
+  GscBqCheckResult,
   GscBqPlanInput,
   GscBqPlanResult,
   GscBqPlanView,
@@ -91,6 +92,21 @@ function clientFor(env: BqEntryEnv, target?: Pick<PullPlan, 'dataProject' | 'dat
     siteUrl: target?.siteUrl ?? env.settings.property,
     searchType: target?.searchType ?? env.settings.searchType,
   });
+}
+
+/**
+ * Whether the source can be read (B181): the settings, then the dataset and its
+ * export table. Reads metadata only: no query runs, nothing is billed.
+ */
+export async function gscBqCheckEntry(env: BqEntryEnv): Promise<GscBqCheckResult> {
+  const problem = checkSettings(env);
+  if (problem) return { ok: false, error: problem };
+  try {
+    await clientFor(env).preflight();
+    return { ok: true, error: null };
+  } catch (err) {
+    return { ok: false, error: describeBqError(err) };
+  }
 }
 
 /** What a pull would read and cost; writes nothing (a rebuild drops the saved data only in the run, see `dryReset`). */

@@ -205,6 +205,7 @@ import {
   type GscInspectProgress,
   type GscBqPlanInput,
   type GscBqPlanResult,
+  type GscBqCheckResult,
   type GscBqProgress,
   type GscBqRunInput,
   type GscBqRunResult,
@@ -639,6 +640,7 @@ const api: FreeCrawlApi = {
   gscBqRun: (input: GscBqRunInput): Promise<GscBqRunResult> =>
     ipcRenderer.invoke(IPC.gscBqRun, input),
   gscBqCancel: (): Promise<void> => ipcRenderer.invoke(IPC.gscBqCancel),
+  gscBqCheck: (): Promise<GscBqCheckResult> => ipcRenderer.invoke(IPC.gscBqCheck),
   onGscBqProgress: (cb) => subscribe<GscBqProgress>(IPC.gscBqProgress, cb),
   exportSheets: (input: ExportSheetsInput): Promise<ExportSheetsResult> =>
     ipcRenderer.invoke(IPC.exportSheets, input),

@@ -20,7 +20,7 @@ vi.stubGlobal('fetch', guard);
 
 const { startFakeBigQuery } = await import('./gsc-bq-fake.testkit.js');
 const { createGscBqClient } = await import('./gsc-bigquery.js');
-const { gscBqPlanEntry, gscBqRunEntry, gscBqCancelEntry, newBqSlot } = await import('./gsc-bigquery-entry.js');
+const { gscBqCheckEntry, gscBqPlanEntry, gscBqRunEntry, gscBqCancelEntry, newBqSlot } = await import('./gsc-bigquery-entry.js');
 
 const MIB = 1024 * 1024;
 const SITE = 'sc-domain:ex.test';
@@ -225,6 +225,26 @@ describe('BigQuery pull entries (B91)', () => {
     expect((await gscBqPlanEntry(env({ property: '' }).e, {})).error).toMatch(/site_url|property/i);
     fake.faults.push({ when: (r) => r.kind === 'datasets.get', action: { status: 403, body: { error: { code: 403, status: 'PERMISSION_DENIED', message: 'SECRET' } } } });
     const denied = await gscBqPlanEntry(env().e, {});
+    expect(denied.ok).toBe(false);
+    expect(denied.error).toMatch(/Data Viewer/);
+    expect(denied.error).not.toContain('SECRET');
+  });
+});
+
+describe('checking the BigQuery source when the tab opens (B181)', () => {
+  it('a reachable dataset with the export table is ok, and nothing is queried or billed', async () => {
+    expect(await gscBqCheckEntry(env().e)).toEqual({ ok: true, error: null });
+    expect(fake.requests.map((r) => r.kind)).toEqual(['datasets.get', 'tables.get']);
+  });
+  it('a missing project, a wrong dataset or a denied key is reported before any pull', async () => {
+    const noProject = env();
+    noProject.e.projectId = '';
+    expect((await gscBqCheckEntry(noProject.e)).error).toMatch(/project/i);
+    const wrong = await gscBqCheckEntry(env({ bqDataset: 'nope' }).e);
+    expect(wrong.ok).toBe(false);
+    expect(wrong.error).toMatch(/nope/);
+    fake.faults.push({ when: (r) => r.kind === 'datasets.get', action: { status: 403, body: { error: { code: 403, status: 'PERMISSION_DENIED', message: 'SECRET' } } } });
+    const denied = await gscBqCheckEntry(env().e);
     expect(denied.ok).toBe(false);
     expect(denied.error).toMatch(/Data Viewer/);
     expect(denied.error).not.toContain('SECRET');

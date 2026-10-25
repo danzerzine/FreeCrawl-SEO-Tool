@@ -237,6 +237,7 @@ import {
   type GscInspectRunInput,
   type GscBqPlanInput,
   type GscBqPlanResult,
+  type GscBqCheckResult,
   type GscBqRunInput,
   type GscBqRunResult,
   type GscInspectRunResult,
@@ -427,7 +428,7 @@ import { exportCategoryToSheets } from './sheets-export.js';
 import { exportCategoryToBigQuery } from './bigquery-export.js';
 import { defaultDeps as bigQueryDefaultDeps } from './bigquery-auth.js';
 import { createGscBqClient } from './gsc-bigquery.js';
-import { gscBqCancelEntry, gscBqPlanEntry, gscBqRunEntry, newBqSlot, type BqEntryEnv } from './gsc-bigquery-entry.js';
+import { gscBqCancelEntry, gscBqCheckEntry, gscBqPlanEntry, gscBqRunEntry, newBqSlot, type BqEntryEnv } from './gsc-bigquery-entry.js';
 import {
   gscCrawlNewUrlCandidates,
   gscExportContext,
@@ -7641,6 +7642,7 @@ function registerIpc(): void {
   registerHandle(IPC.gscBqCancel, () => {
     gscBqCancelEntry(currentSession().fetchRuns.gscBq);
   });
+  registerHandle(IPC.gscBqCheck, (): Promise<GscBqCheckResult> => gscBqCheckEntry(bqEntryEnv(currentSession())));
   registerHandle(IPC.gscInspectCancel, () => {
     const run = currentSession().fetchRuns.gscInspect;
     if (run.active) {

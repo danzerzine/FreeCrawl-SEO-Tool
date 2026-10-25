@@ -533,6 +533,8 @@ export const IPC = {
   gscBqRun: 'gsc:bq-run',
   gscBqCancel: 'gsc:bq-cancel',
   gscBqProgress: 'gsc:bq-progress',
+  /** B181 — whether the BigQuery source is reachable (settings, dataset and export table); no query, no bytes. */
+  gscBqCheck: 'gsc:bq-check',
   /** Faz 7 — Google Sheets export. Writes a category's rows to a new
    *  spreadsheet on the connected account's Drive and returns the URL. */
   exportSheets: 'export:sheets',
@@ -2315,6 +2317,13 @@ export interface GscBqPlanView {
   canRun: boolean;
 }
 
+/** Whether the BigQuery source can be read (B181). */
+export interface GscBqCheckResult {
+  ok: boolean;
+  /** One line that says what to fix. */
+  error: string | null;
+}
+
 export interface GscBqPlanResult {
   ok: boolean;
   /** One line that says what to fix. */
@@ -2789,6 +2798,8 @@ export interface FreeCrawlApi {
   gscBqRun(input: GscBqRunInput): Promise<GscBqRunResult>;
   gscBqCancel(): Promise<void>;
   onGscBqProgress(cb: (p: GscBqProgress) => void): () => void;
+  /** B181 — check the BigQuery source when the Search Console tab opens on it. */
+  gscBqCheck(): Promise<GscBqCheckResult>;
   /** Export a category's rows to a new Google Sheet. Requires the
    *  `sheets` Google integration to be connected. */
   exportSheets(input: ExportSheetsInput): Promise<ExportSheetsResult>;

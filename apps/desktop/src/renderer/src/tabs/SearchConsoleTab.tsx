@@ -200,7 +200,15 @@ export function SearchConsoleTab() {
         setFromBigQuery(s.source === 'bigquery');
         if (s.source === 'bigquery') {
           // No Google sign-in is needed: the BigQuery service account reads the export.
-          setStage('ready');
+          // Its key, project and dataset are checked here, not first at Pull (B181).
+          const check = await window.freecrawl.gscBqCheck();
+          if (cancelled) return;
+          if (check.ok) {
+            setStage('ready');
+          } else {
+            setError(check.error);
+            setStage('error');
+          }
         } else if (!configured) {
           setStage('unconfigured');
         } else if (!auth.connected) {
