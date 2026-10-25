@@ -84,6 +84,7 @@ export async function probeTlsCert(
         host,
         port,
         servername: host,
+        // Intended, see the comment above: read the certificate (expired and self-signed ones too); nothing is sent.
         rejectUnauthorized: false,
         // Don't keep the process alive waiting on a connect we already
         // gave up on — `unref` makes the socket non-blocking for shutdown.

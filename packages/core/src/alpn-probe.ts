@@ -24,6 +24,8 @@ export async function probeAlpn(
       port,
       // SNI must be a hostname; Node rejects an IP literal here.
       ...(isIP(host) ? {} : { servername: host }),
+      // Intended: a one-off handshake that reads the chosen protocol and closes; no request or user data
+      // is sent over it, and an expired or self-signed site must still answer (the TLS probe reports the cert).
       rejectUnauthorized: false,
       ALPNProtocols: ['h2', 'http/1.1'],
       ...(lookup ? { lookup } : {}),
