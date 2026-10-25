@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment } from 'react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import type { AxeResultRow } from '@freecrawl/shared-types';
-import { useAppStore } from '../store.js';
+import { LoadFailed, useStoredRows } from './StoredRows.js';
 
 /** Enough for every rule one page can have (the audit stores at most 100). */
 const AXE_LIMIT = 200;
@@ -28,30 +28,9 @@ export function AxeView({
   audited: boolean;
 }) {
   const { t } = useTranslation();
-  const dataVersion = useAppStore((s) => s.dataVersion);
-  const [rows, setRows] = useState<AxeResultRow[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setRows(null);
-    setLoadError(null);
-    setOpen(null);
-    void window.freecrawl
-      .axeQuery({ url: pageUrl, limit: AXE_LIMIT, offset: 0 })
-      .then((res) => {
-        if (!cancelled) setRows(res.rows);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        setLoadError(e instanceof Error ? e.message : String(e));
-        setRows([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pageUrl, dataVersion]);
+  const { rows, loadError, open, setOpen } = useStoredRows<AxeResultRow>(pageUrl, (url) =>
+    window.freecrawl.axeQuery({ url, limit: AXE_LIMIT, offset: 0 }),
+  );
 
   if (rows === null) {
     return (
@@ -60,16 +39,7 @@ export function AxeView({
       </div>
     );
   }
-  if (loadError) {
-    return (
-      <div className="p-3 text-[11px]">
-        <div className="font-semibold text-rose-300">
-          {t('common.loadFailedTitle', { defaultValue: "Couldn't load this view" })}
-        </div>
-        <div className="mt-0.5 break-words text-surface-500">{loadError}</div>
-      </div>
-    );
-  }
+  if (loadError) return <LoadFailed error={loadError} />;
 
   const impactLabel = (impact: string | null): string => {
     switch (impact) {

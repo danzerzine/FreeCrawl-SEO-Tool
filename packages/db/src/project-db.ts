@@ -214,6 +214,20 @@ type ClauseLimits = SeoThresholds & {
   /** No `pagination_multiple` column (before migration 131): the Multiple Pagination URLs filter matches nothing. */
   readonly noPaginationMultiple?: boolean;
 };
+/** `WHERE col = ? AND …` over the filters that are set, with its arguments (the stored-results queries). */
+function equalityWhere(filters: ReadonlyArray<readonly [string, string | undefined]>): {
+  sql: string;
+  args: string[];
+} {
+  const set = filters.filter((f): f is readonly [string, string] => !!f[1]);
+  return { sql: set.length > 0 ? `WHERE ${set.map(([c]) => `${c} = ?`).join(' AND ')}` : '', args: set.map(([, v]) => v) };
+}
+
+/** A page of at least one row from a non-negative offset: a zero or negative limit never means "everything". */
+function pageBounds(limit: number, offset: number): [number, number] {
+  return [Math.max(1, limit), Math.max(0, offset)];
+}
+
 /** The URL up to its query, with a trailing slash so a last path segment ends like the others (B28). */
 const URL_PATH_SLASH_SQL =
   "((CASE WHEN instr(url, '?') > 0 THEN substr(url, 1, instr(url, '?') - 1) ELSE url END) || '/')";
@@ -6317,25 +6331,12 @@ export class ProjectDb {
     total: number;
   } {
     if (!this.hasPagespeedAudits()) return { rows: [], total: 0 };
-    const where: string[] = [];
-    const args: (string | number)[] = [];
-    if (params.url) {
-      where.push('url = ?');
-      args.push(params.url);
-    }
-    if (params.strategy) {
-      where.push('strategy = ?');
-      args.push(params.strategy);
-    }
-    if (params.kind) {
-      where.push('kind = ?');
-      args.push(params.kind);
-    }
-    if (params.auditId) {
-      where.push('audit_id = ?');
-      args.push(params.auditId);
-    }
-    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const { sql: whereSql, args } = equalityWhere([
+      ['url', params.url],
+      ['strategy', params.strategy],
+      ['kind', params.kind],
+      ['audit_id', params.auditId],
+    ]);
     const total = (
       this.db.prepare(`SELECT COUNT(*) AS c FROM pagespeed_audits ${whereSql}`).get(...args) as {
         c: number;
@@ -6350,7 +6351,7 @@ export class ProjectDb {
                    url, strategy, audit_id
           LIMIT ? OFFSET ?`,
       )
-      .all(...args, params.limit, params.offset) as unknown as {
+      .all(...args, ...pageBounds(params.limit, params.offset)) as unknown as {
       url: string;
       strategy: string;
       audit_id: string;
@@ -10314,25 +10315,12 @@ export class ProjectDb {
   }): { rows: AxeResultRow[]; total: number } {
     this.axeResultsTable ??= this.hasTable('axe_results');
     if (!this.axeResultsTable) return { rows: [], total: 0 };
-    const where: string[] = [];
-    const args: (string | number)[] = [];
-    if (params.url) {
-      where.push('u.url = ?');
-      args.push(params.url);
-    }
-    if (params.impact) {
-      where.push('a.impact = ?');
-      args.push(params.impact);
-    }
-    if (params.ruleId) {
-      where.push('a.rule_id = ?');
-      args.push(params.ruleId);
-    }
-    if (params.kind) {
-      where.push('a.kind = ?');
-      args.push(params.kind);
-    }
-    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const { sql: whereSql, args } = equalityWhere([
+      ['u.url', params.url],
+      ['a.impact', params.impact],
+      ['a.rule_id', params.ruleId],
+      ['a.kind', params.kind],
+    ]);
     const total = (
       this.db
         .prepare(`SELECT COUNT(*) AS n FROM axe_results a JOIN urls u ON u.id = a.url_id ${whereSql}`)
@@ -10348,7 +10336,7 @@ export class ProjectDb {
                    a.nodes DESC, u.url, a.rule_id
           LIMIT ? OFFSET ?`,
       )
-      .all(...args, Math.max(1, params.limit), Math.max(0, params.offset)) as unknown as {
+      .all(...args, ...pageBounds(params.limit, params.offset)) as unknown as {
       url: string;
       rule_id: string;
       kind: 'violation' | 'incomplete';

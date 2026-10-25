@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { Monitor, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import {
   type PagespeedAuditRow,
   type PagespeedStrategy,
 } from '@freecrawl/shared-types';
-import { useAppStore } from '../store.js';
+import { LoadFailed, useStoredRows } from './StoredRows.js';
 
 /** Enough for every audit one page can have (about 30 per device). */
 const AUDITS_LIMIT = 1000;
@@ -29,31 +29,10 @@ const KIND_CLASS: Record<PagespeedAuditKind, string> = {
  */
 export function LighthouseView({ pageUrl }: { pageUrl: string }) {
   const { t } = useTranslation();
-  const dataVersion = useAppStore((s) => s.dataVersion);
-  const [rows, setRows] = useState<PagespeedAuditRow[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [strategy, setStrategy] = useState<PagespeedStrategy>('mobile');
-  const [open, setOpen] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setRows(null);
-    setLoadError(null);
-    setOpen(null);
-    void window.freecrawl
-      .pagespeedAuditsQuery({ url: pageUrl, limit: AUDITS_LIMIT, offset: 0 })
-      .then((res) => {
-        if (!cancelled) setRows(res.rows);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        setLoadError(e instanceof Error ? e.message : String(e));
-        setRows([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pageUrl, dataVersion]);
+  const { rows, loadError, open, setOpen } = useStoredRows<PagespeedAuditRow>(pageUrl, (url) =>
+    window.freecrawl.pagespeedAuditsQuery({ url, limit: AUDITS_LIMIT, offset: 0 }),
+  );
 
   const shown = useMemo(() => (rows ? orderForView(rows, strategy) : []), [rows, strategy]);
   const first = shown[0];
@@ -65,16 +44,7 @@ export function LighthouseView({ pageUrl }: { pageUrl: string }) {
       </div>
     );
   }
-  if (loadError) {
-    return (
-      <div className="p-3 text-[11px]">
-        <div className="font-semibold text-rose-300">
-          {t('common.loadFailedTitle', { defaultValue: "Couldn't load this view" })}
-        </div>
-        <div className="mt-0.5 break-words text-surface-500">{loadError}</div>
-      </div>
-    );
-  }
+  if (loadError) return <LoadFailed error={loadError} />;
 
   const kindLabel = (k: PagespeedAuditKind): string =>
     k === 'opportunity'
