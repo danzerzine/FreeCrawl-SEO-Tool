@@ -14,9 +14,9 @@ beforeEach(() => {
   new ProjectDb(file).close();
   const raw = new DatabaseSync(file);
   raw.exec(`
-    INSERT INTO urls (id, url, is_external) VALUES
-      (1, 'https://ex.com/a', 0), (2, 'https://ex.com/b', 0),
-      (3, 'https://ex.com/c', 0), (4, 'https://other.com/', 1);
+    INSERT INTO urls (id, url, is_external, status_code) VALUES
+      (1, 'https://ex.com/a', 0, 200), (2, 'https://ex.com/b', 0, 200),
+      (3, 'https://ex.com/c', 0, 200), (4, 'https://other.com/', 1, NULL);
     INSERT INTO images (id, src, alt, occurrences) VALUES
       (1, 'https://ex.com/1.jpg', 'logo', 1), (2, 'https://ex.com/2.jpg', 'logo', 1),
       (3, 'https://ex.com/3.jpg', 'unique', 1);

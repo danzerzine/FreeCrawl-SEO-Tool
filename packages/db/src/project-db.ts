@@ -1618,10 +1618,15 @@ const DUPLICATE_ALT_PREDICATE = `is_variant = 0 AND alt IS NOT NULL AND alt != '
 // `COUNT(*)`: the same logo on 1,263 pages is one image with one alt, not
 // 1,263 duplicates — counting usages listed every page's header image and
 // made the sidebar (2 images) and the grid (1,263 rows) disagree.
-const USAGE_DUPLICATE_ALT_PREDICATE = `iu.is_variant = 0 AND iu.alt IS NOT NULL AND iu.alt != '' AND iu.alt IN (
-  SELECT alt FROM image_usages WHERE is_variant = 0 AND alt IS NOT NULL AND alt != ''
+// Only usages on pages that answered 2xx take part, on both sides (B101).
+const USAGE_PAGE_2XX = (alias: string): string =>
+  `EXISTS (SELECT 1 FROM urls pu WHERE pu.id = ${alias}.from_url_id AND pu.status_code >= 200 AND pu.status_code < 300)`;
+const USAGE_DUPLICATE_ALT_PREDICATE = `iu.is_variant = 0 AND iu.alt IS NOT NULL AND iu.alt != '' AND ${USAGE_PAGE_2XX('iu')} AND iu.alt IN (
+  SELECT alt FROM image_usages iu2 WHERE iu2.is_variant = 0 AND iu2.alt IS NOT NULL AND iu2.alt != '' AND ${USAGE_PAGE_2XX('iu2')}
    GROUP BY alt HAVING COUNT(DISTINCT image_id) > 1
 )`;
+const USAGE_MISSING_ALT_PREDICATE = `iu.alt IS NULL AND iu.is_variant = 0 AND ${USAGE_PAGE_2XX('iu')}`;
+const USAGE_EMPTY_ALT_PREDICATE = `iu.alt = '' AND iu.is_variant = 0 AND ${USAGE_PAGE_2XX('iu')}`;
 
 // Missing / empty alt are computed from PER-USAGE truth (`image_usages.alt`):
 // the Images tab, its sidebar counters and the CSV export are all per-usage
@@ -8568,8 +8573,8 @@ export class ProjectDb {
       const where: string[] = [];
       const args: (string | number)[] = [];
       if (params.internalOnly) where.push('i.is_internal = 1');
-      if (params.missingAltOnly) where.push('iu.alt IS NULL AND iu.is_variant = 0');
-      if (params.emptyAltOnly) where.push("iu.alt = '' AND iu.is_variant = 0");
+      if (params.missingAltOnly) where.push(USAGE_MISSING_ALT_PREDICATE);
+      if (params.emptyAltOnly) where.push(USAGE_EMPTY_ALT_PREDICATE);
       if (params.duplicateAltOnly) where.push(USAGE_DUPLICATE_ALT_PREDICATE);
       if (params.search) {
         where.push('(i.src LIKE ? OR iu.alt LIKE ?)');
@@ -9255,7 +9260,7 @@ export class ProjectDb {
         // Per-usage to match the per-usage Images tab (count = table). Legacy
         // projects with no usage rows fall back to the distinct-image count.
         `SELECT (CASE WHEN EXISTS(SELECT 1 FROM image_usages)
-           THEN (SELECT COUNT(*) FROM image_usages WHERE alt IS NULL AND is_variant = 0)
+           THEN (SELECT COUNT(*) FROM image_usages iu WHERE ${USAGE_MISSING_ALT_PREDICATE})
            ELSE (SELECT COUNT(*) FROM images WHERE alt IS NULL AND occurrences > 0) END) AS c`,
       ),
       // Usages whose non-empty alt is shared with a different image —
@@ -9357,7 +9362,7 @@ export class ProjectDb {
       // Alt and matches the Images tab drill-down.
       imageEmptyAlt: this.scalarCount(
         `SELECT (CASE WHEN EXISTS(SELECT 1 FROM image_usages)
-           THEN (SELECT COUNT(*) FROM image_usages WHERE alt = '' AND is_variant = 0)
+           THEN (SELECT COUNT(*) FROM image_usages iu WHERE ${USAGE_EMPTY_ALT_PREDICATE})
            ELSE (SELECT COUNT(*) FROM images WHERE alt = '') END) AS c`,
       ),
       linkEmptyAnchor: gatedCount('issues:link-empty-anchor'),
@@ -10486,8 +10491,8 @@ export class ProjectDb {
     const minBytes = Math.max(0, Math.floor(options.minByteSize ?? 0));
     // Per-usage export to match the per-usage Images tab (one row per page).
     if (this.hasImageUsages()) {
-      if (options.missingAltOnly) where.push('iu.alt IS NULL AND iu.is_variant = 0');
-      if (options.emptyAltOnly) where.push("iu.alt = '' AND iu.is_variant = 0");
+      if (options.missingAltOnly) where.push(USAGE_MISSING_ALT_PREDICATE);
+      if (options.emptyAltOnly) where.push(USAGE_EMPTY_ALT_PREDICATE);
       if (options.duplicateAltOnly) where.push(USAGE_DUPLICATE_ALT_PREDICATE);
       if (options.search) {
         where.push('(i.src LIKE ? OR iu.alt LIKE ?)');
@@ -15251,12 +15256,14 @@ function baseCategoryWhereClause(
               AND (status_code < 200 OR status_code >= 300)
               AND EXISTS (SELECT 1 FROM sitemap_urls s WHERE s.url = urls.url)`;
     case 'issues:image-missing-alt':
-      return "is_external = 0 AND content_kind = 'html' AND images_missing_alt > 0";
+      return `is_external = 0 AND content_kind = 'html' AND images_missing_alt > 0
+              AND status_code >= 200 AND status_code < 300`;
     case 'issues:image-duplicate-alt':
       // Pages using at least one image whose alt is shared with a different
       // image — the same per-usage predicate as the Images tab and the
       // sidebar counter.
       return `is_external = 0 AND content_kind = 'html'
+              AND status_code >= 200 AND status_code < 300
               AND EXISTS (SELECT 1 FROM image_usages iu
                           WHERE iu.from_url_id = urls.id AND ${USAGE_DUPLICATE_ALT_PREDICATE})`;
     case 'issues:meta-refresh-used':
@@ -15514,7 +15521,8 @@ function baseCategoryWhereClause(
     case 'issues:image-empty-alt':
       // alt="" specifically. Decorative images use this intentionally, but
       // many sites apply it to content images by mistake.
-      return "is_external = 0 AND content_kind = 'html' AND images_empty_alt > 0";
+      return `is_external = 0 AND content_kind = 'html' AND images_empty_alt > 0
+              AND status_code >= 200 AND status_code < 300`;
     case 'issues:broken-bookmark':
       // Page links to a `#fragment` of itself that has no matching id /
       // `<a name>` (counted by the parser; stored URLs carry no fragment).
