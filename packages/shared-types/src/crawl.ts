@@ -2071,6 +2071,12 @@ export interface OverviewCounts {
     /** Possible crawl traps found in the project (B90); empty when none, absent on an older project. */
     crawlTraps?: CrawlTrapFinding[];
   };
+  /**
+   * Issue checks this project has no verdict for: the build that made its
+   * crawl did not run them, or the option they need was off. Their count is
+   * 0 but means "not checked" (B137).
+   */
+  notChecked?: UrlCategory[];
   summary: {
     totalInternalUrls: number;
     totalIndexable: number;

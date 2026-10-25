@@ -18,6 +18,8 @@
     "checkOff": "Off",
     "cookiesOffHint": "Cookie checks are off because the crawl's cookie policy is \"Reject all\". Choose \"Accept all\" or \"Block third-party\" under Settings → Cookies to analyse Set-Cookie headers.",
     "notComputed": "Not computed",
+    "notChecked": "Not checked",
+    "notCheckedHint": "This project's crawl did not run this check: an older FreeCrawl version made it, or the option the check needs was off. Crawl again to count it.",
     "trendPrevious": "Previous crawl, {{date}}: {{previous}}",
     "trendVersion": "The two crawls ran on different FreeCrawl versions, so the change may come from the check, not the site.",
     "notComputedHint": "Inlinks have not been computed yet, so orphan pages cannot be counted. They are computed at the end of a crawl that has \"Recompute inlinks\" on.",

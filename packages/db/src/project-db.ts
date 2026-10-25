@@ -8687,6 +8687,11 @@ export class ProjectDb {
     sortDir?: 'asc' | 'desc';
     filter?: AdvancedFilter;
   }): { rows: CrawlUrlRow[]; total: number } {
+    // A check whose filter reads a column an older file lacks (read-only
+    // open) lists nothing rather than failing on "no such column" (B137).
+    if (params.category && this.unreadableCategories().has(params.category)) {
+      return { rows: [], total: 0 };
+    }
     const { whereSql, args } = buildUrlsWhere({
       category: params.category ?? 'all',
       search: params.search,
@@ -8907,11 +8912,40 @@ export class ProjectDb {
   getOverviewCounts(): OverviewCounts {
     this.runOverviewBatch();
     try {
-      return this.buildOverviewCounts();
+      return { ...this.buildOverviewCounts(), notChecked: [...this.notCheckedCategories()] };
     } finally {
       this.overviewBatch = null;
     }
   }
+
+  /**
+   * The issue checks this project has no verdict for (B137): a later check
+   * its crawls never filled (`checksFilled`, as compare reads it), and on a
+   * read-only open, a check whose filter reads a column or table the file
+   * lacks. Their 0 means "not checked by the build that made the crawl".
+   */
+  notCheckedCategories(): Set<UrlCategory> {
+    const filled = this.checksFilled();
+    return new Set([
+      ...LATER_CHECKS.filter((k) => !filled.has(k)),
+      ...this.unreadableCategories(),
+    ]);
+  }
+
+  /** Issue checks whose filter cannot run on this file: read-only opens of an older project only. */
+  private unreadableCategories(): ReadonlySet<UrlCategory> {
+    // A read-only open is never migrated, so the schema stays as it is.
+    this.unreadableChecks ??= new Set(
+      this.readOnly
+        ? ISSUE_CATEGORIES.filter((k) => {
+            const clause = this.clauseFor(k);
+            return clause !== null && !this.clauseReadable(clause);
+          })
+        : [],
+    );
+    return this.unreadableChecks;
+  }
+  private unreadableChecks: Set<UrlCategory> | null = null;
 
   private buildOverviewCounts(): OverviewCounts {
     const countWhere = (clause: string): number => this.countUrlsWhere(clause);

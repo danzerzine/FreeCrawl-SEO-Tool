@@ -30,6 +30,8 @@ interface Node {
   /** The check is switched off by a crawl setting, so there is no count to
    *  show — rendered as "Off" instead of a misleading 0. */
   off?: boolean;
+  /** Label and tooltip of an `off` row that is off for another reason than the cookie policy. */
+  offText?: { label: string; hint: string };
   /** The count is link targets, not URLs: no share of the total, and this
    *  tooltip says what the number and the list (pages or links) are. */
   targetHint?: string;
@@ -267,9 +269,20 @@ export function OverviewSidebar() {
     }),
     [t],
   );
+  // A check the project's crawl did not run counts 0, which is not "no problem" (B137).
+  const notCheckedText = useMemo(
+    () => ({
+      label: t('sidebar.notChecked', { defaultValue: 'Not checked' }),
+      hint: t('sidebar.notCheckedHint', {
+        defaultValue:
+          'This project\'s crawl did not run this check: an older FreeCrawl version made it, or the option the check needs was off. Crawl again to count it.',
+      }),
+    }),
+    [t],
+  );
   const tree = useMemo(
-    () => buildTree(overview, disabledSet, cookiesOff, targetHint, siteWideText, trend),
-    [overview, disabledSet, cookiesOff, targetHint, siteWideText, trend],
+    () => buildTree(overview, disabledSet, cookiesOff, targetHint, siteWideText, trend, notCheckedText),
+    [overview, disabledSet, cookiesOff, targetHint, siteWideText, trend, notCheckedText],
   );
   const trendHint = useMemo(() => {
     if (!trend) return (_previous: number) => '';
@@ -589,8 +602,11 @@ const TreeNode = memo(function TreeNode({
         )}
         <span className="min-w-0 flex-1 truncate text-surface-200">{translateLabel(node.label, lang)}</span>
         {node.off && (
-          <span className="w-[4.5rem] text-right font-mono italic text-surface-500" title={offHint}>
-            {offLabel}
+          <span
+            className={`${node.offText ? 'shrink-0 whitespace-nowrap' : 'w-[4.5rem]'} text-right font-mono italic text-surface-500`}
+            title={node.offText?.hint ?? offHint}
+          >
+            {node.offText?.label ?? offLabel}
           </span>
         )}
         {!node.off && node.count === null && (
@@ -657,8 +673,10 @@ function buildTree(
   targetHint: TargetHint,
   siteWideText: SiteWideText,
   trend: IssueTrend | null,
+  notCheckedText: { label: string; hint: string },
 ): Node[] {
   if (!o) return [];
+  const notChecked = new Set<string>(o.notChecked ?? []);
   // Response Codes and Security deliberately count external URLs too (that's
   // how a broken outbound link surfaces), so their numerators exceed the
   // internal-only URL count. Their "% of Total" must therefore divide by the
@@ -676,6 +694,7 @@ function buildTree(
       ? { targetHint: targetHint(i, issueCount(o.issues, i), issueSourcesCount(o.issues, i)) }
       : {}),
     ...(cookiesOff && i.category.startsWith('issues:cookie-') ? { off: true } : {}),
+    ...(notChecked.has(i.category) ? { off: true, offText: notCheckedText } : {}),
     ...(trend?.checks[i.category] ? { trend: trend.checks[i.category] } : {}),
   });
   // Checks on almost every page answered 2xx (`OverviewCounts.site.siteWide`).

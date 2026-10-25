@@ -261,6 +261,18 @@ export function buildTools(): Tool[] {
         const fieldsArg = Array.isArray(args.fields) ? (args.fields as string[]) : [];
         const wantsAll = fieldsArg.length === 1 && fieldsArg[0] === '*';
 
+        // A check the project has no verdict for answers "not checked", not
+        // an empty list that reads as "no problem" (B137).
+        if (db.notCheckedCategories().has(category)) {
+          return {
+            rows: [],
+            total: null,
+            notChecked: true,
+            note: 'Not checked: the build that made this crawl did not run this check, or the option it needs was off.',
+            limit,
+            offset,
+          };
+        }
         const { rows, total } = db.queryUrls({
           category,
           search,
