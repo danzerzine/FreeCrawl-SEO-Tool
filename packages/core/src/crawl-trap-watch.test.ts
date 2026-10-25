@@ -352,4 +352,22 @@ describe('R3 warning text for a query-only trap at the site root', () => {
     const f = { ...root(['https://a.test/blog/a']), key: 'a.test/blog' };
     expect(describeTrap(f, 6500, 1200)).toContain('(e.g. "/blog/")');
   });
+  it('does not suggest a routing parameter as the exclude (B184)', () => {
+    const text = describeTrap(
+      root(['https://a.test/?option=com_content&view=article&id=3', 'https://a.test/?option=com_content&view=article&id=4&Itemid=9']),
+      6500,
+      1200,
+    );
+    expect(text).not.toContain('"view=');
+    expect(text).not.toContain('"option=');
+    expect(text).not.toContain('e.g.');
+  });
+  it('does not call root pages without a query "URLs that differ only by query" (B184)', () => {
+    const text = describeTrap(root(['https://a.test/x1', 'https://a.test/x2']), 6500, 1200);
+    expect(text).not.toContain('differ only by query');
+    expect(text).toContain('site root');
+  });
+  it('still says "differ only by query" when the samples carry one', () => {
+    expect(describeTrap(root(['https://a.test/?a=1', 'https://a.test/?a=2']), 6500, 1200)).toContain('differ only by query');
+  });
 });

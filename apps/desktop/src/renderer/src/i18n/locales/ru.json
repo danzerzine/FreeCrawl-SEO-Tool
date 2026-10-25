@@ -35,8 +35,9 @@
     "crawlStoppedAtLimit": "Обход остановился на лимите в {{n}} страниц.",
     "siteCrawlTrap": "Возможная ловушка обхода",
     "siteCrawlTrapHint": "Обход нашёл в одном шаблоне или разделе намного больше URL, чем ожидается на сайте: {{list}}. Обход не остановлен. Чтобы его ограничить, добавьте шаблон исключения или снизьте лимит страниц.",
-    "siteCrawlTrapItem": "{{key}}: {{count}} URL",
-    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URL, в sitemap их {{expected}}"
+    "siteCrawlTrapItem": "{{key}}: {{count}} URL ({{share}})",
+    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URL ({{share}}), в sitemap их {{expected}}",
+    "siteCrawlTrapRoot": "корень сайта"
   },
   "integrations": {
     "intro": "Подключайте внешние сервисы со своими собственными учётными данными. API-ключи и секреты шифруются на диске средствами защищённого хранилища вашей операционной системы и никогда не покидают эту машину.",

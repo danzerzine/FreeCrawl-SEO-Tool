@@ -329,6 +329,33 @@ export function OverviewSidebar() {
   const fileUrls = (files: { url: string }[] | undefined) => (files ?? []).map((f) => f.url);
   const stoppedAt = overview?.site?.crawlStoppedAtLimit ?? null;
   const crawlTraps = overview?.site?.crawlTraps ?? [];
+  /** `host/(root)` read as the site root; a routing suffix (` option=com_content`) stays (B184). */
+  const trapKeyLabel = (key: string): string => {
+    const space = key.indexOf(' ');
+    const path = space < 0 ? key : key.slice(0, space);
+    if (!path.endsWith('/(root)')) return key;
+    const host = path.slice(0, path.length - '/(root)'.length);
+    return `${host} (${t('sidebar.siteCrawlTrapRoot', { defaultValue: 'site root' })})${space < 0 ? '' : key.slice(space)}`;
+  };
+  const trapSummary = crawlTraps
+    .map((f) => {
+      const share = `${Math.round(f.share * 100)}%`;
+      return f.expected !== null
+        ? t('sidebar.siteCrawlTrapItemSitemap', {
+            defaultValue: '{{key}}: {{count}} URLs ({{share}}), the sitemap lists {{expected}}',
+            key: trapKeyLabel(f.key),
+            count: f.count,
+            share,
+            expected: f.expected,
+          })
+        : t('sidebar.siteCrawlTrapItem', {
+            defaultValue: '{{key}}: {{count}} URLs ({{share}})',
+            key: trapKeyLabel(f.key),
+            count: f.count,
+            share,
+          });
+    })
+    .join('; ');
   const sitemapNotices: {
     key: string;
     info: boolean;
@@ -345,25 +372,11 @@ export function OverviewSidebar() {
       items: crawlTraps.flatMap((f) => f.samples.slice(0, 3)).slice(0, 3),
       count: crawlTraps.length,
       title: t('sidebar.siteCrawlTrap', { defaultValue: 'Possible crawl trap' }),
+      note: trapSummary,
       hint: t('sidebar.siteCrawlTrapHint', {
         defaultValue:
           'The crawl found far more URLs in one pattern or section than the site is expected to have: {{list}}. The crawl was not stopped. To cut it off, add an exclude pattern or lower the page limit.',
-        list: crawlTraps
-          .map((f) =>
-            f.expected !== null
-              ? t('sidebar.siteCrawlTrapItemSitemap', {
-                  defaultValue: '{{key}}: {{count}} URLs, the sitemap lists {{expected}}',
-                  key: f.key,
-                  count: f.count,
-                  expected: f.expected,
-                })
-              : t('sidebar.siteCrawlTrapItem', {
-                  defaultValue: '{{key}}: {{count}} URLs',
-                  key: f.key,
-                  count: f.count,
-                }),
-          )
-          .join('; '),
+        list: trapSummary,
       }),
     },
     {

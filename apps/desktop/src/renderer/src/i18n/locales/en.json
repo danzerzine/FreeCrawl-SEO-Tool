@@ -35,8 +35,9 @@
     "crawlStoppedAtLimit": "The crawl stopped at its limit of {{n}} pages.",
     "siteCrawlTrap": "Possible crawl trap",
     "siteCrawlTrapHint": "The crawl found far more URLs in one pattern or section than the site is expected to have: {{list}}. The crawl was not stopped. To cut it off, add an exclude pattern or lower the page limit.",
-    "siteCrawlTrapItem": "{{key}}: {{count}} URLs",
-    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URLs, the sitemap lists {{expected}}"
+    "siteCrawlTrapItem": "{{key}}: {{count}} URLs ({{share}})",
+    "siteCrawlTrapItemSitemap": "{{key}}: {{count}} URLs ({{share}}), the sitemap lists {{expected}}",
+    "siteCrawlTrapRoot": "site root"
   },
   "integrations": {
     "intro": "Connect external services with your own credentials. API keys and secrets are encrypted at rest using your operating system's secure storage and never leave this machine.",

@@ -683,14 +683,15 @@ export class CrawlTrapWatch {
 
 const fmt = (n: number): string => n.toLocaleString('en-US');
 
-/** First non-routing query parameter name of the sample URLs, as an exclude pattern (`name=`), else null. */
+/** First non-routing, non-id query parameter name of the sample URLs, as an exclude pattern (`name=`), else null. */
 function rootQueryName(samples: string[]): string | null {
   for (const u of samples) {
     const q = split(u).query;
     if (q === '') continue;
     for (const part of q.split('&')) {
       const name = part.split('=')[0]!.toLowerCase();
-      if (name !== '' && !ROUTE_KEYS.has(name)) return `${part.split('=')[0]}=`;
+      // Same names the R2 rule ignores: excluding a routing or id parameter would drop real pages (B184).
+      if (name !== '' && !ROUTING.has(name) && !idLikeName(name)) return `${part.split('=')[0]}=`;
     }
   }
   return null;
@@ -723,7 +724,8 @@ export function describeTrap(f: TrapFinding, found: number, sitemapUrls: number 
   if (seg === '/(root)') {
     // Not a path a user can exclude: name it plainly and build the exclude from the query names.
     const route = f.key.slice(path.length);
-    const label = `${path.slice(0, path.indexOf('/'))}/${route} (the site root, URLs that differ only by query)`;
+    const byQuery = f.samples.some((u) => split(u).query !== '');
+    const label = `${path.slice(0, path.indexOf('/'))}/${route} (the site root${byQuery ? ', URLs that differ only by query' : ', pages directly under the root'})`;
     return `Possible crawl trap: ${fmt(f.count)} URLs sit in the section ${label} (${pct} of the ${fmt(found)} found so far);${sm}.${stop(rootQueryName(f.samples))}${examples}`;
   }
   return `Possible crawl trap: ${fmt(f.count)} URLs sit in the section ${f.key} (${pct} of the ${fmt(found)} found so far);${sm}.${stop(seg + '/')}${examples}`;
