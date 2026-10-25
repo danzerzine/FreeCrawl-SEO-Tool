@@ -198,7 +198,7 @@ export const ZH_CN_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': '内容单薄（少于 {{thinContentWords}} 词）',
   'Near-Duplicate Content': '近似重复内容',
   'Duplicate Content (exact)': '重复内容（完全相同）',
-  'Low Text/Code Ratio (<10%)': '文本与代码比例过低（<10%）',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': '文本与代码比例过低（<{{textCodeRatioMinPercent}}%）',
   'Hard to Read (Flesch <30)': '可读性差（Flesch <30）',
   'Gunning Fog >17': 'Gunning Fog >17',
   'Lang Attribute Missing': '缺少 lang 属性',

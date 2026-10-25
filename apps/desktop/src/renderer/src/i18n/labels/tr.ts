@@ -198,7 +198,7 @@ export const TR_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': 'İnce İçerik (<{{thinContentWords}} kelime)',
   'Near-Duplicate Content': 'Yakın Yinelenen İçerik',
   'Duplicate Content (exact)': 'Yinelenen İçerik (birebir)',
-  'Low Text/Code Ratio (<10%)': 'Düşük Metin/Kod Oranı (<%10)',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': 'Düşük Metin/Kod Oranı (<%{{textCodeRatioMinPercent}})',
   'Hard to Read (Flesch <30)': 'Okuması Zor (Flesch <30)',
   'Gunning Fog >17': 'Gunning Fog >17',
   'Lang Attribute Missing': 'Lang Niteliği Eksik',

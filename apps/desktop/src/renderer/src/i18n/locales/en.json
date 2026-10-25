@@ -1164,7 +1164,8 @@
       "descriptionMaxChars": "Description: more characters than",
       "descriptionMinPx": "Description: narrower than, px",
       "descriptionMaxPx": "Description: wider than, px",
-      "thinContentWords": "Thin content: fewer words than"
+      "thinContentWords": "Thin content: fewer words than",
+      "textCodeRatioMinPercent": "Low text/code ratio: below, %"
     }
   },
   "compare": {

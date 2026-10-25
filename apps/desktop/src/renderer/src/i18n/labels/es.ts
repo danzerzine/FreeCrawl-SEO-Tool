@@ -199,7 +199,7 @@ export const ES_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': 'Contenido escaso (<{{thinContentWords}} palabras)',
   'Near-Duplicate Content': 'Contenido casi duplicado',
   'Duplicate Content (exact)': 'Contenido duplicado (exacto)',
-  'Low Text/Code Ratio (<10%)': 'Ratio texto/código bajo (<10 %)',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': 'Ratio texto/código bajo (<{{textCodeRatioMinPercent}} %)',
   'Hard to Read (Flesch <30)': 'Difícil de leer (Flesch <30)',
   'Gunning Fog >17': 'Gunning Fog >17',
   'Lang Attribute Missing': 'Falta el atributo lang',

@@ -306,7 +306,7 @@ export const ISSUE_GROUPS: readonly IssueGroupDef[] = [
       { key: 'issues-render-blocking', label: 'Render-Blocking Head (>5)', category: 'issues:render-blocking', count: 'renderBlocking' },
       { key: 'issues-render-blocking-critical', label: 'Render-Blocking Head (>20, critical)', category: 'issues:render-blocking-critical', count: 'renderBlockingCritical' },
       { key: 'issues-page-many-requests', label: 'Too Many Requests (>100 subresources)', category: 'issues:page-many-requests', count: 'pageManyRequests' },
-      { key: 'issues-text-code-ratio-low', label: 'Low Text/Code Ratio (<10%)', category: 'issues:text-code-ratio-low', count: 'textCodeRatioLow' },
+      { key: 'issues-text-code-ratio-low', label: 'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)', category: 'issues:text-code-ratio-low', count: 'textCodeRatioLow' },
       { key: 'issues-keepalive-disabled', label: 'Keep-Alive Disabled', category: 'issues:keepalive-disabled', count: 'keepaliveDisabled' },
       { key: 'issues-image-too-large', label: 'Large Image (>100KB)', category: 'issues:image-too-large', count: 'imageTooLarge' },
     ],

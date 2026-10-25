@@ -16043,13 +16043,12 @@ function baseCategoryWhereClause(
       // into the site or nowhere in particular; recorded at parse time.
       return UNCRAWLABLE_INTERNAL_OUTLINKS_SQL;
     case 'issues:text-code-ratio-low':
-      // Visible-text characters < 10% of total HTML characters. Almost always a
-      // template-heavy / SPA shell that ships markup but no content.
-      // 10% is the conventional Screaming Frog threshold; tunable if
-      // a per-project setting is added later.
+      // Visible-text characters under the limit (default 10 %) of the HTML characters: a
+      // template-heavy / SPA shell that ships markup but no content. The limit is a
+      // threshold of the project (Settings → Thresholds).
       return `is_external = 0 AND content_kind = 'html'
               AND text_code_ratio IS NOT NULL
-              AND text_code_ratio < 10`;
+              AND text_code_ratio < ${t.textCodeRatioMinPercent}`;
     case 'issues:flesch-very-difficult':
       // Flesch Reading Ease < 30 — academic / "very difficult" prose,
       // hard for the general audience. Hemingway/Yoast threshold.

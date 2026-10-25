@@ -4149,6 +4149,7 @@ const THRESHOLD_FIELDS: { key: keyof SeoThresholds; label: string }[] = [
   { key: 'descriptionMinPx', label: 'Description: narrower than, px' },
   { key: 'descriptionMaxPx', label: 'Description: wider than, px' },
   { key: 'thinContentWords', label: 'Thin content: fewer words than' },
+  { key: 'textCodeRatioMinPercent', label: 'Low text/code ratio: below, %' },
 ];
 
 /** The limits the length, pixel-width and thin-content checks count against (B77). */

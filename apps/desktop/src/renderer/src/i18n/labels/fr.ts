@@ -200,7 +200,7 @@ export const FR_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': 'Contenu maigre (<{{thinContentWords}} mots)',
   'Near-Duplicate Content': 'Contenu quasi dupliqué',
   'Duplicate Content (exact)': 'Contenu dupliqué (exact)',
-  'Low Text/Code Ratio (<10%)': 'Faible ratio texte/code (<10 %)',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': 'Faible ratio texte/code (<{{textCodeRatioMinPercent}} %)',
   'Hard to Read (Flesch <30)': 'Difficile à lire (Flesch <30)',
   'Gunning Fog >17': 'Gunning Fog >17',
   'Lang Attribute Missing': 'Attribut lang manquant',

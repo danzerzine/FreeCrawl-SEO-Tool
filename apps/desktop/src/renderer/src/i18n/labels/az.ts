@@ -207,7 +207,7 @@ export const AZ_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': 'Zəif məzmun (< {{thinContentWords}} söz)',
   'Near-Duplicate Content': 'Yaxın dublikat məzmun',
   'Duplicate Content (exact)': 'Dublikat məzmun (tam eyni)',
-  'Low Text/Code Ratio (<10%)': 'Aşağı mətn/kod nisbəti (< 10 %)',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': 'Aşağı mətn/kod nisbəti (< {{textCodeRatioMinPercent}} %)',
   'Hard to Read (Flesch <30)': 'Oxunması çətin (Flesch < 30)',
   'Gunning Fog >17': 'Gunning Fog > 17',
   'Lang Attribute Missing': 'lang atributu yoxdur',

@@ -199,7 +199,7 @@ export const HI_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': 'पतली सामग्री ({{thinContentWords}} शब्दों से कम)',
   'Near-Duplicate Content': 'निकट-प्रतिलिपि सामग्री',
   'Duplicate Content (exact)': 'प्रतिलिपि सामग्री (पूर्णतः समान)',
-  'Low Text/Code Ratio (<10%)': 'पाठ/कोड अनुपात कम (<10%)',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': 'पाठ/कोड अनुपात कम (<{{textCodeRatioMinPercent}}%)',
   'Hard to Read (Flesch <30)': 'पढ़ना कठिन (Flesch <30)',
   'Gunning Fog >17': 'Gunning Fog >17',
   'Lang Attribute Missing': 'lang विशेषता नहीं',

@@ -199,7 +199,7 @@ export const RU_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': 'Скудный контент (<{{thinContentWords}} слов)',
   'Near-Duplicate Content': 'Почти дублирующийся контент',
   'Duplicate Content (exact)': 'Дублирующийся контент (точно)',
-  'Low Text/Code Ratio (<10%)': 'Низкое отношение текста к коду (<10 %)',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': 'Низкое отношение текста к коду (<{{textCodeRatioMinPercent}} %)',
   'Hard to Read (Flesch <30)': 'Трудно читается (Флеш <30)',
   'Gunning Fog >17': 'Gunning Fog >17',
   'Lang Attribute Missing': 'Нет атрибута lang',

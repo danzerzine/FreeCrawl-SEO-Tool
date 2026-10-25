@@ -21,6 +21,8 @@ export interface SeoThresholds {
   descriptionMaxPx: number;
   /** Pages with fewer words than this are thin content. */
   thinContentWords: number;
+  /** Pages whose visible text is under this share of the HTML (percent) are flagged Low Text/Code Ratio. */
+  textCodeRatioMinPercent: number;
 }
 
 export const DEFAULT_SEO_THRESHOLDS: Readonly<SeoThresholds> = Object.freeze({
@@ -33,6 +35,7 @@ export const DEFAULT_SEO_THRESHOLDS: Readonly<SeoThresholds> = Object.freeze({
   descriptionMinPx: 400,
   descriptionMaxPx: 990,
   thinContentWords: 200,
+  textCodeRatioMinPercent: 10,
 });
 
 /** The checks each threshold feeds; compare uses it to name what a changed threshold affects. */
@@ -46,6 +49,7 @@ export const SEO_THRESHOLD_CHECKS: Readonly<Record<keyof SeoThresholds, readonly
   descriptionMinPx: ['issues:meta-pixel-width-too-short'],
   descriptionMaxPx: ['issues:meta-pixel-width-too-long'],
   thinContentWords: ['issues:content-thin'],
+  textCodeRatioMinPercent: ['issues:text-code-ratio-low'],
 };
 
 /** Every key filled: a missing, negative or non-numeric value falls back to its default. */

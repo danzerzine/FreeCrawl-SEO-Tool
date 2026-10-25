@@ -1212,7 +1212,8 @@
       "descriptionMaxChars": "Описание: больше символов, чем",
       "descriptionMinPx": "Описание: уже, px",
       "descriptionMaxPx": "Описание: шире, px",
-      "thinContentWords": "Мало текста: меньше слов, чем"
+      "thinContentWords": "Мало текста: меньше слов, чем",
+      "textCodeRatioMinPercent": "Мало текста относительно кода: ниже, %"
     }
   },
   "compare": {

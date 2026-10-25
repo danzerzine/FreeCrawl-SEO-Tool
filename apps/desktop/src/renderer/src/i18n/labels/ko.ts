@@ -199,7 +199,7 @@ export const KO_LABELS: Record<string, string> = {
   'Thin Content (<{{thinContentWords}} words)': '내용 부족({{thinContentWords}}단어 미만)',
   'Near-Duplicate Content': '유사 중복 콘텐츠',
   'Duplicate Content (exact)': '중복 콘텐츠(완전 일치)',
-  'Low Text/Code Ratio (<10%)': '텍스트/코드 비율 낮음(10% 미만)',
+  'Low Text/Code Ratio (<{{textCodeRatioMinPercent}}%)': '텍스트/코드 비율 낮음({{textCodeRatioMinPercent}}% 미만)',
   'Hard to Read (Flesch <30)': '읽기 어려움(Flesch 30 미만)',
   'Gunning Fog >17': 'Gunning Fog 17 초과',
   'Lang Attribute Missing': 'lang 속성 없음',
