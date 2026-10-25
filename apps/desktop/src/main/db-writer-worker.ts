@@ -149,6 +149,7 @@ const ALLOWED_METHODS = new Set<string>([
   'replaceMetricaResults',
   'appendCrawlRun',
   'recordCrawlRun',
+  'finishSchemaTypesCrawl',
 ]);
 
 parentPort.on('message', async (msg: RequestMessage) => {

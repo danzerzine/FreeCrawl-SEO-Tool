@@ -11157,22 +11157,35 @@ export class ProjectDb {
 
   /**
    * Records, at crawl start, what the crawl does to the stored types (B108).
-   * A crawl that re-fetches everything (fresh, refresh) stores them and ends
-   * any partial state. A continued crawl of a project that stored them keeps
-   * that; one of a project that did not re-fetches only some pages, so the
-   * project is marked partly stored and stays so until a full crawl. The
-   * fallback in `schemaTypesStored` is read here, before this crawl's pages
-   * can make it true.
+   * A crawl that re-fetches everything (fresh, refresh) stores them; on a
+   * project that did not, the pages not yet re-fetched stay empty, so it is
+   * marked partly stored until `finishSchemaTypesCrawl` (B108b): a refresh
+   * stopped halfway must not claim the whole project. A continued crawl of
+   * a project that stored them keeps that; one of a project that did not
+   * re-fetches only some pages, so the project is marked partly stored and
+   * stays so until a full crawl. The fallback in `schemaTypesStored` is read
+   * here, before this crawl's pages can make it true.
    */
   beginSchemaTypesCrawl(continued: boolean): void {
     if (!continued) {
-      this.setMeta(SCHEMA_TYPES_PARTIAL_META_KEY, '');
-      this.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
+      const empty = this.db.prepare('SELECT 1 FROM urls LIMIT 1').get() === undefined;
+      if (empty) {
+        this.setMeta(SCHEMA_TYPES_PARTIAL_META_KEY, '');
+        this.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
+      } else if (!this.schemaTypesStored()) {
+        this.setMeta(SCHEMA_TYPES_PARTIAL_META_KEY, '1');
+      }
     } else if (!this.schemaTypesStored()) {
       this.setMeta(SCHEMA_TYPES_PARTIAL_META_KEY, '1');
     } else if (this.getMeta(SCHEMA_TYPES_STORED_META_KEY) !== '1') {
       this.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
     }
+  }
+
+  /** A fresh crawl or a refresh ran to the end: every page now carries its stored types (B108b). */
+  finishSchemaTypesCrawl(): void {
+    this.setMeta(SCHEMA_TYPES_PARTIAL_META_KEY, '');
+    this.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
   }
 
   /** The `LATER_CHECKS` this project's crawls filled; empty for a project made before them. */

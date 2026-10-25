@@ -114,8 +114,11 @@ describe('compareCrawls: an old project continued by a later crawl (B108)', () =
     expect(cont.schemaTypesStored()).toBe(false);
     s = compareCrawls(old, cont);
     expect(s.counts.structured_data).toBe(0);
-    // A fresh crawl or refresh re-fetches everything: comparable again.
+    // A fresh crawl or refresh re-fetches everything: comparable again once
+    // it has run to the end (B108b), not while it runs.
     cont.beginSchemaTypesCrawl(false);
+    expect(cont.schemaTypesStored()).toBe(false);
+    cont.finishSchemaTypesCrawl();
     expect(cont.schemaTypesStored()).toBe(true);
     const base = project('base', [{ id: 1, url: U('a') }], STORED);
     s = compareCrawls(base, cont);
@@ -125,6 +128,7 @@ describe('compareCrawls: an old project continued by a later crawl (B108)', () =
   it('a continued crawl of a project that stored it keeps it stored', () => {
     const db = project('stored', [{ id: 1, url: U('a') }]);
     db.beginSchemaTypesCrawl(false);
+    db.finishSchemaTypesCrawl();
     db.beginSchemaTypesCrawl(true);
     expect(db.schemaTypesStored()).toBe(true);
   });

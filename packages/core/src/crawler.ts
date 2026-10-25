@@ -711,6 +711,8 @@ export class Crawler extends EventEmitter {
     return this.incompleteReason;
   }
   private incompleteReason: IncompleteReason | null = null;
+  /** This crawl is a fresh one or a refresh: run to the end, it re-fetched every page (B108b). */
+  private refetchesAll = false;
   /** True while a crawl that was not stopped runs its end-of-crawl passes. */
   get finishingRun(): boolean {
     return this.finishing && !this.stopped;
@@ -1567,6 +1569,7 @@ export class Crawler extends EventEmitter {
     // Pages of a project older than the column keep it empty; a crawl that
     // continues such a project must not claim the whole project stored it (B108).
     this.db.beginSchemaTypesCrawl(continued);
+    this.refetchesAll = !continued;
     // A continued crawl keeps the AMP answers its earlier part got and
     // does not ask again; any other crawl probes afresh (B24).
     if (continued) for (const t of this.db.listAmpTargets()) this.ampSeen.add(t.url);
@@ -1889,6 +1892,15 @@ export class Crawler extends EventEmitter {
         this.db.clearQueueCheckpoint();
       } catch {
         /* checkpoint table may not yet exist on very old DBs — ignore */
+      }
+      // A refresh stopped halfway, or cut at the page limit, left pages its
+      // older crawl wrote without structured data (B108b).
+      if (this.refetchesAll && !this.pageLimitHit && this.incompleteReason === null) {
+        try {
+          await this.dbCall<void>('finishSchemaTypesCrawl', []);
+        } catch (err) {
+          this.emit('warn', `Structured-data state not saved: ${(err as Error).message}`);
+        }
       }
       // Before 'done', so a listener reacting to the finish (alerts,
       // trends) already sees this crawl in the history.
