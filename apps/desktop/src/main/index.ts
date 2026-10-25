@@ -58,6 +58,8 @@ import {
   type McpToolsListResult,
   type ConfirmClearResult,
   type CrawlConfig,
+  type DuplicatesRecomputeInput,
+  type DuplicatesRecomputeResult,
   type CrawlProgress,
   type CrawlSummary,
   type ExportCsvInput,
@@ -369,6 +371,7 @@ import {
   type CompareSummary,
   type LogAnalysisResult,
   type LogExportTables,
+  recomputeDuplicateGroups,
 } from '@freecrawl/core';
 import { fetch as undiciFetch } from 'undici';
 import { apiFetch } from './api-fetch.js';
@@ -10424,6 +10427,34 @@ function registerIpc(): void {
 
   registerHandle(IPC.duplicateClustersCount, () =>
     getDb().countDuplicateClusterMembers(),
+  );
+
+  registerHandle(
+    IPC.duplicatesRecompute,
+    async (_e, input: DuplicatesRecomputeInput): Promise<DuplicatesRecomputeResult> => {
+      const sess = currentSession();
+      if (sess.activeCrawler?.isRunning) {
+        return { ok: false, clusters: 0, clusteredUrls: 0, error: 'A crawl is running: wait for it to finish.' };
+      }
+      const threshold = input.nearDuplicateHammingThreshold;
+      const similarity = input.nearDuplicateSimilarity ?? 0;
+      if ((!threshold || threshold <= 0) && similarity <= 0) {
+        return { ok: true, clusters: 0, clusteredUrls: 0, error: null };
+      }
+      const args = [threshold > 0 ? threshold : -1, input.duplicatesOnlyIndexable, similarity];
+      try {
+        // The maintenance worker, so the window stays responsive on a big project.
+        const pool = sess.maintenancePool.isReady() ? sess.maintenancePool : sess.writerPool;
+        const res = pool.isReady()
+          ? await pool.call<{ clusters: number; clusteredUrls: number }>('recomputeDuplicateClusters', args)
+          : recomputeDuplicateGroups(sess.getDb(), input as CrawlConfig);
+        sess.dirty = true;
+        fireDataChanged(sess);
+        return { ok: true, clusters: res?.clusters ?? 0, clusteredUrls: res?.clusteredUrls ?? 0, error: null };
+      } catch (err) {
+        return { ok: false, clusters: 0, clusteredUrls: 0, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
   );
 
   registerHandle(

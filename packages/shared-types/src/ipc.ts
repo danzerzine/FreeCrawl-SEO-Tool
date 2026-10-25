@@ -10,6 +10,8 @@ import type {
   CrawlUrlRow,
   DuplicateClusterRow,
   DuplicateClustersListInput,
+  DuplicatesRecomputeInput,
+  DuplicatesRecomputeResult,
   CustomExtractionRule,
   ExtractionPreviewInput,
   ExtractionPreviewResult,
@@ -295,6 +297,7 @@ export const IPC = {
   /** Faz 7 — total cluster-member row count, used by the grouped view to
    *  stop scrolling once every member has been fetched. */
   duplicateClustersCount: 'duplicates:clusters-count',
+  duplicatesRecompute: 'duplicates:recompute',
   /** Faz 11 — live preview of custom extraction rules against a single
    *  URL. Backs the "Preview" button in Settings → Custom Extraction so
    *  users can validate selectors / regex without committing to a full
@@ -2569,6 +2572,9 @@ export interface FreeCrawlApi {
   duplicateClustersList(input: DuplicateClustersListInput): Promise<DuplicateClusterRow[]>;
   /** Total cluster-member row count (cluster_id > 0). */
   duplicateClustersCount(): Promise<number>;
+  /** Rebuilds the near-duplicate groups of the open project from its stored fingerprints, so a project
+   *  crawled by an older build gets a representative page in every group (B104). */
+  duplicatesRecompute(input: DuplicatesRecomputeInput): Promise<DuplicatesRecomputeResult>;
   /** Faz 11 — fetch the URL once, parse HTML, run every supplied rule
    *  against it and return the per-rule results so the user can spot
    *  broken selectors / regex before committing to a full crawl. */

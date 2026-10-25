@@ -41,6 +41,42 @@ export function DuplicatesGroupedView() {
   const setSelectedUrlId = useAppStore((s) => s.setSelectedUrlId);
   const setSelectedUrlIds = useAppStore((s) => s.setSelectedUrlIds);
   const dataVersion = useAppStore((s) => s.dataVersion);
+  const config = useAppStore((s) => s.config);
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeError, setRecomputeError] = useState<string | null>(null);
+
+  /** Regroups the open project with the current duplicate settings; fills the representative of groups from an older build (B104). */
+  const recompute = async (): Promise<void> => {
+    setRecomputing(true);
+    setRecomputeError(null);
+    try {
+      const res = await window.freecrawl.duplicatesRecompute({
+        nearDuplicateHammingThreshold: config.nearDuplicateHammingThreshold,
+        nearDuplicateSimilarity: config.nearDuplicateSimilarity,
+        duplicatesOnlyIndexable: config.duplicatesOnlyIndexable,
+      });
+      if (!res.ok) setRecomputeError(res.error);
+    } catch (e) {
+      setRecomputeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRecomputing(false);
+    }
+  };
+  const recomputeButton = (
+    <button
+      type="button"
+      disabled={recomputing}
+      onClick={() => void recompute()}
+      title={t('duplicates.recomputeTitle', {
+        defaultValue: 'Group the pages again with the current Duplicates settings; also gives every group of a project from an older version its representative page',
+      })}
+      className="rounded border border-surface-700 px-1.5 py-0.5 text-[10px] text-surface-300 hover:bg-surface-800 disabled:opacity-50"
+    >
+      {recomputing
+        ? t('duplicates.recomputing', { defaultValue: 'Recalculating…' })
+        : t('duplicates.recompute', { defaultValue: 'Recalculate duplicates' })}
+    </button>
+  );
 
   const [rows, setRows] = useState<DuplicateClusterRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -184,12 +220,14 @@ export function DuplicatesGroupedView() {
           <div className="mb-1 text-sm font-semibold text-surface-300">
             {t('duplicates.noClustersTitle', { defaultValue: 'No near-duplicate clusters' })}
           </div>
-          <div>
+          <div className="mb-2">
             {t('duplicates.noClustersHint', {
               defaultValue:
                 'Run a crawl and let post-crawl analysis finish — clusters appear once two or more pages are near-duplicates of a representative page (Settings → Duplicates).',
             })}
           </div>
+          {recomputeButton}
+          {recomputeError && <div className="mt-1 text-red-400">{recomputeError}</div>}
         </div>
       </div>
     );
@@ -217,6 +255,8 @@ export function DuplicatesGroupedView() {
           </span>
         )}
         <div className="ml-auto flex items-center gap-1">
+          {recomputeError && <span className="mr-1 text-red-400">{recomputeError}</span>}
+          {recomputeButton}
           <button
             type="button"
             onClick={expandAll}

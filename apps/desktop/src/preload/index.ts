@@ -79,6 +79,8 @@ import {
   type UrlClusterMember,
   type DuplicateClusterRow,
   type DuplicateClustersListInput,
+  type DuplicatesRecomputeInput,
+  type DuplicatesRecomputeResult,
   type PagesPerDirectoryInput,
   type PagesPerDirectoryRow,
   type StatusCodeHistogramRow,
@@ -430,6 +432,8 @@ const api: FreeCrawlApi = {
     ipcRenderer.invoke(IPC.duplicateClustersList, input),
   duplicateClustersCount: (): Promise<number> =>
     ipcRenderer.invoke(IPC.duplicateClustersCount),
+  duplicatesRecompute: (input: DuplicatesRecomputeInput): Promise<DuplicatesRecomputeResult> =>
+    ipcRenderer.invoke(IPC.duplicatesRecompute, input),
   reportsPagesPerDirectory: (
     input: PagesPerDirectoryInput,
   ): Promise<PagesPerDirectoryRow[]> => ipcRenderer.invoke(IPC.reportsPagesPerDirectory, input),

@@ -934,6 +934,21 @@ export interface DuplicateClustersListInput {
   limit: number;
 }
 
+/** Input for {@link FreeCrawlApi.duplicatesRecompute}: the duplicate settings to group with. */
+export type DuplicatesRecomputeInput = Pick<
+  CrawlConfig,
+  'nearDuplicateHammingThreshold' | 'nearDuplicateSimilarity' | 'duplicatesOnlyIndexable'
+>;
+
+/** Outcome of {@link FreeCrawlApi.duplicatesRecompute}. */
+export interface DuplicatesRecomputeResult {
+  ok: boolean;
+  /** Groups found; 0 when the settings turn grouping off or the project has none. */
+  clusters: number;
+  clusteredUrls: number;
+  error: string | null;
+}
+
 export interface CrawlConfig {
   mode: CrawlMode;
   /** When `mode === 'list'`, URLs to fetch (one per entry). Ignored in spider mode. */

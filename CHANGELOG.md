@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Duplicates tab: a "Recalculate duplicates" button, and the CLI command `freecrawl recompute-duplicates`, group the pages of a project again and give every group its representative page, so a project crawled by an older version no longer needs a new crawl.
 - The full pages export (CSV, XML, XLSX, bulk files) gains ten Yes/No columns for the newer page signals (hreflang, title, description and meta robots outside head, OG tag with name=, internal UTM links, noindex for other engines, pagination loop, hreflang on a non-canonical page, noindex alternate), blank where a project's crawl never ran the check. A separate `page-signals.csv` (bulk, CLI `dataset:page-signals`) lists one row per page and signal, including eight derived checks.
 
 ### Fixed

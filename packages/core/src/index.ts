@@ -30,6 +30,7 @@ export {
   type AxeSample,
 } from './axe-reduce.js';
 export { runMobilePass, type MobilePassResult } from './render-mobile-pass.js';
+export { recomputeDuplicateGroups, type DuplicateRecomputeResult } from './duplicates-recompute.js';
 export {
   browserPoolOptionsFromConfig,
   createRenderHook,

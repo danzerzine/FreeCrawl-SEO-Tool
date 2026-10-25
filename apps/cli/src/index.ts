@@ -78,6 +78,7 @@ import {
   type PdfCrawlConfig,
   type LogAnalysisResult,
   type StartDecision,
+  recomputeDuplicateGroups,
 } from '@freecrawl/core';
 import {
   ProjectDb,
@@ -128,6 +129,9 @@ Usage:
   freecrawl analyze-logs <access.log> [more.log …] [--project file]
                                                   Parse one or more server access logs (Apache / Nginx / IIS / custom), detect bots,
                                                   and merge the aggregates into a project for crawl × log analysis
+  freecrawl recompute-duplicates [--project file] [--json]
+                                                  Group the near-duplicate pages of a saved project again (default settings) and give
+                                                  every group its representative page; for projects crawled by an older version
   freecrawl metrica-counters [--json]             List the Yandex Metrica counters the token can read
   freecrawl metrica-fetch --counter <id> [--days 7|28|90] [--project file] [--config file]
                                                   Pull per-page Yandex Metrica data (pageviews, visits, users,
@@ -624,6 +628,12 @@ async function main(): Promise<void> {
       },
     );
     process.exit(exitCode);
+  }
+  if (positionals[0] === 'recompute-duplicates') {
+    exitOnInterrupt();
+    process.exit(
+      await runRecomputeDuplicates(resolve(values.project ?? values.db ?? 'crawl.seoproject'), Boolean(values.json)),
+    );
   }
   if (positionals[0] === 'metrica-counters') {
     process.exit(await runMetricaCounters(Boolean(values.json)));
@@ -1939,6 +1949,37 @@ async function runAnalyzeLogs(
     return 0;
   } catch (err) {
     console.error(`analyze-logs failed: ${(err as Error).message}`);
+    return 2;
+  } finally {
+    project.dispose();
+  }
+}
+
+async function runRecomputeDuplicates(projectPath: string, json: boolean): Promise<number> {
+  let project: OpenedProject;
+  try {
+    project = await openProject(projectPath, { createIfMissing: false, forWrite: true, cleanups: pendingCleanups });
+  } catch (err) {
+    const error = `Cannot open project ${projectPath}: ${(err as Error).message}`;
+    if (json) process.stdout.write(JSON.stringify({ ok: false, error }, null, 2) + '\n');
+    else console.error(error);
+    return 2;
+  }
+  try {
+    const res = recomputeDuplicateGroups(project.db, DEFAULT_CRAWL_CONFIG);
+    await project.save();
+    if (json) {
+      process.stdout.write(
+        JSON.stringify({ ok: true, clusters: res?.clusters ?? 0, clusteredUrls: res?.clusteredUrls ?? 0 }, null, 2) + '\n',
+      );
+    } else {
+      console.log(`Duplicates: ${res?.clusters ?? 0} groups across ${res?.clusteredUrls ?? 0} URLs.`);
+    }
+    return 0;
+  } catch (err) {
+    const error = `recompute-duplicates failed: ${(err as Error).message}`;
+    if (json) process.stdout.write(JSON.stringify({ ok: false, error }, null, 2) + '\n');
+    else console.error(error);
     return 2;
   } finally {
     project.dispose();
