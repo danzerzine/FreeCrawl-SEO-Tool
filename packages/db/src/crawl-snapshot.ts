@@ -16,7 +16,7 @@ import type { ProjectDb } from './project-db.js';
  * turned off.
  */
 export function buildCrawlSnapshot(
-  db: Pick<ProjectDb, 'getSummary' | 'getOverviewCounts' | 'getDisabledIssues'>,
+  db: Pick<ProjectDb, 'getSummary' | 'getOverviewCounts' | 'getDisabledIssues' | 'unrenderedPageCount'>,
   opts: { disabledChecks?: readonly string[] } = {},
 ): CrawlSnapshot {
   // `site` (soft-404 probe, bot-block sample) is a finding, not a count.
@@ -30,5 +30,6 @@ export function buildCrawlSnapshot(
       ...db.getDisabledIssues(),
       ...(opts.disabledChecks ?? []),
     ]),
+    unrenderedPages: db.unrenderedPageCount(),
   };
 }

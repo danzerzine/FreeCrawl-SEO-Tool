@@ -151,7 +151,9 @@ export async function exportIssuesSummary(
   const trend = issueTrend(db)?.checks ?? {};
   const rows = issueSummaryCounts(db).map((r) => {
     const t = trend[r.category];
-    return [r.category, r.label, r.group, r.severity, r.urls, r.items, t?.previous ?? null, t?.change ?? null];
+    // A render check's change over a partly rendered crawl is not the site's (B162b).
+    const change = t?.incomplete ? 'incomplete' : (t?.change ?? null);
+    return [r.category, r.label, r.group, r.severity, r.urls, r.items, t?.previous ?? null, change];
   });
   return writeExportFile(filePath, async (partPath) => {
     const head =

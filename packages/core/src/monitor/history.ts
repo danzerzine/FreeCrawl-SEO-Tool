@@ -5,7 +5,8 @@
  * `lastStartUrl`, which can differ (redirect, missing slash).
  */
 import type { ProjectDb } from '@freecrawl/db';
-import type { CrawlRun, IssueTrend, MonitorHistoryRow } from '@freecrawl/shared-types';
+import type { CrawlRun, IssueTrend, MonitorHistoryRow, UrlCategory } from '@freecrawl/shared-types';
+import { RENDER_DEPENDENT_CHECKS } from '../compare.js';
 import { assertMetric, listMetrics, metricValue } from './snapshot.js';
 
 type HistoryDb = Pick<ProjectDb, 'latestCrawlRunStartUrl' | 'listCrawlRuns'>;
@@ -30,18 +31,27 @@ export function latestAndPrevious(db: HistoryDb): LatestCrawls | null {
 /**
  * Every check's count in the newest crawl against the previous one of the
  * same start URL; null with fewer than two crawls. A check null in either
- * snapshot (off, or absent from an older build) is left out.
+ * snapshot (off, or absent from an older build) is left out. When the
+ * browser left pages of either crawl unrendered, a check that needs it is
+ * marked incomplete: its drop is lost pages, not fixed ones (B162b).
  */
 export function issueTrend(db: HistoryDb): IssueTrend | null {
   const pair = latestAndPrevious(db);
   if (!pair?.previous) return null;
   const { current, previous } = pair;
   const checks: IssueTrend['checks'] = {};
+  const partlyRendered =
+    (previous.snapshot.unrenderedPages ?? 0) > 0 || (current.snapshot.unrenderedPages ?? 0) > 0;
   for (const m of listMetrics()) {
     if (!m.startsWith('issues:')) continue;
     const before = metricValue(previous.snapshot, m);
     const after = metricValue(current.snapshot, m);
-    if (before !== null && after !== null) checks[m] = { previous: before, change: after - before };
+    if (before === null || after === null) continue;
+    checks[m] = {
+      previous: before,
+      change: after - before,
+      ...(partlyRendered && RENDER_DEPENDENT_CHECKS.has(m as UrlCategory) ? { incomplete: true as const } : {}),
+    };
   }
   return {
     previousFinishedAt: previous.finishedAt,

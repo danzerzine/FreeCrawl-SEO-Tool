@@ -11188,6 +11188,30 @@ export class ProjectDb {
     this.setMeta(SCHEMA_TYPES_STORED_META_KEY, '1');
   }
 
+  /**
+   * Internal 2xx HTML pages without a render verdict, when the project's
+   * crawl rendered with the browser (B162b): pages the browser left
+   * unrendered. Null when the crawl did not render, or the file predates
+   * the render columns.
+   */
+  unrenderedPageCount(): number | null {
+    const filled = this.checksFilled();
+    if (!RENDER_CHECKS.some((k) => filled.has(k))) return null;
+    try {
+      const row = this.db
+        .prepare(
+          `SELECT COUNT(*) AS c FROM urls
+            WHERE is_external = 0 AND content_kind = 'html' AND status_code BETWEEN 200 AND 299
+              AND js_h1_changed IS NULL AND js_canonical_changed IS NULL AND js_links_changed IS NULL
+              AND js_text_changed IS NULL AND render_diff IS NULL`,
+        )
+        .get() as { c: number };
+      return row.c;
+    } catch {
+      return null;
+    }
+  }
+
   /** The `LATER_CHECKS` this project's crawls filled; empty for a project made before them. */
   checksFilled(): Set<string> {
     try {

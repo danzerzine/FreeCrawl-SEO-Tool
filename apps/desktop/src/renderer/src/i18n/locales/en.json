@@ -22,6 +22,8 @@
     "notCheckedHint": "This project's crawl did not run this check: an older FreeCrawl version made it, or the option the check needs was off. Crawl again to count it.",
     "trendPrevious": "Previous crawl, {{date}}: {{previous}}",
     "trendVersion": "The two crawls ran on different FreeCrawl versions, so the change may come from the check, not the site.",
+    "trendIncomplete": "incomplete",
+    "trendIncompleteHint": "The browser did not render every page in one of the two crawls, so the change of this check is not comparable.",
     "notComputedHint": "Inlinks have not been computed yet, so orphan pages cannot be counted. They are computed at the end of a crawl that has \"Recompute inlinks\" on.",
     "byTargetPages": "Link targets: {{targets}} · linking pages: {{sources}}. The list shows the linking pages.",
     "byTargetLinks": "Link targets: {{targets}} · links to them: {{sources}}. The list shows the links.",

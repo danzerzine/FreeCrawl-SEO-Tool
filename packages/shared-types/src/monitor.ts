@@ -13,6 +13,13 @@ export interface CrawlSnapshot {
   /** `issues:*` categories silenced for this crawl; their metrics read as not computed. */
   disabledChecks: UrlCategory[];
   /**
+   * Internal 2xx HTML pages a crawl that rendered with the browser left
+   * unrendered (the browser pool died, a render failed): its render checks
+   * counted only part of the site (B162b). Null for a crawl that did not
+   * render; absent in older snapshots.
+   */
+  unrenderedPages?: number | null;
+  /**
    * The crawled site, as the history row holds it. Only in a file written by
    * `check --write-snapshot`, so `--baseline` can refuse another site's;
    * older files lack it.
@@ -43,6 +50,11 @@ export interface CrawlRun {
 export interface CheckTrend {
   previous: number;
   change: number;
+  /**
+   * A check that needs the browser, and the browser left pages of one of the
+   * two crawls unrendered: the change is not the site's (B162b).
+   */
+  incomplete?: true;
 }
 
 /**

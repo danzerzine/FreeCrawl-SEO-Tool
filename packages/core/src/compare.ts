@@ -459,6 +459,11 @@ const KIND_CHECKS: ReadonlySet<UrlCategory> = new Set<UrlCategory>([
   'issues:noindex-js-injected',
   'issues:title-changed-by-js',
 ]);
+/** Checks whose count needs the browser to have rendered the page (B162b). */
+export const RENDER_DEPENDENT_CHECKS: ReadonlySet<UrlCategory> = new Set<UrlCategory>([
+  ...VERDICT_CHECKS.map((c) => c.key),
+  ...KIND_CHECKS,
+]);
 const RENDERED_SQL =
   '(js_h1_changed IS NOT NULL OR js_canonical_changed IS NOT NULL OR js_links_changed IS NOT NULL OR js_text_changed IS NOT NULL OR render_diff IS NOT NULL)';
 const RENDERED_COLUMNS = [

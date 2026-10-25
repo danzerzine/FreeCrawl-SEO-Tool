@@ -300,6 +300,18 @@ export function OverviewSidebar() {
         previous: previous.toLocaleString(),
       }) + version;
   }, [trend, lang, t]);
+  // The browser left pages of one of the two crawls unrendered: a render
+  // check's drop is lost pages, not fixed ones (B162b).
+  const trendIncomplete = useMemo(
+    () => ({
+      label: t('sidebar.trendIncomplete', { defaultValue: 'incomplete' }),
+      hint: t('sidebar.trendIncompleteHint', {
+        defaultValue:
+          'The browser did not render every page in one of the two crawls, so the change of this check is not comparable.',
+      }),
+    }),
+    [t],
+  );
   const offLabel = t('sidebar.checkOff', { defaultValue: 'Off' });
   const notComputedLabel = t('sidebar.notComputed', { defaultValue: 'Not computed' });
   const notComputedHint = t('sidebar.notComputedHint', {
@@ -536,6 +548,7 @@ export function OverviewSidebar() {
               notComputedLabel={notComputedLabel}
               notComputedHint={notComputedHint}
               trendHint={trendHint}
+              trendIncomplete={trendIncomplete}
             />
           ))}
         </div>
@@ -558,6 +571,7 @@ const TreeNode = memo(function TreeNode({
   notComputedLabel,
   notComputedHint,
   trendHint,
+  trendIncomplete,
 }: {
   node: Node;
   depth: number;
@@ -572,6 +586,7 @@ const TreeNode = memo(function TreeNode({
   notComputedLabel: string;
   notComputedHint: string;
   trendHint: (previous: number) => string;
+  trendIncomplete: { label: string; hint: string };
 }) {
   const isExpanded = expanded.has(node.key);
   const isActive = node.category && node.category === activeCategory;
@@ -617,7 +632,15 @@ const TreeNode = memo(function TreeNode({
             {notComputedLabel}
           </span>
         )}
-        {!node.off && node.count != null && node.trend && node.trend.change !== 0 && (
+        {!node.off && node.count != null && node.trend?.incomplete && node.trend.change !== 0 && (
+          <span
+            className="mr-1 shrink-0 font-mono italic text-surface-500"
+            title={`${trendIncomplete.hint} ${trendHint(node.trend.previous)}`}
+          >
+            {trendIncomplete.label}
+          </span>
+        )}
+        {!node.off && node.count != null && node.trend && !node.trend.incomplete && node.trend.change !== 0 && (
           <span
             className="mr-1 shrink-0 font-mono tabular-nums text-surface-400"
             title={trendHint(node.trend.previous)}
@@ -660,6 +683,7 @@ const TreeNode = memo(function TreeNode({
             notComputedLabel={notComputedLabel}
             notComputedHint={notComputedHint}
             trendHint={trendHint}
+            trendIncomplete={trendIncomplete}
           />
         ))}
     </>
