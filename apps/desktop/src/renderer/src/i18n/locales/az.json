@@ -2582,9 +2582,10 @@
   "googleExport": {
     "titleSheets": "Google Sheets-ə ixrac et",
     "titleBigquery": "BigQuery-yə ixrac et",
-    "tableLabel": "İxrac ediləcək cədvəl",
+    "tablesLabel": "İxrac ediləcək cədvəllər (hər biri ayrıca vərəqdə və ya cədvəldə)",
     "dataset": {
       "urls": "Cari tabdakı səhifələr",
+      "links": "Bütün keçidlər (daxili və xarici)",
       "issues-long": "Problemlər (hər səhifə və problem üçün bir sətir)",
       "broken-links": "Sınıq keçidlər",
       "images": "Təsvirlər",
@@ -2594,7 +2595,8 @@
     },
     "truncated": "{{total}} sətirdən {{rows}} sətir ixrac edildi (Google Sheets ən çox 10 milyon xana tutur).",
     "empty": "İxrac ediləcək heç nə yoxdur: bu cədvəldə sətir yoxdur.",
-    "rejected": "BigQuery-nin rədd etdiyi sətirlər: {{rejectedCount}}. İlk xəta: {{error}}"
+    "rejected": "BigQuery-nin rədd etdiyi sətirlər: {{rejectedCount}}. İlk xəta: {{error}}",
+    "tableRows": "{{table}}: {{rows}} sətir"
   },
   "gscBq": {
     "title": "BigQuery-dən yüklə",

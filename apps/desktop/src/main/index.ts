@@ -7656,11 +7656,12 @@ function registerIpc(): void {
     IPC.exportSheets,
     async (_e, input: ExportSheetsInput): Promise<ExportSheetsResult> => {
       try {
-        const dataset = input.dataset ?? 'urls';
+        const datasets = input.datasets?.length ? input.datasets : [input.dataset ?? 'urls'];
+        const dataset = datasets[0]!;
         const title =
           input.title?.trim() ||
-          `FreeCrawl — ${dataset === 'urls' ? input.category : dataset} — ${new Date().toISOString().slice(0, 10)}`;
-        const result = await exportCategoryToSheets(getDb(), input.category, title, { dataset });
+          `FreeCrawl — ${datasets.length > 1 || dataset === 'urls' ? input.category : dataset} — ${new Date().toISOString().slice(0, 10)}`;
+        const result = await exportCategoryToSheets(getDb(), input.category, title, { datasets });
         return {
           // Nothing to export creates no spreadsheet, so there is no link to show.
           ok: result.totalRows > 0,
@@ -7671,6 +7672,7 @@ function registerIpc(): void {
           totalRows: result.totalRows,
           truncated: result.truncated,
           dataset,
+          tables: result.tables,
         };
       } catch (err) {
         return {
@@ -7680,7 +7682,7 @@ function registerIpc(): void {
           rowsWritten: 0,
           totalRows: 0,
           truncated: false,
-          dataset: input.dataset ?? 'urls',
+          dataset: input.datasets?.[0] ?? input.dataset ?? 'urls',
         };
       }
     },
@@ -7719,6 +7721,7 @@ function registerIpc(): void {
       try {
         const result = await exportCategoryToBigQuery(getDb(), input.category, {
           dataset: input.dataset,
+          datasets: input.datasets,
         });
         const empty = result.tableRef === '';
         return {
@@ -7731,6 +7734,7 @@ function registerIpc(): void {
           rowsRejected: result.rowsRejected,
           firstRejectionError: result.firstRejectionError,
           dataset: result.dataset,
+          tables: result.tables,
         };
       } catch (err) {
         return {
@@ -7741,7 +7745,7 @@ function registerIpc(): void {
           rowsWritten: 0,
           rowsRejected: 0,
           firstRejectionError: null,
-          dataset: input.dataset ?? 'urls',
+          dataset: input.datasets?.[0] ?? input.dataset ?? 'urls',
         };
       }
     },

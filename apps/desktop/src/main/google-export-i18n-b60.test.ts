@@ -22,8 +22,8 @@ describe('Google export dialog labels (B60)', () => {
   it('English holds the keys the dialog and the result messages use', () => {
     expect(Object.keys(en).sort()).toEqual(
       [
-        'titleSheets', 'titleBigquery', 'tableLabel', 'truncated', 'empty', 'rejected',
-        'dataset.urls', 'dataset.issues-long', 'dataset.broken-links', 'dataset.images',
+        'titleSheets', 'titleBigquery', 'tablesLabel', 'truncated', 'empty', 'rejected', 'tableRows',
+        'dataset.urls', 'dataset.links', 'dataset.issues-long', 'dataset.broken-links', 'dataset.images',
         'dataset.sitemap-urls', 'dataset.response-headers', 'dataset.crawl-queue',
       ].sort(),
     );
@@ -35,6 +35,6 @@ describe('Google export dialog labels (B60)', () => {
       expect(v.trim(), k).not.toBe('');
       expect(v.match(/{{\w+}}/g)?.sort(), k).toEqual(en[k]!.match(/{{\w+}}/g)?.sort());
     }
-    expect(loc['tableLabel']).not.toBe(en['tableLabel']);
+    expect(loc['tablesLabel']).not.toBe(en['tablesLabel']);
   });
 });

@@ -2536,9 +2536,10 @@
   "googleExport": {
     "titleSheets": "Google Sheets로 내보내기",
     "titleBigquery": "BigQuery로 내보내기",
-    "tableLabel": "내보낼 표",
+    "tablesLabel": "내보낼 표 (각각 별도의 탭 또는 테이블)",
     "dataset": {
       "urls": "현재 탭의 페이지",
+      "links": "모든 링크 (내부 및 외부)",
       "issues-long": "문제 (페이지와 문제마다 한 행)",
       "broken-links": "끊어진 링크",
       "images": "이미지",
@@ -2548,7 +2549,8 @@
     },
     "truncated": "전체 {{total}}행 중 {{rows}}행을 내보냈습니다 (Google Sheets는 셀을 최대 1,000만 개까지 담을 수 있습니다).",
     "empty": "내보낼 내용이 없습니다. 이 표에 행이 없습니다.",
-    "rejected": "BigQuery가 거부한 행: {{rejectedCount}}개. 첫 번째 오류: {{error}}"
+    "rejected": "BigQuery가 거부한 행: {{rejectedCount}}개. 첫 번째 오류: {{error}}",
+    "tableRows": "{{table}}: {{rows}}행"
   },
   "gscBq": {
     "title": "BigQuery에서 가져오기",

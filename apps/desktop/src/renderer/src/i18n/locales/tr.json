@@ -2582,9 +2582,10 @@
   "googleExport": {
     "titleSheets": "Google Sheets'e Aktar",
     "titleBigquery": "BigQuery'ye Aktar",
-    "tableLabel": "Dışa aktarılacak tablo",
+    "tablesLabel": "Dışa aktarılacak tablolar (her biri kendi sekmesinde veya tablosunda)",
     "dataset": {
       "urls": "Geçerli sekmedeki sayfalar",
+      "links": "Tüm bağlantılar (iç ve dış)",
       "issues-long": "Sorunlar (sayfa ve sorun başına bir satır)",
       "broken-links": "Kırık bağlantılar",
       "images": "Görseller",
@@ -2594,7 +2595,8 @@
     },
     "truncated": "{{total}} satırdan {{rows}} tanesi aktarıldı (Google Sheets en fazla 10 milyon hücre alır).",
     "empty": "Dışa aktarılacak bir şey yok: bu tabloda satır yok.",
-    "rejected": "BigQuery'nin reddettiği satırlar: {{rejectedCount}}. İlk hata: {{error}}"
+    "rejected": "BigQuery'nin reddettiği satırlar: {{rejectedCount}}. İlk hata: {{error}}",
+    "tableRows": "{{table}}: {{rows}} satır"
   },
   "gscBq": {
     "title": "BigQuery’den çek",

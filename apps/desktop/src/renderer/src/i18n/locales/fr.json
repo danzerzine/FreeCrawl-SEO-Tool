@@ -2628,9 +2628,10 @@
   "googleExport": {
     "titleSheets": "Exporter vers Google Sheets",
     "titleBigquery": "Exporter vers BigQuery",
-    "tableLabel": "Table à exporter",
+    "tablesLabel": "Tables à exporter (chacune dans son onglet ou sa table)",
     "dataset": {
       "urls": "Pages de l'onglet actuel",
+      "links": "Tous les liens (internes et externes)",
       "issues-long": "Problèmes (une ligne par page et par problème)",
       "broken-links": "Liens cassés",
       "images": "Images",
@@ -2640,7 +2641,8 @@
     },
     "truncated": "{{rows}} lignes exportées sur {{total}} (Google Sheets accepte au maximum 10 millions de cellules).",
     "empty": "Rien à exporter : ce tableau n'a aucune ligne.",
-    "rejected": "Lignes rejetées par BigQuery : {{rejectedCount}}. Première erreur : {{error}}"
+    "rejected": "Lignes rejetées par BigQuery : {{rejectedCount}}. Première erreur : {{error}}",
+    "tableRows": "{{table}} : {{rows}} ligne(s)"
   },
   "gscBq": {
     "title": "Récupérer depuis BigQuery",

@@ -2628,9 +2628,10 @@
   "googleExport": {
     "titleSheets": "Esporta su Google Sheets",
     "titleBigquery": "Esporta su BigQuery",
-    "tableLabel": "Tabella da esportare",
+    "tablesLabel": "Tabelle da esportare (ognuna nella sua scheda o tabella)",
     "dataset": {
       "urls": "Pagine della scheda corrente",
+      "links": "Tutti i link (interni ed esterni)",
       "issues-long": "Problemi (una riga per pagina e problema)",
       "broken-links": "Link interrotti",
       "images": "Immagini",
@@ -2640,7 +2641,8 @@
     },
     "truncated": "Esportate {{rows}} righe su {{total}} (Google Sheets contiene al massimo 10 milioni di celle).",
     "empty": "Niente da esportare: questa tabella non ha righe.",
-    "rejected": "Righe rifiutate da BigQuery: {{rejectedCount}}. Primo errore: {{error}}"
+    "rejected": "Righe rifiutate da BigQuery: {{rejectedCount}}. Primo errore: {{error}}",
+    "tableRows": "{{table}}: {{rows}} riga/e"
   },
   "gscBq": {
     "title": "Scarica da BigQuery",

@@ -2807,9 +2807,10 @@
   "googleExport": {
     "titleSheets": "Export to Google Sheets",
     "titleBigquery": "Export to BigQuery",
-    "tableLabel": "Table to export",
+    "tablesLabel": "Tables to export (one tab or table each)",
     "dataset": {
       "urls": "Pages of the current tab",
+      "links": "All links (internal and external)",
       "issues-long": "Issues (one row per page and issue)",
       "broken-links": "Broken links",
       "images": "Images",
@@ -2819,7 +2820,8 @@
     },
     "truncated": "Exported {{rows}} of {{total}} rows (Google Sheets holds at most 10 million cells).",
     "empty": "Nothing to export: this table has no rows.",
-    "rejected": "Rows rejected by BigQuery: {{rejectedCount}}. First error: {{error}}"
+    "rejected": "Rows rejected by BigQuery: {{rejectedCount}}. First error: {{error}}",
+    "tableRows": "{{table}}: {{rows}} row(s)"
   },
   "gscBq": {
     "title": "Pull from BigQuery",

@@ -2536,9 +2536,10 @@
   "googleExport": {
     "titleSheets": "导出到 Google Sheets",
     "titleBigquery": "导出到 BigQuery",
-    "tableLabel": "要导出的表",
+    "tablesLabel": "要导出的表（每个一个工作表或数据表）",
     "dataset": {
       "urls": "当前标签页的页面",
+      "links": "所有链接（内部和外部）",
       "issues-long": "问题（每个页面和问题一行）",
       "broken-links": "失效链接",
       "images": "图片",
@@ -2548,7 +2549,8 @@
     },
     "truncated": "已导出 {{total}} 行中的 {{rows}} 行（Google Sheets 最多容纳 1000 万个单元格）。",
     "empty": "没有可导出的内容：此表没有行。",
-    "rejected": "BigQuery 拒绝的行数：{{rejectedCount}}。第一个错误：{{error}}"
+    "rejected": "BigQuery 拒绝的行数：{{rejectedCount}}。第一个错误：{{error}}",
+    "tableRows": "{{table}}：{{rows}} 行"
   },
   "gscBq": {
     "title": "从 BigQuery 拉取",

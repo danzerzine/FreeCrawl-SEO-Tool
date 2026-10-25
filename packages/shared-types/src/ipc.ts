@@ -2371,11 +2371,29 @@ export interface ExportSheetsInput {
    *  category label + current date. */
   title?: string;
   /** Table to export; `urls` (the default) is the `category` rows. */
-  dataset?: 'urls' | ExportDatasetKey;
+  dataset?: GoogleExportDataset;
+  /** B156: several tables in one run, one tab each; wins over `dataset`. */
+  datasets?: GoogleExportDataset[];
 }
 
-/** What a Google Sheets / BigQuery export writes: the current tab's pages, or one dataset. */
-export type GoogleExportDataset = 'urls' | ExportDatasetKey;
+/**
+ * What a Google Sheets / BigQuery export writes: the current tab's pages,
+ * every stored link edge (`links`, B156), or one dataset.
+ */
+export type GoogleExportDataset = 'urls' | 'links' | ExportDatasetKey;
+
+/** B156: what one table (Sheets tab or BigQuery table) of a run received. */
+export interface GoogleExportTableResult {
+  dataset: GoogleExportDataset;
+  rowsWritten: number;
+  /** Rows the table has; more than `rowsWritten` when the Sheets cell limit cut it. */
+  totalRows: number;
+  truncated: boolean;
+  /** BigQuery only: `project.dataset.table`; '' when the table had no rows. */
+  tableRef?: string;
+  /** BigQuery only: rows it refused. */
+  rowsRejected?: number;
+}
 
 export interface ExportSheetsResult {
   ok: boolean;
@@ -2387,7 +2405,9 @@ export interface ExportSheetsResult {
   totalRows: number;
   /** The export stopped at the 10 million cell limit of a spreadsheet. */
   truncated: boolean;
-  dataset: 'urls' | ExportDatasetKey;
+  dataset: GoogleExportDataset;
+  /** B156: one entry per requested table, in request order. */
+  tables?: GoogleExportTableResult[];
   /** The table has no rows: nothing was created, which is not a failure of the account. */
   empty?: boolean;
 }
@@ -2395,7 +2415,9 @@ export interface ExportSheetsResult {
 export interface ExportBigqueryInput {
   category: UrlCategory;
   /** Table to export; `urls` (the default) is the `category` rows. */
-  dataset?: 'urls' | ExportDatasetKey;
+  dataset?: GoogleExportDataset;
+  /** B156: several tables in one run; wins over `dataset`. */
+  datasets?: GoogleExportDataset[];
 }
 
 export interface ExportBigqueryResult {
@@ -2409,7 +2431,9 @@ export interface ExportBigqueryResult {
   /** Rows BigQuery refused (bad value); the others were stored. */
   rowsRejected: number;
   firstRejectionError: string | null;
-  dataset: 'urls' | ExportDatasetKey;
+  dataset: GoogleExportDataset;
+  /** B156: one entry per requested table, in request order. */
+  tables?: GoogleExportTableResult[];
   /** The table has no rows: nothing was created. */
   empty?: boolean;
 }

@@ -2582,9 +2582,10 @@
   "googleExport": {
     "titleSheets": "Google Sheets में निर्यात करें",
     "titleBigquery": "BigQuery में निर्यात करें",
-    "tableLabel": "निर्यात की जाने वाली तालिका",
+    "tablesLabel": "निर्यात करने के लिए तालिकाएँ (हर एक अलग टैब या तालिका में)",
     "dataset": {
       "urls": "वर्तमान टैब के पृष्ठ",
+      "links": "सभी लिंक (आंतरिक और बाहरी)",
       "issues-long": "समस्याएँ (हर पृष्ठ और समस्या की एक पंक्ति)",
       "broken-links": "टूटे हुए लिंक",
       "images": "चित्र",
@@ -2594,7 +2595,8 @@
     },
     "truncated": "{{total}} में से {{rows}} पंक्तियाँ निर्यात की गईं (Google Sheets में अधिकतम 1 करोड़ सेल आते हैं)।",
     "empty": "निर्यात करने के लिए कुछ नहीं है: इस तालिका में कोई पंक्ति नहीं है।",
-    "rejected": "BigQuery द्वारा अस्वीकृत पंक्तियाँ: {{rejectedCount}}। पहली त्रुटि: {{error}}"
+    "rejected": "BigQuery द्वारा अस्वीकृत पंक्तियाँ: {{rejectedCount}}। पहली त्रुटि: {{error}}",
+    "tableRows": "{{table}}: {{rows}} पंक्ति(याँ)"
   },
   "gscBq": {
     "title": "BigQuery से लाएँ",

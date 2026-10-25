@@ -2903,9 +2903,10 @@
   "googleExport": {
     "titleSheets": "Экспорт в Google Sheets",
     "titleBigquery": "Экспорт в BigQuery",
-    "tableLabel": "Таблица для экспорта",
+    "tablesLabel": "Таблицы для экспорта (каждая на своей вкладке или в своей таблице)",
     "dataset": {
       "urls": "Страницы текущей вкладки",
+      "links": "Все ссылки (внутренние и внешние)",
       "issues-long": "Проблемы (строка на страницу и проблему)",
       "broken-links": "Битые ссылки",
       "images": "Изображения",
@@ -2915,7 +2916,8 @@
     },
     "truncated": "Выгружено {{rows}} из {{total}} строк (в Google Sheets помещается не больше 10 миллионов ячеек).",
     "empty": "Экспортировать нечего: в этой таблице нет строк.",
-    "rejected": "Строк, отклонённых BigQuery: {{rejectedCount}}. Первая ошибка: {{error}}"
+    "rejected": "Строк, отклонённых BigQuery: {{rejectedCount}}. Первая ошибка: {{error}}",
+    "tableRows": "{{table}}: строк {{rows}}"
   },
   "gscBq": {
     "title": "Загрузить из BigQuery",

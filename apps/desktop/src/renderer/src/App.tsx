@@ -33,7 +33,7 @@ import { AiTab } from './tabs/AiTab.js';
 import { SeoTab } from './tabs/SeoTab.js';
 import { AssistantTab } from './tabs/AssistantTab.js';
 import { useAppStore } from './store.js';
-import type { MenuEvent, CrawlProgress } from '@freecrawl/shared-types';
+import type { MenuEvent, CrawlProgress, GoogleExportTableResult } from '@freecrawl/shared-types';
 import { clearCrawlWithConfirm } from './utils/clearCrawl.js';
 
 export function App() {
@@ -493,10 +493,25 @@ export function App() {
     applyProjectConfig,
   ]);
 
-  function runGoogleExport(target: 'sheets' | 'bigquery', dataset: GoogleExportDataset): void {
+  function runGoogleExport(target: 'sheets' | 'bigquery', datasets: GoogleExportDataset[]): void {
     const category = useAppStore.getState().activeCategory;
+    // B156: a run of several tables lists each one's rows under the total.
+    const tableLines = (tables: GoogleExportTableResult[] | undefined): string[] =>
+      tables && tables.length > 1
+        ? [
+            tables
+              .map((tb) =>
+                t('googleExport.tableRows', {
+                  defaultValue: '{{table}}: {{rows}} row(s)',
+                  table: t(`googleExport.dataset.${tb.dataset}`, { defaultValue: tb.dataset }),
+                  rows: tb.rowsWritten.toLocaleString(),
+                }),
+              )
+              .join('\n'),
+          ]
+        : [];
     if (target === 'sheets') {
-      void window.freecrawl.exportSheets({ category, dataset }).then((res) => {
+      void window.freecrawl.exportSheets({ category, datasets }).then((res) => {
         if (res.ok && res.url) {
           const lines = [
             t('app.sheetsExportOk', {
@@ -505,6 +520,7 @@ export function App() {
               rows: res.rowsWritten.toLocaleString(),
               url: res.url,
             }),
+            ...tableLines(res.tables),
           ];
           if (res.truncated) {
             lines.push(
@@ -532,7 +548,7 @@ export function App() {
       });
       return;
     }
-    void window.freecrawl.exportBigquery({ category, dataset }).then((res) => {
+    void window.freecrawl.exportBigquery({ category, datasets }).then((res) => {
       if (res.ok && res.consoleUrl && res.tableRef) {
         const lines = [
           t('app.bigqueryExportOk', {
@@ -542,6 +558,7 @@ export function App() {
             ref: res.tableRef,
             url: res.consoleUrl,
           }),
+          ...tableLines(res.tables),
         ];
         if (res.rowsRejected > 0) {
           lines.push(
@@ -696,10 +713,10 @@ export function App() {
       <ExportSetsDialog open={exportSetsOpen} onClose={() => setExportSetsOpen(false)} />
       <GoogleExportDialog
         target={googleExportTarget}
-        onConfirm={(dataset) => {
+        onConfirm={(datasets) => {
           const target = googleExportTarget;
           setGoogleExportTarget(null);
-          if (target) runGoogleExport(target, dataset);
+          if (target) runGoogleExport(target, datasets);
         }}
         onCancel={() => setGoogleExportTarget(null)}
       />

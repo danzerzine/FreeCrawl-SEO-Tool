@@ -8,8 +8,10 @@
  * exchanges it at Google's token endpoint for an access token, then
  * uses that token to:
  *   1. Ensure the `freecrawl_seo` dataset exists in the user's project.
- *   2. Create a fresh timestamped `<dataset>_<unix>` table: the fixed
- *      `urls` schema, or one STRING column per column of another dataset.
+ *   2. Create a fresh timestamped `<dataset>_<unix>` table per chosen
+ *      dataset (B156: one run may write several, `links` among them, all
+ *      under one timestamp): the fixed `urls` schema, or one STRING column
+ *      per column of another dataset.
  *   3. Stream the rows in via `tabledata.insertAll` in 500-row chunks,
  *      with `skipInvalidRows` and a stable `insertId` on every row so a
  *      retried chunk neither fails whole nor duplicates.
@@ -22,7 +24,7 @@
  * export typically fits inside one token lifetime (1 hr).
  */
 import type { ProjectDb } from '@freecrawl/db';
-import type { CrawlUrlRow, UrlCategory } from '@freecrawl/shared-types';
+import type { CrawlUrlRow, GoogleExportTableResult, UrlCategory } from '@freecrawl/shared-types';
 import { resolveCredentials } from './credentials.js';
 import * as logger from './logger.js';
 import { googleRequest, type GoogleDeps } from './google-retry.js';
@@ -167,24 +169,47 @@ interface InsertAllResponse {
 }
 
 export interface BigQueryExportOutput {
+  /** The first table written; '' when no dataset had rows. */
   tableId: string;
   tableRef: string;
   consoleUrl: string;
+  /** All tables together. */
   rowsWritten: number;
   rowsRejected: number;
   firstRejectionError: string | null;
+  /** The first requested dataset. */
   dataset: GoogleExportDataset;
+  /** B156: one entry per requested dataset, in request order (an empty one got no table). */
+  tables: GoogleExportTableResult[];
 }
 
 export interface BigQueryExportOptions {
   /** Default `urls`: the `category` rows with the 11 typed columns. */
   dataset?: GoogleExportDataset;
+  /** B156: several datasets, one table each under one timestamp; wins over `dataset`. */
+  datasets?: GoogleExportDataset[];
   deps?: Partial<GoogleDeps>;
   /** Project id and service-account JSON; default the stored credentials. */
   creds?: () => Record<string, string>;
 }
 
 type InsertRow = { insertId: string; json: Record<string, string | number | null> };
+
+function tablePlan(
+  db: ProjectDb,
+  category: UrlCategory,
+  dataset: GoogleExportDataset,
+): { schema: { fields: BqField[] }; rows: Iterable<InsertRow> } {
+  if (dataset !== 'urls') return datasetPlan(db, dataset);
+  return {
+    schema: URL_TABLE_SCHEMA,
+    rows: (function* () {
+      for (const r of db.iterateUrlsByCategory(category)) {
+        yield { insertId: String(r.id), json: rowToJson(r) };
+      }
+    })(),
+  };
+}
 
 export async function exportCategoryToBigQuery(
   db: ProjectDb,
@@ -200,93 +225,116 @@ export async function exportCategoryToBigQuery(
     );
   }
   const deps: GoogleDeps = { ...defaultDeps(getCreds), ...opts.deps };
-  const dataset = opts.dataset ?? 'urls';
-  let schema: { fields: BqField[] };
-  let rows: Iterable<InsertRow>;
-  if (dataset === 'urls') {
-    schema = URL_TABLE_SCHEMA;
-    rows = (function* () {
-      for (const r of db.iterateUrlsByCategory(category)) {
-        yield { insertId: String(r.id), json: rowToJson(r) };
-      }
-    })();
-  } else {
-    ({ schema, rows } = datasetPlan(db, dataset));
-  }
-
-  // Nothing to export creates nothing (Sheets does the same), not an empty table.
-  const iter = rows[Symbol.iterator]();
-  const first = iter.next();
-  if (first.done) {
-    return { tableId: '', tableRef: '', consoleUrl: '', rowsWritten: 0, rowsRejected: 0, firstRejectionError: null, dataset };
-  }
-  const allRows: Iterable<InsertRow> = (function* () {
-    yield first.value;
-    for (let n = iter.next(); !n.done; n = iter.next()) yield n.value;
-  })();
-
-  await deps.getToken();
-  await ensureDataset(deps, projectId, DATASET_ID);
-
-  const tableId = `${snake(dataset)}_${Math.floor(deps.now() / 1000)}`;
-  const tableRef = `${projectId}.${DATASET_ID}.${tableId}`;
-  await createTable(deps, projectId, DATASET_ID, tableId, schema);
-  deps.log('info', `created table ${tableRef}`);
-
-  // Stream rows in chunks. `tabledata.insertAll` caps at 10 MB / request;
-  // 500 rows × ~600 bytes ≈ 300 KB so we stay well under.
-  let rowsWritten = 0;
-  let rowsRejected = 0;
+  const datasets = [...new Set(opts.datasets?.length ? opts.datasets : [opts.dataset ?? 'urls'])];
+  const stamp = Math.floor(deps.now() / 1000);
+  const tables: GoogleExportTableResult[] = [];
+  let ready = false;
   let firstRejectionError: string | null = null;
-  let chunkNo = 0;
-  const insertChunk = async (chunk: InsertRow[]): Promise<void> => {
-    chunkNo++;
-    const url =
-      `${BIGQUERY_API}/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(DATASET_ID)}` +
-      `/tables/${encodeURIComponent(tableId)}/insertAll`;
-    const where = `insertAll chunk ${chunkNo} failed`;
-    const stopped = (why: string) =>
-      new Error(
-        `BigQuery ${where}: ${why}. ${rowsWritten} row(s) were written to ${tableRef}; the table stays, drop it in the console.`,
-      );
-    const res = await googleRequest(deps, {
-      op: `BigQuery insertAll chunk ${chunkNo}`,
-      method: 'POST',
-      url,
-      body: { skipInvalidRows: true, rows: chunk },
-    }).catch((err: unknown) => {
-      throw stopped(err instanceof Error ? err.message : 'request failed');
-    });
-    if (!res.ok) throw stopped(bqError(res, `HTTP ${res.status}`).message);
-    const errs = (res.json as InsertAllResponse | null)?.insertErrors ?? [];
-    const bad = new Set(errs.map((e) => e.index));
-    if (bad.size > 0) {
-      const first = errs[0]?.errors?.[0]?.message ?? 'unknown';
-      firstRejectionError ??= first;
-      deps.log('warn', `insertAll chunk ${chunkNo}: ${bad.size} row(s) rejected; first error: ${first}`);
-    }
-    rowsRejected += bad.size;
-    rowsWritten += chunk.length - bad.size;
-  };
-  let buf: InsertRow[] = [];
-  for (const row of allRows) {
-    buf.push(row);
-    if (buf.length >= INSERT_CHUNK) {
-      await insertChunk(buf);
-      buf = [];
-    }
-  }
-  if (buf.length > 0) await insertChunk(buf);
 
+  for (const dataset of datasets) {
+    const { schema, rows } = tablePlan(db, category, dataset);
+    // Nothing to export creates nothing (Sheets does the same), not an empty table.
+    const iter = rows[Symbol.iterator]();
+    const first = iter.next();
+    if (first.done) {
+      tables.push({ dataset, tableRef: '', rowsWritten: 0, rowsRejected: 0, totalRows: 0, truncated: false });
+      continue;
+    }
+    const allRows: Iterable<InsertRow> = (function* () {
+      yield first.value;
+      for (let n = iter.next(); !n.done; n = iter.next()) yield n.value;
+    })();
+
+    if (!ready) {
+      await deps.getToken();
+      await ensureDataset(deps, projectId, DATASET_ID);
+      ready = true;
+    }
+
+    const tableId = `${snake(dataset)}_${stamp}`;
+    const tableRef = `${projectId}.${DATASET_ID}.${tableId}`;
+    const earlier = tables.filter((t) => t.tableRef).map((t) => `${t.tableRef} (${t.rowsWritten} row(s))`);
+    const alsoWritten = earlier.length > 0 ? ` Written before it: ${earlier.join(', ')}.` : '';
+    try {
+      await createTable(deps, projectId, DATASET_ID, tableId, schema);
+    } catch (err) {
+      if (!alsoWritten) throw err;
+      throw new Error(`${err instanceof Error ? err.message : String(err)}.${alsoWritten}`);
+    }
+    deps.log('info', `created table ${tableRef}`);
+
+    // Stream rows in chunks. `tabledata.insertAll` caps at 10 MB / request;
+    // 500 rows × ~600 bytes ≈ 300 KB so we stay well under.
+    let rowsWritten = 0;
+    let rowsRejected = 0;
+    let chunkNo = 0;
+    const insertChunk = async (chunk: InsertRow[]): Promise<void> => {
+      chunkNo++;
+      const url =
+        `${BIGQUERY_API}/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(DATASET_ID)}` +
+        `/tables/${encodeURIComponent(tableId)}/insertAll`;
+      const where = `insertAll chunk ${chunkNo} failed`;
+      const stopped = (why: string) =>
+        new Error(
+          `BigQuery ${where}: ${why}. ${rowsWritten} row(s) were written to ${tableRef}; the table stays, drop it in the console.${alsoWritten}`,
+        );
+      const res = await googleRequest(deps, {
+        op: `BigQuery insertAll chunk ${chunkNo}`,
+        method: 'POST',
+        url,
+        body: { skipInvalidRows: true, rows: chunk },
+      }).catch((err: unknown) => {
+        throw stopped(err instanceof Error ? err.message : 'request failed');
+      });
+      if (!res.ok) throw stopped(bqError(res, `HTTP ${res.status}`).message);
+      const errs = (res.json as InsertAllResponse | null)?.insertErrors ?? [];
+      const bad = new Set(errs.map((e) => e.index));
+      if (bad.size > 0) {
+        const first = errs[0]?.errors?.[0]?.message ?? 'unknown';
+        firstRejectionError ??= first;
+        deps.log('warn', `insertAll chunk ${chunkNo}: ${bad.size} row(s) rejected; first error: ${first}`);
+      }
+      rowsRejected += bad.size;
+      rowsWritten += chunk.length - bad.size;
+    };
+    let buf: InsertRow[] = [];
+    for (const row of allRows) {
+      buf.push(row);
+      if (buf.length >= INSERT_CHUNK) {
+        await insertChunk(buf);
+        buf = [];
+      }
+    }
+    if (buf.length > 0) await insertChunk(buf);
+    tables.push({
+      dataset,
+      tableRef,
+      rowsWritten,
+      rowsRejected,
+      totalRows: rowsWritten + rowsRejected,
+      truncated: false,
+    });
+    logger.log(
+      'info',
+      'bigquery',
+      `exported ${rowsWritten} row(s) into ${tableRef}${rowsRejected ? `, ${rowsRejected} rejected` : ''}`,
+    );
+  }
+
+  const firstTable = tables.find((t) => t.tableRef);
+  const dataset = datasets[0]!;
+  const rowsWritten = tables.reduce((sum, t) => sum + t.rowsWritten, 0);
+  const rowsRejected = tables.reduce((sum, t) => sum + (t.rowsRejected ?? 0), 0);
+  if (!firstTable?.tableRef) {
+    return { tableId: '', tableRef: '', consoleUrl: '', rowsWritten: 0, rowsRejected: 0, firstRejectionError: null, dataset, tables };
+  }
+  const tableId = firstTable.tableRef.slice(`${projectId}.${DATASET_ID}.`.length);
+  // One table opens that table; several open the dataset that holds them.
   const consoleUrl =
     `https://console.cloud.google.com/bigquery?` +
     `project=${encodeURIComponent(projectId)}&p=${encodeURIComponent(
       projectId,
-    )}&d=${DATASET_ID}&t=${tableId}&page=table`;
-  logger.log(
-    'info',
-    'bigquery',
-    `exported ${rowsWritten} row(s) into ${tableRef}${rowsRejected ? `, ${rowsRejected} rejected` : ''}`,
-  );
-  return { tableId, tableRef, consoleUrl, rowsWritten, rowsRejected, firstRejectionError, dataset };
+    )}&d=${DATASET_ID}` +
+    (tables.filter((t) => t.tableRef).length > 1 ? '&page=dataset' : `&t=${tableId}&page=table`);
+  return { tableId, tableRef: firstTable.tableRef, consoleUrl, rowsWritten, rowsRejected, firstRejectionError, dataset, tables };
 }
