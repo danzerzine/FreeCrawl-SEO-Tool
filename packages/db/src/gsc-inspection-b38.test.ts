@@ -91,7 +91,7 @@ describe('B38 migration on an old project file', () => {
       expect(a.inspection!.referringUrls).toBeNull();
       expect(a.inspection!.referringCount).toBeNull();
       expect(a.inspection!.richResults).toBeNull();
-      const detail = db.getUrlAnalytics('https://ex.test/a', 'acc1');
+      const detail = db.getUrlAnalytics('https://ex.test/a', { gscAccountId: 'acc1' });
       expect(detail!.inspection!.sitemaps).toBeNull();
     } finally {
       db.close();
@@ -138,7 +138,7 @@ describe('B38 storage round trip', () => {
         referringCount: 31,
         richResults: [{ type: 'Breadcrumbs', items: [{ name: 'B', errors: 0, warnings: 2, messages: ['m1', 'm2'] }] }],
       });
-      const detail = db.getUrlAnalytics('https://ex.test/a', 'acc1');
+      const detail = db.getUrlAnalytics('https://ex.test/a', { gscAccountId: 'acc1' });
       expect(detail!.inspection!.referringCount).toBe(31);
       expect(detail!.inspection!.richResults![0]!.type).toBe('Breadcrumbs');
 

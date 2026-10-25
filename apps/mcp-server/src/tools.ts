@@ -683,12 +683,11 @@ export function buildTools(): Tool[] {
         const id = resolveUrlId(args, db);
         const row = db.getUrlRowById(id);
         if (!row) throw new Error(`URL id ${id} not found.`);
-        return db.getUrlAnalytics(
-          row.url,
-          savedGoogleAccount(db, 'gsc'),
-          savedGoogleAccount(db, 'ga4'),
-          savedMetricaCounter(db),
-        );
+        return db.getUrlAnalytics(row.url, {
+          gscAccountId: savedGoogleAccount(db, 'gsc'),
+          ga4AccountId: savedGoogleAccount(db, 'ga4'),
+          metricaCounterId: savedMetricaCounter(db),
+        });
       },
     },
 

@@ -24,7 +24,7 @@ import {
   Ga4BadRequestError,
   getMetadata,
   runCustomReport,
-  runReport,
+  runReportWithQuota,
   type Ga4Quota,
 } from './ga4.js';
 import {
@@ -99,7 +99,8 @@ export async function pullGa4(
   const dimensions = input.customDimensions.slice(0, GA4_MAX_CUSTOM_DIMENSIONS);
   const chosen = [...metrics, ...dimensions];
 
-  const rows = await runReport(input.property, input.startDate, input.endDate, account, google);
+  const first = await runReportWithQuota(input.property, input.startDate, input.endDate, account, google);
+  const rows = first.rows;
   const fetchedAt = deps.now().toISOString();
   db.replaceGa4Results(rows, fetchedAt, account);
 
@@ -115,7 +116,8 @@ export async function pullGa4(
   db.deleteGa4CustomFieldsExcept(account, chosen);
 
   const failed = new Map<string, string>();
-  let quota: Ga4Quota = {};
+  // The five-metric report already says how much quota is left: the first optional request is guarded too.
+  let quota: Ga4Quota = first.quota;
   let stopped: string | null = null;
   let stopKind: 'quota' | 'error' | null = null;
   let fatal: Error | null = null;
@@ -317,7 +319,7 @@ export async function pullGa4(
     customNotPulled: notPulled,
     customStop: notPulled.length === 0 ? null : (stopKind ?? 'error'),
     customStopDetail: notPulled.length === 0 ? null : errorText,
-    unmatchedUrls: db.ga4UnmatchedUrlCount(account),
+    unmatchedUrls: db.ga4UnmatchedUrlCount(account, input.property),
   };
   db.setMeta(googleMetaKey('ga4FetchMeta', account), JSON.stringify(meta));
   if (fatal) throw fatal;

@@ -178,7 +178,7 @@ describe('B37 storage', () => {
 
   it('the Detail view returns the page values; deleting the url and resetting the project clear them', () => {
     put({ rows: [{ url: A, field: 'f1', value: 'x', sessions: 4 }] });
-    const d = db.getUrlAnalytics(A, '', 'acc', '', { property: 'properties/1', fields: ['f1'] });
+    const d = db.getUrlAnalytics(A, { ga4AccountId: 'acc', ga4Custom: { property: 'properties/1', fields: ['f1'] } });
     expect(d!.ga4Custom).toEqual({ f1: [{ value: 'x', sessions: 4 }] });
     db.deleteUrl(1);
     expect(db.ga4CustomFieldRowCounts('acc')).toEqual({});
@@ -216,7 +216,7 @@ describe('B37 what the tab shows comes from the stored pull metadata', () => {
     metaWith(db, 'properties/1', [{ field: 'd1', ok: true }, { field: 'd2', ok: false }]);
     const rowA = () => db.queryGa4({ limit: 10, offset: 0, accountId: 'acc' }).rows.find((r) => r.url === A)!;
     expect(Object.keys(rowA().custom ?? {})).toEqual(['d1']);
-    expect(Object.keys(db.getUrlAnalytics(A, '', 'acc', '')?.ga4Custom ?? {})).toEqual(['d1']);
+    expect(Object.keys(db.getUrlAnalytics(A, { ga4AccountId: 'acc' })?.ga4Custom ?? {})).toEqual(['d1']);
 
     metaWith(db, 'properties/2', [{ field: 'd1', ok: true }]); // rows belong to property 1
     expect(rowA().custom).toBeUndefined();

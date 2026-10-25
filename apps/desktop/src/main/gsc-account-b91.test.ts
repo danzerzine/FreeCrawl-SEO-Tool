@@ -113,7 +113,7 @@ describe('read entry points return the bq rows (r1 H2)', () => {
 
     it(`the detail panel ${label}`, () => {
       const acc = gscReadAccount(env({ source: 'bigquery' }, oauth));
-      expect(db.getUrlAnalytics(A, acc, '', '')?.gsc?.clicks).toBe(100);
+      expect(db.getUrlAnalytics(A, { gscAccountId: acc })?.gsc?.clicks).toBe(100);
     });
   }
 

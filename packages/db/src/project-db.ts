@@ -7249,11 +7249,20 @@ export class ProjectDb {
    *  present. */
   getUrlAnalytics(
     url: string,
-    gscAccountId = '',
-    ga4AccountId = '',
-    metricaCounterId = '',
-    ga4Custom?: { property: string; fields: string[] },
-    webmasterHostId = '',
+    {
+      gscAccountId = '',
+      ga4AccountId = '',
+      metricaCounterId = '',
+      ga4Custom,
+      webmasterHostId = '',
+    }: {
+      gscAccountId?: string;
+      ga4AccountId?: string;
+      metricaCounterId?: string;
+      /** Overrides the saved choice of custom fields (the pull's own, by default). */
+      ga4Custom?: { property: string; fields: string[] };
+      webmasterHostId?: string;
+    } = {},
   ): UrlAnalyticsDetail | null {
     const g = this.db
       .prepare(
@@ -8169,8 +8178,12 @@ export class ProjectDb {
     return Object.fromEntries(rows.map((r) => [r.field, r.c]));
   }
 
-  /** B37 — distinct stored GA4 page URLs (fixed or custom) with no crawled `urls` row. */
-  ga4UnmatchedUrlCount(accountId = ''): number {
+  /**
+   * B37 — distinct stored GA4 page URLs (fixed or custom) with no crawled `urls` row. With `property`,
+   * custom values left over from another property (a pull that stopped before replacing them) are not
+   * counted: the tab hides them too (B168).
+   */
+  ga4UnmatchedUrlCount(accountId = '', property?: string): number {
     if (!this.hasTable('ga4_custom_values')) {
       return (
         this.db
@@ -8187,10 +8200,10 @@ export class ProjectDb {
           `SELECT COUNT(*) AS c FROM (
              SELECT url FROM ga4_results WHERE account_id = ?
              UNION
-             SELECT url FROM ga4_custom_values WHERE account_id = ?
+             SELECT url FROM ga4_custom_values WHERE account_id = ? AND (? IS NULL OR property = ?)
            ) g WHERE NOT EXISTS (SELECT 1 FROM urls u WHERE u.url = g.url)`,
         )
-        .get(accountId, accountId) as { c: number }
+        .get(accountId, accountId, property ?? null, property ?? null) as { c: number }
     ).c;
   }
 

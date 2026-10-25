@@ -132,6 +132,18 @@ export async function runReport(
   accountId?: string,
   deps: GoogleDeps = defaultGa4Deps(accountId),
 ): Promise<Ga4PageRow[]> {
+  return (await runReportWithQuota(property, startDate, endDate, accountId, deps)).rows;
+}
+
+/** `runReport` plus the quota Google reports with the answer, so the next request can be held back (B168). */
+export async function runReportWithQuota(
+  property: string,
+  startDate: string,
+  endDate: string,
+  accountId?: string,
+  deps: GoogleDeps = defaultGa4Deps(accountId),
+): Promise<{ rows: Ga4PageRow[]; quota: Ga4Quota }> {
+  const quota: Ga4Quota = {};
   const endpoint = `${DATA_BASE}/${property}:runReport`;
   const out: Ga4PageRow[] = [];
   let offset = 0;
@@ -147,6 +159,7 @@ export async function runReport(
         metrics: METRICS.map((name) => ({ name })),
         limit: PAGE_LIMIT,
         offset,
+        returnPropertyQuota: true,
       },
       timeoutMs: 60_000,
     });
@@ -156,8 +169,10 @@ export async function runReport(
         metricValues?: { value?: unknown }[];
       }[];
       rowCount?: unknown;
+      propertyQuota?: Record<string, { remaining?: unknown } | undefined>;
     } | null;
     if (!res.ok || !json) throw new Error(apiError(json, res.status));
+    readQuota(json.propertyQuota, quota);
 
     const rows = Array.isArray(json.rows) ? json.rows : [];
     for (const r of rows) {
@@ -194,7 +209,18 @@ export async function runReport(
     'ga4',
     `GA4 report: ${out.length} page row(s) for ${property} (${startDate}…${endDate})`,
   );
-  return out;
+  return { rows: out, quota };
+}
+
+/** The remaining tokens of each quota bucket Google named in the answer. */
+function readQuota(
+  propertyQuota: Record<string, { remaining?: unknown } | undefined> | undefined,
+  into: Ga4Quota,
+): void {
+  for (const b of QUOTA_BUCKETS) {
+    const remaining = propertyQuota?.[b]?.remaining;
+    if (typeof remaining === 'number') into[b] = remaining;
+  }
 }
 
 /** The Data API refused the request as malformed: an unknown, removed or incompatible field. */
@@ -312,10 +338,7 @@ export async function runCustomReport(
       if (res.status === 400) throw new Ga4BadRequestError(apiError(json, res.status));
       throw new Error(apiError(json, res.status));
     }
-    for (const b of QUOTA_BUCKETS) {
-      const remaining = json.propertyQuota?.[b]?.remaining;
-      if (typeof remaining === 'number') quota[b] = remaining;
-    }
+    readQuota(json.propertyQuota, quota);
     const page = Array.isArray(json.rows) ? json.rows : [];
     for (const r of page) {
       const dims = (r.dimensionValues ?? []).map((d) => String(d?.value ?? ''));

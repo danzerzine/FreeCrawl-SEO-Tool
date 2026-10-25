@@ -7696,13 +7696,14 @@ function registerIpc(): void {
       if (!url) return null;
       // Scoped to the project's selected accounts so the panel agrees
       // with what the Search Console / GA4 / Metrica tabs are showing.
-      const args: [string, string, string, string, undefined, string] = [
+      const args: Parameters<ProjectDb['getUrlAnalytics']> = [
         url,
-        gscReadAccount(gscReadEnv()),
-        resolveGoogleAccount('ga4'),
-        resolveMetricaSettings().counterId,
-        undefined,
-        resolveWebmasterSettings().hostId,
+        {
+          gscAccountId: gscReadAccount(gscReadEnv()),
+          ga4AccountId: resolveGoogleAccount('ga4'),
+          metricaCounterId: resolveMetricaSettings().counterId,
+          webmasterHostId: resolveWebmasterSettings().hostId,
+        },
       ];
       return callReaderOrFallback<UrlAnalyticsDetail | null>(
         'getUrlAnalytics',

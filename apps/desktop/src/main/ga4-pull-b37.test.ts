@@ -290,6 +290,43 @@ describe('B37 quota guard', () => {
   });
 });
 
+describe('B168 P6: the five-metric report reports the quota', () => {
+  it('asks for it, and a low answer stops the optional requests before the first one', async () => {
+    const asked: boolean[] = [];
+    const low = { tokensPerDay: 3000, tokensPerHour: 30000, tokensPerProjectPerHour: 12000 };
+    const g = fakeGoogle((r, body) => {
+      if (isFive(r)) {
+        asked.push(body.returnPropertyQuota === true);
+        return { status: 200, body: withQuota(rowsOf([[[A], ['10', '8', '20', '0.5', '30']]]), low) };
+      }
+      return { status: 200, body: rowsOf([[[A], ['1']]]) };
+    });
+    await runPull(g, { customMetrics: ['customEvent:reads'], customDimensions: ['customEvent:author'] });
+    expect(asked).toEqual([true]);
+    expect(g.reports()).toHaveLength(1);
+    const meta = metaOf();
+    expect(statusOf(meta, 'customEvent:reads')).toMatchObject({ ok: false });
+    expect(meta.customMessage).toContain('customEvent:reads');
+  });
+});
+
+describe('B168 P7: values of the previous property are not counted as unmatched', () => {
+  it('a pull of property B that stops before any custom answer leaves A\'s rows hidden and out of unmatchedUrls', async () => {
+    const dim = 'customEvent:author';
+    const OLD = 'https://ex.test/only-in-a';
+    await runPull(
+      fakeGoogle(standard((r) => (r.dims.length === 2 ? { status: 200, body: rowsOf([[[A, 'x'], ['3']], [[OLD, 'y'], ['1']]]) } : { status: 0 }))),
+      { customDimensions: [dim] },
+    );
+    expect(metaOf().unmatchedUrls).toBe(1);
+    const low = { tokensPerDay: 3000, tokensPerHour: 30000, tokensPerProjectPerHour: 12000 };
+    const g = fakeGoogle((r) => (isFive(r) ? { status: 200, body: withQuota(rowsOf([[[A], ['1', '1', '1', '1', '1']]]), low) } : { status: 200, body: rowsOf([[[A], ['1']]]) }));
+    await runPull(g, { property: PROP_B, customDimensions: [dim] });
+    expect(stored()[dim]).toBe(2); // A's rows are still stored (the pull stopped before it could replace them)...
+    expect(metaOf().unmatchedUrls).toBe(0); // ...but they belong to another property: not counted
+  });
+});
+
 describe('B37 metrics 400', () => {
   const X = 'customEvent:archived';
   const metricsServer = (opts: { knownInMetadata: boolean; rejectMulti?: boolean }): Handler =>

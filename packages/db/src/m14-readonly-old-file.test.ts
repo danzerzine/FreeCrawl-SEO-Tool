@@ -45,7 +45,7 @@ describe('a project file from before M14, opened read-only', () => {
   });
 
   it('get_url_analytics keeps GA4 and GSC data', () => {
-    const d = db.getUrlAnalytics(A, 'acc', 'acc', '', undefined, 'host');
+    const d = db.getUrlAnalytics(A, { gscAccountId: 'acc', ga4AccountId: 'acc', webmasterHostId: 'host' });
     expect(d?.ga4?.sessions).toBe(5);
     expect(d?.gsc?.clicks).toBe(3);
     expect(d?.inspection?.pageFetchState).toBeNull();

@@ -272,14 +272,14 @@ describe('B39 detail panel reason', () => {
   it('shows why Yandex removed the page, for the chosen host', () => {
     const db = open();
     db.upsertWebmasterEvents(HOST, [ev(A, { reason: 'NOT_CANONICAL', badHttpStatus: null })], '2026-10-10T00:00:00.000Z');
-    const got = db.getUrlAnalytics(A, '', '', '', undefined, HOST);
+    const got = db.getUrlAnalytics(A, { webmasterHostId: HOST });
     expect(got?.webmaster).toEqual({
       reason: 'NOT_CANONICAL',
       badHttpStatus: null,
       targetUrl: null,
       eventDate: '2026-10-01T00:00:00.000Z',
     });
-    expect(db.getUrlAnalytics(A, '', '', '', undefined, 'https:other.test:443')).toBeNull();
+    expect(db.getUrlAnalytics(A, { webmasterHostId: 'https:other.test:443' })).toBeNull();
     expect(db.getUrlAnalytics(A)).toBeNull();
     db.close();
   });
@@ -287,7 +287,7 @@ describe('B39 detail panel reason', () => {
   it('says nothing about a page that came back', () => {
     const db = open();
     db.upsertWebmasterEvents(HOST, [ev(A, { event: 'APPEARED_IN_SEARCH', reason: null })], '2026-10-10T00:00:00.000Z');
-    expect(db.getUrlAnalytics(A, '', '', '', undefined, HOST)).toBeNull();
+    expect(db.getUrlAnalytics(A, { webmasterHostId: HOST })).toBeNull();
     db.close();
   });
 
@@ -296,7 +296,7 @@ describe('B39 detail panel reason', () => {
     runMigrations(raw, BEFORE_B39);
     raw.close();
     const db = new ProjectDb(file, { readOnly: true });
-    expect(db.getUrlAnalytics(A, '', '', '', undefined, HOST)).toBeNull();
+    expect(db.getUrlAnalytics(A, { webmasterHostId: HOST })).toBeNull();
     db.close();
   });
 });
