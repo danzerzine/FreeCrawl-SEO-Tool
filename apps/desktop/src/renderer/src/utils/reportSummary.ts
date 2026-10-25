@@ -7,9 +7,11 @@ type T = (key: string, opts?: Record<string, unknown>) => string;
 export function reportSummary(kind: string, rows: number, total: number, t: T): string {
   if (kind === 'top-words') {
     return t('reports.summaryMentions', {
-      defaultValue: '{{rows}} rows · {{count}} mentions',
+      defaultValue: '{{rows}} rows · {{total}} mentions',
       rows: rows.toLocaleString(),
+      // `count` only picks the plural form; `total` is the grouped number shown.
       count: total,
+      total: total.toLocaleString(),
     });
   }
   return t('reports.summary', {

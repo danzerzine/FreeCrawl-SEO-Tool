@@ -29,4 +29,12 @@ describe('Reports header (B84b)', () => {
     expect(reportSummary('top-words', 100, 3, t)).toBe('Строк: 100 · 3 упоминания');
     expect(reportSummary('top-words', 100, 5, t)).toBe('Строк: 100 · 5 упоминаний');
   });
+
+  it('groups the mentions like the rows, in English and in Russian (B204)', () => {
+    const rows = (1234).toLocaleString();
+    const mentions = (12345).toLocaleString();
+    expect(reportSummary('top-words', 1234, 12345, i18next.getFixedT('en'))).toBe(`${rows} rows · ${mentions} mentions`);
+    expect(reportSummary('top-words', 1234, 12345, i18next.getFixedT('ru'))).toBe(`Строк: ${rows} · ${mentions} упоминаний`);
+    expect(mentions).not.toBe('12345');
+  });
 });
