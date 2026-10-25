@@ -1260,7 +1260,10 @@ function AnalyticsCard({
 }) {
   return (
     <div className="rounded border border-surface-800 bg-surface-900/40 p-3">
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-surface-300">
+      <div
+        className="mb-2 truncate whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide text-surface-300"
+        title={title}
+      >
         {title}
       </div>
       {present ? (

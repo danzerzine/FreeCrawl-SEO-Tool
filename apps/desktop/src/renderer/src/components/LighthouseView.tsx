@@ -141,10 +141,10 @@ export function LighthouseView({ pageUrl }: { pageUrl: string }) {
                 <th className="px-3 py-1">
                   {t('detail.lighthouse.colAudit', { defaultValue: 'Audit' })}
                 </th>
-                <th className="w-[110px] px-2 py-1 text-right">
+                <th className="w-[110px] whitespace-nowrap px-2 py-1 text-right">
                   {t('detail.lighthouse.colSavingsMs', { defaultValue: 'Est. savings (ms)' })}
                 </th>
-                <th className="w-[110px] px-2 py-1 text-right">
+                <th className="w-[110px] whitespace-nowrap px-2 py-1 text-right">
                   {t('detail.lighthouse.colSavingsKb', { defaultValue: 'Est. savings (KB)' })}
                 </th>
                 <th className="w-[220px] px-2 py-1">

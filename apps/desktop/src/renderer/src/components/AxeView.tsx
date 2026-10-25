@@ -110,7 +110,7 @@ export function AxeView({
         <table className="w-full border-collapse text-[11px]">
           <thead className="sticky top-0 bg-surface-900 text-left text-[10px] font-medium text-surface-400">
             <tr>
-              <th className="w-[130px] px-3 py-1">
+              <th className="w-[130px] whitespace-nowrap px-3 py-1">
                 {t('detail.axe.colImpact', { defaultValue: 'Impact' })}
               </th>
               <th className="px-2 py-1">{t('detail.axe.colRule', { defaultValue: 'Rule' })}</th>
@@ -130,7 +130,7 @@ export function AxeView({
                     className="cursor-pointer border-b border-surface-900 odd:bg-surface-900/20 hover:bg-surface-800/40"
                     aria-expanded={isOpen}
                   >
-                    <td className="px-3 py-1">
+                    <td className="whitespace-nowrap px-3 py-1">
                       <span className="mr-1 text-surface-500">{isOpen ? '▾' : '▸'}</span>
                       <span
                         className={clsx(
