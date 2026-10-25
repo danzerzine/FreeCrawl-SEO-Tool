@@ -610,7 +610,6 @@ export interface ExportSetChoiceGroup {
   choices: ExportSetChoice[];
 }
 
-/** What a scheduled crawl does with its results once it finishes. */
 /** B154: the request settings the PDF files export uses, as the export dialog shows them. */
 export interface MediaExportInfo {
   /** The crawl config's user agent. */
@@ -631,6 +630,7 @@ export interface MediaExportRunInput {
   maxBytes: number;
 }
 
+/** What a scheduled crawl does with its results once it finishes. */
 export interface ScheduleAfterCrawl {
   /** Export written into a timestamped sub-folder of `outputDir`. `set` runs
    *  the project's saved export set named `exportSet` (`freecrawl export --set`). */

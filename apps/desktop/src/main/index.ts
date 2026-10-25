@@ -5804,9 +5804,9 @@ function registerIpc(): void {
     const win = BrowserWindow.fromWebContents(e.sender) ?? mainWindow;
     const what = input.what.filter((w) => w === 'pdfs' || w === 'screenshots');
     if (what.length === 0) return { outputDir: '', files: 0, errors: 0 };
-    setPdfExportMaxBytes(sess.getDb(), input.maxBytes);
     const outputDir = await pickExportFolder(L().dlgMediaExportFolderTitle, win);
     if (!outputDir) return { outputDir: '', files: 0, errors: 0 };
+    setPdfExportMaxBytes(sess.getDb(), input.maxBytes);
     const r = await runDesktopExportItems(sess.getDb(), outputDir, parseExportWhat(what.join(',')), {
       ...bulkExportMeta(sess),
       ...desktopPdfOptions(sess.lastCrawlConfig, sess.getDb()),
