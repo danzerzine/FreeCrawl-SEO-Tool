@@ -2567,6 +2567,8 @@
     "stop": "停止",
     "recordEmpty": "记录空月份并继续",
     "stoppedCancelled": "已取消；已完成的部分仍保留。",
+    "stoppedCap": "已在下一部分之前停止：它会超过字节上限。请提高上限或缩短范围。",
+    "stoppedSourceChanged": "已保存的 BigQuery 数据属于另一个资源、数据集或搜索类型：拉取前请先重置。",
     "pull": "拉取",
     "rebuild": "重建",
     "failed": "失败"

@@ -2613,6 +2613,8 @@
     "stop": "Durdur",
     "recordEmpty": "Boş ayları kaydet ve devam et",
     "stoppedCancelled": "İptal edildi; tamamlanan bölümler kayıtlı kalır.",
+    "stoppedCap": "Sonraki bölümden önce durduruldu: bayt sınırını aşacaktı. Sınırı yükseltin veya aralığı kısaltın.",
+    "stoppedSourceChanged": "Kayıtlı BigQuery verileri başka bir mülke, veri kümesine veya arama türüne ait: çekmeden önce sıfırlayın.",
     "pull": "Çek",
     "rebuild": "Yeniden oluştur",
     "failed": "Başarısız"

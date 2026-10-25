@@ -261,7 +261,17 @@ export function GscBqPullDialog({
                 ? t('gscBq.stoppedCancelled', {
                     defaultValue: 'Cancelled; the finished parts stay saved.',
                   })
-                : result.stopped.message}
+                : result.stopped.reason === 'cap'
+                  ? t('gscBq.stoppedCap', {
+                      defaultValue:
+                        'Stopped before the next part: it would pass the byte cap. Raise the cap or shorten the range.',
+                    })
+                  : result.stopped.reason === 'source-changed'
+                    ? t('gscBq.stoppedSourceChanged', {
+                        defaultValue:
+                          'The saved BigQuery data is for another property, dataset or search type: reset it before pulling.',
+                      })
+                    : result.stopped.message}
             </div>
           )}
           {result.error && <div className="break-words text-red-400">{result.error}</div>}

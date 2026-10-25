@@ -2659,6 +2659,8 @@
     "stop": "Detener",
     "recordEmpty": "Registrar meses vacíos y continuar",
     "stoppedCancelled": "Cancelado; las partes terminadas quedan guardadas.",
+    "stoppedCap": "Detenido antes de la siguiente parte: superaría el límite de bytes. Sube el límite o acorta el rango.",
+    "stoppedSourceChanged": "Los datos guardados de BigQuery son de otra propiedad, conjunto de datos o tipo de búsqueda: restablécelos antes de descargar.",
     "pull": "Descargar",
     "rebuild": "Reconstruir",
     "failed": "Error"

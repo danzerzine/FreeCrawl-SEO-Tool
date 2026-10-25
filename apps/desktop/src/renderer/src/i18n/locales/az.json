@@ -2613,6 +2613,8 @@
     "stop": "Dayandır",
     "recordEmpty": "Boş ayları qeyd et və davam et",
     "stoppedCancelled": "Ləğv edildi; tamamlanan hissələr saxlanıldı.",
+    "stoppedCap": "Növbəti hissədən əvvəl dayandırıldı: o, bayt limitini keçərdi. Limiti artırın və ya aralığı qısaldın.",
+    "stoppedSourceChanged": "Saxlanmış BigQuery məlumatları başqa resursa, verilənlər dəstinə və ya axtarış növünə aiddir: yükləmədən əvvəl onları sıfırlayın.",
     "pull": "Yüklə",
     "rebuild": "Yenidən qur",
     "failed": "Alınmadı"

@@ -2659,6 +2659,8 @@
     "stop": "Arrêter",
     "recordEmpty": "Noter les mois vides et continuer",
     "stoppedCancelled": "Annulé ; les parties terminées restent enregistrées.",
+    "stoppedCap": "Arrêté avant la partie suivante : elle dépasserait le plafond d’octets. Relevez le plafond ou raccourcissez la plage.",
+    "stoppedSourceChanged": "Les données BigQuery enregistrées concernent une autre propriété, un autre jeu de données ou un autre type de recherche : réinitialisez-les avant de récupérer.",
     "pull": "Récupérer",
     "rebuild": "Reconstruire",
     "failed": "Échec"

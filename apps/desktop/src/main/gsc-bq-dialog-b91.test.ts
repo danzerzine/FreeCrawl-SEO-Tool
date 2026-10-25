@@ -143,3 +143,24 @@ describe('the cancel line is translated, not the raw main-process English', () =
     expect(text('ru')).toMatch(/[а-я]/i);
   });
 });
+
+describe('the cap and source-changed stops are translated too (B183)', () => {
+  const root = path.resolve(__dirname, '../renderer/src');
+  const LOCALES = ['az', 'en', 'es', 'fr', 'hi', 'it', 'ko', 'pt-BR', 'ru', 'tr', 'zh-CN'];
+  const run = fs.readFileSync(path.resolve(__dirname, 'gsc-bigquery-run.ts'), 'utf8');
+  const mainText = (reason: string): string =>
+    new RegExp(`stop\\('${reason}', '([^']*)'\\)`).exec(run)![1] as string;
+  const text = (l: string, key: string): string | undefined =>
+    JSON.parse(fs.readFileSync(path.join(root, `i18n/locales/${l}.json`), 'utf8')).gscBq?.[key];
+  for (const [reason, key] of [['cap', 'stoppedCap'], ['source-changed', 'stoppedSourceChanged']] as const) {
+    it(`${reason}: the dialog picks gscBq.${key}; every locale has it, en is the main-process wording`, () => {
+      const src = fs.readFileSync(path.join(root, 'components/GscBqPullDialog.tsx'), 'utf8');
+      expect(src).toContain(`reason === '${reason}'`);
+      expect(src).toContain(`t('gscBq.${key}'`);
+      for (const l of LOCALES) expect(typeof text(l, key), l).toBe('string');
+      expect(text('en', key)).toBe(mainText(reason));
+      expect(text('ru', key)).toMatch(/[а-я]/i);
+      for (const l of LOCALES.filter((x) => x !== 'en')) expect(text(l, key), l).not.toBe(text('en', key));
+    });
+  }
+});

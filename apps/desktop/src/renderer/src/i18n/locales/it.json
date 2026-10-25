@@ -2659,6 +2659,8 @@
     "stop": "Ferma",
     "recordEmpty": "Registra i mesi vuoti e continua",
     "stoppedCancelled": "Annullato; le parti completate restano salvate.",
+    "stoppedCap": "Interrotto prima della parte successiva: supererebbe il limite di byte. Alza il limite o accorcia l’intervallo.",
+    "stoppedSourceChanged": "I dati BigQuery salvati sono di un’altra proprietà, set di dati o tipo di ricerca: reimpostali prima di scaricare.",
     "pull": "Scarica",
     "rebuild": "Ricostruisci",
     "failed": "Non riuscito"

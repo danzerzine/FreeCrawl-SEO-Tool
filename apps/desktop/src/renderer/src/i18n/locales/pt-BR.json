@@ -2659,6 +2659,8 @@
     "stop": "Parar",
     "recordEmpty": "Registrar os meses vazios e continuar",
     "stoppedCancelled": "Cancelado; as partes concluídas continuam salvas.",
+    "stoppedCap": "Parado antes da próxima parte: ela passaria do limite de bytes. Aumente o limite ou reduza o intervalo.",
+    "stoppedSourceChanged": "Os dados salvos do BigQuery são de outra propriedade, conjunto de dados ou tipo de pesquisa: redefina-os antes de importar.",
     "pull": "Importar",
     "rebuild": "Reconstruir",
     "failed": "Falhou"

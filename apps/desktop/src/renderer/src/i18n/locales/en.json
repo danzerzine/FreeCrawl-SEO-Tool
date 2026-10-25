@@ -2831,6 +2831,8 @@
     "stop": "Stop",
     "recordEmpty": "Record empty months and continue",
     "stoppedCancelled": "Cancelled; the finished parts stay saved.",
+    "stoppedCap": "Stopped before the next part: it would pass the byte cap. Raise the cap or shorten the range.",
+    "stoppedSourceChanged": "The saved BigQuery data is for another property, dataset or search type: reset it before pulling.",
     "pull": "Pull",
     "rebuild": "Rebuild",
     "failed": "Failed"
