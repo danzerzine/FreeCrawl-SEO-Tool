@@ -268,7 +268,11 @@ export type Indexability =
   // Bot protection (Cloudflare challenge, WAF block) or a rate limit
   // answered instead of the page. Not "non-indexable": search engines are
   // usually let through, the crawler wasn't — indexability is unknown.
-  | 'unknown:bot-blocked';
+  | 'unknown:bot-blocked'
+  // An external link the crawler chose not to request (a private or internal
+  // address). Nothing was asked, so there is no answer to judge: not a
+  // failure, not a broken link.
+  | 'unknown:skipped';
 
 export type ContentKind = 'html' | 'css' | 'js' | 'image' | 'pdf' | 'font' | 'other';
 

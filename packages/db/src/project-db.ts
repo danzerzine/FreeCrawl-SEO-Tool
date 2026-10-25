@@ -2257,6 +2257,12 @@ export class ProjectDb {
       redirectTarget?: string | null;
       /** Bot protection answered instead of the page — e.g. "Cloudflare challenge (HTTP 403)". */
       botBlocked?: string | null;
+      /**
+       * The probe was deliberately not sent (e.g. a private address). Stored
+       * with a NULL status like a failure, but as its own state with this
+       * reason, so it never reads as a link that did not answer.
+       */
+      skipped?: string | null;
     },
   ): void {
     // Re-classify the external stub's content_kind from the probed
@@ -2278,6 +2284,9 @@ export class ProjectDb {
       // external link".
       indexability = 'unknown:bot-blocked';
       indexabilityReason = `Blocked by bot protection — ${patch.botBlocked}`;
+    } else if (patch.skipped) {
+      indexability = 'unknown:skipped';
+      indexabilityReason = patch.skipped;
     } else if (status === null) {
       indexability = 'non-indexable:no-response';
       indexabilityReason = 'No response';
@@ -11096,9 +11105,11 @@ export function categoryWhereClause(
       // that failed to answer. Counting them here made "No Response"
       // read as N failures on a crawl whose failure count was zero, and
       // double-counted them against the sibling Blocked by Robots row.
-      // Bot-blocked URLs did answer — just not with the page.
+      // Bot-blocked URLs did answer — just not with the page. Skipped
+      // external links (private addresses) were never requested at all.
       return `status_code IS NULL
-              AND indexability NOT IN ('non-indexable:robots-blocked', 'unknown:bot-blocked')`;
+              AND indexability NOT IN (
+                'non-indexable:robots-blocked', 'unknown:bot-blocked', 'unknown:skipped')`;
     case 'status:2xx':
       return 'status_code >= 200 AND status_code < 300';
     case 'status:3xx':
