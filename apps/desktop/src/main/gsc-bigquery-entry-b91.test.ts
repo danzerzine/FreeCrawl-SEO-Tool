@@ -153,6 +153,20 @@ describe('BigQuery pull entries (B91)', () => {
     expect(fake.mainJobs()).toHaveLength(0);
   });
 
+  it('a plan on screen runs only under its own id: a made-up or empty id starts nothing and keeps the plan (B185)', async () => {
+    const { e } = env();
+    const plan = await gscBqPlanEntry(e, {});
+    const id = plan.plan!.planId;
+    for (const bad of ['made-up', '']) {
+      const res = await gscBqRunEntry(e, { planId: bad });
+      expect(res.ok).toBe(false);
+      expect(res.error).toMatch(/plan/i);
+    }
+    expect(fake.mainJobs()).toHaveLength(0);
+    expect(bqRows()).toBe(0);
+    expect((await gscBqRunEntry(e, { planId: id })).ok).toBe(true);
+  });
+
   it('a plan over the cap cannot run', async () => {
     const { e } = env({ bqMaxGiB: 0.1 });
     fake.data.bytesPerDay = 80 * MIB;

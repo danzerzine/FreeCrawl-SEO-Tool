@@ -74,6 +74,18 @@ describe('R2 one parameter pattern grows', () => {
     ).toEqual([]);
     expect(feed(settled(), 5000, (i) => `${H}/x?ref2=${i}&ref3=${i % 99}`)).toEqual([]);
   });
+  it('names ending in id other than the listed ones never count as varying: catid with Itemid (B185)', () => {
+    expect(
+      feed(settled(), 3000, (i) => `${H}/index.php?catid=${i % 10}&Itemid=${i % 20}&n=${i}`),
+    ).toEqual([]);
+  });
+  it('a pattern needs a fifth of all URLs found: 2 000 of 10 000 fire, of 10 001 do not (B185)', () => {
+    const others = (i: number) => `${H}/p/${i}/x`;
+    const mix = (plain: number) => (i: number) => (i < plain ? others(i) : facet(i - plain));
+    const at = (plain: number) => feed(settled(), plain + 2000, mix(plain));
+    expect(at(8000).map((x) => x.rule)).toEqual(['R2']);
+    expect(at(8001)).toEqual([]);
+  });
   it('routing names never count as varying', () => {
     expect(
       feed(settled(), 5000, (i) => `${H}/index.php?option=o${i % 9}&view=v${i % 9}&layout=l${i % 9}&task=t${i % 9}`),

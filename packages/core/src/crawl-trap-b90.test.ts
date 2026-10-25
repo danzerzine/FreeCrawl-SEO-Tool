@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
 import { DEFAULT_CRAWL_CONFIG, type CrawlConfig } from '@freecrawl/shared-types';
 import { Crawler } from './crawler.js';
+import { CrawlTrapWatch } from './crawl-trap-watch.js';
 
 let dir: string;
 beforeAll(() => {
@@ -755,4 +756,61 @@ describe('a Re-Spider takes the stored sitemap as baseline only if that read was
     expect(again.c.trapWatch.hasBaseline).toBe(false);
     db.close();
   }, 120_000);
+});
+
+describe('findings start over on a refresh; stylesheet-mined files are not pages (B185)', () => {
+  let server: Server;
+  let base: string;
+  const refs = Array.from({ length: 40 }, (_, i) => `url(/res/f${i})`).join(' ');
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const u = new URL(req.url ?? '/', 'http://x');
+      if (u.pathname === '/robots.txt' || u.pathname === '/sitemap.xml') return void res.writeHead(404).end();
+      if (u.pathname === '/s.css') return void res.writeHead(200, { 'content-type': 'text/css' }).end(`a { background: ${refs} }`);
+      if (u.pathname.startsWith('/res/')) return void res.writeHead(200, { 'content-type': 'image/png' }).end(PNG);
+      res
+        .writeHead(200, { 'content-type': 'text/html' })
+        .end(
+          `<html><head><title>${u.pathname} title long enough</title><link rel="stylesheet" href="/s.css"></head><body><p>${u.pathname} text</p></body></html>`,
+        );
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+  afterAll(() => void server.close());
+
+  it('a refresh of the same site drops the finding the earlier crawl stored', async () => {
+    const db = new ProjectDb(join(dir, 'refresh.seoproject'));
+    const first = quiet(new Crawler({ ...baseConfig(`${base}/`), discoverSitemaps: false }, db));
+    await first.start();
+    const w = new CrawlTrapWatch();
+    w.markSettled();
+    for (let i = 0; i < 2000; i++) {
+      if (w.observe(`http://a.test/shop?color=c${i % 7}&size=s${i % 5}&page=${i % 50}&u=${i}`)) w.check();
+    }
+    w.check();
+    db.setMeta('crawlTrapWatch', JSON.stringify(w.snapshot(new Date().toISOString())));
+    expect(db.getOverviewCounts().site?.crawlTraps).toHaveLength(1);
+    const again = quiet(new Crawler({ ...baseConfig(`${base}/`), discoverSitemaps: false }, db));
+    // The finding is gone before the first page is fetched, not only once the crawl has ended.
+    let early: string | null | undefined;
+    again.on('info', (m: string) => {
+      if (early === undefined && /^Reading robots\.txt/.test(m)) early = db.getMeta('crawlTrapWatch');
+    });
+    await again.start();
+    expect(early).toBeDefined();
+    expect(early || null).toBeNull();
+    expect(db.getOverviewCounts().site?.crawlTraps).toEqual([]);
+    db.close();
+  }, 60_000);
+
+  it('files named in a stylesheet are not counted', async () => {
+    const db = new ProjectDb(join(dir, 'mined.seoproject'));
+    const c = quiet(new Crawler({ ...baseConfig(`${base}/`), discoverSitemaps: false }, db));
+    await c.start();
+    expect(db.queryUrls({ limit: 100, offset: 0, category: 'all' }).rows.some((r) => r.url.includes('/res/f'))).toBe(true);
+    expect(c.trapWatch.discovered).toBe(1);
+    db.close();
+  }, 60_000);
 });
