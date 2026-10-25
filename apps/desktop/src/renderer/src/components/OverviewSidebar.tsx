@@ -287,6 +287,13 @@ export function OverviewSidebar() {
   const trendHint = useMemo(() => {
     if (!trend) return (_previous: number) => '';
     const date = new Date(trend.previousFinishedAt).toLocaleDateString(lang);
+    // The arrows come from the finished crawls only; the counts beside them may be of a crawl stopped by hand (B113).
+    const range = ` ${t('sidebar.trendRange', {
+      defaultValue:
+        'The change compares the finished crawls of {{from}} and {{to}}; a crawl stopped by hand is not one of them.',
+      from: date,
+      to: new Date(trend.currentFinishedAt).toLocaleDateString(lang),
+    })}`;
     const version = trend.toolVersionChanged
       ? ` ${t('sidebar.trendVersion', {
           defaultValue:
@@ -298,7 +305,7 @@ export function OverviewSidebar() {
         defaultValue: 'Previous crawl, {{date}}: {{previous}}',
         date,
         previous: previous.toLocaleString(),
-      }) + version;
+      }) + range + version;
   }, [trend, lang, t]);
   // The browser left pages of one of the two crawls unrendered: a render
   // check's drop is lost pages, not fixed ones (B162b).

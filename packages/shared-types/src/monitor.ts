@@ -65,6 +65,8 @@ export interface CheckTrend {
 export interface IssueTrend {
   /** ISO 8601, when the previous crawl finished. */
   previousFinishedAt: string;
+  /** ISO 8601, when the newest finished crawl ended: the arrows compare it with the previous one, never with a crawl stopped by hand (B113). */
+  currentFinishedAt: string;
   /** The two crawls ran on different app versions: a change may come from the check, not the site. */
   toolVersionChanged: boolean;
   /** `issues:<key>` → its previous count and newest minus previous; a check off or not computed in either crawl is absent. */

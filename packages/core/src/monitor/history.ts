@@ -55,6 +55,7 @@ export function issueTrend(db: HistoryDb): IssueTrend | null {
   }
   return {
     previousFinishedAt: previous.finishedAt,
+    currentFinishedAt: current.finishedAt,
     toolVersionChanged: current.toolVersion !== previous.toolVersion,
     checks,
   };

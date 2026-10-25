@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProjectDb } from '@freecrawl/db';
 import type { CrawlSnapshot } from '@freecrawl/shared-types';
@@ -55,6 +56,21 @@ beforeAll(() => {
 afterAll(() => {
   for (const d of [db, single, empty, upgraded]) d.close();
   rmSync(dir, { recursive: true, force: true });
+});
+
+describe('issueTrend after a crawl stopped by hand (B113)', () => {
+  it('names the two finished crawls it compares, and live rows of an unfinished crawl change nothing', () => {
+    const before = issueTrend(db);
+    expect(before?.previousFinishedAt).toBe('2026-02-01T00:00:00.000Z');
+    expect(before?.currentFinishedAt).toBe('2026-03-01T00:00:00.000Z');
+    // A crawl stopped by hand writes pages but no crawl_runs row.
+    const raw = new DatabaseSync(join(dir, 'p.seoproject'));
+    for (let i = 0; i < 5; i++) {
+      raw.exec(`INSERT INTO urls (url, status_code, is_external, content_kind) VALUES ('https://example.test/live-${i}', 404, 0, 'html')`);
+    }
+    raw.close();
+    expect(issueTrend(db)).toEqual(before);
+  });
 });
 
 describe('issueTrend (B23)', () => {
