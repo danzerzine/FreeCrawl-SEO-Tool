@@ -10,7 +10,8 @@ let file: string;
 const U = (p: string) => `https://ex.com${p}`;
 
 /*
- * / links /t, /x, /r, /c and /u (rel=ugc). /r redirects to /t; /c is
+ * / links /t, /x, /r, /c, /u (rel=ugc), /s (rel=sponsored) and /k (two
+ * different canonicals, so it passes nothing). /r redirects to /t; /c is
  * canonicalised to /t and links /y; /t, /x and /u link back to /.
  * Without the redirect and the canonical, /t and /x are mirror images.
  */
@@ -27,10 +28,13 @@ function build(passOn: boolean) {
       (4, '${U('/r')}', 0, 'html', ${passOn ? 301 : 200}, ${passOn ? `'${U('/t')}'` : 'NULL'}, NULL, 0),
       (5, '${U('/c')}', 0, 'html', 200, NULL, ${passOn ? `'${U('/t')}'` : 'NULL'}, ${passOn ? 1 : 0}),
       (6, '${U('/u')}', 0, 'html', 200, NULL, NULL, 0),
-      (7, '${U('/y')}', 0, 'html', 200, NULL, NULL, 0);
+      (7, '${U('/y')}', 0, 'html', 200, NULL, NULL, 0),
+      (8, '${U('/s')}', 0, 'html', 200, NULL, NULL, 0),
+      (9, '${U('/k')}', 0, 'html', 200, NULL, '${U('/t')}', 2);
     INSERT INTO links (from_url_id, to_url, is_internal, rel) VALUES
       (1, '${U('/t')}', 1, NULL), (1, '${U('/x')}', 1, NULL), (1, '${U('/r')}', 1, NULL),
       (1, '${U('/c')}', 1, NULL), (1, '${U('/u')}', 1, 'ugc'),
+      (1, '${U('/s')}', 1, 'sponsored'), (1, '${U('/k')}', 1, NULL),
       (5, '${U('/y')}', 1, NULL),
       (2, '${U('/')}', 1, NULL), (3, '${U('/')}', 1, NULL), (6, '${U('/')}', 1, NULL);
   `);
@@ -73,6 +77,15 @@ it('ugc and sponsored links pass no score unless nofollow links are counted (B12
   expect(s.get(U('/u'))!).toBeLessThan(s.get(U('/x'))!);
   const counted = scores(false, true);
   expect(counted.get(U('/u'))).toBe(counted.get(U('/x')));
+  // sponsored passes nothing either: /s scores like /u, below a followed page.
+  expect(s.get(U('/s'))).toBe(s.get(U('/u')));
+  expect(counted.get(U('/s'))).toBe(counted.get(U('/x')));
+});
+
+it('a page with two different canonicals passes nothing and keeps its own score (B125)', () => {
+  const s = scores(true);
+  expect(s.get(U('/k'))).not.toBeNull();
+  expect(s.get(U('/k'))!).toBeGreaterThan(0);
 });
 
 it('with no internal links the redirect and canonicalised rows are still empty (B125)', () => {

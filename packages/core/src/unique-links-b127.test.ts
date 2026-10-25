@@ -8,14 +8,14 @@ import { DEFAULT_CRAWL_CONFIG } from '@freecrawl/shared-types';
 import { Crawler } from './crawler.js';
 import { runSeoAuditExport } from './seo-audit-export.js';
 
-/* / links /b three times, /c and /d once, one external page; /d links /b. */
+/* / links /b three times, /c and /d once, one external page; /d links /b; /c links itself and /b (nofollow). */
 let server: Server;
 let dir: string;
 let base: string;
 const PAGES: Record<string, string> = {
   '/': '<a href="/b">1</a><a href="/b">2</a><a href="/b">3</a><a href="/c">c</a><a href="/d">d</a><a href="https://elsewhere.example/x">x</a>',
   '/b': '<p>b</p>',
-  '/c': '<p>c</p>',
+  '/c': '<a href="/c">self</a><a href="/b" rel="nofollow">nf</a>',
   '/d': '<a href="/b">b</a>',
 };
 
@@ -74,4 +74,6 @@ it('Unique Inlinks counts distinct source pages, Unique Outlinks distinct intern
   expect(at('/')['Unique Outlinks']).toBe('3');
   expect(at('/b')['Unique Inlinks']).toBe('2');
   expect([at('/c')['Unique Inlinks'], at('/d')['Unique Outlinks']]).toEqual(['1', '1']);
+  // A link to the page itself and a nofollow link are not counted.
+  expect(at('/c')['Unique Outlinks']).toBe('0');
 }, 60_000);
