@@ -437,7 +437,8 @@ export function validateRobotsTxt(text: string): RobotsValidationIssue[] {
     // Strip trailing CR (handled by split, but defensive) + comments.
     // Comments start at `#` and consume the rest of the line (including
     // `#` mid-line); per RFC 9309 §2.2 leading whitespace is allowed.
-    const noComment = noBom.replace(/#.*$/, '');
+    const hash = noBom.indexOf('#');
+    const noComment = hash < 0 ? noBom : noBom.slice(0, hash);
     const trimmed = noComment.trim();
     if (trimmed === '') continue;
 
